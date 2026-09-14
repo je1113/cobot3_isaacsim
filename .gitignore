@@ -12,3 +12,4 @@ __pycache__/
 *.pth
 Collected_*/
 EOF
+!./isaacpjt/M0609/Collected_m0609_camera
