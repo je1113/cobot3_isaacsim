@@ -5,7 +5,7 @@ install/
 log/
 __pycache__/
 *.pyc
-*.usd
+
 .claude/
 *.onnx
 *.pt
