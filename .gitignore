@@ -1,0 +1,14 @@
+cd ~/cobot3_ws
+cat > .gitignore << 'EOF'
+build/
+install/
+log/
+__pycache__/
+*.pyc
+*.usd
+.claude/
+*.onnx
+*.pt
+*.pth
+Collected_*/
+EOF
