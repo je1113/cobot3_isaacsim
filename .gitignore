@@ -10,7 +10,7 @@ __pycache__/
 *.onnx
 *.pt
 *.pth
-Collected_*/
+
 EOF
 !./isaacpjt/M0609/Collected_m0609_camera
 !./isaacpjt/M0609/Collected_m0609_camera/m0609_camera.usd
