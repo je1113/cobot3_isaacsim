@@ -1,29 +1,35 @@
 """
-픽업존 -> (순간이동) -> 테스팅 스테이션 로더  픽앤플레이스
+카터 위 팔로 매거진 픽앤플레이스 — 선반 -> (순간이동) -> 컨베이어
 
     isaac_python test_pnp.py
 
-10_suction_magazine.py 를 베이스로 하고, 가운데에 순간이동 단계를 넣었다.
-AMR 주행이 아직 없으므로 "스토커 앞에 서 있다가 로더 앞으로 이동했다" 를
-베이스 순간이동으로 대신한다.
+simple_factory_layout.usda 를 열고, 거기 이미 있는
+/World/nova_carter1/m0609 (흡착 그리퍼 + RealSense 장착) 를 그대로 쓴다.
+로봇도 그리퍼도 매거진도 새로 만들지 않는다.
+
+시나리오
+
+  1. 카터가 선반 앞으로 순간이동한다 (yaw -90, 팔이 선반 쪽을 향한다)
+  2. 선반 2단의 주황 매거진을 흡착으로 집는다
+  3. 팔을 접은 채 카터가 컨베이어 앞으로 순간이동한다 (yaw 180)
+  4. 벨트 낮은 쪽 끝에 내려놓는다
 
   APPROACH -> DESCEND -> GRIP -> HOLD -> LIFT -> CARRY
             -> TELEPORT -> APPROACH2 -> LOWER -> RELEASE -> RETREAT
 
-순간이동은 로봇 베이스와 들고 있는 매거진을 같은 변환으로 함께 옮긴다.
-관절 각도는 건드리지 않으므로 흡착 조인트의 상대 자세가 그대로 보존되고,
-직후에 양쪽 속도를 0 으로 눌러 가속 스파이크가 흡착 한계를 넘지 않게 한다.
+순간이동은 카터 + 팔 + 들고 있는 매거진 셋을 같은 강체 변환으로 함께 옮긴다.
+팔은 arm_mount_joint 로 카터 섀시에 물려 있고 매거진은 흡착 조인트로 팔에
+물려 있으므로, 셋이 같이 움직여야 조인트가 안 끊긴다. 관절 각도는 건드리지
+않고, 직후 속도를 전부 0 으로 눌러 가속 스파이크를 없앤다.
 
-──────────────────────────────────────────────────────────────
-내일 할 일은 아래 "설정" 블록의 좌표만 바꾸는 것이다.
-그 밖의 높이는 전부 실측 바운딩박스에서 자동으로 나온다.
-──────────────────────────────────────────────────────────────
+레이아웃에서 읽은 제약
+  선반 Level_2 상판 z 0.595,  전면 기둥 y 1.878~1.928  -> 카터는 y < 1.867
+  컨베이어 상판 z 0.770,  프레임 x 4.2 부터            -> 카터는 x < 4.200
+  사이드레일 y +-0.660 (상단 z 1.080)                  -> 벨트는 옆이 막혀 있어
+                                                          x 낮은 쪽 끝에서 넣는다
 
-베이스가 된 10_suction_magazine.py 의 독스트링에는 아직
-"매거진은 안 붙었다" 가 남아 있다. 다만 그 뒤 커밋에서
-힘한계 60->200 N, TCP 속도 4->2 mm/step, HOLD 단계 추가,
-그리퍼<->물체 충돌 필터링이 들어갔으므로 그 값들을 그대로 가져왔다.
-흡착이 여전히 안 걸리면 GRIP 재시도 로그부터 본다.
+내일 할 일은 아래 "설정" 블록의 카터 정차 위치만 손보는 것이다.
+집는 높이는 매거진 실측 바운딩박스에서 자동으로 나온다.
 """
 
 from isaacsim import SimulationApp
@@ -44,7 +50,6 @@ from isaacsim.robot_motion.motion_generation import (
     LulaKinematicsSolver,
     ArticulationKinematicsSolver,
 )
-from isaacsim.storage.native import get_assets_root_path
 
 
 # ══════════════════════════════════════════════════════════════
@@ -52,19 +57,10 @@ from isaacsim.storage.native import get_assets_root_path
 # ══════════════════════════════════════════════════════════════
 THIS_DIR  = Path(__file__).resolve().parent          # isaacpjt/
 M0609_DIR = THIS_DIR / "M0609"
-ASSETS_DIR = THIS_DIR / "assets"
 
-ROBOT_USD        = str(M0609_DIR / "doosan-robot2/urdf/m0609_isaac_sim/m0609_isaac_sim.usd")
+WORLD_USD        = str(THIS_DIR / "worlds/simple_factory_layout.usda")
 URDF_PATH        = str(M0609_DIR / "doosan-robot2/urdf/m0609_isaac_sim.urdf")
 DESCRIPTION_PATH = str(M0609_DIR / "descriptor/m0609_description.yaml")
-
-GRIPPER_USD = (get_assets_root_path()
-               + "/Isaac/Robots/UniversalRobots/ur10/grippers/short_gripper.usd")
-
-MAGAZINE_1_ORANGE = str(ASSETS_DIR / "magazine_1_orange.usda")  # 250 x 140 x 142, 플랜지 80x80x6
-MAGAZINE_2_BLUE   = str(ASSETS_DIR / "magazine_2_blue.usda")    # 300 x 200 x 106, 플랜지 100x60x10
-TRAY_1_ORANGE     = str(ASSETS_DIR / "tray_1_orange.usda")      # 6장, 329 x 136 x 78
-TRAY_2_BLUE       = str(ASSETS_DIR / "tray_2_blue.usda")        # 8장, 329 x 136 x 97
 
 
 # ══════════════════════════════════════════════════════════════
@@ -73,81 +69,56 @@ TRAY_2_BLUE       = str(ASSETS_DIR / "tray_2_blue.usda")        # 8장, 329 x 13
 #
 # ══════════════════════════════════════════════════════════════
 
-# ── 씬 ────────────────────────────────────────────────────────
-# 팩토리 레이아웃 위에서 돌리려면 경로를 넣는다. None 이면 빈 씬을 만든다.
-#   예: WORLD_USD = str(THIS_DIR / "worlds/simple_factory_layout.usda")
-WORLD_USD = None
+# ── 레이아웃 안에서 쓸 prim (전부 이미 존재한다. 만들지 않는다) ──
+CARTER_PRIM_PATH = "/World/nova_carter1"
+ROBOT_PRIM_PATH  = f"{CARTER_PRIM_PATH}/m0609"
+GRIPPER_PRIM     = f"{ROBOT_PRIM_PATH}/short_gripper"
+TARGET_PATH      = "/World/magazine_1_orange"     # 선반 2단 주황 매거진
 
-# 받침대를 코드로 세운다. 레이아웃에 이미 선반/로더가 있으면 False.
-BUILD_STANDS = True
+# ── 1) 선반 앞 정차 (픽업) ────────────────────────────────────
+#   yaw -90 이면 카터 +X 가 world -Y 를 보고, 팔(섀시 뒤쪽 장착)이
+#   선반 쪽(+Y)으로 나온다. 팔이 선반을 정면으로 마주본다.
+PICK_CARTER_POS = np.array([-6.500, 1.400, 0.080])
+PICK_CARTER_YAW = -90.0
+MAGAZINE_XY     = np.array([-6.500, 2.000])       # 매거진 world xy
 
-# ── 집을 물체 ─────────────────────────────────────────────────
-TARGET_USD  = MAGAZINE_1_ORANGE
-TARGET_NAME = "magazine"
+# ── 2) 컨베이어 앞 정차 (배치) ────────────────────────────────
+#   yaw 180 이면 팔이 world +X 쪽, 즉 벨트 쪽으로 나온다.
+PLACE_CARTER_POS = np.array([3.700, 0.000, 0.080])
+PLACE_CARTER_YAW = 180.0
+PLACE_XY         = np.array([4.400, 0.000])       # 벨트 위 놓을 자리
+PLACE_SURFACE_Z  = 0.770                          # 벨트 상판 높이
 
-# ─────────────────────────────────────────────────────────────
-#  simple_factory_layout.usda 에서 뽑은 실제 좌표 (2026-09-16 기준)
-#
-#  아래 기본값은 빈 씬에서 바로 돌아가는 값이다. 레이아웃 위에서 돌리려면
-#  WORLD_USD 를 켜고 BUILD_STANDS = False 로 둔 뒤, 이 표의 값을 쓴다.
-#
-#    주황 매거진   magazine_1_orange   (-6.500, +2.000, +0.600)  <- 선반 상단
-#                 magazine_1_orange_01 (-6.500, +2.000, +0.300)  <- 선반 하단
-#    선반          Shelf_01  world (-5.602, +2.367)   통로는 y < 2.0 쪽
-#    컨베이어      BeltTop   (+6.400, 0, +0.720) scale(4.70,1.10,0.10)
-#                    -> 상판 z = 0.770,  x 4.05~8.75,  사이드레일 y +-0.660 (상단 z 1.080)
-#                    -> 레일 때문에 옆이 아니라 x 낮은 쪽 끝에서 접근해야 한다
-#    도킹 패드      (+3.657, -4.757, +0.050)
-#
-#  팔 베이스는 카터에 얹혀 있다.  팔 베이스 = 카터 위치 + (-0.206, 0, +0.549)
-#  카터 z 가 0.0796 이므로 팔 베이스 z 는 0.629 다. 회전은 둘 다 없다.
-#
-#  레이아웃용 값 (도달반경 검산까지 마친 조합, 내일 눈으로 한 번 확인할 것)
-#    PICK_BASE_POS   = np.array([-6.500,  1.350,  0.629])   # 카터 (-6.294, 1.350)
-#    PICK_SURFACE_Z  = 0.600
-#    MAGAZINE_XY     = np.array([-6.500,  2.000])
-#    PLACE_BASE_POS  = np.array([ 3.800,  0.000,  0.629])   # 카터 ( 4.006, 0.000)
-#    PLACE_SURFACE_Z = 0.770
-#    PLACE_XY        = np.array([ 4.400,  0.000])
-# ─────────────────────────────────────────────────────────────
-
-# ── 픽업존 ────────────────────────────────────────────────────
-PICK_BASE_POS  = np.array([0.00, 0.00, 0.00])   # 로봇 베이스 (world xyz)
-PICK_BASE_YAW  = 0.0                            # deg, z축 회전
-PICK_SURFACE_Z = 0.20                           # 매거진이 놓인 면의 높이
-MAGAZINE_XY    = np.array([0.45, 0.20])         # 매거진 위치 (world xy)
-
-# ── 테스팅 스테이션 로더 ──────────────────────────────────────
-PLACE_BASE_POS  = np.array([3.00, 0.00, 0.00])  # 순간이동 후 로봇 베이스
-PLACE_BASE_YAW  = 0.0
-PLACE_SURFACE_Z = 0.35                          # 로더 상판 높이
-PLACE_XY        = np.array([3.45, 0.00])        # 놓을 자리 (world xy)
-
-# ── 여유 높이 (면 높이를 바꾸면 따라온다) ─────────────────────
-#   M0609 의 도달반경은 약 0.9 m 다. 이 값을 키우면 LIFT/대기 지점이
-#   반경 밖으로 나가 IK 가 통째로 실패한다. 시작할 때 REACH 표로 확인한다.
+# ── 3) 여유 높이 ──────────────────────────────────────────────
+#   M0609 도달반경은 약 0.9 m. 시작할 때 REACH 표로 전 구간 확인한다.
 PICK_APPROACH_CLEAR  = 0.20   # 매거진 윗면 위 이만큼에서 접근 대기
 PICK_LIFT_CLEAR      = 0.20   # 집고 매거진 윗면 기준 이만큼 들어올린다
-PLACE_APPROACH_CLEAR = 0.15   # 로더 위 이만큼에서 대기
+PLACE_APPROACH_CLEAR = 0.15   # 벨트 위 이만큼에서 대기
 PLACE_DROP           = 0.005  # 놓을 때 이만큼 높게 두어 튀지 않게 한다
 
-# 순간이동 중 팔 자세. 베이스 기준 상대 좌표라 두 스테이션에서 같은 모양이 된다.
-CARRY_OFFSET = np.array([0.30, 0.00, 0.50])
+#   운반 자세. 팔 베이스 기준 상대 좌표다. -X 로 둔 이유는 팔이 뻗는 쪽과
+#   같은 방향이라 joint_1 스윙이 0 이 되기 때문이다. (+X 로 두면 픽업에서
+#   180도 휘둘러야 하고, 1 kg 을 흡착으로 물고 하기에 제일 나쁜 동작이다)
+CARRY_OFFSET = np.array([-0.30, 0.00, 0.50])
+
+# ── 4) 흡착 ───────────────────────────────────────────────────
+#   coaxial 500 N 은 실제로 성공을 확인한 값이다.
+#   shear 는 확인된 값이 아니고, 기존 2:1 비율을 유지해 250 으로 올렸다.
+#   흡착은 걸리는데 옮기다 놓친다면 여기부터 본다.
+COAXIAL_FORCE_LIMIT = 500.0   # N, 흡착면 수직
+SHEAR_FORCE_LIMIT   = 250.0   # N, 흡착면 평행
+MAX_GRIP_DISTANCE   = 0.03    # m, 이 안에 들어오면 붙는다
 
 # ══════════════════════════════════════════════════════════════
 #   설정 끝 — 아래는 보통 건드리지 않는다
 # ══════════════════════════════════════════════════════════════
 
 
-TARGET_PATH = f"/World/{TARGET_NAME}"
+GRIPPER_NODE = f"{GRIPPER_PRIM}/SurfaceGripper"
+TARGET_NAME  = TARGET_PATH.rsplit("/", 1)[-1]
 
-
-# ══════════════════════════════════════════════════════════════
-#  로봇 설정
-# ══════════════════════════════════════════════════════════════
-ROBOT_PRIM_PATH = "/World/m0609"
-EE_LINK_NAME    = "link_6"
-EE_LINK_PATH    = f"{ROBOT_PRIM_PATH}/{EE_LINK_NAME}"
+EE_LINK_NAME = "link_6"
+EE_LINK_PATH = f"{ROBOT_PRIM_PATH}/{EE_LINK_NAME}"
 
 ARM_JOINTS = ["joint_1", "joint_2", "joint_3",
               "joint_4", "joint_5", "joint_6"]
@@ -158,23 +129,14 @@ DRIVE_MAX_FORCE = 1e8
 
 READY_JOINTS_DEG = [0.0, 0.0, 90.0, 0.0, 90.0, 0.0]
 
+# 팔은 카터 섀시에 arm_mount_joint 로 고정돼 있다. 이 오프셋은 USD 에서
+# 실측해 채운다 (기본값은 레이아웃에 적힌 값). 순간이동 뒤 IK 베이스를
+# 다시 잡을 때 쓴다.
+ARM_LOCAL_OFFSET = np.array([-0.20649390288330727, 0.0, 0.5492008321030571])
 
-# ══════════════════════════════════════════════════════════════
-#  흡착 그리퍼 설정  (10_suction_magazine.py 최신값 그대로)
-# ══════════════════════════════════════════════════════════════
-GRIPPER_PRIM = f"{ROBOT_PRIM_PATH}/surface_gripper"
-GRIPPER_NODE = f"{GRIPPER_PRIM}/SurfaceGripper"
-
-# short_gripper 는 로컬 +X 로 뻗는다. 툴축은 link_6 로컬 +Z 이므로 Y축 -90도.
-MOUNT_QUAT   = Gf.Quatf(0.70710678, Gf.Vec3f(0.0, -0.70710678, 0.0))
-MOUNT_OFFSET = Gf.Vec3f(0.0, 0.0, 0.0)
-
-COAXIAL_FORCE_LIMIT = 200.0   # N, 흡착면 수직
-SHEAR_FORCE_LIMIT   = 100.0   # N, 흡착면 평행
-MAX_GRIP_DISTANCE   = 0.03    # m, 이 안에 들어오면 붙는다
-
-SUCTION_FACE_Z = 0.161        # link_6 로컬 +Z 로 흡착면까지
-SUCTION_INSET  = 0.0025       # 실제 흡착점은 팁 바깥면보다 이만큼 안쪽
+# link_6 로컬 +Z 방향으로 흡착면까지의 거리
+SUCTION_FACE_Z = 0.161
+SUCTION_INSET  = 0.0025
 TCP_OFFSET = np.array([0.0, 0.0, SUCTION_FACE_Z])
 
 
@@ -184,19 +146,19 @@ TCP_OFFSET = np.array([0.0, 0.0, SUCTION_FACE_Z])
 # GRIP 재시도 사다리. 흡착면을 물체 윗면보다 이만큼 위에 둔다.
 GRIP_GAPS = [0.005, 0.002, 0.000, -0.003]
 
-GRIP_WAIT        = 90    # 흡착 명령 후 붙었는지 보기까지
-HOLD_WAIT        = 120   # 들기 전에 제자리에서 버티는 스텝
-RELEASE_WAIT     = 90
-TELEPORT_SETTLE  = 120   # 순간이동 직후 안정될 때까지
-LIFT_OK_MIN      = 0.03  # 물체가 이만큼 올라가면 흡착 성공
+GRIP_WAIT       = 90    # 흡착 명령 후 붙었는지 보기까지
+HOLD_WAIT       = 120   # 들기 전에 제자리에서 버티는 스텝
+RELEASE_WAIT    = 90
+TELEPORT_SETTLE = 120   # 순간이동 직후 안정될 때까지
+LIFT_OK_MIN     = 0.03  # 물체가 이만큼 올라가면 흡착 성공
 
-TCP_SPEED = 0.002        # 스텝당 TCP 이동 거리(m). 느릴수록 가속 스파이크가 작다
+TCP_SPEED = 0.002       # 스텝당 TCP 이동 거리(m). 느릴수록 가속 스파이크가 작다
 MIN_STEPS = 90
 MAX_STEPS = 600
 
-SETTLE_STEPS = 60        # 물체가 면에 앉을 때까지
+SETTLE_STEPS = 60       # 씬이 안정될 때까지
 
-# 툴(link_6 로컬 +Z)이 바닥을 향하게
+# 툴(link_6 로컬 +Z)이 바닥을 향하게. 11단계 내내 이 자세를 유지한다
 APPROACH_ROLL_DEG  = 180.0
 APPROACH_PITCH_DEG = 0.0
 GRIPPER_YAW_DEG    = 0.0
@@ -231,7 +193,7 @@ def quat_from_axis(axis, deg):
 
 
 def yaw_quat(deg):
-    """베이스는 바닥을 굴러다니므로 z축 회전만 쓴다"""
+    """카터는 바닥을 굴러다니므로 z축 회전만 쓴다"""
     return quat_from_axis([0.0, 0.0, 1.0], deg)
 
 
@@ -251,6 +213,11 @@ def quat_to_matrix(q):
         [2 * (x * y + z * w),     1 - 2 * (x * x + z * z), 2 * (y * z - x * w)],
         [2 * (x * z - y * w),     2 * (y * z + x * w),     1 - 2 * (x * x + y * y)],
     ])
+
+
+def arm_base_of(carter_pos, carter_yaw_deg):
+    """카터 정차 위치에서 팔 베이스 world 위치를 구한다"""
+    return np.array(carter_pos) + quat_to_matrix(yaw_quat(carter_yaw_deg)) @ ARM_LOCAL_OFFSET
 
 
 def tcp_to_flange(tcp_pos, quat):
@@ -391,128 +358,136 @@ def holding(gripped):
 
 
 # ══════════════════════════════════════════════════════════════
-#  들고 있는 물체 — 순간이동 때 같이 옮겨야 한다
+#  순간이동시 같이 옮겨야 하는 것들
 # ══════════════════════════════════════════════════════════════
-class HeldObject:
+class Movable:
     """
-    매거진 강체를 pose 단위로 다룬다.
+    카터(아티큘레이션), 팔(아티큘레이션), 매거진(강체) 을 같은 방식으로 다룬다.
 
-    시뮬이 도는 중에는 USD xform 을 고쳐도 강체가 안 움직인다. 물리 쪽 API 로
-    써야 하는데 버전마다 단일/배치 클래스가 달라, 되는 것을 찾아 여기서 흡수한다.
+    시뮬이 도는 중에는 USD xform 을 고쳐도 물리 물체가 안 움직인다.
+    물리 쪽 API 를 써야 하는데 종류마다 클래스가 달라 여기서 흡수한다.
     """
 
-    def __init__(self, path):
+    def __init__(self, path, kind, obj=None):
         self._path = path
-        self._prim = None
+        self._kind = kind          # "articulation" | "rigid"
+        self._obj = obj
         self._batch = False
 
-        try:
-            from isaacsim.core.prims import SingleRigidPrim
-            self._prim = SingleRigidPrim(prim_path=path)
-            print("   rigid api    SingleRigidPrim")
+        if obj is not None:
+            print(f"   movable      {kind:<13} {path}  (기존 핸들 사용)")
             return
-        except Exception:
-            pass
 
-        try:
-            from isaacsim.core.prims import RigidPrim
-            self._prim = RigidPrim(paths=[path])
-            self._batch = True
-            print("   rigid api    RigidPrim (배치)")
-            return
-        except Exception as exc:
-            print(f"   rigid api    사용 불가 — 순간이동 시 매거진이 안 따라온다: {exc}")
+        tries = ([("SingleArticulation", False), ("Articulation", True)]
+                 if kind == "articulation" else
+                 [("SingleRigidPrim", False), ("RigidPrim", True)])
+        import isaacsim.core.prims as prims
+        for cls_name, batch in tries:
+            cls = getattr(prims, cls_name, None)
+            if cls is None:
+                continue
+            try:
+                self._obj = cls(paths=[path]) if batch else cls(prim_path=path)
+                self._batch = batch
+                print(f"   movable      {kind:<13} {path}  ({cls_name})")
+                return
+            except Exception:
+                continue
+        print(f"   !! movable   {path} 핸들을 못 잡았다 — 순간이동 때 안 따라온다")
 
     @property
     def ok(self):
-        return self._prim is not None
+        return self._obj is not None
 
     def initialize(self):
         try:
-            self._prim.initialize()
+            self._obj.initialize()
         except Exception:
             pass
 
     def get_world_pose(self):
         if self._batch:
-            pos, quat = self._prim.get_world_poses()
+            pos, quat = self._obj.get_world_poses()
             return np.array(pos[0], dtype=float), np.array(quat[0], dtype=float)
-        pos, quat = self._prim.get_world_pose()
+        pos, quat = self._obj.get_world_pose()
         return np.array(pos, dtype=float), np.array(quat, dtype=float)
 
     def set_world_pose(self, pos, quat):
         if self._batch:
-            self._prim.set_world_poses(
-                np.array([pos], dtype=float), np.array([quat], dtype=float))
+            self._obj.set_world_poses(np.array([pos], dtype=float),
+                                      np.array([quat], dtype=float))
         else:
-            self._prim.set_world_pose(
-                position=np.array(pos, dtype=float),
-                orientation=np.array(quat, dtype=float))
+            self._obj.set_world_pose(position=np.array(pos, dtype=float),
+                                     orientation=np.array(quat, dtype=float))
 
     def zero_velocity(self):
-        """순간이동 직후 남은 속도가 흡착 한계를 넘기지 않게 눌러 준다"""
-        try:
-            if self._batch:
-                self._prim.set_velocities(np.zeros((1, 6)))
-            else:
-                self._prim.set_linear_velocity(np.zeros(3))
-                self._prim.set_angular_velocity(np.zeros(3))
-        except Exception:
-            pass
-
-
-def zero_robot_velocity(robot):
-    try:
-        robot.set_joint_velocities(np.zeros(robot.num_dof))
-    except Exception:
-        pass
+        """순간이동 직후 남은 속도가 조인트 한계를 넘기지 않게 눌러 준다"""
+        for attempt in (
+            lambda: self._obj.set_velocities(np.zeros((1, 6))),
+            lambda: (self._obj.set_linear_velocity(np.zeros(3)),
+                     self._obj.set_angular_velocity(np.zeros(3))),
+            lambda: self._obj.set_joint_velocities(
+                np.zeros(self._obj.num_dof)),
+        ):
+            try:
+                attempt()
+            except Exception:
+                continue
 
 
 # ══════════════════════════════════════════════════════════════
 #  순간이동
 # ══════════════════════════════════════════════════════════════
-def teleport_base(robot, lula, held, from_pos, from_quat, to_pos, to_quat):
+def teleport(movables, lula, from_pos, from_quat, to_pos, to_quat):
     """
-    로봇 베이스와 들고 있는 매거진을 같은 강체 변환으로 함께 옮긴다.
+    카터 + 팔 + 매거진을 같은 강체 변환으로 함께 옮긴다.
 
-    관절 각도는 손대지 않는다. 베이스와 물체가 같이 움직이므로 흡착 조인트가
-    보는 상대 자세는 변하지 않고, 그래서 조인트가 끊기지 않는다.
-    옮긴 뒤 IK 솔버에도 새 베이스를 알려 줘야 이후 월드 목표가 맞는다.
+    셋은 조인트로 물려 있다 (카터-팔은 arm_mount_joint, 팔-매거진은 흡착).
+    하나만 옮기면 조인트가 거대한 구속 위반을 보고 터지므로 전부 같이 옮긴다.
+    관절 각도는 손대지 않아 팔 모양과 흡착 상대 자세가 그대로 유지된다.
     """
-    obj_pos, obj_quat = held.get_world_pose() if held.ok else (None, None)
+    R_from = quat_to_matrix(from_quat)
+    R_to   = quat_to_matrix(to_quat)
+    dq     = quat_mul(to_quat, quat_conj(from_quat))
 
-    # 베이스
-    try:
-        robot.set_world_pose(position=to_pos, orientation=to_quat)
-    except Exception as exc:
-        print(f"   !! 베이스 순간이동 실패: {exc}")
-    zero_robot_velocity(robot)
+    # 먼저 전부 읽는다. 하나씩 읽고 쓰면 앞에서 옮긴 게 뒤 계산에 섞인다
+    poses = []
+    for mv in movables:
+        if not mv.ok:
+            poses.append(None)
+            continue
+        try:
+            poses.append(mv.get_world_pose())
+        except Exception:
+            poses.append(None)
 
-    # 매거진 — 베이스 기준 상대 자세를 그대로 유지한 채 따라 옮긴다
-    if held.ok and obj_pos is not None:
-        R_from = quat_to_matrix(from_quat)
-        R_to   = quat_to_matrix(to_quat)
-        rel    = R_from.T @ (obj_pos - from_pos)
-        dq     = quat_mul(to_quat, quat_conj(from_quat))
+    for mv, pose in zip(movables, poses):
+        if pose is None:
+            continue
+        pos, quat = pose
+        rel = R_from.T @ (pos - from_pos)
+        try:
+            mv.set_world_pose(to_pos + R_to @ rel, quat_mul(dq, quat))
+            mv.zero_velocity()
+        except Exception as exc:
+            print(f"   !! {mv._path} 이동 실패: {exc}")
 
-        held.set_world_pose(to_pos + R_to @ rel, quat_mul(dq, obj_quat))
-        held.zero_velocity()
+    # IK 솔버는 팔 베이스 기준이다. 카터가 옮겨졌으니 다시 알려 준다
+    lula.set_robot_base_pose(
+        robot_position=to_pos + R_to @ ARM_LOCAL_OFFSET,
+        robot_orientation=to_quat,
+    )
 
-    # IK 솔버 재조준
-    lula.set_robot_base_pose(robot_position=to_pos, robot_orientation=to_quat)
-
-    # 진짜 옮겨졌는지 확인한다. 고정베이스 아티큘레이션은 안 따라올 수 있다
-    try:
-        actual, _ = robot.get_world_pose()
-        err = float(np.linalg.norm(np.array(actual) - to_pos))
-        mark = "ok" if err < 0.01 else "!! 안 옮겨졌다"
-        print(f"   base         {vec(to_pos)}  실제 {vec(actual)}  오차 {err*1000:.1f} mm  {mark}")
-        if err >= 0.01:
-            print("      고정베이스라 set_world_pose 가 안 먹는 경우다.")
-            print("      PLACE_BASE_POS 를 PICK_BASE_POS 와 같게 두고")
-            print("      PLACE_XY 만 팔이 닿는 범위로 잡아 먼저 확인해 보자.")
-    except Exception:
-        pass
+    # 카터가 진짜 갔는지 확인한다
+    if movables and movables[0].ok:
+        try:
+            actual, _ = movables[0].get_world_pose()
+            err = float(np.linalg.norm(actual - to_pos))
+            mark = "ok" if err < 0.02 else "!! 안 옮겨졌다"
+            print(f"   carter       목표 {vec(to_pos)}  실제 {vec(actual)}  "
+                  f"오차 {err*1000:.1f} mm  {mark}")
+        except Exception:
+            pass
 
 
 # ══════════════════════════════════════════════════════════════
@@ -539,17 +514,17 @@ def ease(alpha):
 
 class PnPFSM:
     """
-       0 APPROACH   픽업존 매거진 위로
+       0 APPROACH   선반 위 매거진 바로 위로
        1 DESCEND    이번 시도의 흡착 높이까지 하강
        2 GRIP       흡착하고 붙었는지 확인
                       붙었으면 -> HOLD
                       아니면   -> 간격을 낮춰 DESCEND 로 되돌아간다
                       사다리를 다 쓰면 -> 포기하고 DONE
        3 HOLD       제자리에서 잠깐 버틴다. 잡자마자 놓치는지 여기서 걸린다
-       4 LIFT       들어올리기          <- 파지 성공 판정
-       5 CARRY      베이스 앞 운반 자세로 (순간이동 전에 팔을 접는다)
-       6 TELEPORT   베이스 + 매거진 함께 로더 앞으로
-       7 APPROACH2  로더 위로
+       4 LIFT       선반에서 수직으로 인출   <- 파지 성공 판정
+       5 CARRY      팔을 베이스 쪽으로 접는다 (순간이동 준비)
+       6 TELEPORT   카터+팔+매거진 함께 컨베이어 앞으로
+       7 APPROACH2  벨트 위 대기 높이로
        8 LOWER      놓을 높이까지 하강
        9 RELEASE    해제
       10 RETREAT    위로 빠지기
@@ -565,11 +540,11 @@ class PnPFSM:
     WATCH_STATES = (3, 4, 5, 6, 7, 8)     # HOLD ~ LOWER
     WATCH_EVERY = 10
 
-    def __init__(self, robot, gripper, lula, held):
+    def __init__(self, robot, gripper, lula, movables):
         self._robot = robot
         self._gripper = gripper
         self._lula = lula
-        self._held = held
+        self._movables = movables
         self.reset()
 
     # ── 초기화 ──────────────────────────────────────────
@@ -586,22 +561,23 @@ class PnPFSM:
         self.teleported = False
         self.done = False
 
-        self.pick_quat = yaw_quat(PICK_BASE_YAW)
-        self.place_quat = yaw_quat(PLACE_BASE_YAW)
+        self.pick_quat  = yaw_quat(PICK_CARTER_YAW)
+        self.place_quat = yaw_quat(PLACE_CARTER_YAW)
+        self.pick_base  = arm_base_of(PICK_CARTER_POS, PICK_CARTER_YAW)
+        self.place_base = arm_base_of(PLACE_CARTER_POS, PLACE_CARTER_YAW)
 
-        # 놓는 높이는 GRIP 이 실제로 성공한 간격을 알고 나서 확정한다.
-        # 일단 첫 간격으로 깔아 둔다.
+        # 놓는 높이는 GRIP 이 실제로 성공한 간격을 알고 나서 확정한다
         self.place_gap = GRIP_GAPS[0]
 
         cx, cy = center_xy
         px, py = PLACE_XY
         print(f"   target       {TARGET_NAME}  center ({cx:+.3f}, {cy:+.3f})  "
               f"top z {t_z:.4f}  height {height*1000:.1f} mm")
-        print(f"   pick  base   {vec(PICK_BASE_POS)}  yaw {PICK_BASE_YAW:+.1f} deg  "
-              f"surface z {PICK_SURFACE_Z:.3f}")
-        print(f"   place base   {vec(PLACE_BASE_POS)}  yaw {PLACE_BASE_YAW:+.1f} deg  "
-              f"surface z {PLACE_SURFACE_Z:.3f}")
-        print(f"   place xy     ({px:+.3f}, {py:+.3f})")
+        print(f"   pick  carter {vec(PICK_CARTER_POS)}  yaw {PICK_CARTER_YAW:+.1f}"
+              f"  -> 팔 베이스 {vec(self.pick_base)}")
+        print(f"   place carter {vec(PLACE_CARTER_POS)}  yaw {PLACE_CARTER_YAW:+.1f}"
+              f"  -> 팔 베이스 {vec(self.place_base)}")
+        print(f"   place xy     ({px:+.3f}, {py:+.3f})  벨트 상판 {PLACE_SURFACE_Z:.3f}")
         print(f"   grip gaps    {[f'{g*1000:+.0f}mm' for g in GRIP_GAPS]}  "
               f"(앞에서 실패하면 다음 값으로 더 내려간다)")
 
@@ -619,18 +595,18 @@ class PnPFSM:
         grip_z = self.obj_top + GRIP_GAPS[self.attempt]
         self.grip_z = grip_z
 
-        # 픽업쪽 — 매거진 실측 윗면 기준
+        # 선반쪽 — 매거진 실측 윗면 기준
         approach_z = self.obj_top + PICK_APPROACH_CLEAR
         lift_z     = self.obj_top + PICK_LIFT_CLEAR
 
-        # 운반 자세 — 베이스 기준이라 두 스테이션에서 같은 모양이 된다
-        carry_pick  = PICK_BASE_POS  + quat_to_matrix(self.pick_quat)  @ CARRY_OFFSET
-        carry_place = PLACE_BASE_POS + quat_to_matrix(self.place_quat) @ CARRY_OFFSET
+        # 운반 자세 — 팔 베이스 기준이라 두 스테이션에서 같은 모양이 된다
+        carry_pick  = self.pick_base  + quat_to_matrix(self.pick_quat)  @ CARRY_OFFSET
+        carry_place = self.place_base + quat_to_matrix(self.place_quat) @ CARRY_OFFSET
 
-        # 놓는쪽 — 로더 상판에 매거진 바닥이 닿게
-        place_top   = PLACE_SURFACE_Z + self.height
-        release_z   = place_top + self.place_gap + PLACE_DROP
-        hover_z     = place_top + PLACE_APPROACH_CLEAR
+        # 벨트쪽 — 상판에 매거진 바닥이 닿게
+        place_top = PLACE_SURFACE_Z + self.height
+        release_z = place_top + self.place_gap + PLACE_DROP
+        hover_z   = place_top + PLACE_APPROACH_CLEAR
         self.release_z = release_z
 
         self.waypoints = [
@@ -646,6 +622,10 @@ class PnPFSM:
             np.array([px, py, release_z]),         #  9 RELEASE
             np.array([px, py, hover_z]),           # 10 RETREAT
         ]
+
+    def base_for(self, state):
+        """그 단계에서 팔 베이스가 어디에 있는가 (도달거리 계산용)"""
+        return self.pick_base if state <= 5 else self.place_base
 
     # ── 진행 ────────────────────────────────────────────
     def current_target(self):
@@ -699,10 +679,11 @@ class PnPFSM:
         elif self.state == 6:                         # TELEPORT
             print()
             print(f"   {'─' * 56}")
-            print(f"   순간이동  {vec(PICK_BASE_POS)} -> {vec(PLACE_BASE_POS)}")
-            teleport_base(self._robot, self._lula, self._held,
-                          PICK_BASE_POS, self.pick_quat,
-                          PLACE_BASE_POS, self.place_quat)
+            print(f"   순간이동  카터 {vec(PICK_CARTER_POS)} yaw {PICK_CARTER_YAW:+.0f}"
+                  f"  ->  {vec(PLACE_CARTER_POS)} yaw {PLACE_CARTER_YAW:+.0f}")
+            teleport(self._movables, self._lula,
+                     PICK_CARTER_POS, self.pick_quat,
+                     PLACE_CARTER_POS, self.place_quat)
             self.teleported = True
             # 관절이 그대로라 TCP 는 이미 새 CARRY 위치에 있다. 안정만 기다린다
             self.start = self.goal
@@ -771,7 +752,7 @@ class PnPFSM:
                   f"{GRIP_GAPS[-1]*1000:+.0f} mm 를 다 해봤다")
             print(f"   높이 문제가 아니다. 다음을 보자")
             print(f"     - rigid body 경로가 위에 찍혔는지 (없으면 물리 물체가 아니다)")
-            print(f"     - 같은 자리에 큐브를 놓고 되는지 (되면 에셋 문제)")
+            print(f"     - COAXIAL_FORCE_LIMIT({COAXIAL_FORCE_LIMIT:.0f} N) 을 더 키워보기")
             print(f"     - MAX_GRIP_DISTANCE({MAX_GRIP_DISTANCE*1000:.0f} mm) 를 더 키워보기")
             print(f"   {'─' * 56}")
             print()
@@ -810,9 +791,8 @@ class PnPFSM:
     def _judge_teleport(self):
         """순간이동을 건너고도 아직 들고 있는지 본다"""
         ok = holding(self._gripper.gripped())
-        obj_top = top_z()
         print(f"   순간이동 후  {'유지' if ok else '놓쳤다'}   "
-              f"물체 윗면 {obj_top:.4f}   status {self._gripper.status()}")
+              f"물체 윗면 {top_z():.4f}   status {self._gripper.status()}")
         if not ok:
             print(f"      흡착 조인트가 순간이동을 못 버텼다.")
             print(f"      TELEPORT_SETTLE({TELEPORT_SETTLE}) 를 늘리거나,")
@@ -821,7 +801,7 @@ class PnPFSM:
         print()
 
     def _judge_place(self):
-        """로더 위에 제대로 놓였는지 본다"""
+        """벨트 위에 제대로 놓였는지 본다"""
         center_xy, t_z, _ = measure()
         want = PLACE_SURFACE_Z + self.height
         dz = t_z - want
@@ -833,13 +813,13 @@ class PnPFSM:
               f"목표 ({PLACE_XY[0]:+.3f}, {PLACE_XY[1]:+.3f})  오차 {dxy*1000:.1f} mm")
         print(f"   윗면 z      {t_z:.4f}  기대 {want:.4f}  ({dz*1000:+.1f} mm)")
         if abs(dz) > 0.02:
-            print(f"      로더 상판에 안 앉았다. PLACE_SURFACE_Z 를 확인하자")
+            print(f"      벨트 상판에 안 앉았다. PLACE_SURFACE_Z 를 확인하자")
         print(f"   {'─' * 56}")
         print()
 
 
 # ══════════════════════════════════════════════════════════════
-#  씬 구성
+#  씬 준비 — 전부 이미 있는 것을 찾아 쓴다
 # ══════════════════════════════════════════════════════════════
 def find_prim_path(root_path, name):
     stage = omni.usd.get_context().get_stage()
@@ -859,7 +839,6 @@ def filter_collision(path_a, path_b):
     흡착 조인트는 물체를 그리퍼 쪽으로 당기는데, 같은 자리에서 콜라이더는
     물체를 밀어낸다. 둘이 싸우면 그 반력이 흡착 힘으로 읽혀 한계를 넘고
     그리퍼가 놓아 버린다. 1 kg 짜리에서 특히 크게 나타난다.
-    잡을 대상과 그리퍼는 어차피 붙어 있어야 하므로 충돌을 볼 필요가 없다.
     """
     stage = omni.usd.get_context().get_stage()
     a = stage.GetPrimAtPath(path_a)
@@ -868,20 +847,30 @@ def filter_collision(path_a, path_b):
     return True
 
 
-def has_ground_plane():
-    """바닥이 이미 있는지 본다. 두 번 깔면 물체가 낀다"""
+def read_arm_local_offset():
+    """
+    팔이 카터 섀시에 어디에 얹혀 있는지 USD 에서 실측한다.
+    레이아웃을 고쳐 팔 위치가 바뀌어도 코드를 안 고쳐도 되게 한다.
+    """
+    global ARM_LOCAL_OFFSET
     stage = omni.usd.get_context().get_stage()
-    for prim in stage.Traverse():
-        name = prim.GetName().lower()
-        if "groundplane" in name or "ground_plane" in name:
-            return True
-        if prim.IsA(UsdGeom.Plane) and prim.HasAPI(UsdPhysics.CollisionAPI):
-            return True
-    return False
+    cache = UsdGeom.XformCache()
+    carter = stage.GetPrimAtPath(CARTER_PRIM_PATH)
+    arm = stage.GetPrimAtPath(ROBOT_PRIM_PATH)
+    if not (carter.IsValid() and arm.IsValid()):
+        return
+    try:
+        c = cache.GetLocalToWorldTransform(carter)
+        a = cache.GetLocalToWorldTransform(arm)
+        local = a * c.GetInverse()
+        ARM_LOCAL_OFFSET = np.array(local.ExtractTranslation())
+        print(f"   arm offset   카터 기준 {vec(ARM_LOCAL_OFFSET)}  (USD 실측)")
+    except Exception as exc:
+        print(f"   arm offset   실측 실패, 기본값 사용: {exc}")
 
 
 class PnPTask(BaseTask):
-    """로봇, 그리퍼, 매거진, (필요하면) 받침대를 얹는다"""
+    """레이아웃을 열고, 이미 있는 카터/팔/그리퍼/매거진을 연결만 한다"""
 
     def __init__(self, name):
         super().__init__(name=name, offset=None)
@@ -889,138 +878,71 @@ class PnPTask(BaseTask):
 
     def set_up_scene(self, scene):
         super().set_up_scene(scene)
+        self._require_prims()
+        read_arm_local_offset()
+        self._park_carter()
+        self._setup_gripper_limits()
 
-        if WORLD_USD:
-            self._open_world()
-
-        self._load_robot()
-
-        if has_ground_plane():
-            print("   ground       already present, skip")
-        else:
-            scene.add_default_ground_plane()
-            print("   ground       added")
-
-        if BUILD_STANDS:
-            self._build_stands(scene)
-
-        self._attach_surface_gripper()
-        self._load_target()
         filter_collision(GRIPPER_PRIM, TARGET_PATH)
-        print(f"   collision    {GRIPPER_PRIM} <-> {TARGET_PATH} 필터링 (접촉 간섭 제거)")
+        print(f"   collision    {GRIPPER_PRIM} <-> {TARGET_PATH} 필터링")
+
         self._setup_arm_drives()
         self._register_robot(scene)
         print("   scene        ready")
 
-    def _open_world(self):
-        """팩토리 레이아웃 위에 얹고 싶을 때"""
-        omni.usd.get_context().open_stage(WORLD_USD)
-        for _ in range(20):
-            simulation_app.update()
-        print(f"   world        {Path(WORLD_USD).name}")
-
-    def _load_robot(self):
-        """
-        m0609_isaac_sim.usd 의 defaultPrim 은 /m0609 다.
-        /World/m0609 를 만들어 거기에 참조를 걸면 링크들이 그 아래로 들어온다.
-        """
+    def _require_prims(self):
+        """네 개가 다 있어야 한다. 없으면 여기서 바로 알려 준다"""
         stage = omni.usd.get_context().get_stage()
-        if not stage.GetPrimAtPath("/World").IsValid():
-            UsdGeom.Xform.Define(stage, "/World")
-        robot = UsdGeom.Xform.Define(stage, ROBOT_PRIM_PATH)
-        robot.GetPrim().GetReferences().AddReference(ROBOT_USD)
+        for label, path in (("carter", CARTER_PRIM_PATH),
+                            ("arm", ROBOT_PRIM_PATH),
+                            ("gripper", GRIPPER_PRIM),
+                            ("target", TARGET_PATH)):
+            if not stage.GetPrimAtPath(path).IsValid():
+                raise RuntimeError(
+                    f"{label} prim 이 없다: {path}\n"
+                    f"  {Path(WORLD_USD).name} 안의 경로를 확인하자. "
+                    f"레이아웃이 절대경로로 에셋을 참조하고 있으면 "
+                    f"이 PC 에서 안 열릴 수 있다")
+            print(f"   found        {label:<8} {path}")
 
-        # 픽업존 자리에 세워 둔다. 순간이동은 시뮬 중에 물리 API 로 한다
-        xf = UsdGeom.Xformable(robot.GetPrim())
+    def _park_carter(self):
+        """시작 전에 카터를 선반 앞에 세워 둔다 (USD 단계에서 한다)"""
+        stage = omni.usd.get_context().get_stage()
+        prim = stage.GetPrimAtPath(CARTER_PRIM_PATH)
+        xf = UsdGeom.Xformable(prim)
         xf.ClearXformOpOrder()
-        xf.AddTranslateOp().Set(Gf.Vec3d(*PICK_BASE_POS))
-        xf.AddRotateZOp().Set(float(PICK_BASE_YAW))
-
-        for _ in range(15):
-            simulation_app.update()
-        print(f"   robot        {ROBOT_PRIM_PATH}  @ {vec(PICK_BASE_POS)} "
-              f"yaw {PICK_BASE_YAW:+.1f}")
-
-    def _build_stands(self, scene):
-        """
-        픽업 선반과 로더 상판을 단순한 고정 박스로 세운다.
-        레이아웃 USD 를 쓰면 BUILD_STANDS 를 False 로 두고 이 단계를 건너뛴다.
-        """
-        from isaacsim.core.api.objects import FixedCuboid
-
-        for tag, xy, top_z_ in (("pick", MAGAZINE_XY, PICK_SURFACE_Z),
-                                ("place", PLACE_XY, PLACE_SURFACE_Z)):
-            if top_z_ <= 0.001:
-                print(f"   stand        {tag} 생략 (surface z = 0)")
-                continue
-            scene.add(FixedCuboid(
-                prim_path=f"/World/stand_{tag}",
-                name=f"stand_{tag}",
-                position=np.array([xy[0], xy[1], top_z_ / 2.0]),
-                scale=np.array([0.60, 0.60, top_z_]),
-                color=np.array([0.55, 0.57, 0.60]),
-            ))
-            print(f"   stand        {tag}  top z {top_z_:.3f}  @ "
-                  f"({xy[0]:+.3f}, {xy[1]:+.3f})")
-
-    def _attach_surface_gripper(self):
-        """흡착 그리퍼를 참조로 올리고 link_6 에 FixedJoint 로 묶는다"""
-        stage = omni.usd.get_context().get_stage()
-
-        grip = UsdGeom.Xform.Define(stage, GRIPPER_PRIM)
-        grip.GetPrim().GetReferences().AddReference(GRIPPER_USD)
+        xf.AddTranslateOp().Set(Gf.Vec3d(*PICK_CARTER_POS))
+        xf.AddRotateZOp().Set(float(PICK_CARTER_YAW))
         simulation_app.update()
+        print(f"   carter park  {vec(PICK_CARTER_POS)}  yaw {PICK_CARTER_YAW:+.1f}")
 
-        # 물리가 스냅하기 전에 시각 위치를 맞춰 둔다 (첫 프레임 튐 방지)
-        cache = UsdGeom.XformCache()
-        link6_world = cache.GetLocalToWorldTransform(stage.GetPrimAtPath(EE_LINK_PATH))
-        local = Gf.Matrix4d().SetRotate(Gf.Quatd(MOUNT_QUAT))
-        local.SetTranslateOnly(Gf.Vec3d(MOUNT_OFFSET))
-
-        xf = UsdGeom.Xformable(grip.GetPrim())
-        xf.ClearXformOpOrder()
-        xf.AddTransformOp().Set(local * link6_world)
-
-        # localRot0 에 마운트 회전을 넣으면
-        # link6_frame * MOUNT_QUAT == gripper_frame 이 강제된다
-        joint = UsdPhysics.FixedJoint.Define(
-            stage, f"{EE_LINK_PATH}/surface_gripper_joint")
-        joint.CreateBody0Rel().SetTargets([Sdf.Path(EE_LINK_PATH)])
-        joint.CreateBody1Rel().SetTargets([Sdf.Path(GRIPPER_PRIM)])
-        joint.CreateLocalPos0Attr().Set(MOUNT_OFFSET)
-        joint.CreateLocalRot0Attr().Set(MOUNT_QUAT)
-        joint.CreateLocalPos1Attr().Set(Gf.Vec3f(0.0, 0.0, 0.0))
-        joint.CreateLocalRot1Attr().Set(Gf.Quatf(1.0, Gf.Vec3f(0.0, 0.0, 0.0)))
-
-        # 파지 한계는 여기서 한 번만 넣는다 (시뮬 중에는 안 건드린다)
+    def _setup_gripper_limits(self):
+        """
+        그리퍼는 레이아웃에 이미 link_6 에 FixedJoint 로 붙어 있다.
+        여기서는 흡착 한계만 넣는다. 시뮬 중에는 안 건드린다.
+        """
+        stage = omni.usd.get_context().get_stage()
         node = stage.GetPrimAtPath(GRIPPER_NODE)
-        node.GetAttribute("isaac:coaxialForceLimit").Set(COAXIAL_FORCE_LIMIT)
-        node.GetAttribute("isaac:shearForceLimit").Set(SHEAR_FORCE_LIMIT)
-        node.GetAttribute("isaac:maxGripDistance").Set(MAX_GRIP_DISTANCE)
+        if not node.IsValid():
+            found = find_prim_path(GRIPPER_PRIM, "SurfaceGripper")
+            if found:
+                node = stage.GetPrimAtPath(found)
+        if not node.IsValid():
+            print(f"   !! gripper   SurfaceGripper 노드를 못 찾았다 ({GRIPPER_NODE})")
+            return
 
-        print(f"   gripper      {GRIPPER_PRIM} -> {EE_LINK_PATH}")
+        for attr, value in (("isaac:coaxialForceLimit", COAXIAL_FORCE_LIMIT),
+                            ("isaac:shearForceLimit", SHEAR_FORCE_LIMIT),
+                            ("isaac:maxGripDistance", MAX_GRIP_DISTANCE)):
+            a = node.GetAttribute(attr)
+            if a:
+                a.Set(value)
         print(f"   grip limits  coaxial {COAXIAL_FORCE_LIMIT:.0f} N  "
               f"shear {SHEAR_FORCE_LIMIT:.0f} N  "
               f"maxGripDistance {MAX_GRIP_DISTANCE*1000:.0f} mm")
 
-    def _load_target(self):
-        """매거진 USD 를 참조로 올린다. 물리는 에셋에 이미 들어 있다"""
-        stage = omni.usd.get_context().get_stage()
-        xform = UsdGeom.Xform.Define(stage, TARGET_PATH)
-        xform.GetPrim().GetReferences().AddReference(TARGET_USD)
-
-        # 면보다 살짝 위에 띄워 두고 SETTLE_STEPS 동안 앉힌다
-        spawn = Gf.Vec3d(float(MAGAZINE_XY[0]), float(MAGAZINE_XY[1]),
-                         float(PICK_SURFACE_Z) + 0.005)
-        xf = UsdGeom.Xformable(xform.GetPrim())
-        xf.ClearXformOpOrder()
-        xf.AddTranslateOp().Set(spawn)
-        simulation_app.update()
-        print(f"   target       {TARGET_PATH}  <- {Path(TARGET_USD).name}  "
-              f"spawn {tuple(round(v, 3) for v in spawn)}")
-
     def _setup_arm_drives(self):
-        """IK 결과를 로봇이 따라가도록 팔 관절의 Drive 를 강화한다"""
+        """IK 결과를 팔이 따라가도록 관절 Drive 를 강화한다"""
         stage = omni.usd.get_context().get_stage()
         count = 0
         for prim in Usd.PrimRange(stage.GetPrimAtPath(ROBOT_PRIM_PATH)):
@@ -1063,15 +985,15 @@ def set_ready_pose(robot):
 def create_ik_solver(robot):
     """
     lula 객체도 같이 돌려준다.
-    순간이동 뒤에 set_robot_base_pose 로 베이스를 다시 알려 줘야 하기 때문이다.
+    순간이동 뒤에 set_robot_base_pose 로 팔 베이스를 다시 알려 줘야 하기 때문이다.
     """
     lula = LulaKinematicsSolver(
         robot_description_path=DESCRIPTION_PATH,
         urdf_path=URDF_PATH,
     )
     lula.set_robot_base_pose(
-        robot_position=PICK_BASE_POS,
-        robot_orientation=yaw_quat(PICK_BASE_YAW),
+        robot_position=arm_base_of(PICK_CARTER_POS, PICK_CARTER_YAW),
+        robot_orientation=yaw_quat(PICK_CARTER_YAW),
     )
     print(f"   controlled   {', '.join(lula.get_joint_names())}")
     solver = ArticulationKinematicsSolver(
@@ -1112,15 +1034,14 @@ def check_reach(fsm):
     실제로 IK 에 넣을 웨이포인트가 팔이 닿는 범위인지 본다.
     M0609 의 도달반경은 약 0.9 m 다.
 
-    흡착 지점보다 LIFT / 대기 지점이 먼저 반경을 넘는다. 좌표를 잘못 넣으면
-    IK 가 통째로 실패하는데 그때 원인이 좌표인지 솔버인지 헷갈리므로,
-    시작할 때 단계별 거리를 미리 찍어 둔다.
+    흡착 지점보다 LIFT / 대기 지점이 먼저 반경을 넘는다. 카터 정차 위치를
+    잘못 잡으면 IK 가 통째로 실패하는데 그때 원인이 좌표인지 솔버인지
+    헷갈리므로, 시작할 때 단계별 거리를 미리 찍어 둔다.
     """
     reach = 0.90
     warn = 0
     for i, wp in enumerate(fsm.waypoints):
-        # 0~5 는 픽업존 베이스, 6~10 은 순간이동 후 로더 베이스 기준이다
-        base = PICK_BASE_POS if i <= 5 else PLACE_BASE_POS
+        base = fsm.base_for(i)
         d = float(np.linalg.norm(np.array(wp) - base))
         if d >= reach:
             mark, warn = "!! 반경 밖", warn + 1
@@ -1128,11 +1049,11 @@ def check_reach(fsm):
             mark = "?  아슬아슬"
         else:
             mark = "ok"
-        print(f"   [{i:2d}] {fsm.NAMES[i]:9s} {vec(wp)}  베이스에서 {d:.3f} m  {mark}")
+        print(f"   [{i:2d}] {fsm.NAMES[i]:9s} {vec(wp)}  팔 베이스에서 {d:.3f} m  {mark}")
 
     if warn:
-        print(f"   -> {warn}개가 반경 밖이다. _CLEAR 값을 줄이거나 "
-              f"베이스를 목표 쪽으로 당기자")
+        print(f"   -> {warn}개가 반경 밖이다. 카터를 목표 쪽으로 당기거나 "
+              f"_CLEAR 값을 줄이자")
     else:
         print(f"   -> 전 구간 반경 {reach:.2f} m 안쪽")
 
@@ -1140,10 +1061,23 @@ def check_reach(fsm):
 # ══════════════════════════════════════════════════════════════
 #  메인
 # ══════════════════════════════════════════════════════════════
-def main():
-    world = World(stage_units_in_meters=1.0)
+def open_world():
+    """
+    World 를 만들기 전에 스테이지를 열어야 한다.
+    World 가 현재 스테이지를 붙잡은 뒤에 open_stage 로 갈아끼우면
+    내부 참조가 전부 무효가 된다.
+    """
+    omni.usd.get_context().open_stage(WORLD_USD)
+    for _ in range(30):
+        simulation_app.update()
+    print(f"   world        {Path(WORLD_USD).name}")
 
+
+def main():
     section("SCENE")
+    open_world()
+
+    world = World(stage_units_in_meters=1.0)
     task = PnPTask(name="pnp_task")
     world.add_task(task)
     world.reset()
@@ -1152,10 +1086,17 @@ def main():
     robot.initialize()
     set_ready_pose(robot)
 
-    held = HeldObject(TARGET_PATH)
-    held.initialize()
+    section("MOVABLES")
+    # 순간이동 때 같이 옮길 것들. 카터가 첫 번째여야 한다 (검증에 쓴다)
+    movables = [
+        Movable(CARTER_PRIM_PATH, "articulation"),
+        Movable(ROBOT_PRIM_PATH, "articulation", obj=robot),
+        Movable(TARGET_PATH, "rigid"),
+    ]
+    for mv in movables:
+        mv.initialize()
 
-    # 물체가 면에 앉을 시간을 준다. 실측은 이 뒤에 해야 맞다
+    # 씬이 안정될 시간을 준다. 실측은 이 뒤에 해야 맞다
     for _ in range(SETTLE_STEPS):
         world.step(render=True)
 
@@ -1170,7 +1111,7 @@ def main():
     )
 
     section("PLAN")
-    fsm = PnPFSM(robot, gripper, lula, held)
+    fsm = PnPFSM(robot, gripper, lula, movables)
 
     section("REACH")
     check_reach(fsm)
@@ -1191,16 +1132,25 @@ def main():
         if is_playing and not was_playing:
             world.reset()
             robot.initialize()
-            # 베이스를 픽업존으로 되돌린다. 앞 시행에서 순간이동해 뒀을 수 있다
-            try:
-                robot.set_world_pose(position=PICK_BASE_POS,
-                                     orientation=yaw_quat(PICK_BASE_YAW))
-            except Exception:
-                pass
-            lula.set_robot_base_pose(robot_position=PICK_BASE_POS,
-                                     robot_orientation=yaw_quat(PICK_BASE_YAW))
+            # 카터를 선반 앞으로 되돌린다. 앞 시행에서 옮겨 뒀을 수 있다
+            pick_quat = yaw_quat(PICK_CARTER_YAW)
+            # 카터와 팔을 함께 선반 앞으로 되돌린다.
+            # 카터만 되돌리면 arm_mount_joint 가 팔을 끌어당기며 터진다
+            arm_home = arm_base_of(PICK_CARTER_POS, PICK_CARTER_YAW)
+            for mv, home in ((movables[0], PICK_CARTER_POS),
+                             (movables[1], arm_home)):
+                mv.initialize()
+                try:
+                    mv.set_world_pose(home, pick_quat)
+                    mv.zero_velocity()
+                except Exception:
+                    pass
+            lula.set_robot_base_pose(
+                robot_position=arm_base_of(PICK_CARTER_POS, PICK_CARTER_YAW),
+                robot_orientation=pick_quat,
+            )
             set_ready_pose(robot)
-            held.initialize()
+            movables[2].initialize()
             gripper.reinit()
             gripper.open()
             for _ in range(SETTLE_STEPS):
