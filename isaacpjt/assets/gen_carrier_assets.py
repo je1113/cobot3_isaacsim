@@ -13,7 +13,7 @@ Isaac Sim 라이브러리에는 반도체 트레이/매거진이 없어서 규�
                       칩·칸막이·바닥판은 생략. 전체가 RigidBody 하나, 질량 1.0 kg, 밀도 균일.
   magazine_small.usda 리드프레임 매거진 250 x 140 x 110 mm, 슬롯 20개(피치 5 mm), 슬롯마다
                       리드프레임 1장, 상부 브리지 + 로보틱 플랜지(판 80x80x6, 기둥 20x20x18).
-                      전체가 RigidBody 하나, 질량 1.0 kg, 밀도 균일. 충돌체는 바닥·측벽·브리지·
+                      루트가 곧 RigidBody, 질량 1.0 kg, 밀도 균일. 충돌체는 바닥·측벽·브리지·
                       플랜지 6개뿐이고 레일·리드프레임은 시각 전용.
 """
 
@@ -223,9 +223,18 @@ def build_tray_stack(path: Path):
 #  매거진 (원점 = 바닥면 중심)
 # ──────────────────────────────────────────────────────────────
 def build_magazine(path: Path):
+    """
+    루트(defaultPrim)가 곧 RigidBody 다.
+
+    예전에는 /Magazine/body 처럼 강체를 자식에 뒀는데, 참조로 올렸을 때
+    트레이 스택(루트가 강체)이나 코드로 만든 큐브와 구조가 달라져
+    흡착 그리퍼 쪽에서 변수가 하나 늘어난다. 셋 다 같은 모양으로 맞춘다.
+    """
     stage = new_stage(path, "/Magazine")
-    root = "/Magazine/body"
-    make_rigid(stage, root, MASS_MAGAZINE)
+    root = "/Magazine"
+    prim = stage.GetPrimAtPath(root)
+    UsdPhysics.RigidBodyAPI.Apply(prim)
+    UsdPhysics.MassAPI.Apply(prim).CreateMassAttr(MASS_MAGAZINE)
 
     # 바닥판
     add_box(stage, f"{root}/base",
