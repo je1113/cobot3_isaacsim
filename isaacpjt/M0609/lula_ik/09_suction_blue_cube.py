@@ -1,17 +1,19 @@
 """
-흡착 확인 — 파란 큐브를 붙여서 들어올리기
+흡착 확인 — 물체 세 개를 차례로 집고 놓기
 
     isaac_python 09_suction_blue_cube.py
 
 로봇만 있는 USD(m0609_isaac_sim.usd)에서 시작해 씬을 직접 만든다.
 
   1. 순수 M0609 를 /World/m0609 로 올린다 (그리퍼도 바닥도 없는 파일)
-  2. 바닥 평면을 깐다
+  2. 바닥 평면을 깐다 (이미 있으면 건너뛴다)
   3. 흡착 그리퍼를 link_6 에 FixedJoint 로 붙인다
-  4. 파란 큐브를 [0.35, 0.10, 0.05] 에 만든다 (scale 0.025)
-  5. 로봇을 움직여 흡착하고 들어올린 뒤, 큐브가 딸려 왔는지 높이로 판정한다
+  4. 큐브 세 개를 만든다
+  5. 하나씩 차례로 집고 놓고, 매번 흡착에 성공했는지 높이로 판정한다
 
-     APPROACH -> DESCEND -> GRIP -> LIFT -> CHECK
+     물체마다:  APPROACH -> DESCEND -> GRIP -> LIFT -> MOVE
+                -> LOWER -> RELEASE -> RETREAT
+     끝나면 세 개 결과를 한 번에 요약한다
 
 큐브 크기는 코드에 박지 않고 물리가 안정된 뒤 월드 바운딩박스를 실측한다.
 Cube 의 size 속성이 1 인지 2 인지에 따라 실제 크기가 두 배 달라지기 때문이다.
@@ -74,13 +76,32 @@ READY_JOINTS_DEG = [0.0, 0.0, 90.0, 0.0, 90.0, 0.0]
 
 
 # ══════════════════════════════════════════════════════════════
-#  대상 — 파란 큐브
+#  대상 물체
 # ══════════════════════════════════════════════════════════════
-CUBE_PATH  = "/World/blue_cube"
-CUBE_POS   = Gf.Vec3d(0.35, 0.10, 0.05)
+# spawn  : 만들 때 넣을 중심 좌표
+# place  : 놓을 곳 (xy). 높이는 실측한 물체 높이로 자동 계산한다
 CUBE_SCALE = Gf.Vec3f(0.025, 0.025, 0.025)
-CUBE_MASS  = 0.02                               # kg
-CUBE_COLOR = Gf.Vec3f(0.15, 0.35, 0.85)
+CUBE_MASS  = 0.02                                # kg
+
+TARGETS = [
+    {"name": "blue_cube",
+     "spawn": Gf.Vec3d(0.35,  0.10,  0.05),
+     "place": np.array([0.50,  0.15]),
+     "color": Gf.Vec3f(0.15, 0.35, 0.85)},
+    {"name": "green_cube",
+     "spawn": Gf.Vec3d(0.30,  0.30,  0.05),
+     "place": np.array([0.50,  0.00]),
+     "color": Gf.Vec3f(0.20, 0.65, 0.30)},
+    {"name": "orange_cube",
+     "spawn": Gf.Vec3d(0.30, -0.30, -0.05),      # 바닥 아래 → 아래에서 올려 준다
+     "place": np.array([0.50, -0.15]),
+     "color": Gf.Vec3f(0.90, 0.50, 0.15)},
+]
+
+CUBE_ROOT = "/World/targets"
+
+# 스폰 높이 하한. 바닥(z=0) 아래에 만들면 물리가 큐브를 튕겨 올린다.
+SPAWN_CLEARANCE = 0.002
 
 
 # ══════════════════════════════════════════════════════════════
@@ -105,13 +126,14 @@ TCP_OFFSET = np.array([0.0, 0.0, SUCTION_FACE_Z])
 # ══════════════════════════════════════════════════════════════
 #  동작 파라미터
 # ══════════════════════════════════════════════════════════════
-GRIP_GAP        = 0.005    # 흡착면을 큐브 윗면보다 이만큼 위에 세운다
+GRIP_GAP        = 0.005    # 흡착면을 물체 윗면보다 이만큼 위에 세운다
+PLACE_DROP      = 0.005    # 놓을 때 이만큼 높게 두어 물체가 튀지 않게 한다
 APPROACH_HEIGHT = 0.25     # 접근 대기 높이 (흡착면 기준)
-LIFT_HEIGHT     = 0.23     # 들어올릴 높이
+LIFT_HEIGHT     = 0.23     # 들고 이동할 높이
 
-GRIP_WAIT   = 120          # 흡착 명령 후 기다리는 스텝
-CHECK_WAIT  = 180          # 들고 버티는 스텝
-LIFT_OK_MIN = 0.03         # 큐브가 이만큼 올라가면 흡착 성공
+GRIP_WAIT    = 120         # 흡착 명령 후 기다리는 스텝
+RELEASE_WAIT = 90          # 해제 명령 후 기다리는 스텝
+LIFT_OK_MIN  = 0.03        # 물체가 이만큼 올라가면 흡착 성공
 
 TCP_SPEED = 0.004          # 스텝당 TCP 이동 거리(m)
 MIN_STEPS = 60
@@ -178,30 +200,34 @@ def get_tcp_pose(robot):
 
 
 # ══════════════════════════════════════════════════════════════
-#  큐브 측정
+#  물체 측정
 # ══════════════════════════════════════════════════════════════
-def measure_cube():
-    """
-    큐브의 현재 월드 바운딩박스를 잰다.
+def cube_path(name):
+    return f"{CUBE_ROOT}/{name}"
 
-    캐시를 매번 새로 만드는 이유는 물리가 큐브를 움직인 뒤의 값이 필요해서다.
-    반환값은 (중심 xy, 윗면 z, 한 변 길이).
+
+def measure(name):
+    """
+    물체의 현재 월드 바운딩박스를 잰다.
+
+    캐시를 매번 새로 만드는 이유는 물리가 물체를 움직인 뒤의 값이 필요해서다.
+    반환값은 (중심 xy, 윗면 z, 높이).
     """
     stage = omni.usd.get_context().get_stage()
-    prim = stage.GetPrimAtPath(CUBE_PATH)
+    prim = stage.GetPrimAtPath(cube_path(name))
     cache = UsdGeom.BBoxCache(Usd.TimeCode.Default(),
                               [UsdGeom.Tokens.default_, UsdGeom.Tokens.render])
     rng = cache.ComputeWorldBound(prim).ComputeAlignedRange()
     if rng.IsEmpty():
-        raise RuntimeError(f"{CUBE_PATH} 의 바운딩박스가 비어 있다")
+        raise RuntimeError(f"{cube_path(name)} 의 바운딩박스가 비어 있다")
     lo, hi = rng.GetMin(), rng.GetMax()
     center_xy = np.array([(lo[0] + hi[0]) / 2.0, (lo[1] + hi[1]) / 2.0])
     return center_xy, float(hi[2]), float(hi[2] - lo[2])
 
 
-def cube_top_z():
-    """큐브 윗면 높이만 빠르게"""
-    return measure_cube()[1]
+def top_z(name):
+    """물체 윗면 높이만 빠르게"""
+    return measure(name)[1]
 
 
 # ══════════════════════════════════════════════════════════════
@@ -265,65 +291,98 @@ def steps_for(start, goal):
     return int(np.clip(dist / TCP_SPEED, MIN_STEPS, MAX_STEPS)), dist
 
 
-class SuctionCheckFSM:
+class SequenceFSM:
     """
-      0 APPROACH   큐브 위로 접근
+    물체 하나당 여덟 단계를 돌고, 끝나면 다음 물체로 넘어간다.
+
+      0 APPROACH   물체 위로 접근
       1 DESCEND    흡착 거리까지 하강
       2 GRIP       흡착 (제자리)
-      3 LIFT       들어올리기
-      4 CHECK      들고 버티며 높이 확인
-      5 DONE
+      3 LIFT       들어올리기          ← 여기서 흡착 성공 판정
+      4 MOVE       놓을 곳 위로 이동
+      5 LOWER      놓을 높이까지 하강
+      6 RELEASE    해제 (제자리)
+      7 RETREAT    위로 빠지기
 
-    큐브 위치는 Play 를 누른 시점에 실측해서 웨이포인트를 만든다.
+    웨이포인트는 물체를 잡기 직전에 실측해서 만든다.
     """
 
-    NAMES = ["APPROACH", "DESCEND", "GRIP", "LIFT", "CHECK", "DONE"]
-    DONE_STATE = 5
+    NAMES = ["APPROACH", "DESCEND", "GRIP", "LIFT",
+             "MOVE", "LOWER", "RELEASE", "RETREAT"]
+    N_STATES = 8
 
-    def __init__(self, robot, gripper):
+    def __init__(self, robot, gripper, targets):
         self._robot = robot
         self._gripper = gripper
-        self.waypoints = []
-        self.cube_z_at_grip = None
-        self.result = None
+        self._targets = targets
         self.reset()
 
+    # ── 진행 ────────────────────────────────────────────
     def reset(self):
-        """큐브를 다시 재고 웨이포인트를 만든다"""
-        center_xy, top_z, side = measure_cube()
+        self.index = 0          # 몇 번째 물체인지
+        self.state = 0          # 그 물체의 몇 번째 단계인지
+        self.step = 0
+        self.start = None
+        self.gripper = "open"
+        self.results = []
+        self.waypoints = []
+        self.z_at_grip = None
+        self.done = False
+        self._begin_target()
+
+    @property
+    def target(self):
+        return self._targets[self.index]
+
+    def _begin_target(self):
+        """이번 물체를 실측해서 웨이포인트 여덟 개를 만든다"""
+        if self.index >= len(self._targets):
+            self.done = True
+            self._summary()
+            return
+
+        name = self.target["name"]
+        center_xy, t_z, height = measure(name)
         cx, cy = center_xy
-        grip_z = top_z + GRIP_GAP
+        gx, gy = self.target["place"]
+
+        grip_z  = t_z + GRIP_GAP
+        place_z = height + GRIP_GAP + PLACE_DROP     # 바닥에 앉은 높이 + 여유
 
         self.waypoints = [
             np.array([cx, cy, APPROACH_HEIGHT]),   # 0 APPROACH
             np.array([cx, cy, grip_z]),            # 1 DESCEND
             np.array([cx, cy, grip_z]),            # 2 GRIP
             np.array([cx, cy, LIFT_HEIGHT]),       # 3 LIFT
-            np.array([cx, cy, LIFT_HEIGHT]),       # 4 CHECK
+            np.array([gx, gy, LIFT_HEIGHT]),       # 4 MOVE
+            np.array([gx, gy, place_z]),           # 5 LOWER
+            np.array([gx, gy, place_z]),           # 6 RELEASE
+            np.array([gx, gy, APPROACH_HEIGHT]),   # 7 RETREAT
         ]
 
-        print(f"   cube         center ({cx:+.3f}, {cy:+.3f})  "
-              f"top z {top_z:.4f}  side {side*1000:.1f} mm")
+        print()
+        print(f"   ═══ [{self.index + 1}/{len(self._targets)}] {name} ═══")
+        print(f"   pick         ({cx:+.3f}, {cy:+.3f})  top z {t_z:.4f}  "
+              f"height {height*1000:.1f} mm")
+        print(f"   place        ({gx:+.3f}, {gy:+.3f})  release z {place_z:.4f}")
         print(f"   grip z       {grip_z:.4f}   (윗면 위 {GRIP_GAP*1000:.0f} mm)")
 
         self.state = 0
         self.step = 0
         self.start = None
-        self.goal = self.waypoints[0]
-        self.n_steps = MIN_STEPS
-        self.gripper = "open"
-        self.cube_z_at_grip = None
-        self.result = None
+        self.z_at_grip = None
 
     def current_target(self):
         """이번 스텝의 TCP 목표"""
+        if self.done:
+            return self.waypoints[-1]
         if self.start is None:
-            return self.goal
+            return self.waypoints[self.state]
         alpha = min(1.0, self.step / float(self.n_steps))
         return self.start + alpha * (self.goal - self.start)
 
     def advance(self):
-        if self.state >= self.DONE_STATE:
+        if self.done:
             return
 
         # 단계에 처음 들어온 순간 시작점과 스텝 수를 정한다
@@ -331,13 +390,15 @@ class SuctionCheckFSM:
             self.start = get_tcp_pose(self._robot)
             self.goal = self.waypoints[self.state]
 
-            if self.state == 2:                      # GRIP
-                self.cube_z_at_grip = cube_top_z()
-                self._gripper.close()                # 한 번만 보내면 된다
+            if self.state == 2:                       # GRIP
+                self.z_at_grip = top_z(self.target["name"])
+                self._gripper.close()                 # 한 번만 보내면 된다
                 self.gripper = "close"
                 self.n_steps, dist = GRIP_WAIT, 0.0
-            elif self.state == 4:                    # CHECK
-                self.n_steps, dist = CHECK_WAIT, 0.0
+            elif self.state == 6:                     # RELEASE
+                self._gripper.open()
+                self.gripper = "open"
+                self.n_steps, dist = RELEASE_WAIT, 0.0
             else:
                 self.n_steps, dist = steps_for(self.start, self.goal)
 
@@ -346,34 +407,45 @@ class SuctionCheckFSM:
                   f"  {self.n_steps} steps  gripper {self.gripper}")
 
         self.step += 1
-        if self.step >= self.n_steps:
-            if self.state == 4:
-                self._judge()
-            self.state += 1
-            self.step = 0
-            self.start = None
-            if self.state >= self.DONE_STATE:
-                print(f"   [{self.DONE_STATE}] DONE")
+        if self.step < self.n_steps:
+            return
 
+        if self.state == 3:                           # LIFT 끝 → 판정
+            self._judge()
+
+        self.state += 1
+        self.step = 0
+        self.start = None
+
+        if self.state >= self.N_STATES:
+            self.index += 1
+            self._begin_target()
+
+    # ── 판정 ────────────────────────────────────────────
     def _judge(self):
-        """큐브가 실제로 딸려 올라왔는지 높이 차로 판정한다"""
-        now = cube_top_z()
-        rise = now - self.cube_z_at_grip
-        held = self._gripper.gripped()
-        self.result = rise >= LIFT_OK_MIN
+        """물체가 실제로 딸려 올라왔는지 높이 차로 판정한다"""
+        name = self.target["name"]
+        now = top_z(name)
+        rise = now - self.z_at_grip
+        ok = rise >= LIFT_OK_MIN
+        self.results.append((name, ok, rise, self._gripper.gripped()))
 
+        print(f"   ── 흡착 {'성공' if ok else '실패'}   "
+              f"{self.z_at_grip:.4f} -> {now:.4f}  ({rise*1000:+.1f} mm)")
+        if not ok:
+            print(f"      GRIP_GAP({GRIP_GAP*1000:.0f}mm) < "
+                  f"MAX_GRIP_DISTANCE({MAX_GRIP_DISTANCE*1000:.0f}mm) 인지, "
+                  f"물체 무게({CUBE_MASS*9.81:.2f}N) < "
+                  f"COAXIAL({COAXIAL_FORCE_LIMIT}N) 인지 확인")
+
+    def _summary(self):
         print()
         print(f"   {'─' * 56}")
-        print(f"   흡착 결과   {'성공' if self.result else '실패'}")
-        print(f"   큐브 윗면   {self.cube_z_at_grip:.4f} -> {now:.4f}"
-              f"   ({rise * 1000:+.1f} mm)")
-        print(f"   붙은 물체   {held}")
-        if not self.result:
-            print(f"   판정 기준   {LIFT_OK_MIN*1000:.0f} mm 이상 상승")
-            print(f"   확인할 것   GRIP_GAP({GRIP_GAP*1000:.0f}mm) 이 "
-                  f"MAX_GRIP_DISTANCE({MAX_GRIP_DISTANCE*1000:.0f}mm) 보다 작은지,")
-            print(f"               COAXIAL_FORCE_LIMIT({COAXIAL_FORCE_LIMIT}N) 이 "
-                  f"큐브 무게({CUBE_MASS*9.81:.2f}N) 보다 큰지")
+        print(f"   전체 결과   {sum(1 for r in self.results if r[1])}"
+              f" / {len(self.results)} 성공")
+        for name, ok, rise, held in self.results:
+            print(f"     {name:14s} {'성공' if ok else '실패'}"
+                  f"   상승 {rise*1000:+7.1f} mm   붙은 물체 {held}")
         print(f"   {'─' * 56}")
         print()
 
@@ -393,8 +465,20 @@ def find_prim_path(root_path, name):
     return None
 
 
-class SuctionCheckTask(BaseTask):
-    """로봇만 있는 USD 에서 시작해 바닥, 그리퍼, 큐브를 얹는다"""
+def has_ground_plane():
+    """바닥이 이미 있는지 본다. 두 번 깔면 물체가 낀다"""
+    stage = omni.usd.get_context().get_stage()
+    for prim in stage.Traverse():
+        name = prim.GetName().lower()
+        if "groundplane" in name or "ground_plane" in name:
+            return True
+        if prim.IsA(UsdGeom.Plane) and prim.HasAPI(UsdPhysics.CollisionAPI):
+            return True
+    return False
+
+
+class PickPlaceTask(BaseTask):
+    """로봇만 있는 USD 에서 시작해 바닥, 그리퍼, 큐브 세 개를 얹는다"""
 
     def __init__(self, name):
         super().__init__(name=name, offset=None)
@@ -403,10 +487,15 @@ class SuctionCheckTask(BaseTask):
     def set_up_scene(self, scene):
         super().set_up_scene(scene)
         self._load_robot()
-        scene.add_default_ground_plane()
-        print("   ground       added")
+
+        if has_ground_plane():
+            print("   ground       already present, skip")
+        else:
+            scene.add_default_ground_plane()
+            print("   ground       added")
+
         self._attach_surface_gripper()
-        self._create_cube()
+        self._create_cubes()
         self._setup_arm_drives()
         self._register_robot(scene)
         print("   scene        ready")
@@ -466,26 +555,40 @@ class SuctionCheckTask(BaseTask):
         print(f"   grip limits  coaxial {COAXIAL_FORCE_LIMIT} N  "
               f"shear {SHEAR_FORCE_LIMIT} N  dist {MAX_GRIP_DISTANCE*1000:.0f} mm")
 
-    def _create_cube(self):
-        """파란 큐브. 흡착은 강체가 아니면 붙어도 딸려 오지 않는다"""
+    def _create_cubes(self):
+        """대상 큐브들. 흡착은 강체가 아니면 붙어도 딸려 오지 않는다"""
         stage = omni.usd.get_context().get_stage()
+        UsdGeom.Xform.Define(stage, CUBE_ROOT)
 
-        cube = UsdGeom.Cube.Define(stage, CUBE_PATH)
-        cube.CreateSizeAttr(1.0)
-        cube.CreateDisplayColorAttr([CUBE_COLOR])
-        xf = UsdGeom.Xformable(cube.GetPrim())
-        xf.ClearXformOpOrder()
-        xf.AddTranslateOp().Set(CUBE_POS)
-        xf.AddScaleOp().Set(CUBE_SCALE)
+        # Cube 는 size 1 이 한 변 1 m 라 스케일이 곧 한 변이 된다
+        half = 0.5 * CUBE_SCALE[2]
+        min_z = half + SPAWN_CLEARANCE
 
-        prim = cube.GetPrim()
-        UsdPhysics.CollisionAPI.Apply(prim)
-        UsdPhysics.RigidBodyAPI.Apply(prim)
-        UsdPhysics.MassAPI.Apply(prim).CreateMassAttr(CUBE_MASS)
+        for t in TARGETS:
+            pos = Gf.Vec3d(t["spawn"])
+            if pos[2] < min_z:
+                print(f"   [주의] {t['name']} spawn z {pos[2]:+.3f} 는 바닥 아래다. "
+                      f"{min_z:.3f} 로 올려 만든다")
+                pos = Gf.Vec3d(pos[0], pos[1], min_z)
+
+            cube = UsdGeom.Cube.Define(stage, cube_path(t["name"]))
+            cube.CreateSizeAttr(1.0)
+            cube.CreateDisplayColorAttr([t["color"]])
+            xf = UsdGeom.Xformable(cube.GetPrim())
+            xf.ClearXformOpOrder()
+            xf.AddTranslateOp().Set(pos)
+            xf.AddScaleOp().Set(CUBE_SCALE)
+
+            prim = cube.GetPrim()
+            UsdPhysics.CollisionAPI.Apply(prim)
+            UsdPhysics.RigidBodyAPI.Apply(prim)
+            UsdPhysics.MassAPI.Apply(prim).CreateMassAttr(CUBE_MASS)
+
+            print(f"   cube         {t['name']:12s} spawn "
+                  f"({pos[0]:+.2f}, {pos[1]:+.2f}, {pos[2]:+.3f})  "
+                  f"place ({t['place'][0]:+.2f}, {t['place'][1]:+.2f})")
+
         simulation_app.update()
-
-        print(f"   cube         {CUBE_PATH} at {tuple(CUBE_POS)} "
-              f"scale {CUBE_SCALE[0]}  mass {CUBE_MASS} kg")
 
     def _setup_arm_drives(self):
         """IK 결과를 로봇이 따라가도록 팔 관절의 Drive 를 강화한다"""
@@ -561,13 +664,16 @@ def vec(v, digits=3):
 
 
 def print_status(robot, solved, fsm, target_tcp):
-    name = fsm.NAMES[min(fsm.state, fsm.DONE_STATE)]
+    if fsm.done:
+        return
+    name = fsm.NAMES[fsm.state]
     if not solved:
         print(f"   {name:9s} IK FAILED  target {vec(target_tcp)}")
         return
     tcp = get_tcp_pose(robot)
-    print(f"   {name:9s} tcp {vec(tcp)}   cube top {cube_top_z():.4f}"
-          f"   gripper {fsm.gripper}")
+    print(f"   {name:9s} tcp {vec(tcp)}   "
+          f"{fsm.target['name']} top {top_z(fsm.target['name']):.4f}   "
+          f"gripper {fsm.gripper}")
 
 
 # ══════════════════════════════════════════════════════════════
@@ -577,7 +683,7 @@ def main():
     world = World(stage_units_in_meters=1.0)
 
     section("SCENE")
-    task = SuctionCheckTask(name="suction_check_task")
+    task = PickPlaceTask(name="suction_pick_place_task")
     world.add_task(task)
     world.reset()
 
@@ -597,13 +703,14 @@ def main():
     )
 
     section("PLAN")
-    fsm = SuctionCheckFSM(robot, gripper)
+    print(f"   targets      {len(TARGETS)} 개, 하나씩 집고 놓는다")
     print(f"   lift z       {LIFT_HEIGHT}")
     print(f"   tcp offset   {SUCTION_FACE_Z} m  (흡착면)")
-    print(f"   성공 기준     큐브가 {LIFT_OK_MIN*1000:.0f} mm 이상 상승")
+    print(f"   성공 기준     물체가 {LIFT_OK_MIN*1000:.0f} mm 이상 상승")
+    fsm = SequenceFSM(robot, gripper, TARGETS)
 
     section("RUN")
-    print("   press Play in the viewport\n")
+    print("   press Play in the viewport")
 
     was_playing = False
     step = 0
@@ -625,7 +732,6 @@ def main():
                 world.step(render=True)
             fsm.reset()
             step = 0
-            print()
 
         if is_playing:
             # 팔 — 이번 스텝의 목표를 보간으로 구해 IK 로 푼다
