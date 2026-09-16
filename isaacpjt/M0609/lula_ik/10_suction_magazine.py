@@ -101,9 +101,10 @@ MOUNT_OFFSET = Gf.Vec3f(0.0, 0.0, 0.0)
 # 파지 한계는 시작할 때 한 번만 넣는다.
 #   시뮬 중에 이 값을 바꾸면 그리퍼 내부 상태가 어떻게 되는지 확실하지 않아,
 #   변수를 줄이려고 물체별 변경을 없앴다.
-#   매거진 1.0 kg = 9.81 N 이라 60 N 이면 6배 여유다.
-COAXIAL_FORCE_LIMIT = 60.0    # N, 흡착면 수직
-SHEAR_FORCE_LIMIT   = 30.0    # N, 흡착면 평행
+#   매거진 1.0 kg 을 정상 속도로 옮기는 데 필요한 힘은 계산상 11 N 미만이다.
+#   그런데도 놓친다면 한계값 문제가 아니므로, 여기는 넉넉히 주고 다른 데를 본다.
+COAXIAL_FORCE_LIMIT = 200.0   # N, 흡착면 수직
+SHEAR_FORCE_LIMIT   = 100.0   # N, 흡착면 평행
 MAX_GRIP_DISTANCE   = 0.03    # m, 이 안에 들어오면 붙는다 (기본 0.02 에서 올림)
 
 # link_6 로컬 +Z 방향으로 흡착면(gripper_tip 바깥면)까지의 거리
@@ -126,11 +127,12 @@ APPROACH_HEIGHT = 0.25     # 접근 대기 높이 (흡착면 기준)
 LIFT_HEIGHT     = 0.23     # 들고 이동할 높이
 
 GRIP_WAIT    = 90          # 흡착 명령 후 붙었는지 보기까지 기다리는 스텝
+HOLD_WAIT    = 120         # 들기 전에 제자리에서 버티며 안정되는지 보는 스텝
 RELEASE_WAIT = 90
 LIFT_OK_MIN  = 0.03        # 물체가 이만큼 올라가면 흡착 성공
 
-TCP_SPEED = 0.004          # 스텝당 TCP 이동 거리(m)
-MIN_STEPS = 60
+TCP_SPEED = 0.002          # 스텝당 TCP 이동 거리(m). 느릴수록 가속 스파이크가 작다
+MIN_STEPS = 90
 MAX_STEPS = 600
 
 SETTLE_STEPS = 60          # 물체가 바닥에 앉을 때까지 기다리는 스텝
@@ -344,20 +346,26 @@ class PickFSM:
       0 APPROACH   물체 위로 접근
       1 DESCEND    이번 시도의 흡착 높이까지 하강
       2 GRIP       흡착하고 붙었는지 확인
-                     붙었으면 -> LIFT
+                     붙었으면 -> HOLD
                      아니면   -> 간격을 낮춰 DESCEND 로 되돌아간다
                      사다리를 다 쓰면 -> 포기하고 DONE
-      3 LIFT       들어올리기          ← 여기서 최종 판정
-      4 MOVE       놓을 곳 위로 이동
-      5 LOWER      놓을 높이까지 하강
-      6 RELEASE    해제
-      7 RETREAT    위로 빠지기
-      8 DONE
+      3 HOLD       제자리에서 잠깐 버틴다. 잡자마자 놓치는지 여기서 걸린다
+      4 LIFT       들어올리기          ← 여기서 최종 판정
+      5 MOVE       놓을 곳 위로 이동
+      6 LOWER      놓을 높이까지 하강
+      7 RELEASE    해제
+      8 RETREAT    위로 빠지기
+      9 DONE
+
+    HOLD 부터 LOWER 까지는 매 스텝 붙어 있는지 감시한다.
+    놓치는 순간의 단계, 경과 스텝, TCP, 물체 높이를 한 줄로 남긴다.
     """
 
-    NAMES = ["APPROACH", "DESCEND", "GRIP", "LIFT",
+    NAMES = ["APPROACH", "DESCEND", "GRIP", "HOLD", "LIFT",
              "MOVE", "LOWER", "RELEASE", "RETREAT", "DONE"]
-    DONE_STATE = 8
+    DONE_STATE = 9
+    WATCH_STATES = (3, 4, 5, 6)      # HOLD ~ LOWER
+    WATCH_EVERY = 10                 # 몇 스텝마다 확인할지
 
     def __init__(self, robot, gripper):
         self._robot = robot
@@ -372,6 +380,7 @@ class PickFSM:
         self.attempt = 0
         self.z_at_grip = None
         self.grip_ok = False
+        self.dropped = False
         self.done = False
 
         cx, cy = center_xy
@@ -400,11 +409,12 @@ class PickFSM:
             np.array([cx, cy, APPROACH_HEIGHT]),   # 0 APPROACH
             np.array([cx, cy, grip_z]),            # 1 DESCEND
             np.array([cx, cy, grip_z]),            # 2 GRIP
-            np.array([cx, cy, LIFT_HEIGHT]),       # 3 LIFT
-            np.array([gx, gy, LIFT_HEIGHT]),       # 4 MOVE
-            np.array([gx, gy, self.place_z]),      # 5 LOWER
-            np.array([gx, gy, self.place_z]),      # 6 RELEASE
-            np.array([gx, gy, APPROACH_HEIGHT]),   # 7 RETREAT
+            np.array([cx, cy, grip_z]),            # 3 HOLD
+            np.array([cx, cy, LIFT_HEIGHT]),       # 4 LIFT
+            np.array([gx, gy, LIFT_HEIGHT]),       # 5 MOVE
+            np.array([gx, gy, self.place_z]),      # 6 LOWER
+            np.array([gx, gy, self.place_z]),      # 7 RELEASE
+            np.array([gx, gy, APPROACH_HEIGHT]),   # 8 RETREAT
         ]
 
     def current_target(self):
@@ -427,7 +437,9 @@ class PickFSM:
                 self._gripper.close()
                 self.gripper = "close"
                 self.n_steps, dist = GRIP_WAIT, 0.0
-            elif self.state == 6:                     # RELEASE
+            elif self.state == 3:                     # HOLD
+                self.n_steps, dist = HOLD_WAIT, 0.0
+            elif self.state == 7:                     # RELEASE
                 self._gripper.open()
                 self.gripper = "open"
                 self.n_steps, dist = RELEASE_WAIT, 0.0
@@ -439,13 +451,15 @@ class PickFSM:
                   f"  gripper {self.gripper}")
 
         self.step += 1
+        self._watch_drop()
+
         if self.step < self.n_steps:
             return
 
         if self.state == 2:                           # GRIP 끝 → 붙었나
             if not self._check_grip():
                 return                                # 재시도로 되돌아갔다
-        elif self.state == 3:                         # LIFT 끝 → 최종 판정
+        elif self.state == 4:                         # LIFT 끝 → 최종 판정
             self._judge()
 
         self.state += 1
@@ -454,6 +468,26 @@ class PickFSM:
         if self.state >= self.DONE_STATE:
             self.done = True
             print(f"   [{self.DONE_STATE}] DONE")
+
+    # ── 드롭 감시 ───────────────────────────────────────
+    def _watch_drop(self):
+        """잡고 있다가 놓치는 순간을 잡아낸다"""
+        if self.state not in self.WATCH_STATES or not self.grip_ok:
+            return
+        if self.step % self.WATCH_EVERY:
+            return
+        if self.dropped:
+            return
+        if holding(self._gripper.gripped()):
+            return
+
+        self.dropped = True
+        tcp = get_tcp_pose(self._robot)
+        print(f"   !! 놓쳤다  단계 {self.NAMES[self.state]}  "
+              f"{self.step}/{self.n_steps} 스텝  "
+              f"tcp {vec(tcp)}  물체 윗면 {top_z():.4f}")
+        print(f"      이 단계의 목표 {vec(self.goal)}  "
+              f"status {self._gripper.status()}")
 
     # ── 재시도 ──────────────────────────────────────────
     def _check_grip(self):
@@ -534,6 +568,22 @@ def find_prim_path(root_path, name):
     return None
 
 
+def filter_collision(path_a, path_b):
+    """
+    두 prim 사이의 충돌을 끈다.
+
+    흡착 조인트는 물체를 그리퍼 쪽으로 당기는데, 같은 자리에서 콜라이더는
+    물체를 밀어낸다. 둘이 싸우면 그 반력이 흡착 힘으로 읽혀 한계를 넘고
+    그리퍼가 놓아 버린다. 1 kg 짜리에서 특히 크게 나타난다.
+    잡을 대상과 그리퍼는 어차피 붙어 있어야 하므로 충돌을 볼 필요가 없다.
+    """
+    stage = omni.usd.get_context().get_stage()
+    a = stage.GetPrimAtPath(path_a)
+    rel = UsdPhysics.FilteredPairsAPI.Apply(a).CreateFilteredPairsRel()
+    rel.AddTarget(Sdf.Path(path_b))
+    return True
+
+
 def has_ground_plane():
     """바닥이 이미 있는지 본다. 두 번 깔면 물체가 낀다"""
     stage = omni.usd.get_context().get_stage()
@@ -565,6 +615,8 @@ class MagazineTask(BaseTask):
 
         self._attach_surface_gripper()
         self._load_target()
+        filter_collision(GRIPPER_PRIM, TARGET_PATH)
+        print(f"   collision    {GRIPPER_PRIM} <-> {TARGET_PATH} 필터링 (접촉 간섭 제거)")
         self._setup_arm_drives()
         self._register_robot(scene)
         print("   scene        ready")
