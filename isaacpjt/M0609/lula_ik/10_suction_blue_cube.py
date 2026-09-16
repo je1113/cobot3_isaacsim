@@ -1,22 +1,24 @@
 """
-흡착 확인 — 물체 세 개를 차례로 집고 놓기
+흡착 확인 — 물체를 차례로 집고 놓기
 
-    isaac_python 09_suction_blue_cube.py
+    isaac_python 10_suction_blue_cube.py
 
 로봇만 있는 USD(m0609_isaac_sim.usd)에서 시작해 씬을 직접 만든다.
 
   1. 순수 M0609 를 /World/m0609 로 올린다 (그리퍼도 바닥도 없는 파일)
   2. 바닥 평면을 깐다 (이미 있으면 건너뛴다)
   3. 흡착 그리퍼를 link_6 에 FixedJoint 로 붙인다
-  4. 큐브 세 개를 만든다
+  4. 대상 물체를 만든다. 두 종류를 섞어 쓸 수 있다
+       - 코드로 만드는 큐브   ("scale" 키)
+       - 만들어 둔 USD 에셋   ("usd" 키, 예: 매거진 / 트레이 스택)
   5. 하나씩 차례로 집고 놓고, 매번 흡착에 성공했는지 높이로 판정한다
 
      물체마다:  APPROACH -> DESCEND -> GRIP -> LIFT -> MOVE
                 -> LOWER -> RELEASE -> RETREAT
-     끝나면 세 개 결과를 한 번에 요약한다
+     끝나면 결과를 한 번에 요약한다
 
-큐브 크기는 코드에 박지 않고 물리가 안정된 뒤 월드 바운딩박스를 실측한다.
-Cube 의 size 속성이 1 인지 2 인지에 따라 실제 크기가 두 배 달라지기 때문이다.
+물체 크기는 코드에 박지 않고 물리가 안정된 뒤 월드 바운딩박스를 실측한다.
+잡는 높이와 놓는 높이가 거기서 자동으로 나오므로, 큐브든 매거진이든 같은 코드로 다룬다.
 """
 
 from isaacsim import SimulationApp
@@ -54,6 +56,13 @@ DESCRIPTION_PATH = str(M0609_DIR / "descriptor/m0609_description.yaml")
 GRIPPER_USD = (get_assets_root_path()
                + "/Isaac/Robots/UniversalRobots/ur10/grippers/short_gripper.usd")
 
+# 우리가 만든 캐리어 에셋 (isaacpjt/assets)
+#   둘 다 원점이 바닥면 중심이고 RigidBody + 질량 1.0 kg 이 들어 있다.
+#   TARGETS 의 "usd" 키에 넣으면 큐브 대신 이 에셋을 집는다.
+ASSETS_DIR     = M0609_DIR.parent / "assets"
+MAGAZINE_USD   = str(ASSETS_DIR / "magazine_small.usda")    # 250 x 140 x 142 mm
+TRAY_STACK_USD = str(ASSETS_DIR / "tray_stack_6.usda")      # 329 x 136 x  78 mm
+
 
 # ══════════════════════════════════════════════════════════════
 #  로봇 설정
@@ -78,8 +87,13 @@ READY_JOINTS_DEG = [0.0, 0.0, 90.0, 0.0, 90.0, 0.0]
 # ══════════════════════════════════════════════════════════════
 #  대상 물체
 # ══════════════════════════════════════════════════════════════
-# spawn  : 만들 때 넣을 중심 좌표
-# place  : 놓을 곳 (xy). 높이는 실측한 물체 높이로 자동 계산한다
+# 항목 하나가 물체 하나다. 순서대로 집고 놓는다.
+#   name   프림 이름
+#   spawn  만들 때 넣을 위치
+#            큐브   -> 중심 좌표
+#            USD    -> 에셋 원점 (우리 캐리어는 바닥면 중심이라 z=0 이면 바닥에 딱 붙는다)
+#   place  놓을 곳 (xy). 높이는 실측한 물체 높이로 자동 계산한다
+#   usd    있으면 이 USD 를 참조한다. 없으면 scale/color 로 큐브를 만든다
 CUBE_SCALE = Gf.Vec3f(0.025, 0.025, 0.025)
 CUBE_MASS  = 0.02                                # kg
 
@@ -96,6 +110,21 @@ TARGETS = [
      "spawn": Gf.Vec3d(0.30, -0.30, -0.05),      # 바닥 아래 → 아래에서 올려 준다
      "place": np.array([0.50, -0.15]),
      "color": Gf.Vec3f(0.90, 0.50, 0.15)},
+
+    # 매거진 — 상부 플랜지 판(80 x 80 mm)을 흡착한다.
+    #   1.0 kg = 9.81 N 이라 COAXIAL_FORCE_LIMIT 20 N 대비 여유가 2배뿐이다.
+    #   흔들려서 떨어지면 TCP_SPEED 를 낮추거나 힘 한계를 올린다.
+    {"name": "magazine",
+     "usd":   MAGAZINE_USD,
+     "spawn": Gf.Vec3d(0.45,  0.30,  0.005),
+     "place": np.array([0.45, -0.30])},
+
+    # 트레이 스택 — 캐리어 덮개판 위 플랜지를 흡착한다.
+    #   329 mm 로 길어서 놓을 자리를 넉넉히 잡아야 한다. 쓰려면 주석을 푼다.
+    # {"name": "tray_stack",
+    #  "usd":   TRAY_STACK_USD,
+    #  "spawn": Gf.Vec3d(0.30,  0.42,  0.005),
+    #  "place": np.array([0.30, -0.42])},
 ]
 
 CUBE_ROOT = "/World/targets"
@@ -465,6 +494,14 @@ def find_prim_path(root_path, name):
     return None
 
 
+def has_rigid_body(prim):
+    """서브트리 어딘가에 RigidBody 가 있는지 본다"""
+    for p in Usd.PrimRange(prim):
+        if p.HasAPI(UsdPhysics.RigidBodyAPI):
+            return True
+    return False
+
+
 def has_ground_plane():
     """바닥이 이미 있는지 본다. 두 번 깔면 물체가 낀다"""
     stage = omni.usd.get_context().get_stage()
@@ -495,7 +532,7 @@ class PickPlaceTask(BaseTask):
             print("   ground       added")
 
         self._attach_surface_gripper()
-        self._create_cubes()
+        self._create_targets()
         self._setup_arm_drives()
         self._register_robot(scene)
         print("   scene        ready")
@@ -555,36 +592,62 @@ class PickPlaceTask(BaseTask):
         print(f"   grip limits  coaxial {COAXIAL_FORCE_LIMIT} N  "
               f"shear {SHEAR_FORCE_LIMIT} N  dist {MAX_GRIP_DISTANCE*1000:.0f} mm")
 
-    def _create_cubes(self):
-        """대상 큐브들. 흡착은 강체가 아니면 붙어도 딸려 오지 않는다"""
+    def _create_targets(self):
+        """
+        대상 물체들. 흡착은 강체가 아니면 붙어도 딸려 오지 않는다.
+
+        "usd" 가 있으면 그 에셋을 참조하고 물리는 건드리지 않는다.
+        우리 캐리어 에셋에는 RigidBody 와 질량이 이미 들어 있기 때문이다.
+        없으면 큐브를 만들고 물리를 직접 붙인다.
+        """
         stage = omni.usd.get_context().get_stage()
         UsdGeom.Xform.Define(stage, CUBE_ROOT)
 
-        # Cube 는 size 1 이 한 변 1 m 라 스케일이 곧 한 변이 된다
-        half = 0.5 * CUBE_SCALE[2]
-        min_z = half + SPAWN_CLEARANCE
-
         for t in TARGETS:
+            path = cube_path(t["name"])
             pos = Gf.Vec3d(t["spawn"])
-            if pos[2] < min_z:
-                print(f"   [주의] {t['name']} spawn z {pos[2]:+.3f} 는 바닥 아래다. "
-                      f"{min_z:.3f} 로 올려 만든다")
-                pos = Gf.Vec3d(pos[0], pos[1], min_z)
 
-            cube = UsdGeom.Cube.Define(stage, cube_path(t["name"]))
-            cube.CreateSizeAttr(1.0)
-            cube.CreateDisplayColorAttr([t["color"]])
-            xf = UsdGeom.Xformable(cube.GetPrim())
-            xf.ClearXformOpOrder()
-            xf.AddTranslateOp().Set(pos)
-            xf.AddScaleOp().Set(CUBE_SCALE)
+            if "usd" in t:
+                # 에셋 원점이 바닥면이라 z 하한은 0 근처면 된다
+                if pos[2] < SPAWN_CLEARANCE:
+                    print(f"   [주의] {t['name']} spawn z {pos[2]:+.3f} 가 바닥 아래다. "
+                          f"{SPAWN_CLEARANCE:.3f} 로 올려 놓는다")
+                    pos = Gf.Vec3d(pos[0], pos[1], SPAWN_CLEARANCE)
 
-            prim = cube.GetPrim()
-            UsdPhysics.CollisionAPI.Apply(prim)
-            UsdPhysics.RigidBodyAPI.Apply(prim)
-            UsdPhysics.MassAPI.Apply(prim).CreateMassAttr(CUBE_MASS)
+                xform = UsdGeom.Xform.Define(stage, path)
+                xform.GetPrim().GetReferences().AddReference(t["usd"])
+                xf = UsdGeom.Xformable(xform.GetPrim())
+                xf.ClearXformOpOrder()
+                xf.AddTranslateOp().Set(pos)
+                simulation_app.update()
 
-            print(f"   cube         {t['name']:12s} spawn "
+                if not has_rigid_body(stage.GetPrimAtPath(path)):
+                    print(f"   [주의] {t['name']} 에 RigidBody 가 없다. "
+                          f"흡착해도 딸려 오지 않는다")
+                kind = f"usd {Path(t['usd']).name}"
+            else:
+                # Cube 는 size 1 이 한 변 1 m 라 스케일이 곧 한 변이 된다
+                min_z = 0.5 * CUBE_SCALE[2] + SPAWN_CLEARANCE
+                if pos[2] < min_z:
+                    print(f"   [주의] {t['name']} spawn z {pos[2]:+.3f} 는 바닥 아래다. "
+                          f"{min_z:.3f} 로 올려 만든다")
+                    pos = Gf.Vec3d(pos[0], pos[1], min_z)
+
+                cube = UsdGeom.Cube.Define(stage, path)
+                cube.CreateSizeAttr(1.0)
+                cube.CreateDisplayColorAttr([t["color"]])
+                xf = UsdGeom.Xformable(cube.GetPrim())
+                xf.ClearXformOpOrder()
+                xf.AddTranslateOp().Set(pos)
+                xf.AddScaleOp().Set(CUBE_SCALE)
+
+                prim = cube.GetPrim()
+                UsdPhysics.CollisionAPI.Apply(prim)
+                UsdPhysics.RigidBodyAPI.Apply(prim)
+                UsdPhysics.MassAPI.Apply(prim).CreateMassAttr(CUBE_MASS)
+                kind = f"cube {CUBE_SCALE[0]*1000:.0f} mm"
+
+            print(f"   target       {t['name']:12s} {kind:28s} spawn "
                   f"({pos[0]:+.2f}, {pos[1]:+.2f}, {pos[2]:+.3f})  "
                   f"place ({t['place'][0]:+.2f}, {t['place'][1]:+.2f})")
 
@@ -704,6 +767,8 @@ def main():
 
     section("PLAN")
     print(f"   targets      {len(TARGETS)} 개, 하나씩 집고 놓는다")
+    for t in TARGETS:
+        print(f"                 - {t['name']}")
     print(f"   lift z       {LIFT_HEIGHT}")
     print(f"   tcp offset   {SUCTION_FACE_Z} m  (흡착면)")
     print(f"   성공 기준     물체가 {LIFT_OK_MIN*1000:.0f} mm 이상 상승")
