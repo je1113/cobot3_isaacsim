@@ -7,8 +7,8 @@
                 double radius = 5
             }
             dictionary Perspective = {
-                double3 position = (10.641356090273536, -7.686283603656817, 6.724251513872064)
-                double3 target = (-46.14677377806966, 19.393396424150147, -35.90437313185357)
+                double3 position = (13.97226427503519, -17.893864873121164, 24.657629010135082)
+                double3 target = (0.760679758026269, -2.2519309192620245, -3.687088171001214)
             }
             dictionary Right = {
                 double3 position = (0, -5, 0)
@@ -16,7 +16,7 @@
             }
             dictionary Top = {
                 double3 position = (0, 0, 5)
-                double radius = 5
+                double radius = 3.062706184387207
             }
             string boundCamera = "/OmniverseKit_Persp"
         }
@@ -36,604 +36,6 @@
 
 def Xform "World"
 {
-    def Cube "Floor" (
-        prepend apiSchemas = ["PhysicsCollisionAPI"]
-    )
-    {
-        float3[] primvars:displayColor = [(0.72, 0.74, 0.76)]
-        uniform token primvars:displayColor:interpolation = "constant"
-        double size = 1
-        double3 xformOp:scale = (20, 20, 0.2)
-        double3 xformOp:translate = (0, 0, -0.1)
-        uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:scale"]
-    }
-
-    def Xform "BuildingWalls"
-    {
-        def Cube "Wall_Left" (
-            prepend apiSchemas = ["PhysicsCollisionAPI"]
-        )
-        {
-            float3[] primvars:displayColor = [(0.82, 0.84, 0.86)]
-            uniform token primvars:displayColor:interpolation = "constant"
-            double size = 1
-            quatf xformOp:orient = (1, 0, 0, 0)
-            double3 xformOp:scale = (0.2, 15, 2.8)
-            double3 xformOp:translate = (-9.898180174421924, 0, 1.4)
-            uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
-        }
-
-        def Cube "Wall_Top" (
-            prepend apiSchemas = ["PhysicsCollisionAPI"]
-        )
-        {
-            float3[] primvars:displayColor = [(0.82, 0.84, 0.86)]
-            uniform token primvars:displayColor:interpolation = "constant"
-            double size = 1
-            quatf xformOp:orient = (1, 0, 0, 0)
-            double3 xformOp:scale = (20, 0.2, 2.8)
-            double3 xformOp:translate = (0, 7.542794546090371, 1.4)
-            uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
-        }
-
-        def Cube "Wall_Bottom" (
-            prepend apiSchemas = ["PhysicsCollisionAPI"]
-        )
-        {
-            float3[] primvars:displayColor = [(0.82, 0.84, 0.86)]
-            uniform token primvars:displayColor:interpolation = "constant"
-            double size = 1
-            quatf xformOp:orient = (1, 0, 0, 0)
-            double3 xformOp:scale = (20, 0.2, 2.8)
-            double3 xformOp:translate = (0, -7.606028286779933, 1.4)
-            uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
-        }
-
-        def Cube "Wall_Right_Upper" (
-            prepend apiSchemas = ["PhysicsCollisionAPI"]
-        )
-        {
-            float3[] primvars:displayColor = [(0.82, 0.84, 0.86)]
-            uniform token primvars:displayColor:interpolation = "constant"
-            double size = 1
-            quatf xformOp:orient = (1, 0, 0, 0)
-            double3 xformOp:scale = (0.2, 7, 2.8)
-            double3 xformOp:translate = (8, 4.2130744287534645, 1.4000000000000001)
-            uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
-        }
-
-        def Cube "Wall_Right_Lower" (
-            prepend apiSchemas = ["PhysicsCollisionAPI"]
-        )
-        {
-            float3[] primvars:displayColor = [(0.82, 0.84, 0.86)]
-            uniform token primvars:displayColor:interpolation = "constant"
-            double size = 1
-            quatf xformOp:orient = (1, 0, 0, 0)
-            double3 xformOp:scale = (0.2, 7, 2.8)
-            double3 xformOp:translate = (8, -4.232132673598141, 1.4000000000000001)
-            uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
-        }
-
-        def Cube "Wall_Top_01" (
-            prepend apiSchemas = ["PhysicsCollisionAPI"]
-        )
-        {
-            float3[] primvars:displayColor = [(0.82, 0.84, 0.86)]
-            uniform token primvars:displayColor:interpolation = "constant"
-            double size = 1
-            quatf xformOp:orient = (1, 0, 0, 0)
-            double3 xformOp:scale = (0.2, 1.5, 1)
-            double3 xformOp:translate = (8, -0.03209441411912339, 2.2957454920791855)
-            uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
-        }
-    }
-
-    def Xform "PickupZone"
-    {
-        quatf xformOp:orient = (1, 0, 0, 0)
-        float3 xformOp:scale = (1, 1, 1)
-        double3 xformOp:translate = (0.1977554405846571, 0, 0)
-        uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
-
-        def Cube "ZoneFloor"
-        {
-            float3[] primvars:displayColor = [(0.9, 0.9, 0.82)]
-            uniform token primvars:displayColor:interpolation = "constant"
-            double size = 1
-            double3 xformOp:scale = (3.2, 8.4, 0.03)
-            double3 xformOp:translate = (-5.8, 0, 0.015)
-            uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:scale"]
-        }
-
-        def Xform "Shelf_1"
-        {
-            quatf xformOp:orient = (1, 0, 0, 0)
-            float3 xformOp:scale = (1, 1, 1)
-            double3 xformOp:translate = (-5.800000000000001, 2.3667298497566636, 0)
-            uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
-
-            def Cube "Post_FL" (
-                prepend apiSchemas = ["PhysicsCollisionAPI"]
-            )
-            {
-                float3[] primvars:displayColor = [(0.2, 0.22, 0.24)]
-                uniform token primvars:displayColor:interpolation = "constant"
-                double size = 1
-                double3 xformOp:scale = (0.1, 0.1, 2.2)
-                double3 xformOp:translate = (-1.2, -0.8, 1.1)
-                uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:scale"]
-            }
-
-            def Cube "Post_FR" (
-                prepend apiSchemas = ["PhysicsCollisionAPI"]
-            )
-            {
-                float3[] primvars:displayColor = [(0.2, 0.22, 0.24)]
-                uniform token primvars:displayColor:interpolation = "constant"
-                double size = 1
-                double3 xformOp:scale = (0.1, 0.1, 2.2)
-                double3 xformOp:translate = (1.2, -0.8, 1.1)
-                uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:scale"]
-            }
-
-            def Cube "Post_BL" (
-                prepend apiSchemas = ["PhysicsCollisionAPI"]
-            )
-            {
-                float3[] primvars:displayColor = [(0.2, 0.22, 0.24)]
-                uniform token primvars:displayColor:interpolation = "constant"
-                double size = 1
-                double3 xformOp:scale = (0.1, 0.1, 2.2)
-                double3 xformOp:translate = (-1.2, 0.8, 1.1)
-                uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:scale"]
-            }
-
-            def Cube "Post_BR" (
-                prepend apiSchemas = ["PhysicsCollisionAPI"]
-            )
-            {
-                float3[] primvars:displayColor = [(0.2, 0.22, 0.24)]
-                uniform token primvars:displayColor:interpolation = "constant"
-                double size = 1
-                double3 xformOp:scale = (0.1, 0.1, 2.2)
-                double3 xformOp:translate = (1.2, 0.8, 1.1)
-                uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:scale"]
-            }
-
-            def Cube "Level_1" (
-                prepend apiSchemas = ["PhysicsCollisionAPI"]
-            )
-            {
-                float3[] primvars:displayColor = [(0.32, 0.34, 0.36)]
-                uniform token primvars:displayColor:interpolation = "constant"
-                double size = 1
-                double3 xformOp:scale = (2.5, 1.7, 0.12)
-                double3 xformOp:translate = (0, 0, 0.35)
-                uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:scale"]
-            }
-
-            def Cube "Level_2" (
-                prepend apiSchemas = ["PhysicsCollisionAPI"]
-            )
-            {
-                float3[] primvars:displayColor = [(0.32, 0.34, 0.36)]
-                uniform token primvars:displayColor:interpolation = "constant"
-                double size = 1
-                double3 xformOp:scale = (2.5, 1.7, 0.12)
-                double3 xformOp:translate = (0, 0, 1.05)
-                uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:scale"]
-            }
-
-            def Cube "Level_3" (
-                prepend apiSchemas = ["PhysicsCollisionAPI"]
-            )
-            {
-                float3[] primvars:displayColor = [(0.32, 0.34, 0.36)]
-                uniform token primvars:displayColor:interpolation = "constant"
-                double size = 1
-                double3 xformOp:scale = (2.5, 1.7, 0.12)
-                double3 xformOp:translate = (0, 0, 1.75)
-                uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:scale"]
-            }
-        }
-
-        def Xform "Shelf_2"
-        {
-            quatf xformOp:orient = (1, 0, 0, 0)
-            float3 xformOp:scale = (1, 1, 1)
-            double3 xformOp:translate = (-5.800000000000001, -2.116719143369603, 0)
-            uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
-
-            def Cube "Post_FL" (
-                prepend apiSchemas = ["PhysicsCollisionAPI"]
-            )
-            {
-                float3[] primvars:displayColor = [(0.2, 0.22, 0.24)]
-                uniform token primvars:displayColor:interpolation = "constant"
-                double size = 1
-                double3 xformOp:scale = (0.1, 0.1, 2.2)
-                double3 xformOp:translate = (-1.2, -0.8, 1.1)
-                uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:scale"]
-            }
-
-            def Cube "Post_FR" (
-                prepend apiSchemas = ["PhysicsCollisionAPI"]
-            )
-            {
-                float3[] primvars:displayColor = [(0.2, 0.22, 0.24)]
-                uniform token primvars:displayColor:interpolation = "constant"
-                double size = 1
-                double3 xformOp:scale = (0.1, 0.1, 2.2)
-                double3 xformOp:translate = (1.2, -0.8, 1.1)
-                uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:scale"]
-            }
-
-            def Cube "Post_BL" (
-                prepend apiSchemas = ["PhysicsCollisionAPI"]
-            )
-            {
-                float3[] primvars:displayColor = [(0.2, 0.22, 0.24)]
-                uniform token primvars:displayColor:interpolation = "constant"
-                double size = 1
-                double3 xformOp:scale = (0.1, 0.1, 2.2)
-                double3 xformOp:translate = (-1.2, 0.8, 1.1)
-                uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:scale"]
-            }
-
-            def Cube "Post_BR" (
-                prepend apiSchemas = ["PhysicsCollisionAPI"]
-            )
-            {
-                float3[] primvars:displayColor = [(0.2, 0.22, 0.24)]
-                uniform token primvars:displayColor:interpolation = "constant"
-                double size = 1
-                double3 xformOp:scale = (0.1, 0.1, 2.2)
-                double3 xformOp:translate = (1.2, 0.8, 1.1)
-                uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:scale"]
-            }
-
-            def Cube "Level_1" (
-                prepend apiSchemas = ["PhysicsCollisionAPI"]
-            )
-            {
-                float3[] primvars:displayColor = [(0.32, 0.34, 0.36)]
-                uniform token primvars:displayColor:interpolation = "constant"
-                double size = 1
-                double3 xformOp:scale = (2.5, 1.7, 0.12)
-                double3 xformOp:translate = (0, 0, 0.35)
-                uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:scale"]
-            }
-
-            def Cube "Level_2" (
-                prepend apiSchemas = ["PhysicsCollisionAPI"]
-            )
-            {
-                float3[] primvars:displayColor = [(0.32, 0.34, 0.36)]
-                uniform token primvars:displayColor:interpolation = "constant"
-                double size = 1
-                double3 xformOp:scale = (2.5, 1.7, 0.12)
-                double3 xformOp:translate = (0, 0, 1.05)
-                uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:scale"]
-            }
-
-            def Cube "Level_3" (
-                prepend apiSchemas = ["PhysicsCollisionAPI"]
-            )
-            {
-                float3[] primvars:displayColor = [(0.32, 0.34, 0.36)]
-                uniform token primvars:displayColor:interpolation = "constant"
-                double size = 1
-                double3 xformOp:scale = (2.5, 1.7, 0.12)
-                double3 xformOp:translate = (0, 0, 1.75)
-                uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:scale"]
-            }
-        }
-    }
-
-    def Xform "PackagingZone"
-    {
-        quatf xformOp:orient = (1, 0, 0, 0)
-        float3 xformOp:scale = (1, 1, 1)
-        double3 xformOp:translate = (4.2, 4.35092917844094, 0)
-        uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
-
-        def Cylinder "CenterBase" (
-            prepend apiSchemas = ["PhysicsCollisionAPI"]
-        )
-        {
-            token axis = "Z"
-            double height = 0.2
-            float3[] primvars:displayColor = [(0.22, 0.24, 0.26)]
-            uniform token primvars:displayColor:interpolation = "constant"
-            double radius = 1.65
-            double3 xformOp:translate = (0, 0, 0.1)
-            uniform token[] xformOpOrder = ["xformOp:translate"]
-        }
-
-        def Xform "Carousel"
-        {
-            double xformOp:rotateZ.timeSamples = {
-                0: 0,
-                480: 360,
-            }
-            uniform token[] xformOpOrder = ["xformOp:rotateZ"]
-
-            def Cube "Carrier_01"
-            {
-                float3[] primvars:displayColor = [(0.92, 0.52, 0.18)]
-                uniform token primvars:displayColor:interpolation = "constant"
-                double size = 1
-                double3 xformOp:scale = (0.75, 0.5, 0.16)
-                double3 xformOp:translate = (1.25, 0, 0.28)
-                uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:scale"]
-            }
-
-            def Cube "Carrier_02"
-            {
-                float3[] primvars:displayColor = [(0.92, 0.52, 0.18)]
-                uniform token primvars:displayColor:interpolation = "constant"
-                double size = 1
-                double xformOp:rotateZ = 45
-                double3 xformOp:scale = (0.75, 0.5, 0.16)
-                double3 xformOp:translate = (0.884, 0.884, 0.28)
-                uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:rotateZ", "xformOp:scale"]
-            }
-
-            def Cube "Carrier_03"
-            {
-                float3[] primvars:displayColor = [(0.92, 0.52, 0.18)]
-                uniform token primvars:displayColor:interpolation = "constant"
-                double size = 1
-                double xformOp:rotateZ = 90
-                double3 xformOp:scale = (0.75, 0.5, 0.16)
-                double3 xformOp:translate = (0, 1.25, 0.28)
-                uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:rotateZ", "xformOp:scale"]
-            }
-
-            def Cube "Carrier_04"
-            {
-                float3[] primvars:displayColor = [(0.92, 0.52, 0.18)]
-                uniform token primvars:displayColor:interpolation = "constant"
-                double size = 1
-                double xformOp:rotateZ = 135
-                double3 xformOp:scale = (0.75, 0.5, 0.16)
-                double3 xformOp:translate = (-0.884, 0.884, 0.28)
-                uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:rotateZ", "xformOp:scale"]
-            }
-
-            def Cube "Carrier_05"
-            {
-                float3[] primvars:displayColor = [(0.92, 0.52, 0.18)]
-                uniform token primvars:displayColor:interpolation = "constant"
-                double size = 1
-                double xformOp:rotateZ = 180
-                double3 xformOp:scale = (0.75, 0.5, 0.16)
-                double3 xformOp:translate = (-1.25, 0, 0.28)
-                uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:rotateZ", "xformOp:scale"]
-            }
-
-            def Cube "Carrier_06"
-            {
-                float3[] primvars:displayColor = [(0.92, 0.52, 0.18)]
-                uniform token primvars:displayColor:interpolation = "constant"
-                double size = 1
-                double xformOp:rotateZ = 225
-                double3 xformOp:scale = (0.75, 0.5, 0.16)
-                double3 xformOp:translate = (-0.884, -0.884, 0.28)
-                uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:rotateZ", "xformOp:scale"]
-            }
-
-            def Cube "Carrier_07"
-            {
-                float3[] primvars:displayColor = [(0.92, 0.52, 0.18)]
-                uniform token primvars:displayColor:interpolation = "constant"
-                double size = 1
-                double xformOp:rotateZ = 270
-                double3 xformOp:scale = (0.75, 0.5, 0.16)
-                double3 xformOp:translate = (0, -1.25, 0.28)
-                uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:rotateZ", "xformOp:scale"]
-            }
-
-            def Cube "Carrier_08"
-            {
-                float3[] primvars:displayColor = [(0.92, 0.52, 0.18)]
-                uniform token primvars:displayColor:interpolation = "constant"
-                double size = 1
-                double xformOp:rotateZ = 315
-                double3 xformOp:scale = (0.75, 0.5, 0.16)
-                double3 xformOp:translate = (0.884, -0.884, 0.28)
-                uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:rotateZ", "xformOp:scale"]
-            }
-        }
-
-        def Xform "PackagingTunnel"
-        {
-            quatf xformOp:orient = (1, 0, 0, 0)
-            float3 xformOp:scale = (1, 1, 1)
-            double3 xformOp:translate = (0, -0.0640842079882451, 0)
-            uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
-
-            def Cube "Tunnel_LeftWall" (
-                prepend apiSchemas = ["PhysicsCollisionAPI"]
-            )
-            {
-                float3[] primvars:displayColor = [(0.25, 0.28, 0.32)]
-                uniform token primvars:displayColor:interpolation = "constant"
-                double size = 1
-                quatf xformOp:orient = (1, 0, 0, 0)
-                double3 xformOp:scale = (1, 0.12, 1.25)
-                double3 xformOp:translate = (0, 0.72, 0.72)
-                uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
-            }
-
-            def Cube "Tunnel_RightWall" (
-                prepend apiSchemas = ["PhysicsCollisionAPI"]
-            )
-            {
-                float3[] primvars:displayColor = [(0.25, 0.28, 0.32)]
-                uniform token primvars:displayColor:interpolation = "constant"
-                double size = 1
-                double3 xformOp:scale = (1, 0.12, 1.25)
-                double3 xformOp:translate = (0, 1.78, 0.72)
-                uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:scale"]
-            }
-
-            def Cube "Tunnel_Roof" (
-                prepend apiSchemas = ["PhysicsCollisionAPI"]
-            )
-            {
-                float3[] primvars:displayColor = [(0.16, 0.18, 0.21)]
-                uniform token primvars:displayColor:interpolation = "constant"
-                double size = 1
-                double3 xformOp:scale = (1, 1.18, 0.12)
-                double3 xformOp:translate = (0, 1.25, 1.38)
-                uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:scale"]
-            }
-
-            def Cube "MachineTop"
-            {
-                float3[] primvars:displayColor = [(0.72, 0.23, 0.18)]
-                uniform token primvars:displayColor:interpolation = "constant"
-                double size = 1
-                quatf xformOp:orient = (1, 0, 0, 0)
-                double3 xformOp:scale = (1, 0.78, 0.28)
-                double3 xformOp:translate = (0, 1.25, 1.579552952326078)
-                uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
-            }
-        }
-    }
-
-    def Xform "TestZone"
-    {
-        def Cube "ConveyorFrame" (
-            prepend apiSchemas = ["PhysicsCollisionAPI"]
-        )
-        {
-            float3[] primvars:displayColor = [(0.2, 0.22, 0.24)]
-            uniform token primvars:displayColor:interpolation = "constant"
-            double size = 1
-            double3 xformOp:scale = (4.4, 1.35, 0.45)
-            double3 xformOp:translate = (6.4, 0, 0.45)
-            uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:scale"]
-        }
-
-        def Cube "BeltTop" (
-            prepend apiSchemas = ["PhysicsCollisionAPI"]
-        )
-        {
-            float3[] primvars:displayColor = [(0.08, 0.09, 0.1)]
-            uniform token primvars:displayColor:interpolation = "constant"
-            double size = 1
-            double3 xformOp:scale = (4.7, 1.1, 0.1)
-            double3 xformOp:translate = (6.4, 0, 0.72)
-            uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:scale"]
-        }
-
-        def Cube "SideRail_A" (
-            prepend apiSchemas = ["PhysicsCollisionAPI"]
-        )
-        {
-            float3[] primvars:displayColor = [(0.55, 0.57, 0.6)]
-            uniform token primvars:displayColor:interpolation = "constant"
-            double size = 1
-            double3 xformOp:scale = (4.7, 0.08, 0.36)
-            double3 xformOp:translate = (6.4, 0.66, 0.9)
-            uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:scale"]
-        }
-
-        def Cube "SideRail_B" (
-            prepend apiSchemas = ["PhysicsCollisionAPI"]
-        )
-        {
-            float3[] primvars:displayColor = [(0.55, 0.57, 0.6)]
-            uniform token primvars:displayColor:interpolation = "constant"
-            double size = 1
-            double3 xformOp:scale = (4.7, 0.08, 0.36)
-            double3 xformOp:translate = (6.4, -0.66, 0.9)
-            uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:scale"]
-        }
-
-        def Cube "TestItem"
-        {
-            float3[] primvars:displayColor = [(0.18, 0.62, 0.82)]
-            uniform token primvars:displayColor:interpolation = "constant"
-            double size = 1
-            token visibility = "inherited"
-            quatf xformOp:orient = (1, 0, 0, 0)
-            double3 xformOp:scale = (0.65, 0.65, 0.55)
-            double3 xformOp:translate.timeSamples = {
-                0: (4.5, 0, 1.05),
-                96: (7.9, 0, 1.05),
-                120: (8.7, 0, 1.05),
-                132: (9.15, 0, 0.95),
-                150: (9.65, 0, 0.4),
-                174: (10.2, 0, -0.8),
-                480: (10.2, 0, -0.8),
-            }
-            uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
-        }
-    }
-
-    def Xform "DockingZone"
-    {
-        quatf xformOp:orient = (1, 0, 0, 0)
-        float3 xformOp:scale = (1, 1, 1)
-        double3 xformOp:translate = (-0.642964534855462, -1.6572688665562703, 0)
-        uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
-
-        def Cube "ParkingPad"
-        {
-            float3[] primvars:displayColor = [(0.48, 0.34, 0.78)]
-            uniform token primvars:displayColor:interpolation = "constant"
-            double size = 1
-            quatf xformOp:orient = (1, 0, 0, 0)
-            double3 xformOp:scale = (2.4, 2.4, 0.05)
-            double3 xformOp:translate = (4.3, -3.1, 0.025)
-            uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
-        }
-
-        def Cube "ParkingMark_Top"
-        {
-            float3[] primvars:displayColor = [(0.92, 0.92, 0.92)]
-            uniform token primvars:displayColor:interpolation = "constant"
-            double size = 1
-            double3 xformOp:scale = (2.2, 0.08, 0.02)
-            double3 xformOp:translate = (4.3, -2, 0.055)
-            uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:scale"]
-        }
-
-        def Cube "ParkingMark_Bottom"
-        {
-            float3[] primvars:displayColor = [(0.92, 0.92, 0.92)]
-            uniform token primvars:displayColor:interpolation = "constant"
-            double size = 1
-            double3 xformOp:scale = (2.2, 0.08, 0.02)
-            double3 xformOp:translate = (4.3, -4.2, 0.055)
-            uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:scale"]
-        }
-
-        def Cube "ParkingMark_Left"
-        {
-            float3[] primvars:displayColor = [(0.92, 0.92, 0.92)]
-            uniform token primvars:displayColor:interpolation = "constant"
-            double size = 1
-            double3 xformOp:scale = (0.08, 2.2, 0.02)
-            double3 xformOp:translate = (3.2, -3.1, 0.055)
-            uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:scale"]
-        }
-
-        def Cube "ParkingMark_Right"
-        {
-            float3[] primvars:displayColor = [(0.92, 0.92, 0.92)]
-            uniform token primvars:displayColor:interpolation = "constant"
-            double size = 1
-            double3 xformOp:scale = (0.08, 2.2, 0.02)
-            double3 xformOp:translate = (5.4, -3.1, 0.055)
-            uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:scale"]
-        }
-    }
-
     def DomeLight "WorldLight"
     {
         float inputs:intensity = 700
@@ -647,13 +49,492 @@ def Xform "World"
         uniform token[] xformOpOrder = ["xformOp:rotateXYZ"]
     }
 
-    def "Nova_Carter_ROS_01" (
+    def Xform "Environment"
+    {
+        quatd xformOp:orient = (1, 0, 0, 0)
+        double3 xformOp:scale = (1, 1, 1)
+        double3 xformOp:translate = (0, 0, 0)
+        uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
+
+        def Xform "BuildingWalls"
+        {
+            def Cube "Wall_Left" (
+                prepend apiSchemas = ["PhysicsCollisionAPI"]
+            )
+            {
+                float3[] primvars:displayColor = [(0.82, 0.84, 0.86)]
+                uniform token primvars:displayColor:interpolation = "constant"
+                double size = 1
+                quatf xformOp:orient = (1, 0, 0, 0)
+                double3 xformOp:scale = (0.2, 15, 2.8)
+                double3 xformOp:translate = (-9.898180174421924, 0, 1.4)
+                uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
+            }
+
+            def Cube "Wall_Top" (
+                prepend apiSchemas = ["PhysicsCollisionAPI"]
+            )
+            {
+                float3[] primvars:displayColor = [(0.82, 0.84, 0.86)]
+                uniform token primvars:displayColor:interpolation = "constant"
+                double size = 1
+                quatf xformOp:orient = (1, 0, 0, 0)
+                double3 xformOp:scale = (18, 0.2, 2.8)
+                double3 xformOp:translate = (-0.9405583188051573, 7.542794546090373, 1.4000000000000001)
+                uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
+            }
+
+            def Cube "Wall_Bottom" (
+                prepend apiSchemas = ["PhysicsCollisionAPI"]
+            )
+            {
+                float3[] primvars:displayColor = [(0.82, 0.84, 0.86)]
+                uniform token primvars:displayColor:interpolation = "constant"
+                double size = 1
+                quatf xformOp:orient = (1, 0, 0, 0)
+                double3 xformOp:scale = (18, 0.2, 2.8)
+                double3 xformOp:translate = (-1.0846503692832397, -7.606028286779933, 1.4)
+                uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
+            }
+
+            def Cube "Wall_Right_Upper" (
+                prepend apiSchemas = ["PhysicsCollisionAPI"]
+            )
+            {
+                float3[] primvars:displayColor = [(0.82, 0.84, 0.86)]
+                uniform token primvars:displayColor:interpolation = "constant"
+                double size = 1
+                quatf xformOp:orient = (1, 0, 0, 0)
+                double3 xformOp:scale = (0.2, 7, 2.8)
+                double3 xformOp:translate = (8, 4.2130744287534645, 1.4000000000000001)
+                uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
+            }
+
+            def Cube "Wall_Right_Lower" (
+                prepend apiSchemas = ["PhysicsCollisionAPI"]
+            )
+            {
+                float3[] primvars:displayColor = [(0.82, 0.84, 0.86)]
+                uniform token primvars:displayColor:interpolation = "constant"
+                double size = 1
+                quatf xformOp:orient = (1, 0, 0, 0)
+                double3 xformOp:scale = (0.2, 7, 2.8)
+                double3 xformOp:translate = (8, -4.232132673598141, 1.4000000000000001)
+                uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
+            }
+
+            def Cube "Wall_Top_01" (
+                prepend apiSchemas = ["PhysicsCollisionAPI"]
+            )
+            {
+                float3[] primvars:displayColor = [(0.82, 0.84, 0.86)]
+                uniform token primvars:displayColor:interpolation = "constant"
+                double size = 1
+                quatf xformOp:orient = (1, 0, 0, 0)
+                double3 xformOp:scale = (0.2, 1.5, 1)
+                double3 xformOp:translate = (8, -0.03209441411912339, 2.2957454920791855)
+                uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
+            }
+        }
+
+        def Cube "Floor" (
+            prepend apiSchemas = ["PhysicsCollisionAPI"]
+        )
+        {
+            float3[] primvars:displayColor = [(0.72, 0.74, 0.76)]
+            uniform token primvars:displayColor:interpolation = "constant"
+            double size = 1
+            double3 xformOp:scale = (20, 20, 0.2)
+            double3 xformOp:translate = (0, 0, -0.1)
+            uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:scale"]
+        }
+
+        def Xform "PickupZone"
+        {
+            quatf xformOp:orient = (1, 0, 0, 0)
+            float3 xformOp:scale = (1, 1, 1)
+            double3 xformOp:translate = (0.1977554405846571, 0, 0)
+            uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
+
+            def Cube "ZoneFloor"
+            {
+                float3[] primvars:displayColor = [(0.9, 0.9, 0.82)]
+                uniform token primvars:displayColor:interpolation = "constant"
+                double size = 1
+                double3 xformOp:scale = (3.2, 8.4, 0.03)
+                double3 xformOp:translate = (-5.8, 0, 0.015)
+                uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:scale"]
+            }
+
+            def Xform "Shelf_02"
+            {
+                quatf xformOp:orient = (1, 0, 0, 0)
+                float3 xformOp:scale = (1, 1, 1)
+                double3 xformOp:translate = (-5.800000000000001, -2.559232047018214, 0)
+                uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
+
+                def Cube "Post_FR" (
+                    prepend apiSchemas = ["PhysicsCollisionAPI"]
+                )
+                {
+                    float3[] primvars:displayColor = [(0.2, 0.22, 0.24)]
+                    uniform token primvars:displayColor:interpolation = "constant"
+                    double size = 1
+                    quatf xformOp:orient = (1, 0, 0, 0)
+                    double3 xformOp:scale = (0.05, 0.05, 0.6)
+                    double3 xformOp:translate = (1.2208436253925363, -0.4640034264793793, 0.32464252396797993)
+                    uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
+                }
+
+                def Cube "Post_BR" (
+                    prepend apiSchemas = ["PhysicsCollisionAPI"]
+                )
+                {
+                    float3[] primvars:displayColor = [(0.2, 0.22, 0.24)]
+                    uniform token primvars:displayColor:interpolation = "constant"
+                    double size = 1
+                    quatf xformOp:orient = (1, 0, 0, 0)
+                    double3 xformOp:scale = (0.05, 0.05, 0.6)
+                    double3 xformOp:translate = (1.1999999999999993, 0.4610501791589017, 0.32)
+                    uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
+                }
+
+                def Cube "Level_2" (
+                    prepend apiSchemas = ["PhysicsCollisionAPI"]
+                )
+                {
+                    float3[] primvars:displayColor = [(0.32, 0.34, 0.36)]
+                    uniform token primvars:displayColor:interpolation = "constant"
+                    double size = 1
+                    quatf xformOp:orient = (1, 0, 0, 0)
+                    double3 xformOp:scale = (2.5, 1, 0.05)
+                    double3 xformOp:translate = (0, 0, 0.5704165297785304)
+                    uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
+                }
+
+                def Cube "Level_1" (
+                    prepend apiSchemas = ["PhysicsCollisionAPI"]
+                )
+                {
+                    float3[] primvars:displayColor = [(0.32, 0.34, 0.36)]
+                    uniform token primvars:displayColor:interpolation = "constant"
+                    double size = 1
+                    quatf xformOp:orient = (1, 0, 0, 0)
+                    double3 xformOp:scale = (2.5, 1, 0.05)
+                    double3 xformOp:translate = (0, 0, 0.26245642533320795)
+                    uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
+                }
+
+                def Cube "Post_BL" (
+                    prepend apiSchemas = ["PhysicsCollisionAPI"]
+                )
+                {
+                    float3[] primvars:displayColor = [(0.2, 0.22, 0.24)]
+                    uniform token primvars:displayColor:interpolation = "constant"
+                    double size = 1
+                    quatf xformOp:orient = (1, 0, 0, 0)
+                    double3 xformOp:scale = (0.05, 0.05, 0.6)
+                    double3 xformOp:translate = (-1.2091096333210682, 0.4610501791589017, 0.3200000000000003)
+                    uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
+                }
+
+                def Cube "Post_FL" (
+                    prepend apiSchemas = ["PhysicsCollisionAPI"]
+                )
+                {
+                    float3[] primvars:displayColor = [(0.2, 0.22, 0.24)]
+                    uniform token primvars:displayColor:interpolation = "constant"
+                    double size = 1
+                    quatf xformOp:orient = (1, 0, 0, 0)
+                    double3 xformOp:scale = (0.05, 0.05, 0.6)
+                    double3 xformOp:translate = (-1.2156768456685016, -0.4640034264793793, 0.32464252396797993)
+                    uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
+                }
+            }
+
+            def Xform "Shelf_01"
+            {
+                quatf xformOp:orient = (1, 0, 0, 0)
+                float3 xformOp:scale = (1, 1, 1)
+                double3 xformOp:translate = (-5.800000000000001, 2.3667298497566636, 0)
+                uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
+
+                def Cube "Post_FR" (
+                    prepend apiSchemas = ["PhysicsCollisionAPI"]
+                )
+                {
+                    float3[] primvars:displayColor = [(0.2, 0.22, 0.24)]
+                    uniform token primvars:displayColor:interpolation = "constant"
+                    double size = 1
+                    quatf xformOp:orient = (1, 0, 0, 0)
+                    double3 xformOp:scale = (0.05, 0.05, 0.6)
+                    double3 xformOp:translate = (1.2208436253925363, -0.4640034264793793, 0.32464252396797993)
+                    uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
+                }
+
+                def Cube "Post_BR" (
+                    prepend apiSchemas = ["PhysicsCollisionAPI"]
+                )
+                {
+                    float3[] primvars:displayColor = [(0.2, 0.22, 0.24)]
+                    uniform token primvars:displayColor:interpolation = "constant"
+                    double size = 1
+                    quatf xformOp:orient = (1, 0, 0, 0)
+                    double3 xformOp:scale = (0.05, 0.05, 0.6)
+                    double3 xformOp:translate = (1.1999999999999993, 0.4610501791589017, 0.32)
+                    uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
+                }
+
+                def Cube "Level_2" (
+                    prepend apiSchemas = ["PhysicsCollisionAPI"]
+                )
+                {
+                    float3[] primvars:displayColor = [(0.32, 0.34, 0.36)]
+                    uniform token primvars:displayColor:interpolation = "constant"
+                    double size = 1
+                    quatf xformOp:orient = (1, 0, 0, 0)
+                    double3 xformOp:scale = (2.5, 1, 0.05)
+                    double3 xformOp:translate = (0, 0, 0.5704165297785304)
+                    uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
+                }
+
+                def Cube "Level_1" (
+                    prepend apiSchemas = ["PhysicsCollisionAPI"]
+                )
+                {
+                    float3[] primvars:displayColor = [(0.32, 0.34, 0.36)]
+                    uniform token primvars:displayColor:interpolation = "constant"
+                    double size = 1
+                    quatf xformOp:orient = (1, 0, 0, 0)
+                    double3 xformOp:scale = (2.5, 1, 0.05)
+                    double3 xformOp:translate = (0, 0, 0.26245642533320795)
+                    uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
+                }
+
+                def Cube "Post_BL" (
+                    prepend apiSchemas = ["PhysicsCollisionAPI"]
+                )
+                {
+                    float3[] primvars:displayColor = [(0.2, 0.22, 0.24)]
+                    uniform token primvars:displayColor:interpolation = "constant"
+                    double size = 1
+                    quatf xformOp:orient = (1, 0, 0, 0)
+                    double3 xformOp:scale = (0.05, 0.05, 0.6)
+                    double3 xformOp:translate = (-1.2091096333210682, 0.4610501791589017, 0.3200000000000003)
+                    uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
+                }
+
+                def Cube "Post_FL" (
+                    prepend apiSchemas = ["PhysicsCollisionAPI"]
+                )
+                {
+                    float3[] primvars:displayColor = [(0.2, 0.22, 0.24)]
+                    uniform token primvars:displayColor:interpolation = "constant"
+                    double size = 1
+                    quatf xformOp:orient = (1, 0, 0, 0)
+                    double3 xformOp:scale = (0.05, 0.05, 0.6)
+                    double3 xformOp:translate = (-1.2156768456685016, -0.4640034264793793, 0.32464252396797993)
+                    uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
+                }
+            }
+        }
+
+        def Xform "DockingZone"
+        {
+            quatf xformOp:orient = (1, 0, 0, 0)
+            float3 xformOp:scale = (1, 1, 1)
+            double3 xformOp:translate = (-0.642964534855462, -1.6572688665562703, 0)
+            uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
+
+            def Cube "ParkingPad"
+            {
+                float3[] primvars:displayColor = [(0.48, 0.34, 0.78)]
+                uniform token primvars:displayColor:interpolation = "constant"
+                double size = 1
+                quatf xformOp:orient = (1, 0, 0, 0)
+                double3 xformOp:scale = (2.4, 2.4, 0.05)
+                double3 xformOp:translate = (4.3, -3.1, 0.025)
+                uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
+            }
+
+            def Cube "ParkingMark_Top"
+            {
+                float3[] primvars:displayColor = [(0.92, 0.92, 0.92)]
+                uniform token primvars:displayColor:interpolation = "constant"
+                double size = 1
+                double3 xformOp:scale = (2.2, 0.08, 0.02)
+                double3 xformOp:translate = (4.3, -2, 0.055)
+                uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:scale"]
+            }
+
+            def Cube "ParkingMark_Bottom"
+            {
+                float3[] primvars:displayColor = [(0.92, 0.92, 0.92)]
+                uniform token primvars:displayColor:interpolation = "constant"
+                double size = 1
+                double3 xformOp:scale = (2.2, 0.08, 0.02)
+                double3 xformOp:translate = (4.3, -4.2, 0.055)
+                uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:scale"]
+            }
+
+            def Cube "ParkingMark_Left"
+            {
+                float3[] primvars:displayColor = [(0.92, 0.92, 0.92)]
+                uniform token primvars:displayColor:interpolation = "constant"
+                double size = 1
+                double3 xformOp:scale = (0.08, 2.2, 0.02)
+                double3 xformOp:translate = (3.2, -3.1, 0.055)
+                uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:scale"]
+            }
+
+            def Cube "ParkingMark_Right"
+            {
+                float3[] primvars:displayColor = [(0.92, 0.92, 0.92)]
+                uniform token primvars:displayColor:interpolation = "constant"
+                double size = 1
+                double3 xformOp:scale = (0.08, 2.2, 0.02)
+                double3 xformOp:translate = (5.4, -3.1, 0.055)
+                uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:scale"]
+            }
+        }
+
+        def Xform "PackagingZone"
+        {
+            def Cube "ConveyorFrame" (
+                prepend apiSchemas = ["PhysicsCollisionAPI"]
+            )
+            {
+                float3[] primvars:displayColor = [(0.2, 0.22, 0.24)]
+                uniform token primvars:displayColor:interpolation = "constant"
+                double size = 1
+                double3 xformOp:scale = (4.4, 1.35, 0.45)
+                double3 xformOp:translate = (6.4, 0, 0.45)
+                uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:scale"]
+            }
+
+            def Cube "BeltTop" (
+                prepend apiSchemas = ["PhysicsCollisionAPI"]
+            )
+            {
+                float3[] primvars:displayColor = [(0.08, 0.09, 0.1)]
+                uniform token primvars:displayColor:interpolation = "constant"
+                double size = 1
+                double3 xformOp:scale = (4.7, 1.1, 0.1)
+                double3 xformOp:translate = (6.4, 0, 0.72)
+                uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:scale"]
+            }
+
+            def Cube "SideRail_A" (
+                prepend apiSchemas = ["PhysicsCollisionAPI"]
+            )
+            {
+                float3[] primvars:displayColor = [(0.55, 0.57, 0.6)]
+                uniform token primvars:displayColor:interpolation = "constant"
+                double size = 1
+                double3 xformOp:scale = (4.7, 0.08, 0.36)
+                double3 xformOp:translate = (6.4, 0.66, 0.9)
+                uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:scale"]
+            }
+
+            def Cube "SideRail_B" (
+                prepend apiSchemas = ["PhysicsCollisionAPI"]
+            )
+            {
+                float3[] primvars:displayColor = [(0.55, 0.57, 0.6)]
+                uniform token primvars:displayColor:interpolation = "constant"
+                double size = 1
+                double3 xformOp:scale = (4.7, 0.08, 0.36)
+                double3 xformOp:translate = (6.4, -0.66, 0.9)
+                uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:scale"]
+            }
+
+            def Cube "TestItem"
+            {
+                float3[] primvars:displayColor = [(0.18, 0.62, 0.82)]
+                uniform token primvars:displayColor:interpolation = "constant"
+                double size = 1
+                token visibility = "inherited"
+                quatf xformOp:orient = (1, 0, 0, 0)
+                double3 xformOp:scale = (0.65, 0.65, 0.55)
+                double3 xformOp:translate.timeSamples = {
+                    0: (4.5, 0, 1.05),
+                    96: (7.9, 0, 1.05),
+                    120: (8.7, 0, 1.05),
+                    132: (9.15, 0, 0.95),
+                    150: (9.65, 0, 0.4),
+                    174: (10.2, 0, -0.8),
+                    480: (10.2, 0, -0.8),
+                }
+                uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
+            }
+
+            def Xform "PackagingTunnel"
+            {
+                quatf xformOp:orient = (1, 0, 0, 0)
+                float3 xformOp:scale = (1, 1, 1)
+                double3 xformOp:translate = (7.3451332755437795, -1.3573246660609186, 0)
+                uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
+
+                def Cube "Tunnel_LeftWall" (
+                    prepend apiSchemas = ["PhysicsCollisionAPI"]
+                )
+                {
+                    float3[] primvars:displayColor = [(0.25, 0.28, 0.32)]
+                    uniform token primvars:displayColor:interpolation = "constant"
+                    double size = 1
+                    quatf xformOp:orient = (1, 0, 0, 0)
+                    double3 xformOp:scale = (1, 0.12, 1.5)
+                    double3 xformOp:translate = (0, 0.5892307431981588, 0.7585547688913877)
+                    uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
+                }
+
+                def Cube "Tunnel_RightWall" (
+                    prepend apiSchemas = ["PhysicsCollisionAPI"]
+                )
+                {
+                    float3[] primvars:displayColor = [(0.25, 0.28, 0.32)]
+                    uniform token primvars:displayColor:interpolation = "constant"
+                    double size = 1
+                    quatf xformOp:orient = (1, 0, 0, 0)
+                    double3 xformOp:scale = (1, 0.12, 1.5)
+                    double3 xformOp:translate = (0, 2.119909580762503, 0.7548947703410416)
+                    uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
+                }
+
+                def Cube "Tunnel_Roof" (
+                    prepend apiSchemas = ["PhysicsCollisionAPI"]
+                )
+                {
+                    float3[] primvars:displayColor = [(0.16, 0.18, 0.21)]
+                    uniform token primvars:displayColor:interpolation = "constant"
+                    double size = 1
+                    quatf xformOp:orient = (1, 0, 0, 0)
+                    double3 xformOp:scale = (1, 1.65, 0.12)
+                    double3 xformOp:translate = (0, 1.349101587329019, 1.5679995083140164)
+                    uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
+                }
+
+                def Cube "MachineTop"
+                {
+                    float3[] primvars:displayColor = [(0.72, 0.23, 0.18)]
+                    uniform token primvars:displayColor:interpolation = "constant"
+                    double size = 1
+                    quatf xformOp:orient = (1, 0, 0, 0)
+                    double3 xformOp:scale = (1, 0.78, 0.28)
+                    double3 xformOp:translate = (0, 1.349101587329019, 1.770695609129222)
+                    uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
+                }
+            }
+        }
+    }
+
+    def "nova_carter1" (
         prepend payload = @https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/5.1/Isaac/Samples/ROS2/Robots/Nova_Carter_ROS.usd@
     )
     {
         quatd xformOp:orient = (1, 0, 0, 0)
         double3 xformOp:scale = (1, 1, 1)
-        double3 xformOp:translate = (3.7, -4.243819003153972, 0.049999549984931946)
+        double3 xformOp:translate = (3.490373703049795, -4.243819003153972, 0.07963398335074101)
         uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
 
         over "differential_drive"
@@ -661,84 +542,119 @@ def Xform "World"
             over "joint_name_array"
             {
                 custom token inputs:input0
-                delete token inputs:input0.connect = </World/Nova_Carter_ROS_01/differential_drive/joint_wheel_left_name.inputs:value>
-                prepend token inputs:input0.connect = </World/Nova_Carter_ROS_01/differential_drive/joint_wheel_left_name.inputs:value>
+                delete token inputs:input0.connect = </World/nova_carter1/differential_drive/joint_wheel_left_name.inputs:value>
+                prepend token inputs:input0.connect = </World/nova_carter1/differential_drive/joint_wheel_left_name.inputs:value>
                 custom token inputs:input1
-                delete token inputs:input1.connect = </World/Nova_Carter_ROS_01/differential_drive/joint_wheel_right_name.inputs:value>
-                prepend token inputs:input1.connect = </World/Nova_Carter_ROS_01/differential_drive/joint_wheel_right_name.inputs:value>
+                delete token inputs:input1.connect = </World/nova_carter1/differential_drive/joint_wheel_right_name.inputs:value>
+                prepend token inputs:input1.connect = </World/nova_carter1/differential_drive/joint_wheel_right_name.inputs:value>
             }
         }
 
-        over "chassis_link"
+        over "chassis_link" (
+            prepend apiSchemas = ["PhysicsFilteredPairsAPI"]
+        )
         {
+            prepend rel physics:filteredPairs = </World/nova_carter1/m0609/base_link>
+            rel physics:simulationOwner
+
+            over "visual"
+            {
+                rel physics:simulationOwner
+            }
         }
 
         over "caster_frame_base"
         {
+            rel physics:simulationOwner
+
+            over "visual"
+            {
+                rel physics:simulationOwner
+            }
         }
 
         over "caster_swivel_left"
         {
+            rel physics:simulationOwner
         }
 
         over "caster_wheel_left"
         {
+            rel physics:simulationOwner
         }
 
         over "caster_swivel_right"
         {
+            rel physics:simulationOwner
         }
 
         over "caster_wheel_right"
         {
+            rel physics:simulationOwner
         }
 
         over "wheel_left"
         {
+            rel physics:simulationOwner
         }
 
         over "wheel_right"
         {
+            rel physics:simulationOwner
         }
 
         over "joint_caster_base"
         {
+            float physics:lowerLimit = -2
+            float physics:upperLimit = 2
             float state:angular:physics:position = 0
             float state:angular:physics:velocity = 0
         }
 
         over "joint_wheel_left"
         {
+            float physics:lowerLimit = -inf
+            float physics:upperLimit = inf
             float state:angular:physics:position = 0
             float state:angular:physics:velocity = 0
         }
 
         over "joint_wheel_right"
         {
+            float physics:lowerLimit = -inf
+            float physics:upperLimit = inf
             float state:angular:physics:position = 0
             float state:angular:physics:velocity = 0
         }
 
         over "joint_swing_left"
         {
+            float physics:lowerLimit = -inf
+            float physics:upperLimit = inf
             float state:angular:physics:position = 0
             float state:angular:physics:velocity = 0
         }
 
         over "joint_swing_right"
         {
+            float physics:lowerLimit = -inf
+            float physics:upperLimit = inf
             float state:angular:physics:position = 0
             float state:angular:physics:velocity = 0
         }
 
         over "joint_caster_left"
         {
+            float physics:lowerLimit = -inf
+            float physics:upperLimit = inf
             float state:angular:physics:position = 0
             float state:angular:physics:velocity = 0
         }
 
         over "joint_caster_right"
         {
+            float physics:lowerLimit = -inf
+            float physics:upperLimit = inf
             float state:angular:physics:position = 0
             float state:angular:physics:velocity = 0
         }
@@ -748,73 +664,73 @@ def Xform "World"
             over "isaac_read_imu_node"
             {
                 custom uint inputs:execIn
-                delete uint inputs:execIn.connect = </World/Nova_Carter_ROS_01/front_hawk/on_playback_tick.outputs:tick>
+                delete uint inputs:execIn.connect = </World/nova_carter1/front_hawk/on_playback_tick.outputs:tick>
             }
 
             over "isaac_run_one_simualtion_frame"
             {
                 custom uint inputs:execIn
-                delete uint inputs:execIn.connect = </World/Nova_Carter_ROS_01/front_hawk/on_playback_tick.outputs:tick>
+                delete uint inputs:execIn.connect = </World/nova_carter1/front_hawk/on_playback_tick.outputs:tick>
             }
 
             over "ros2_publish_imu"
             {
                 custom vector3d inputs:angularVelocity
-                delete vector3d inputs:angularVelocity.connect = </World/Nova_Carter_ROS_01/front_hawk/isaac_read_imu_node.outputs:angVel>
+                delete vector3d inputs:angularVelocity.connect = </World/nova_carter1/front_hawk/isaac_read_imu_node.outputs:angVel>
                 custom uint64 inputs:context
-                delete uint64 inputs:context.connect = </World/Nova_Carter_ROS_01/front_hawk/ros2_context.outputs:context>
+                delete uint64 inputs:context.connect = </World/nova_carter1/front_hawk/ros2_context.outputs:context>
                 custom uint inputs:execIn
-                delete uint inputs:execIn.connect = </World/Nova_Carter_ROS_01/front_hawk/isaac_read_imu_node.outputs:execOut>
+                delete uint inputs:execIn.connect = </World/nova_carter1/front_hawk/isaac_read_imu_node.outputs:execOut>
                 custom vector3d inputs:linearAcceleration
-                delete vector3d inputs:linearAcceleration.connect = </World/Nova_Carter_ROS_01/front_hawk/isaac_read_imu_node.outputs:linAcc>
+                delete vector3d inputs:linearAcceleration.connect = </World/nova_carter1/front_hawk/isaac_read_imu_node.outputs:linAcc>
                 custom quatd inputs:orientation
-                delete quatd inputs:orientation.connect = </World/Nova_Carter_ROS_01/front_hawk/isaac_read_imu_node.outputs:orientation>
+                delete quatd inputs:orientation.connect = </World/nova_carter1/front_hawk/isaac_read_imu_node.outputs:orientation>
                 custom string inputs:qosProfile
-                delete string inputs:qosProfile.connect = </World/Nova_Carter_ROS_01/front_hawk/ros2_qos_profile.outputs:qosProfile>
+                delete string inputs:qosProfile.connect = </World/nova_carter1/front_hawk/ros2_qos_profile.outputs:qosProfile>
                 custom double inputs:timeStamp
-                delete double inputs:timeStamp.connect = </World/Nova_Carter_ROS_01/front_hawk/isaac_read_simulation_time.outputs:simulationTime>
+                delete double inputs:timeStamp.connect = </World/nova_carter1/front_hawk/isaac_read_simulation_time.outputs:simulationTime>
             }
 
             over "ros2_camera_info_helper"
             {
                 custom uint64 inputs:context
-                delete uint64 inputs:context.connect = </World/Nova_Carter_ROS_01/front_hawk/ros2_context.outputs:context>
+                delete uint64 inputs:context.connect = </World/nova_carter1/front_hawk/ros2_context.outputs:context>
                 custom uint inputs:execIn
-                delete uint inputs:execIn.connect = </World/Nova_Carter_ROS_01/front_hawk/left_camera_render_product.outputs:execOut>
+                delete uint inputs:execIn.connect = </World/nova_carter1/front_hawk/left_camera_render_product.outputs:execOut>
                 custom string inputs:nodeNamespace
-                delete string inputs:nodeNamespace.connect = </World/Nova_Carter_ROS_01/front_hawk/camera_namespace.inputs:value>
+                delete string inputs:nodeNamespace.connect = </World/nova_carter1/front_hawk/camera_namespace.inputs:value>
                 custom token inputs:renderProductPath
-                delete token inputs:renderProductPath.connect = </World/Nova_Carter_ROS_01/front_hawk/left_camera_render_product.outputs:renderProductPath>
+                delete token inputs:renderProductPath.connect = </World/nova_carter1/front_hawk/left_camera_render_product.outputs:renderProductPath>
                 custom token inputs:renderProductPathRight
-                delete token inputs:renderProductPathRight.connect = </World/Nova_Carter_ROS_01/front_hawk/right_camera_render_product.outputs:renderProductPath>
+                delete token inputs:renderProductPathRight.connect = </World/nova_carter1/front_hawk/right_camera_render_product.outputs:renderProductPath>
             }
 
             over "right_camera_publish_image"
             {
                 custom uint64 inputs:context
-                delete uint64 inputs:context.connect = </World/Nova_Carter_ROS_01/front_hawk/ros2_context.outputs:context>
+                delete uint64 inputs:context.connect = </World/nova_carter1/front_hawk/ros2_context.outputs:context>
                 custom uint inputs:execIn
-                delete uint inputs:execIn.connect = </World/Nova_Carter_ROS_01/front_hawk/right_camera_render_product.outputs:execOut>
+                delete uint inputs:execIn.connect = </World/nova_carter1/front_hawk/right_camera_render_product.outputs:execOut>
                 custom string inputs:nodeNamespace
-                delete string inputs:nodeNamespace.connect = </World/Nova_Carter_ROS_01/front_hawk/camera_namespace.inputs:value>
+                delete string inputs:nodeNamespace.connect = </World/nova_carter1/front_hawk/camera_namespace.inputs:value>
                 custom token inputs:renderProductPath
-                delete token inputs:renderProductPath.connect = </World/Nova_Carter_ROS_01/front_hawk/right_camera_render_product.outputs:renderProductPath>
+                delete token inputs:renderProductPath.connect = </World/nova_carter1/front_hawk/right_camera_render_product.outputs:renderProductPath>
             }
 
             over "left_camera_publish_image"
             {
                 custom uint64 inputs:context
-                delete uint64 inputs:context.connect = </World/Nova_Carter_ROS_01/front_hawk/ros2_context.outputs:context>
+                delete uint64 inputs:context.connect = </World/nova_carter1/front_hawk/ros2_context.outputs:context>
                 custom uint inputs:execIn
-                delete uint inputs:execIn.connect = </World/Nova_Carter_ROS_01/front_hawk/left_camera_render_product.outputs:execOut>
+                delete uint inputs:execIn.connect = </World/nova_carter1/front_hawk/left_camera_render_product.outputs:execOut>
                 custom string inputs:frameId
-                delete string inputs:frameId.connect = </World/Nova_Carter_ROS_01/front_hawk/left_camera_frame_id.inputs:value>
+                delete string inputs:frameId.connect = </World/nova_carter1/front_hawk/left_camera_frame_id.inputs:value>
                 custom string inputs:nodeNamespace
-                delete string inputs:nodeNamespace.connect = </World/Nova_Carter_ROS_01/front_hawk/camera_namespace.inputs:value>
+                delete string inputs:nodeNamespace.connect = </World/nova_carter1/front_hawk/camera_namespace.inputs:value>
                 custom string inputs:qosProfile
-                delete string inputs:qosProfile.connect = </World/Nova_Carter_ROS_01/front_hawk/ros2_qos_profile.outputs:qosProfile>
+                delete string inputs:qosProfile.connect = </World/nova_carter1/front_hawk/ros2_qos_profile.outputs:qosProfile>
                 custom token inputs:renderProductPath
-                delete token inputs:renderProductPath.connect = </World/Nova_Carter_ROS_01/front_hawk/left_camera_render_product.outputs:renderProductPath>
+                delete token inputs:renderProductPath.connect = </World/nova_carter1/front_hawk/left_camera_render_product.outputs:renderProductPath>
             }
         }
 
@@ -823,82 +739,274 @@ def Xform "World"
             over "ros2_publish_imu"
             {
                 custom uint64 inputs:context
-                delete uint64 inputs:context.connect = </World/Nova_Carter_ROS_01/left_hawk/ros2_context.outputs:context>
+                delete uint64 inputs:context.connect = </World/nova_carter1/left_hawk/ros2_context.outputs:context>
                 custom string inputs:qosProfile
-                delete string inputs:qosProfile.connect = </World/Nova_Carter_ROS_01/left_hawk/ros2_qos_profile.outputs:qosProfile>
+                delete string inputs:qosProfile.connect = </World/nova_carter1/left_hawk/ros2_qos_profile.outputs:qosProfile>
                 custom double inputs:timeStamp
-                delete double inputs:timeStamp.connect = </World/Nova_Carter_ROS_01/left_hawk/isaac_read_simulation_time.outputs:simulationTime>
+                delete double inputs:timeStamp.connect = </World/nova_carter1/left_hawk/isaac_read_simulation_time.outputs:simulationTime>
             }
 
             over "right_camera_publish_image"
             {
                 custom uint64 inputs:context
-                delete uint64 inputs:context.connect = </World/Nova_Carter_ROS_01/left_hawk/ros2_context.outputs:context>
+                delete uint64 inputs:context.connect = </World/nova_carter1/left_hawk/ros2_context.outputs:context>
                 custom uint inputs:execIn
-                delete uint inputs:execIn.connect = </World/Nova_Carter_ROS_01/left_hawk/right_camera_render_product.outputs:execOut>
+                delete uint inputs:execIn.connect = </World/nova_carter1/left_hawk/right_camera_render_product.outputs:execOut>
                 custom string inputs:qosProfile
-                delete string inputs:qosProfile.connect = </World/Nova_Carter_ROS_01/left_hawk/ros2_qos_profile.outputs:qosProfile>
+                delete string inputs:qosProfile.connect = </World/nova_carter1/left_hawk/ros2_qos_profile.outputs:qosProfile>
                 custom token inputs:renderProductPath
-                delete token inputs:renderProductPath.connect = </World/Nova_Carter_ROS_01/left_hawk/right_camera_render_product.outputs:renderProductPath>
+                delete token inputs:renderProductPath.connect = </World/nova_carter1/left_hawk/right_camera_render_product.outputs:renderProductPath>
             }
 
             over "left_camera_publish_image"
             {
                 custom uint64 inputs:context
-                delete uint64 inputs:context.connect = </World/Nova_Carter_ROS_01/left_hawk/ros2_context.outputs:context>
+                delete uint64 inputs:context.connect = </World/nova_carter1/left_hawk/ros2_context.outputs:context>
                 custom uint inputs:execIn
-                delete uint inputs:execIn.connect = </World/Nova_Carter_ROS_01/left_hawk/left_camera_render_product.outputs:execOut>
+                delete uint inputs:execIn.connect = </World/nova_carter1/left_hawk/left_camera_render_product.outputs:execOut>
                 custom string inputs:qosProfile
-                delete string inputs:qosProfile.connect = </World/Nova_Carter_ROS_01/left_hawk/ros2_qos_profile.outputs:qosProfile>
+                delete string inputs:qosProfile.connect = </World/nova_carter1/left_hawk/ros2_qos_profile.outputs:qosProfile>
                 custom token inputs:renderProductPath
-                delete token inputs:renderProductPath.connect = </World/Nova_Carter_ROS_01/left_hawk/left_camera_render_product.outputs:renderProductPath>
+                delete token inputs:renderProductPath.connect = </World/nova_carter1/left_hawk/left_camera_render_product.outputs:renderProductPath>
             }
 
             over "ros2_camera_info_helper"
             {
                 custom uint64 inputs:context
-                delete uint64 inputs:context.connect = </World/Nova_Carter_ROS_01/left_hawk/ros2_context.outputs:context>
+                delete uint64 inputs:context.connect = </World/nova_carter1/left_hawk/ros2_context.outputs:context>
                 custom uint inputs:execIn
-                delete uint inputs:execIn.connect = </World/Nova_Carter_ROS_01/left_hawk/left_camera_render_product.outputs:execOut>
+                delete uint inputs:execIn.connect = </World/nova_carter1/left_hawk/left_camera_render_product.outputs:execOut>
                 custom string inputs:frameId
-                delete string inputs:frameId.connect = </World/Nova_Carter_ROS_01/left_hawk/left_camera_frame_id.inputs:value>
+                delete string inputs:frameId.connect = </World/nova_carter1/left_hawk/left_camera_frame_id.inputs:value>
                 custom string inputs:frameIdRight
-                delete string inputs:frameIdRight.connect = </World/Nova_Carter_ROS_01/left_hawk/right_camera_frame_id.inputs:value>
+                delete string inputs:frameIdRight.connect = </World/nova_carter1/left_hawk/right_camera_frame_id.inputs:value>
                 custom string inputs:qosProfile
-                delete string inputs:qosProfile.connect = </World/Nova_Carter_ROS_01/left_hawk/ros2_qos_profile.outputs:qosProfile>
+                delete string inputs:qosProfile.connect = </World/nova_carter1/left_hawk/ros2_qos_profile.outputs:qosProfile>
                 custom token inputs:renderProductPath
-                delete token inputs:renderProductPath.connect = </World/Nova_Carter_ROS_01/left_hawk/left_camera_render_product.outputs:renderProductPath>
+                delete token inputs:renderProductPath.connect = </World/nova_carter1/left_hawk/left_camera_render_product.outputs:renderProductPath>
                 custom token inputs:renderProductPathRight
-                delete token inputs:renderProductPathRight.connect = </World/Nova_Carter_ROS_01/left_hawk/right_camera_render_product.outputs:renderProductPath>
+                delete token inputs:renderProductPathRight.connect = </World/nova_carter1/left_hawk/right_camera_render_product.outputs:renderProductPath>
             }
 
             over "left_camera_render_product"
             {
                 custom uint inputs:execIn
-                delete uint inputs:execIn.connect = </World/Nova_Carter_ROS_01/left_hawk/isaac_run_one_simualtion_frame.outputs:step>
+                delete uint inputs:execIn.connect = </World/nova_carter1/left_hawk/isaac_run_one_simualtion_frame.outputs:step>
             }
 
             over "right_camera_render_product"
             {
                 custom uint inputs:execIn
-                delete uint inputs:execIn.connect = </World/Nova_Carter_ROS_01/left_hawk/isaac_run_one_simualtion_frame.outputs:step>
+                delete uint inputs:execIn.connect = </World/nova_carter1/left_hawk/isaac_run_one_simualtion_frame.outputs:step>
             }
 
             over "isaac_read_imu_node"
             {
                 custom uint inputs:execIn
-                delete uint inputs:execIn.connect = </World/Nova_Carter_ROS_01/left_hawk/on_playback_tick.outputs:tick>
+                delete uint inputs:execIn.connect = </World/nova_carter1/left_hawk/on_playback_tick.outputs:tick>
             }
+        }
+
+        over "m0609" (
+            prepend references = @file:/home/rokey/cobot3_ws/isaacpjt/M0609/doosan-robot2/urdf/m0609_isaac_sim/m0609_isaac_sim.usd@
+        )
+        {
+            string isaac:namespace (
+                displayName = "Namespace"
+                doc = "Namespace of the prim in Isaac Sim"
+            )
+            quatd xformOp:orient = (1, 0, 0, 0)
+            double3 xformOp:scale = (1, 1, 1)
+            double3 xformOp:translate = (-0.20649390288330727, 0, 0.5492008321030571)
+            uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
+
+            over "root_joint" (
+                active = false
+            )
+            {
+            }
+
+            def "short_gripper" (
+                prepend payload = @https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/5.1/Isaac/Robots/UniversalRobots/ur10/grippers/short_gripper.usd@
+            )
+            {
+                rel physics:simulationOwner
+                double3 xformOp:rotateXYZ = (0, -90, 0)
+                double3 xformOp:scale = (1, 1, 1)
+                double3 xformOp:translate = (0.0001, 0.00638, 1.0345)
+                uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:rotateXYZ", "xformOp:scale"]
+
+                over "gripper_tip"
+                {
+                    rel physics:simulationOwner
+                }
+
+                over "gripper_base"
+                {
+                    rel physics:simulationOwner
+                }
+
+                over "tube"
+                {
+                    rel physics:simulationOwner
+                }
+
+                over "camera_mount"
+                {
+                    rel physics:simulationOwner
+                }
+
+                over "wrist"
+                {
+                    rel physics:simulationOwner
+                }
+
+                over "mount"
+                {
+                    rel physics:simulationOwner
+                }
+
+                def "rsd455" (
+                    prepend payload = @https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/5.1/Isaac/Sensors/Intel/RealSense/rsd455.usd@
+                )
+                {
+                    double3 xformOp:rotateZYX = (90, 0, 0)
+                    double3 xformOp:scale = (1, 1, 1)
+                    double3 xformOp:translate = (0.035, -0.0450011848228975, 0)
+                    uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:rotateZYX", "xformOp:scale"]
+                }
+            }
+
+            over "link_6" (
+                prepend apiSchemas = ["PhysicsFilteredPairsAPI"]
+            )
+            {
+                string isaac:nameOverride (
+                    displayName = "Name Override"
+                    doc = "Name override for prim lookup in base name search"
+                )
+                prepend rel physics:filteredPairs = </World/nova_carter1/m0609/short_gripper>
+                rel physics:simulationOwner
+
+                def PhysicsFixedJoint "FixedJoint"
+                {
+                    rel physics:body0 = </World/nova_carter1/m0609/short_gripper>
+                    rel physics:body1 = </World/nova_carter1/m0609/link_6>
+                    float physics:breakForce = 3.4028235e38
+                    float physics:breakTorque = 3.4028235e38
+                    point3f physics:localPos0 = (-2.3555755e-7, 0.0000033612948, 3.471603e-7)
+                    point3f physics:localPos1 = (0, 0, 0)
+                    quatf physics:localRot0 = (0.7068625, -0.00024411494, 0.70735085, -0.00024411494)
+                    quatf physics:localRot1 = (1, 0, 0, 0)
+                }
+            }
+
+            over "base_link"
+            {
+                rel physics:simulationOwner
+            }
+
+            over "link_1"
+            {
+                rel physics:simulationOwner
+            }
+
+            over "link_2"
+            {
+                rel physics:simulationOwner
+            }
+
+            over "link_3"
+            {
+                rel physics:simulationOwner
+            }
+
+            over "link_4"
+            {
+                rel physics:simulationOwner
+            }
+
+            over "link_5"
+            {
+                rel physics:simulationOwner
+            }
+
+            over "joints"
+            {
+                over "joint_1"
+                {
+                    float drive:angular:physics:targetPosition = 0.4
+                    float physics:lowerLimit = -360.00082
+                    float physics:upperLimit = 360.00082
+                    float state:angular:physics:position = 0
+                    float state:angular:physics:velocity = 0
+                }
+
+                over "joint_2"
+                {
+                    float drive:angular:physics:targetPosition = 0.4
+                    float physics:lowerLimit = -360.00082
+                    float physics:upperLimit = 360.00082
+                    float state:angular:physics:position = 0
+                    float state:angular:physics:velocity = 0
+                }
+
+                over "joint_3"
+                {
+                    float drive:angular:physics:targetPosition = 88.200005
+                    float physics:lowerLimit = -150.00035
+                    float physics:upperLimit = 150.00035
+                    float state:angular:physics:position = 0
+                    float state:angular:physics:velocity = 0
+                }
+
+                over "joint_4"
+                {
+                    float drive:angular:physics:targetPosition = -16.9
+                    float physics:lowerLimit = -360.00082
+                    float physics:upperLimit = 360.00082
+                    float state:angular:physics:position = 0
+                    float state:angular:physics:velocity = 0
+                }
+
+                over "joint_5"
+                {
+                    float drive:angular:physics:targetPosition = 90.4
+                    float physics:lowerLimit = -360.00082
+                    float physics:upperLimit = 360.00082
+                    float state:angular:physics:position = 0
+                    float state:angular:physics:velocity = 0
+                }
+
+                over "joint_6"
+                {
+                    float drive:angular:physics:targetPosition = -9.900001
+                    float physics:lowerLimit = -360.00082
+                    float physics:upperLimit = 360.00082
+                    float state:angular:physics:position = 0
+                    float state:angular:physics:velocity = 0
+                }
+            }
+        }
+
+        def PhysicsFixedJoint "arm_mount_joint"
+        {
+            rel physics:body0 = </World/nova_carter1/chassis_link>
+            rel physics:body1 = </World/nova_carter1/m0609/base_link>
+            point3f physics:localPos0 = (-0.20649381, -2.336014e-7, 0.54920083)
+            point3f physics:localPos1 = (9.604432e-8, -2.336014e-7, -1.4160438e-8)
+            quatf physics:localRot0 = (1, 0, 0, 0)
+            quatf physics:localRot1 = (1, 0, 0, 0)
         }
     }
 
-    def "Nova_Carter_ROS_02" (
+    def "nova_carter2" (
         prepend payload = @https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/5.1/Isaac/Samples/ROS2/Robots/Nova_Carter_ROS.usd@
     )
     {
         quatd xformOp:orient = (1, 0, 0, 0)
         double3 xformOp:scale = (1, 1, 1)
-        double3 xformOp:translate = (3.7, -5.2, 0.05000024288892746)
+        double3 xformOp:translate = (3.490373703049795, -5.227116321664516, 0.07963398335074101)
         uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
 
         over "differential_drive"
@@ -906,170 +1014,622 @@ def Xform "World"
             over "joint_name_array"
             {
                 custom token inputs:input0
-                delete token inputs:input0.connect = </World/Nova_Carter_ROS_02/differential_drive/joint_wheel_left_name.inputs:value>
-                prepend token inputs:input0.connect = </World/Nova_Carter_ROS_02/differential_drive/joint_wheel_left_name.inputs:value>
+                delete token inputs:input0.connect = </World/nova_carter2/differential_drive/joint_wheel_left_name.inputs:value>
+                prepend token inputs:input0.connect = </World/nova_carter2/differential_drive/joint_wheel_left_name.inputs:value>
                 custom token inputs:input1
-                delete token inputs:input1.connect = </World/Nova_Carter_ROS_02/differential_drive/joint_wheel_right_name.inputs:value>
-                prepend token inputs:input1.connect = </World/Nova_Carter_ROS_02/differential_drive/joint_wheel_right_name.inputs:value>
+                delete token inputs:input1.connect = </World/nova_carter2/differential_drive/joint_wheel_right_name.inputs:value>
+                prepend token inputs:input1.connect = </World/nova_carter2/differential_drive/joint_wheel_right_name.inputs:value>
             }
         }
 
-        over "right_hawk"
+        over "chassis_link" (
+            prepend apiSchemas = ["PhysicsFilteredPairsAPI"]
+        )
         {
-            over "ros2_publish_imu"
-            {
-                custom vector3d inputs:angularVelocity
-                delete vector3d inputs:angularVelocity.connect = </World/Nova_Carter_ROS_02/right_hawk/isaac_read_imu_node.outputs:angVel>
-                custom uint64 inputs:context
-                delete uint64 inputs:context.connect = </World/Nova_Carter_ROS_02/right_hawk/ros2_context.outputs:context>
-                custom uint inputs:execIn
-                delete uint inputs:execIn.connect = </World/Nova_Carter_ROS_02/right_hawk/isaac_read_imu_node.outputs:execOut>
-                custom vector3d inputs:linearAcceleration
-                delete vector3d inputs:linearAcceleration.connect = </World/Nova_Carter_ROS_02/right_hawk/isaac_read_imu_node.outputs:linAcc>
-                custom quatd inputs:orientation
-                delete quatd inputs:orientation.connect = </World/Nova_Carter_ROS_02/right_hawk/isaac_read_imu_node.outputs:orientation>
-                custom string inputs:qosProfile
-                delete string inputs:qosProfile.connect = </World/Nova_Carter_ROS_02/right_hawk/ros2_qos_profile.outputs:qosProfile>
-                custom double inputs:timeStamp
-                delete double inputs:timeStamp.connect = </World/Nova_Carter_ROS_02/right_hawk/isaac_read_simulation_time.outputs:simulationTime>
-            }
+            prepend rel physics:filteredPairs = </World/nova_carter2/m0609/base_link>
+            rel physics:simulationOwner
 
-            over "left_camera_publish_image"
+            over "visual"
             {
-                custom uint64 inputs:context
-                delete uint64 inputs:context.connect = </World/Nova_Carter_ROS_02/right_hawk/ros2_context.outputs:context>
-                custom uint inputs:execIn
-                delete uint inputs:execIn.connect = </World/Nova_Carter_ROS_02/right_hawk/left_camera_render_product.outputs:execOut>
-                custom string inputs:frameId
-                delete string inputs:frameId.connect = </World/Nova_Carter_ROS_02/right_hawk/left_camera_frame_id.inputs:value>
-                custom string inputs:nodeNamespace
-                delete string inputs:nodeNamespace.connect = </World/Nova_Carter_ROS_02/right_hawk/camera_namespace.inputs:value>
-                custom string inputs:qosProfile
-                delete string inputs:qosProfile.connect = </World/Nova_Carter_ROS_02/right_hawk/ros2_qos_profile.outputs:qosProfile>
-                custom token inputs:renderProductPath
-                delete token inputs:renderProductPath.connect = </World/Nova_Carter_ROS_02/right_hawk/left_camera_render_product.outputs:renderProductPath>
+                rel physics:simulationOwner
             }
-
-            over "right_camera_publish_image"
-            {
-                custom uint64 inputs:context
-                delete uint64 inputs:context.connect = </World/Nova_Carter_ROS_02/right_hawk/ros2_context.outputs:context>
-                custom uint inputs:execIn
-                delete uint inputs:execIn.connect = </World/Nova_Carter_ROS_02/right_hawk/right_camera_render_product.outputs:execOut>
-                custom string inputs:nodeNamespace
-                delete string inputs:nodeNamespace.connect = </World/Nova_Carter_ROS_02/right_hawk/camera_namespace.inputs:value>
-                custom string inputs:qosProfile
-                delete string inputs:qosProfile.connect = </World/Nova_Carter_ROS_02/right_hawk/ros2_qos_profile.outputs:qosProfile>
-                custom token inputs:renderProductPath
-                delete token inputs:renderProductPath.connect = </World/Nova_Carter_ROS_02/right_hawk/right_camera_render_product.outputs:renderProductPath>
-            }
-
-            over "ros2_camera_info_helper"
-            {
-                custom uint64 inputs:context
-                delete uint64 inputs:context.connect = </World/Nova_Carter_ROS_02/right_hawk/ros2_context.outputs:context>
-                custom uint inputs:execIn
-                delete uint inputs:execIn.connect = </World/Nova_Carter_ROS_02/right_hawk/left_camera_render_product.outputs:execOut>
-                custom string inputs:frameId
-                delete string inputs:frameId.connect = </World/Nova_Carter_ROS_02/right_hawk/left_camera_frame_id.inputs:value>
-                custom string inputs:frameIdRight
-                delete string inputs:frameIdRight.connect = </World/Nova_Carter_ROS_02/right_hawk/right_camera_frame_id.inputs:value>
-                custom string inputs:nodeNamespace
-                delete string inputs:nodeNamespace.connect = </World/Nova_Carter_ROS_02/right_hawk/camera_namespace.inputs:value>
-                custom string inputs:qosProfile
-                delete string inputs:qosProfile.connect = </World/Nova_Carter_ROS_02/right_hawk/ros2_qos_profile.outputs:qosProfile>
-                custom token inputs:renderProductPath
-                delete token inputs:renderProductPath.connect = </World/Nova_Carter_ROS_02/right_hawk/left_camera_render_product.outputs:renderProductPath>
-                custom token inputs:renderProductPathRight
-                delete token inputs:renderProductPathRight.connect = </World/Nova_Carter_ROS_02/right_hawk/right_camera_render_product.outputs:renderProductPath>
-            }
-
-            over "isaac_read_imu_node"
-            {
-                custom uint inputs:execIn
-                delete uint inputs:execIn.connect = </World/Nova_Carter_ROS_02/right_hawk/on_playback_tick.outputs:tick>
-            }
-
-            over "isaac_run_one_simualtion_frame"
-            {
-                custom uint inputs:execIn
-                delete uint inputs:execIn.connect = </World/Nova_Carter_ROS_02/right_hawk/on_playback_tick.outputs:tick>
-            }
-        }
-
-        over "chassis_link"
-        {
         }
 
         over "caster_frame_base"
         {
+            rel physics:simulationOwner
+
+            over "visual"
+            {
+                rel physics:simulationOwner
+            }
         }
 
         over "caster_swivel_left"
         {
+            rel physics:simulationOwner
         }
 
         over "caster_wheel_left"
         {
+            rel physics:simulationOwner
         }
 
         over "caster_swivel_right"
         {
+            rel physics:simulationOwner
         }
 
         over "caster_wheel_right"
         {
+            rel physics:simulationOwner
         }
 
         over "wheel_left"
         {
+            rel physics:simulationOwner
         }
 
         over "wheel_right"
         {
+            rel physics:simulationOwner
         }
 
         over "joint_caster_base"
         {
+            float physics:lowerLimit = -2
+            float physics:upperLimit = 2
             float state:angular:physics:position = 0
             float state:angular:physics:velocity = 0
         }
 
         over "joint_wheel_left"
         {
+            float physics:lowerLimit = -inf
+            float physics:upperLimit = inf
             float state:angular:physics:position = 0
             float state:angular:physics:velocity = 0
         }
 
         over "joint_wheel_right"
         {
+            float physics:lowerLimit = -inf
+            float physics:upperLimit = inf
             float state:angular:physics:position = 0
             float state:angular:physics:velocity = 0
         }
 
         over "joint_swing_left"
         {
+            float physics:lowerLimit = -inf
+            float physics:upperLimit = inf
             float state:angular:physics:position = 0
             float state:angular:physics:velocity = 0
         }
 
         over "joint_swing_right"
         {
+            float physics:lowerLimit = -inf
+            float physics:upperLimit = inf
             float state:angular:physics:position = 0
             float state:angular:physics:velocity = 0
         }
 
         over "joint_caster_left"
         {
+            float physics:lowerLimit = -inf
+            float physics:upperLimit = inf
             float state:angular:physics:position = 0
             float state:angular:physics:velocity = 0
         }
 
         over "joint_caster_right"
         {
+            float physics:lowerLimit = -inf
+            float physics:upperLimit = inf
             float state:angular:physics:position = 0
             float state:angular:physics:velocity = 0
         }
+
+        over "front_hawk"
+        {
+            over "isaac_read_imu_node"
+            {
+                custom uint inputs:execIn
+                delete uint inputs:execIn.connect = </World/nova_carter2/front_hawk/on_playback_tick.outputs:tick>
+            }
+
+            over "isaac_run_one_simualtion_frame"
+            {
+                custom uint inputs:execIn
+                delete uint inputs:execIn.connect = </World/nova_carter2/front_hawk/on_playback_tick.outputs:tick>
+            }
+
+            over "ros2_publish_imu"
+            {
+                custom vector3d inputs:angularVelocity
+                delete vector3d inputs:angularVelocity.connect = </World/nova_carter2/front_hawk/isaac_read_imu_node.outputs:angVel>
+                custom uint64 inputs:context
+                delete uint64 inputs:context.connect = </World/nova_carter2/front_hawk/ros2_context.outputs:context>
+                custom uint inputs:execIn
+                delete uint inputs:execIn.connect = </World/nova_carter2/front_hawk/isaac_read_imu_node.outputs:execOut>
+                custom vector3d inputs:linearAcceleration
+                delete vector3d inputs:linearAcceleration.connect = </World/nova_carter2/front_hawk/isaac_read_imu_node.outputs:linAcc>
+                custom quatd inputs:orientation
+                delete quatd inputs:orientation.connect = </World/nova_carter2/front_hawk/isaac_read_imu_node.outputs:orientation>
+                custom string inputs:qosProfile
+                delete string inputs:qosProfile.connect = </World/nova_carter2/front_hawk/ros2_qos_profile.outputs:qosProfile>
+                custom double inputs:timeStamp
+                delete double inputs:timeStamp.connect = </World/nova_carter2/front_hawk/isaac_read_simulation_time.outputs:simulationTime>
+            }
+
+            over "ros2_camera_info_helper"
+            {
+                custom uint64 inputs:context
+                delete uint64 inputs:context.connect = </World/nova_carter2/front_hawk/ros2_context.outputs:context>
+                custom uint inputs:execIn
+                delete uint inputs:execIn.connect = </World/nova_carter2/front_hawk/left_camera_render_product.outputs:execOut>
+                custom string inputs:nodeNamespace
+                delete string inputs:nodeNamespace.connect = </World/nova_carter2/front_hawk/camera_namespace.inputs:value>
+                custom token inputs:renderProductPath
+                delete token inputs:renderProductPath.connect = </World/nova_carter2/front_hawk/left_camera_render_product.outputs:renderProductPath>
+                custom token inputs:renderProductPathRight
+                delete token inputs:renderProductPathRight.connect = </World/nova_carter2/front_hawk/right_camera_render_product.outputs:renderProductPath>
+            }
+
+            over "right_camera_publish_image"
+            {
+                custom uint64 inputs:context
+                delete uint64 inputs:context.connect = </World/nova_carter2/front_hawk/ros2_context.outputs:context>
+                custom uint inputs:execIn
+                delete uint inputs:execIn.connect = </World/nova_carter2/front_hawk/right_camera_render_product.outputs:execOut>
+                custom string inputs:nodeNamespace
+                delete string inputs:nodeNamespace.connect = </World/nova_carter2/front_hawk/camera_namespace.inputs:value>
+                custom token inputs:renderProductPath
+                delete token inputs:renderProductPath.connect = </World/nova_carter2/front_hawk/right_camera_render_product.outputs:renderProductPath>
+            }
+
+            over "left_camera_publish_image"
+            {
+                custom uint64 inputs:context
+                delete uint64 inputs:context.connect = </World/nova_carter2/front_hawk/ros2_context.outputs:context>
+                custom uint inputs:execIn
+                delete uint inputs:execIn.connect = </World/nova_carter2/front_hawk/left_camera_render_product.outputs:execOut>
+                custom string inputs:frameId
+                delete string inputs:frameId.connect = </World/nova_carter2/front_hawk/left_camera_frame_id.inputs:value>
+                custom string inputs:nodeNamespace
+                delete string inputs:nodeNamespace.connect = </World/nova_carter2/front_hawk/camera_namespace.inputs:value>
+                custom string inputs:qosProfile
+                delete string inputs:qosProfile.connect = </World/nova_carter2/front_hawk/ros2_qos_profile.outputs:qosProfile>
+                custom token inputs:renderProductPath
+                delete token inputs:renderProductPath.connect = </World/nova_carter2/front_hawk/left_camera_render_product.outputs:renderProductPath>
+            }
+        }
+
+        over "left_hawk"
+        {
+            over "ros2_publish_imu"
+            {
+                custom uint64 inputs:context
+                delete uint64 inputs:context.connect = </World/nova_carter2/left_hawk/ros2_context.outputs:context>
+                custom string inputs:qosProfile
+                delete string inputs:qosProfile.connect = </World/nova_carter2/left_hawk/ros2_qos_profile.outputs:qosProfile>
+                custom double inputs:timeStamp
+                delete double inputs:timeStamp.connect = </World/nova_carter2/left_hawk/isaac_read_simulation_time.outputs:simulationTime>
+            }
+
+            over "right_camera_publish_image"
+            {
+                custom uint64 inputs:context
+                delete uint64 inputs:context.connect = </World/nova_carter2/left_hawk/ros2_context.outputs:context>
+                custom uint inputs:execIn
+                delete uint inputs:execIn.connect = </World/nova_carter2/left_hawk/right_camera_render_product.outputs:execOut>
+                custom string inputs:qosProfile
+                delete string inputs:qosProfile.connect = </World/nova_carter2/left_hawk/ros2_qos_profile.outputs:qosProfile>
+                custom token inputs:renderProductPath
+                delete token inputs:renderProductPath.connect = </World/nova_carter2/left_hawk/right_camera_render_product.outputs:renderProductPath>
+            }
+
+            over "left_camera_publish_image"
+            {
+                custom uint64 inputs:context
+                delete uint64 inputs:context.connect = </World/nova_carter2/left_hawk/ros2_context.outputs:context>
+                custom uint inputs:execIn
+                delete uint inputs:execIn.connect = </World/nova_carter2/left_hawk/left_camera_render_product.outputs:execOut>
+                custom string inputs:qosProfile
+                delete string inputs:qosProfile.connect = </World/nova_carter2/left_hawk/ros2_qos_profile.outputs:qosProfile>
+                custom token inputs:renderProductPath
+                delete token inputs:renderProductPath.connect = </World/nova_carter2/left_hawk/left_camera_render_product.outputs:renderProductPath>
+            }
+
+            over "ros2_camera_info_helper"
+            {
+                custom uint64 inputs:context
+                delete uint64 inputs:context.connect = </World/nova_carter2/left_hawk/ros2_context.outputs:context>
+                custom uint inputs:execIn
+                delete uint inputs:execIn.connect = </World/nova_carter2/left_hawk/left_camera_render_product.outputs:execOut>
+                custom string inputs:frameId
+                delete string inputs:frameId.connect = </World/nova_carter2/left_hawk/left_camera_frame_id.inputs:value>
+                custom string inputs:frameIdRight
+                delete string inputs:frameIdRight.connect = </World/nova_carter2/left_hawk/right_camera_frame_id.inputs:value>
+                custom string inputs:qosProfile
+                delete string inputs:qosProfile.connect = </World/nova_carter2/left_hawk/ros2_qos_profile.outputs:qosProfile>
+                custom token inputs:renderProductPath
+                delete token inputs:renderProductPath.connect = </World/nova_carter2/left_hawk/left_camera_render_product.outputs:renderProductPath>
+                custom token inputs:renderProductPathRight
+                delete token inputs:renderProductPathRight.connect = </World/nova_carter2/left_hawk/right_camera_render_product.outputs:renderProductPath>
+            }
+
+            over "left_camera_render_product"
+            {
+                custom uint inputs:execIn
+                delete uint inputs:execIn.connect = </World/nova_carter2/left_hawk/isaac_run_one_simualtion_frame.outputs:step>
+            }
+
+            over "right_camera_render_product"
+            {
+                custom uint inputs:execIn
+                delete uint inputs:execIn.connect = </World/nova_carter2/left_hawk/isaac_run_one_simualtion_frame.outputs:step>
+            }
+
+            over "isaac_read_imu_node"
+            {
+                custom uint inputs:execIn
+                delete uint inputs:execIn.connect = </World/nova_carter2/left_hawk/on_playback_tick.outputs:tick>
+            }
+        }
+
+        over "m0609" (
+            prepend references = @file:/home/rokey/cobot3_ws/isaacpjt/M0609/doosan-robot2/urdf/m0609_isaac_sim/m0609_isaac_sim.usd@
+        )
+        {
+            string isaac:namespace (
+                displayName = "Namespace"
+                doc = "Namespace of the prim in Isaac Sim"
+            )
+            quatd xformOp:orient = (1, 0, 0, 0)
+            double3 xformOp:scale = (1, 1, 1)
+            double3 xformOp:translate = (-0.20649390288330727, 0, 0.5492008321030571)
+            uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
+
+            over "root_joint" (
+                active = false
+            )
+            {
+            }
+
+            def "short_gripper" (
+                prepend payload = @https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/5.1/Isaac/Robots/UniversalRobots/ur10/grippers/short_gripper.usd@
+            )
+            {
+                rel physics:simulationOwner
+                double3 xformOp:rotateXYZ = (0, -90, 0)
+                double3 xformOp:scale = (1, 1, 1)
+                double3 xformOp:translate = (0.0001, 0.00638, 1.0345)
+                uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:rotateXYZ", "xformOp:scale"]
+
+                over "gripper_tip"
+                {
+                    rel physics:simulationOwner
+                }
+
+                over "gripper_base"
+                {
+                    rel physics:simulationOwner
+                }
+
+                over "tube"
+                {
+                    rel physics:simulationOwner
+                }
+
+                over "camera_mount"
+                {
+                    rel physics:simulationOwner
+                }
+
+                over "wrist"
+                {
+                    rel physics:simulationOwner
+                }
+
+                over "mount"
+                {
+                    rel physics:simulationOwner
+                }
+
+                def "rsd455" (
+                    prepend payload = @https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/5.1/Isaac/Sensors/Intel/RealSense/rsd455.usd@
+                )
+                {
+                    double3 xformOp:rotateZYX = (90, 0, 0)
+                    double3 xformOp:scale = (1, 1, 1)
+                    double3 xformOp:translate = (0.035, -0.0450011848228975, 0)
+                    uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:rotateZYX", "xformOp:scale"]
+                }
+            }
+
+            over "link_6" (
+                prepend apiSchemas = ["PhysicsFilteredPairsAPI"]
+            )
+            {
+                string isaac:nameOverride (
+                    displayName = "Name Override"
+                    doc = "Name override for prim lookup in base name search"
+                )
+                prepend rel physics:filteredPairs = </World/nova_carter2/m0609/short_gripper>
+                rel physics:simulationOwner
+
+                def PhysicsFixedJoint "FixedJoint"
+                {
+                    rel physics:body0 = </World/nova_carter2/m0609/short_gripper>
+                    rel physics:body1 = </World/nova_carter2/m0609/link_6>
+                    float physics:breakForce = 3.4028235e38
+                    float physics:breakTorque = 3.4028235e38
+                    point3f physics:localPos0 = (-2.3555755e-7, 0.0000033612948, 3.471603e-7)
+                    point3f physics:localPos1 = (0, 0, 0)
+                    quatf physics:localRot0 = (0.7068625, -0.00024411494, 0.70735085, -0.00024411494)
+                    quatf physics:localRot1 = (1, 0, 0, 0)
+                }
+            }
+
+            over "base_link"
+            {
+                rel physics:simulationOwner
+            }
+
+            over "link_1"
+            {
+                rel physics:simulationOwner
+            }
+
+            over "link_2"
+            {
+                rel physics:simulationOwner
+            }
+
+            over "link_3"
+            {
+                rel physics:simulationOwner
+            }
+
+            over "link_4"
+            {
+                rel physics:simulationOwner
+            }
+
+            over "link_5"
+            {
+                rel physics:simulationOwner
+            }
+
+            over "joints"
+            {
+                over "joint_1"
+                {
+                    float drive:angular:physics:targetPosition = 0.4
+                    float physics:lowerLimit = -360.00082
+                    float physics:upperLimit = 360.00082
+                    float state:angular:physics:position = 0
+                    float state:angular:physics:velocity = 0
+                }
+
+                over "joint_2"
+                {
+                    float drive:angular:physics:targetPosition = 0.4
+                    float physics:lowerLimit = -360.00082
+                    float physics:upperLimit = 360.00082
+                    float state:angular:physics:position = 0
+                    float state:angular:physics:velocity = 0
+                }
+
+                over "joint_3"
+                {
+                    float drive:angular:physics:targetPosition = 88.200005
+                    float physics:lowerLimit = -150.00035
+                    float physics:upperLimit = 150.00035
+                    float state:angular:physics:position = 0
+                    float state:angular:physics:velocity = 0
+                }
+
+                over "joint_4"
+                {
+                    float drive:angular:physics:targetPosition = -16.9
+                    float physics:lowerLimit = -360.00082
+                    float physics:upperLimit = 360.00082
+                    float state:angular:physics:position = 0
+                    float state:angular:physics:velocity = 0
+                }
+
+                over "joint_5"
+                {
+                    float drive:angular:physics:targetPosition = 90.4
+                    float physics:lowerLimit = -360.00082
+                    float physics:upperLimit = 360.00082
+                    float state:angular:physics:position = 0
+                    float state:angular:physics:velocity = 0
+                }
+
+                over "joint_6"
+                {
+                    float drive:angular:physics:targetPosition = -9.900001
+                    float physics:lowerLimit = -360.00082
+                    float physics:upperLimit = 360.00082
+                    float state:angular:physics:position = 0
+                    float state:angular:physics:velocity = 0
+                }
+            }
+        }
+
+        def PhysicsFixedJoint "arm_mount_joint"
+        {
+            rel physics:body0 = </World/nova_carter2/chassis_link>
+            rel physics:body1 = </World/nova_carter2/m0609/base_link>
+            point3f physics:localPos0 = (-0.20649381, -2.336014e-7, 0.54920083)
+            point3f physics:localPos1 = (9.604432e-8, -2.336014e-7, -1.4160438e-8)
+            quatf physics:localRot0 = (1, 0, 0, 0)
+            quatf physics:localRot1 = (1, 0, 0, 0)
+        }
+    }
+
+    def "magazine_1_orange" (
+        prepend payload = @../assets/magazine_1_orange.usda@
+    )
+    {
+        quatf xformOp:orient = (1, 0, 0, 0)
+        float3 xformOp:scale = (1, 1, 1)
+        double3 xformOp:translate = (-6.5, 2, 0.6)
+        uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
+    }
+
+    def "magazine_2_blue" (
+        prepend payload = @../assets/magazine_2_blue.usda@
+    )
+    {
+        quatf xformOp:orient = (1, 0, 0, 0)
+        float3 xformOp:scale = (1, 1, 1)
+        double3 xformOp:translate = (-5.5, 2, 0.6)
+        uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
+    }
+
+    def "tray_1_orange" (
+        prepend payload = @../assets/tray_1_orange.usda@
+    )
+    {
+        quatf xformOp:orient = (1, 0, 0, 0)
+        float3 xformOp:scale = (1, 1, 1)
+        double3 xformOp:translate = (-6, 2, 0.6)
+        uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
+    }
+
+    def "tray_2_blue" (
+        prepend payload = @../assets/tray_2_blue.usda@
+    )
+    {
+        quatf xformOp:orient = (1, 0, 0, 0)
+        float3 xformOp:scale = (1, 1, 1)
+        double3 xformOp:translate = (-5, 2, 0.6)
+        uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
+    }
+
+    def "magazine_1_orange_01" (
+        prepend payload = @file:/home/rokey/cobot3_ws/isaacpjt/assets/magazine_1_orange.usda@
+    )
+    {
+        quatf xformOp:orient = (1, 0, 0, 0)
+        float3 xformOp:scale = (1, 1, 1)
+        double3 xformOp:translate = (-6.5, 2, 0.3)
+        uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
+    }
+
+    def "magazine_2_blue_01" (
+        prepend payload = @file:/home/rokey/cobot3_ws/isaacpjt/assets/magazine_2_blue.usda@
+    )
+    {
+        quatf xformOp:orient = (1, 0, 0, 0)
+        float3 xformOp:scale = (1, 1, 1)
+        double3 xformOp:translate = (-5.5, 2, 0.3)
+        uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
+    }
+
+    def "tray_1_orange_01" (
+        prepend payload = @file:/home/rokey/cobot3_ws/isaacpjt/assets/tray_1_orange.usda@
+    )
+    {
+        quatf xformOp:orient = (1, 0, 0, 0)
+        float3 xformOp:scale = (1, 1, 1)
+        double3 xformOp:translate = (-6, 2, 0.3)
+        uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
+    }
+
+    def "tray_2_blue_01" (
+        prepend payload = @file:/home/rokey/cobot3_ws/isaacpjt/assets/tray_2_blue.usda@
+    )
+    {
+        quatf xformOp:orient = (1, 0, 0, 0)
+        float3 xformOp:scale = (1, 1, 1)
+        double3 xformOp:translate = (-5, 2, 0.3)
+        uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
+    }
+
+    def "magazine_1_orange_02" (
+        prepend payload = @file:/home/rokey/cobot3_ws/isaacpjt/assets/magazine_1_orange.usda@
+    )
+    {
+        quatf xformOp:orient = (1, 0, 0, 0)
+        float3 xformOp:scale = (1, 1, 1)
+        double3 xformOp:translate = (-6.5, -2.2, 0.6)
+        uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
+    }
+
+    def "magazine_1_orange_03" (
+        prepend payload = @file:/home/rokey/cobot3_ws/isaacpjt/assets/magazine_1_orange.usda@
+    )
+    {
+        quatf xformOp:orient = (1, 0, 0, 0)
+        float3 xformOp:scale = (1, 1, 1)
+        double3 xformOp:translate = (-6.5, -2.2, 0.3)
+        uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
+    }
+
+    def "magazine_2_blue_02" (
+        prepend payload = @file:/home/rokey/cobot3_ws/isaacpjt/assets/magazine_2_blue.usda@
+    )
+    {
+        quatf xformOp:orient = (1, 0, 0, 0)
+        float3 xformOp:scale = (1, 1, 1)
+        double3 xformOp:translate = (-5.5, -2.2, 0.6)
+        uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
+    }
+
+    def "magazine_2_blue_03" (
+        prepend payload = @file:/home/rokey/cobot3_ws/isaacpjt/assets/magazine_2_blue.usda@
+    )
+    {
+        quatf xformOp:orient = (1, 0, 0, 0)
+        float3 xformOp:scale = (1, 1, 1)
+        double3 xformOp:translate = (-5.5, -2.2, 0.3)
+        uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
+    }
+
+    def "tray_1_orange_02" (
+        prepend payload = @file:/home/rokey/cobot3_ws/isaacpjt/assets/tray_1_orange.usda@
+    )
+    {
+        quatf xformOp:orient = (1, 0, 0, 0)
+        float3 xformOp:scale = (1, 1, 1)
+        double3 xformOp:translate = (-6, -2.2, 0.6)
+        uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
+    }
+
+    def "tray_1_orange_03" (
+        prepend payload = @file:/home/rokey/cobot3_ws/isaacpjt/assets/tray_1_orange.usda@
+    )
+    {
+        quatf xformOp:orient = (1, 0, 0, 0)
+        float3 xformOp:scale = (1, 1, 1)
+        double3 xformOp:translate = (-6, -2.2, 0.3)
+        uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
+    }
+
+    def "tray_2_blue_02" (
+        prepend payload = @file:/home/rokey/cobot3_ws/isaacpjt/assets/tray_2_blue.usda@
+    )
+    {
+        quatf xformOp:orient = (1, 0, 0, 0)
+        float3 xformOp:scale = (1, 1, 1)
+        double3 xformOp:translate = (-5, -2.2, 0.6)
+        uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
+    }
+
+    def "tray_2_blue_03" (
+        prepend payload = @file:/home/rokey/cobot3_ws/isaacpjt/assets/tray_2_blue.usda@
+    )
+    {
+        quatf xformOp:orient = (1, 0, 0, 0)
+        float3 xformOp:scale = (1, 1, 1)
+        double3 xformOp:translate = (-5, -2.2, 0.3)
+        uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
     }
 }
 
@@ -1247,6 +1807,104 @@ def "Render" (
                 custom bool overrideClipRange = 0
                 uniform int2 resolution = (1920, 1200)
             }
+
+            def RenderProduct "Replicator_07" (
+                prepend apiSchemas = ["OmniRtxSettingsCommonAdvancedAPI_1", "OmniRtxSettingsRtAdvancedAPI_1", "OmniRtxSettingsPtAdvancedAPI_1", "OmniRtxPostColorGradingAPI_1", "OmniRtxPostChromaticAberrationAPI_1", "OmniRtxPostBloomPhysicalAPI_1", "OmniRtxPostMatteObjectAPI_1", "OmniRtxPostCompositingAPI_1", "OmniRtxPostDofAPI_1", "OmniRtxPostMotionBlurAPI_1", "OmniRtxPostTvNoiseAPI_1", "OmniRtxPostTonemapIrayReinhardAPI_1", "OmniRtxPostDebugSettingsAPI_1", "OmniRtxDebugSettingsAPI_1"]
+                hide_in_stage_window = true
+                no_delete = true
+            )
+            {
+                rel camera = </World/Nova_Carter_ROS_01/chassis_link/sensors/XT_32/PandarXT_32_10hz>
+                bool omni:rtx:material:db:syncLoads = 1
+                bool omni:rtx:rt:ecoMode:enabled = 0
+                bool omni:rtx:scene:hydra:materialSyncLoads = 1
+                rel orderedVars = </Render/Vars/LdrColor>
+                custom bool overrideClipRange = 0
+                uniform int2 resolution = (1280, 720)
+            }
+
+            def RenderProduct "Replicator_08" (
+                prepend apiSchemas = ["OmniRtxSettingsCommonAdvancedAPI_1", "OmniRtxSettingsRtAdvancedAPI_1", "OmniRtxSettingsPtAdvancedAPI_1", "OmniRtxPostColorGradingAPI_1", "OmniRtxPostChromaticAberrationAPI_1", "OmniRtxPostBloomPhysicalAPI_1", "OmniRtxPostMatteObjectAPI_1", "OmniRtxPostCompositingAPI_1", "OmniRtxPostDofAPI_1", "OmniRtxPostMotionBlurAPI_1", "OmniRtxPostTvNoiseAPI_1", "OmniRtxPostTonemapIrayReinhardAPI_1", "OmniRtxPostDebugSettingsAPI_1", "OmniRtxDebugSettingsAPI_1"]
+                hide_in_stage_window = true
+                no_delete = true
+            )
+            {
+                rel camera = </World/Nova_Carter_ROS_02/chassis_link/sensors/front_hawk/right/camera_right>
+                bool omni:rtx:material:db:syncLoads = 1
+                bool omni:rtx:rt:ecoMode:enabled = 0
+                bool omni:rtx:scene:hydra:materialSyncLoads = 1
+                rel orderedVars = </Render/Vars/LdrColor>
+                custom bool overrideClipRange = 0
+                uniform int2 resolution = (1920, 1200)
+            }
+
+            def RenderProduct "Replicator_09" (
+                prepend apiSchemas = ["OmniRtxSettingsCommonAdvancedAPI_1", "OmniRtxSettingsRtAdvancedAPI_1", "OmniRtxSettingsPtAdvancedAPI_1", "OmniRtxPostColorGradingAPI_1", "OmniRtxPostChromaticAberrationAPI_1", "OmniRtxPostBloomPhysicalAPI_1", "OmniRtxPostMatteObjectAPI_1", "OmniRtxPostCompositingAPI_1", "OmniRtxPostDofAPI_1", "OmniRtxPostMotionBlurAPI_1", "OmniRtxPostTvNoiseAPI_1", "OmniRtxPostTonemapIrayReinhardAPI_1", "OmniRtxPostDebugSettingsAPI_1", "OmniRtxDebugSettingsAPI_1"]
+                hide_in_stage_window = true
+                no_delete = true
+            )
+            {
+                rel camera = </World/Nova_Carter_ROS_02/chassis_link/sensors/front_hawk/left/camera_left>
+                bool omni:rtx:material:db:syncLoads = 1
+                bool omni:rtx:rt:ecoMode:enabled = 0
+                bool omni:rtx:scene:hydra:materialSyncLoads = 1
+                rel orderedVars = </Render/Vars/LdrColor>
+                custom bool overrideClipRange = 0
+                uniform int2 resolution = (1920, 1200)
+            }
+
+            def RenderProduct "Replicator_10" (
+                prepend apiSchemas = ["OmniRtxSettingsCommonAdvancedAPI_1", "OmniRtxSettingsRtAdvancedAPI_1", "OmniRtxSettingsPtAdvancedAPI_1", "OmniRtxPostColorGradingAPI_1", "OmniRtxPostChromaticAberrationAPI_1", "OmniRtxPostBloomPhysicalAPI_1", "OmniRtxPostMatteObjectAPI_1", "OmniRtxPostCompositingAPI_1", "OmniRtxPostDofAPI_1", "OmniRtxPostMotionBlurAPI_1", "OmniRtxPostTvNoiseAPI_1", "OmniRtxPostTonemapIrayReinhardAPI_1", "OmniRtxPostDebugSettingsAPI_1", "OmniRtxDebugSettingsAPI_1"]
+                hide_in_stage_window = true
+                no_delete = true
+            )
+            {
+                rel camera = </World/Nova_Carter_ROS_02/chassis_link/sensors/XT_32/PandarXT_32_10hz>
+                bool omni:rtx:material:db:syncLoads = 1
+                bool omni:rtx:rt:ecoMode:enabled = 0
+                bool omni:rtx:scene:hydra:materialSyncLoads = 1
+                rel orderedVars = </Render/Vars/LdrColor>
+                custom bool overrideClipRange = 0
+                uniform int2 resolution = (1280, 720)
+            }
+
+            def RenderProduct "Replicator_11" (
+                prepend apiSchemas = ["OmniRtxSettingsCommonAdvancedAPI_1", "OmniRtxSettingsRtAdvancedAPI_1", "OmniRtxSettingsPtAdvancedAPI_1", "OmniRtxPostColorGradingAPI_1", "OmniRtxPostChromaticAberrationAPI_1", "OmniRtxPostBloomPhysicalAPI_1", "OmniRtxPostMatteObjectAPI_1", "OmniRtxPostCompositingAPI_1", "OmniRtxPostDofAPI_1", "OmniRtxPostMotionBlurAPI_1", "OmniRtxPostTvNoiseAPI_1", "OmniRtxPostTonemapIrayReinhardAPI_1", "OmniRtxPostDebugSettingsAPI_1", "OmniRtxDebugSettingsAPI_1"]
+                hide_in_stage_window = true
+                no_delete = true
+            )
+            {
+                rel camera = </World/nova_carter1/chassis_link/sensors/XT_32/PandarXT_32_10hz>
+                custom string ogPostProcessPath = "/Render/OmniverseKit/HydraTextures/Replicator_11/PostRender"
+                bool omni:rtx:material:db:syncLoads = 1
+                bool omni:rtx:rt:ecoMode:enabled = 0
+                bool omni:rtx:scene:hydra:materialSyncLoads = 1
+                rel orderedVars = [
+                    </Render/Vars/GenericModelOutput>,
+                    </Render/Vars/RtxSensorMetadata>,
+                ]
+                custom bool overrideClipRange = 0
+                uniform int2 resolution = (1280, 720)
+            }
+
+            def RenderProduct "Replicator_12" (
+                prepend apiSchemas = ["OmniRtxSettingsCommonAdvancedAPI_1", "OmniRtxSettingsRtAdvancedAPI_1", "OmniRtxSettingsPtAdvancedAPI_1", "OmniRtxPostColorGradingAPI_1", "OmniRtxPostChromaticAberrationAPI_1", "OmniRtxPostBloomPhysicalAPI_1", "OmniRtxPostMatteObjectAPI_1", "OmniRtxPostCompositingAPI_1", "OmniRtxPostDofAPI_1", "OmniRtxPostMotionBlurAPI_1", "OmniRtxPostTvNoiseAPI_1", "OmniRtxPostTonemapIrayReinhardAPI_1", "OmniRtxPostDebugSettingsAPI_1", "OmniRtxDebugSettingsAPI_1"]
+                hide_in_stage_window = true
+                no_delete = true
+            )
+            {
+                rel camera = </World/nova_carter2/chassis_link/sensors/XT_32/PandarXT_32_10hz>
+                custom string ogPostProcessPath = "/Render/OmniverseKit/HydraTextures/Replicator_12/PostRender"
+                bool omni:rtx:material:db:syncLoads = 1
+                bool omni:rtx:rt:ecoMode:enabled = 0
+                bool omni:rtx:scene:hydra:materialSyncLoads = 1
+                rel orderedVars = [
+                    </Render/Vars/GenericModelOutput>,
+                    </Render/Vars/RtxSensorMetadata>,
+                ]
+                custom bool overrideClipRange = 0
+                uniform int2 resolution = (1280, 720)
+            }
         }
     }
 
@@ -1264,6 +1922,12 @@ def "Render" (
             </Render/OmniverseKit/HydraTextures/Replicator_04>,
             </Render/OmniverseKit/HydraTextures/Replicator_05>,
             </Render/OmniverseKit/HydraTextures/Replicator_06>,
+            </Render/OmniverseKit/HydraTextures/Replicator_07>,
+            </Render/OmniverseKit/HydraTextures/Replicator_08>,
+            </Render/OmniverseKit/HydraTextures/Replicator_09>,
+            </Render/OmniverseKit/HydraTextures/Replicator_10>,
+            </Render/OmniverseKit/HydraTextures/Replicator_11>,
+            </Render/OmniverseKit/HydraTextures/Replicator_12>,
         ]
     }
 
