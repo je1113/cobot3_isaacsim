@@ -55,13 +55,15 @@ DESCRIPTION_PATH = str(M0609_DIR / "descriptor/m0609_description.yaml")
 GRIPPER_USD = (get_assets_root_path()
                + "/Isaac/Robots/UniversalRobots/ur10/grippers/short_gripper.usd")
 
-# 우리가 만든 캐리어 에셋 (isaacpjt/assets). 루트가 곧 RigidBody, 질량 1.0 kg
-ASSETS_DIR     = M0609_DIR.parent / "assets"
-MAGAZINE_USD   = str(ASSETS_DIR / "magazine_small.usda")    # 250 x 140 x 142 mm
-TRAY_STACK_USD = str(ASSETS_DIR / "tray_stack_6.usda")      # 329 x 136 x  78 mm
+# 우리가 만든 캐리어 에셋 4종 (isaacpjt/assets). 전부 루트가 곧 RigidBody, 질량 1.0 kg
+ASSETS_DIR          = M0609_DIR.parent / "assets"
+MAGAZINE_1_ORANGE   = str(ASSETS_DIR / "magazine_1_orange.usda")  # 250 x 140 x 142, 플랜지 80x80x6
+MAGAZINE_2_BLUE     = str(ASSETS_DIR / "magazine_2_blue.usda")    # 300 x 200 x 106, 플랜지 100x60x10
+TRAY_1_ORANGE       = str(ASSETS_DIR / "tray_1_orange.usda")      # 6장, 329 x 136 x  78
+TRAY_2_BLUE         = str(ASSETS_DIR / "tray_2_blue.usda")        # 8장, 329 x 136 x  97
 
-# 집을 물체. 트레이 스택으로 바꿔 보려면 이 줄만 바꾼다
-TARGET_USD   = MAGAZINE_USD
+# 집을 물체. 다른 에셋으로 바꿔 보려면 이 줄만 바꾼다
+TARGET_USD   = MAGAZINE_1_ORANGE
 TARGET_NAME  = "magazine"
 TARGET_PATH  = f"/World/{TARGET_NAME}"
 TARGET_SPAWN = Gf.Vec3d(0.45,  0.30, 0.005)
