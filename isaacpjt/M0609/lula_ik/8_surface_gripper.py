@@ -34,7 +34,7 @@ from isaacsim.storage.native import get_assets_root_path
 THIS_DIR = Path(__file__).resolve().parent
 M0609_DIR = THIS_DIR.parent
 
-USD_PATH = str(M0609_DIR / "Collected_m0609_camera_cube/m0609_camera_cube.usd")
+USD_PATH = str(M0609_DIR / "gripper_test.usd")
 
 # NVIDIA 기본 에셋. 로컬에 받아 뒀으면 그 경로를 넣어도 된다.
 GRIPPER_USD = (get_assets_root_path()

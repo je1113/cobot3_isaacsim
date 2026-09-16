@@ -42,7 +42,7 @@ from isaacsim.storage.native import get_assets_root_path
 THIS_DIR  = Path(__file__).resolve().parent
 M0609_DIR = THIS_DIR.parent
 
-USD_PATH         = str(M0609_DIR / "Collected_m0609_camera_cube/m0609_camera_cube.usd")
+USD_PATH         = str(M0609_DIR / "gripper_test.usd")
 URDF_PATH        = str(M0609_DIR / "doosan-robot2/urdf/m0609_isaac_sim.urdf")
 DESCRIPTION_PATH = str(M0609_DIR / "descriptor/m0609_description.yaml")
 
