@@ -92,7 +92,14 @@ def new_stage(path: Path, default_prim: str) -> Usd.Stage:
 
 
 def add_box(stage, path, center, size, color, collide=True):
-    """size 만큼 스케일된 Cube. 박스 콜라이더 + 얇은 형상용 contact offset."""
+    """
+    size 만큼 스케일된 Cube. 박스 콜라이더가 붙는다.
+
+    contactOffset 은 일부러 건드리지 않고 PhysX 기본값(0.02 m)을 쓴다.
+    예전에 트레이를 6장 따로 쌓았을 때 떨림을 줄이려고 0.002 로 낮췄는데,
+    그러면 흡착 그리퍼가 몇 mm 떨어진 상태에서 접촉을 못 만들어
+    붙을 대상을 찾지 못한다. 지금은 둘 다 강체 하나라 낮출 이유가 없다.
+    """
     cube = UsdGeom.Cube.Define(stage, path)
     cube.CreateSizeAttr(1.0)
     xf = cube.AddTranslateOp(); xf.Set(Gf.Vec3d(*center))
@@ -100,10 +107,6 @@ def add_box(stage, path, center, size, color, collide=True):
     cube.CreateDisplayColorAttr([color])
     if collide:
         UsdPhysics.CollisionAPI.Apply(cube.GetPrim())
-        p = cube.GetPrim()
-        p.AddAppliedSchema("PhysxCollisionAPI")
-        p.CreateAttribute("physxCollision:contactOffset", Sdf.ValueTypeNames.Float).Set(0.002)
-        p.CreateAttribute("physxCollision:restOffset", Sdf.ValueTypeNames.Float).Set(0.0)
     return cube
 
 

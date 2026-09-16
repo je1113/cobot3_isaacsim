@@ -112,25 +112,36 @@ TARGETS = [
      "color": Gf.Vec3f(0.90, 0.50, 0.15)},
 
     # 매거진 — 상부 플랜지 판(80 x 80 mm)을 흡착한다.
-    #   1.0 kg = 9.81 N 이라 COAXIAL_FORCE_LIMIT 20 N 대비 여유가 2배뿐이다.
-    #   흔들려서 떨어지면 TCP_SPEED 를 낮추거나 힘 한계를 올린다.
+    #   1.0 kg = 9.81 N 이라 기본 한계(20/10 N)로는 여유가 없다.
+    #   지름 80 mm 흡착판이면 실제로 수백 N 이 나오므로 60/30 N 은 보수적인 값이다.
     {"name": "magazine",
-     "usd":   MAGAZINE_USD,
-     "spawn": Gf.Vec3d(0.45,  0.30,  0.005),
-     "place": np.array([0.45, -0.30])},
+     "usd":     MAGAZINE_USD,
+     "spawn":   Gf.Vec3d(0.45,  0.30,  0.005),
+     "place":   np.array([0.45, -0.30]),
+     "coaxial": 60.0,
+     "shear":   30.0},
 
     # 트레이 스택 — 캐리어 덮개판 위 플랜지를 흡착한다.
     #   329 mm 로 길어서 놓을 자리를 넉넉히 잡아야 한다. 쓰려면 주석을 푼다.
     # {"name": "tray_stack",
-    #  "usd":   TRAY_STACK_USD,
-    #  "spawn": Gf.Vec3d(0.30,  0.42,  0.005),
-    #  "place": np.array([0.30, -0.42])},
+    #  "usd":     TRAY_STACK_USD,
+    #  "spawn":   Gf.Vec3d(0.30,  0.42,  0.005),
+    #  "place":   np.array([0.30, -0.42]),
+    #  "coaxial": 60.0,
+    #  "shear":   30.0},
 ]
 
 CUBE_ROOT = "/World/targets"
 
 # 스폰 높이 하한. 바닥(z=0) 아래에 만들면 물리가 큐브를 튕겨 올린다.
 SPAWN_CLEARANCE = 0.002
+
+# 대상 콜라이더의 contactOffset 하한.
+#   흡착 그리퍼는 "접촉"이 생긴 물체를 잡는다. 흡착면이 물체에서
+#   GRIP_GAP + 2.5 mm(흡착점이 팁보다 안쪽) 만큼 떨어져 있으므로,
+#   contactOffset 이 그보다 작으면 접촉 자체가 안 생겨 아무것도 못 잡는다.
+#   PhysX 기본값이 0.02 라 보통은 문제없지만, 에셋이 낮춰 놨을 수 있어 확인한다.
+MIN_CONTACT_OFFSET = 0.02
 
 
 # ══════════════════════════════════════════════════════════════
@@ -143,6 +154,9 @@ GRIPPER_NODE = f"{GRIPPER_PRIM}/SurfaceGripper"
 MOUNT_QUAT   = Gf.Quatf(0.70710678, Gf.Vec3f(0.0, -0.70710678, 0.0))
 MOUNT_OFFSET = Gf.Vec3f(0.0, 0.0, 0.0)
 
+# 기본 파지 한계. 물체마다 TARGETS 에서 "coaxial" / "shear" 로 덮어쓸 수 있다.
+#   물체 무게의 몇 배로 잡을지가 기준이다. 가감속을 넣어도 정지/출발 때
+#   정적 무게에 여유가 없으면 놓아 버린다.
 COAXIAL_FORCE_LIMIT = 20.0    # N, 흡착면 수직
 SHEAR_FORCE_LIMIT   = 10.0    # N, 흡착면 평행
 MAX_GRIP_DISTANCE   = 0.02    # m, 이 안에 들어오면 붙는다
@@ -300,6 +314,13 @@ class SurfaceGripperCtl:
         else:
             self._command("open_gripper")
 
+    def set_limits(self, coaxial, shear):
+        """물체마다 파지 한계를 바꾼다. USD 속성이라 런타임에 써도 먹는다"""
+        stage = omni.usd.get_context().get_stage()
+        node = stage.GetPrimAtPath(self._path)
+        node.GetAttribute("isaac:coaxialForceLimit").Set(float(coaxial))
+        node.GetAttribute("isaac:shearForceLimit").Set(float(shear))
+
     def gripped(self):
         """붙어 있는 물체 목록. 실패해도 루프가 죽지 않게 한다"""
         try:
@@ -318,6 +339,19 @@ def steps_for(start, goal):
     """구간 길이를 속도로 나눠 스텝 수를 정한다"""
     dist = float(np.linalg.norm(goal - start))
     return int(np.clip(dist / TCP_SPEED, MIN_STEPS, MAX_STEPS)), dist
+
+
+def ease(alpha):
+    """
+    smoothstep 가감속.
+
+    선형 보간은 구간이 시작하는 한 스텝에서 속도가 0 -> 최고속으로 튄다.
+    60 Hz 기준 가속도가 14 m/s2 까지 올라가고, 1 kg 짜리를 물고 있으면
+    그 순간 힘이 흡착 한계를 넘어 그리퍼가 놓아 버린다.
+    양 끝 속도가 0 이 되게 하면 최대 가속도가 0.6 m/s2 수준으로 떨어진다.
+    """
+    a = float(np.clip(alpha, 0.0, 1.0))
+    return a * a * (3.0 - 2.0 * a)
 
 
 class SequenceFSM:
@@ -389,10 +423,23 @@ class SequenceFSM:
             np.array([gx, gy, APPROACH_HEIGHT]),   # 7 RETREAT
         ]
 
+        # 물체마다 파지 한계를 바꾼다. 무거운 것은 기본값으로 못 든다
+        coaxial = self.target.get("coaxial", COAXIAL_FORCE_LIMIT)
+        shear = self.target.get("shear", SHEAR_FORCE_LIMIT)
+        self._gripper.set_limits(coaxial, shear)
+
+        stage = omni.usd.get_context().get_stage()
+        mass = total_mass(stage.GetPrimAtPath(cube_path(name)))
+        weight = mass * 9.81 if mass else None
+
         print()
         print(f"   ═══ [{self.index + 1}/{len(self._targets)}] {name} ═══")
         print(f"   pick         ({cx:+.3f}, {cy:+.3f})  top z {t_z:.4f}  "
               f"height {height*1000:.1f} mm")
+        if weight is not None:
+            print(f"   mass         {mass:.3f} kg = {weight:.2f} N   "
+                  f"한계 coaxial {coaxial:.0f} N ({coaxial/weight:.1f}배)  "
+                  f"shear {shear:.0f} N")
         print(f"   place        ({gx:+.3f}, {gy:+.3f})  release z {place_z:.4f}")
         print(f"   grip z       {grip_z:.4f}   (윗면 위 {GRIP_GAP*1000:.0f} mm)")
 
@@ -407,7 +454,7 @@ class SequenceFSM:
             return self.waypoints[-1]
         if self.start is None:
             return self.waypoints[self.state]
-        alpha = min(1.0, self.step / float(self.n_steps))
+        alpha = ease(self.step / float(self.n_steps))
         return self.start + alpha * (self.goal - self.start)
 
     def advance(self):
@@ -439,6 +486,9 @@ class SequenceFSM:
         if self.step < self.n_steps:
             return
 
+        if self.state == 2:                           # GRIP 끝 → 부착 확인
+            held = self._gripper.gripped()
+            print(f"   ── 부착 확인  {held if held else '없음 — 흡착이 안 걸렸다'}")
         if self.state == 3:                           # LIFT 끝 → 판정
             self._judge()
 
@@ -462,10 +512,13 @@ class SequenceFSM:
         print(f"   ── 흡착 {'성공' if ok else '실패'}   "
               f"{self.z_at_grip:.4f} -> {now:.4f}  ({rise*1000:+.1f} mm)")
         if not ok:
-            print(f"      GRIP_GAP({GRIP_GAP*1000:.0f}mm) < "
-                  f"MAX_GRIP_DISTANCE({MAX_GRIP_DISTANCE*1000:.0f}mm) 인지, "
-                  f"물체 무게({CUBE_MASS*9.81:.2f}N) < "
-                  f"COAXIAL({COAXIAL_FORCE_LIMIT}N) 인지 확인")
+            if held:
+                print(f"      붙긴 했는데 놓쳤다 -> 이 물체의 coaxial/shear 를 올리거나 "
+                      f"TCP_SPEED 를 낮춘다")
+            else:
+                print(f"      아예 안 붙었다 -> GRIP_GAP({GRIP_GAP*1000:.0f}mm) 가 "
+                      f"MAX_GRIP_DISTANCE({MAX_GRIP_DISTANCE*1000:.0f}mm) 보다 작은지, "
+                      f"물체에 RigidBody/Collider 가 있는지 확인")
 
     def _summary(self):
         print()
@@ -492,6 +545,34 @@ def find_prim_path(root_path, name):
         if prim.GetName() == name:
             return str(prim.GetPath())
     return None
+
+
+def total_mass(prim):
+    """서브트리에 적힌 질량을 모두 더한다. 없으면 None"""
+    found = [p.GetAttribute("physics:mass").Get()
+             for p in Usd.PrimRange(prim) if p.HasAPI(UsdPhysics.MassAPI)]
+    found = [m for m in found if m]
+    return sum(found) if found else None
+
+
+def ensure_contact_offset(prim, min_offset=MIN_CONTACT_OFFSET):
+    """
+    콜라이더의 contactOffset 이 너무 작으면 올린다.
+
+    이 값이 흡착면과 물체 사이 거리보다 작으면 PhysX 가 접촉을 만들지 않고,
+    서피스 그리퍼는 붙을 대상을 못 찾는다. 물체는 미동도 하지 않는다.
+    """
+    fixed = []
+    for p in Usd.PrimRange(prim):
+        if not p.HasAPI(UsdPhysics.CollisionAPI):
+            continue
+        attr = p.GetAttribute("physxCollision:contactOffset")
+        cur = attr.Get() if attr else None
+        # 속성이 없으면 PhysX 기본값(0.02)이라 건드릴 필요가 없다
+        if cur is not None and cur < min_offset:
+            attr.Set(float(min_offset))
+            fixed.append(p.GetName())
+    return fixed
 
 
 def has_rigid_body(prim):
@@ -621,9 +702,15 @@ class PickPlaceTask(BaseTask):
                 xf.AddTranslateOp().Set(pos)
                 simulation_app.update()
 
-                if not has_rigid_body(stage.GetPrimAtPath(path)):
+                target_prim = stage.GetPrimAtPath(path)
+                if not has_rigid_body(target_prim):
                     print(f"   [주의] {t['name']} 에 RigidBody 가 없다. "
                           f"흡착해도 딸려 오지 않는다")
+                raised = ensure_contact_offset(target_prim)
+                if raised:
+                    print(f"   [보정] {t['name']} 콜라이더 {len(raised)}개의 "
+                          f"contactOffset 을 {MIN_CONTACT_OFFSET*1000:.0f} mm 로 올렸다 "
+                          f"(너무 작으면 흡착이 안 걸린다)")
                 kind = f"usd {Path(t['usd']).name}"
             else:
                 # Cube 는 size 1 이 한 변 1 m 라 스케일이 곧 한 변이 된다
@@ -647,7 +734,9 @@ class PickPlaceTask(BaseTask):
                 UsdPhysics.MassAPI.Apply(prim).CreateMassAttr(CUBE_MASS)
                 kind = f"cube {CUBE_SCALE[0]*1000:.0f} mm"
 
-            print(f"   target       {t['name']:12s} {kind:28s} spawn "
+            m = total_mass(stage.GetPrimAtPath(path))
+            print(f"   target       {t['name']:12s} {kind:24s} "
+                  f"mass {m if m else '?'} kg  spawn "
                   f"({pos[0]:+.2f}, {pos[1]:+.2f}, {pos[2]:+.3f})  "
                   f"place ({t['place'][0]:+.2f}, {t['place'][1]:+.2f})")
 

@@ -13,11 +13,9 @@ def Xform "TrayStack" (
     float physics:mass = 1
 
     def Cube "core" (
-        prepend apiSchemas = ["PhysicsCollisionAPI", "PhysxCollisionAPI"]
+        prepend apiSchemas = ["PhysicsCollisionAPI"]
     )
     {
-        custom float physxCollision:contactOffset = 0.002
-        custom float physxCollision:restOffset = 0
         color3f[] primvars:displayColor = [(0.22, 0.22, 0.24)]
         double size = 1
         float3 xformOp:scale = (0.3106, 0.1359, 0.0401)
@@ -26,11 +24,9 @@ def Xform "TrayStack" (
     }
 
     def Cube "end_col_nn" (
-        prepend apiSchemas = ["PhysicsCollisionAPI", "PhysxCollisionAPI"]
+        prepend apiSchemas = ["PhysicsCollisionAPI"]
     )
     {
-        custom float physxCollision:contactOffset = 0.002
-        custom float physxCollision:restOffset = 0
         color3f[] primvars:displayColor = [(0.22, 0.22, 0.24)]
         double size = 1
         float3 xformOp:scale = (0.006, 0.05795, 0.0381)
@@ -39,11 +35,9 @@ def Xform "TrayStack" (
     }
 
     def Cube "end_col_np" (
-        prepend apiSchemas = ["PhysicsCollisionAPI", "PhysxCollisionAPI"]
+        prepend apiSchemas = ["PhysicsCollisionAPI"]
     )
     {
-        custom float physxCollision:contactOffset = 0.002
-        custom float physxCollision:restOffset = 0
         color3f[] primvars:displayColor = [(0.22, 0.22, 0.24)]
         double size = 1
         float3 xformOp:scale = (0.006, 0.05795, 0.0381)
@@ -52,11 +46,9 @@ def Xform "TrayStack" (
     }
 
     def Cube "end_floor_n_00" (
-        prepend apiSchemas = ["PhysicsCollisionAPI", "PhysxCollisionAPI"]
+        prepend apiSchemas = ["PhysicsCollisionAPI"]
     )
     {
-        custom float physxCollision:contactOffset = 0.002
-        custom float physxCollision:restOffset = 0
         color3f[] primvars:displayColor = [(0.22, 0.22, 0.24)]
         double size = 1
         float3 xformOp:scale = (0.006, 0.02, 0.002)
@@ -65,11 +57,9 @@ def Xform "TrayStack" (
     }
 
     def Cube "end_floor_n_01" (
-        prepend apiSchemas = ["PhysicsCollisionAPI", "PhysxCollisionAPI"]
+        prepend apiSchemas = ["PhysicsCollisionAPI"]
     )
     {
-        custom float physxCollision:contactOffset = 0.002
-        custom float physxCollision:restOffset = 0
         color3f[] primvars:displayColor = [(0.22, 0.22, 0.24)]
         double size = 1
         float3 xformOp:scale = (0.006, 0.02, 0.002)
@@ -78,11 +68,9 @@ def Xform "TrayStack" (
     }
 
     def Cube "end_floor_n_02" (
-        prepend apiSchemas = ["PhysicsCollisionAPI", "PhysxCollisionAPI"]
+        prepend apiSchemas = ["PhysicsCollisionAPI"]
     )
     {
-        custom float physxCollision:contactOffset = 0.002
-        custom float physxCollision:restOffset = 0
         color3f[] primvars:displayColor = [(0.22, 0.22, 0.24)]
         double size = 1
         float3 xformOp:scale = (0.006, 0.02, 0.002)
@@ -91,11 +79,9 @@ def Xform "TrayStack" (
     }
 
     def Cube "end_floor_n_03" (
-        prepend apiSchemas = ["PhysicsCollisionAPI", "PhysxCollisionAPI"]
+        prepend apiSchemas = ["PhysicsCollisionAPI"]
     )
     {
-        custom float physxCollision:contactOffset = 0.002
-        custom float physxCollision:restOffset = 0
         color3f[] primvars:displayColor = [(0.22, 0.22, 0.24)]
         double size = 1
         float3 xformOp:scale = (0.006, 0.02, 0.002)
@@ -104,11 +90,9 @@ def Xform "TrayStack" (
     }
 
     def Cube "end_floor_n_04" (
-        prepend apiSchemas = ["PhysicsCollisionAPI", "PhysxCollisionAPI"]
+        prepend apiSchemas = ["PhysicsCollisionAPI"]
     )
     {
-        custom float physxCollision:contactOffset = 0.002
-        custom float physxCollision:restOffset = 0
         color3f[] primvars:displayColor = [(0.22, 0.22, 0.24)]
         double size = 1
         float3 xformOp:scale = (0.006, 0.02, 0.002)
@@ -117,11 +101,9 @@ def Xform "TrayStack" (
     }
 
     def Cube "end_floor_n_05" (
-        prepend apiSchemas = ["PhysicsCollisionAPI", "PhysxCollisionAPI"]
+        prepend apiSchemas = ["PhysicsCollisionAPI"]
     )
     {
-        custom float physxCollision:contactOffset = 0.002
-        custom float physxCollision:restOffset = 0
         color3f[] primvars:displayColor = [(0.22, 0.22, 0.24)]
         double size = 1
         float3 xformOp:scale = (0.006, 0.02, 0.002)
@@ -130,11 +112,9 @@ def Xform "TrayStack" (
     }
 
     def Cube "end_col_pn" (
-        prepend apiSchemas = ["PhysicsCollisionAPI", "PhysxCollisionAPI"]
+        prepend apiSchemas = ["PhysicsCollisionAPI"]
     )
     {
-        custom float physxCollision:contactOffset = 0.002
-        custom float physxCollision:restOffset = 0
         color3f[] primvars:displayColor = [(0.22, 0.22, 0.24)]
         double size = 1
         float3 xformOp:scale = (0.006, 0.05795, 0.0381)
@@ -143,11 +123,9 @@ def Xform "TrayStack" (
     }
 
     def Cube "end_col_pp" (
-        prepend apiSchemas = ["PhysicsCollisionAPI", "PhysxCollisionAPI"]
+        prepend apiSchemas = ["PhysicsCollisionAPI"]
     )
     {
-        custom float physxCollision:contactOffset = 0.002
-        custom float physxCollision:restOffset = 0
         color3f[] primvars:displayColor = [(0.22, 0.22, 0.24)]
         double size = 1
         float3 xformOp:scale = (0.006, 0.05795, 0.0381)
@@ -156,11 +134,9 @@ def Xform "TrayStack" (
     }
 
     def Cube "end_floor_p_00" (
-        prepend apiSchemas = ["PhysicsCollisionAPI", "PhysxCollisionAPI"]
+        prepend apiSchemas = ["PhysicsCollisionAPI"]
     )
     {
-        custom float physxCollision:contactOffset = 0.002
-        custom float physxCollision:restOffset = 0
         color3f[] primvars:displayColor = [(0.22, 0.22, 0.24)]
         double size = 1
         float3 xformOp:scale = (0.006, 0.02, 0.002)
@@ -169,11 +145,9 @@ def Xform "TrayStack" (
     }
 
     def Cube "end_floor_p_01" (
-        prepend apiSchemas = ["PhysicsCollisionAPI", "PhysxCollisionAPI"]
+        prepend apiSchemas = ["PhysicsCollisionAPI"]
     )
     {
-        custom float physxCollision:contactOffset = 0.002
-        custom float physxCollision:restOffset = 0
         color3f[] primvars:displayColor = [(0.22, 0.22, 0.24)]
         double size = 1
         float3 xformOp:scale = (0.006, 0.02, 0.002)
@@ -182,11 +156,9 @@ def Xform "TrayStack" (
     }
 
     def Cube "end_floor_p_02" (
-        prepend apiSchemas = ["PhysicsCollisionAPI", "PhysxCollisionAPI"]
+        prepend apiSchemas = ["PhysicsCollisionAPI"]
     )
     {
-        custom float physxCollision:contactOffset = 0.002
-        custom float physxCollision:restOffset = 0
         color3f[] primvars:displayColor = [(0.22, 0.22, 0.24)]
         double size = 1
         float3 xformOp:scale = (0.006, 0.02, 0.002)
@@ -195,11 +167,9 @@ def Xform "TrayStack" (
     }
 
     def Cube "end_floor_p_03" (
-        prepend apiSchemas = ["PhysicsCollisionAPI", "PhysxCollisionAPI"]
+        prepend apiSchemas = ["PhysicsCollisionAPI"]
     )
     {
-        custom float physxCollision:contactOffset = 0.002
-        custom float physxCollision:restOffset = 0
         color3f[] primvars:displayColor = [(0.22, 0.22, 0.24)]
         double size = 1
         float3 xformOp:scale = (0.006, 0.02, 0.002)
@@ -208,11 +178,9 @@ def Xform "TrayStack" (
     }
 
     def Cube "end_floor_p_04" (
-        prepend apiSchemas = ["PhysicsCollisionAPI", "PhysxCollisionAPI"]
+        prepend apiSchemas = ["PhysicsCollisionAPI"]
     )
     {
-        custom float physxCollision:contactOffset = 0.002
-        custom float physxCollision:restOffset = 0
         color3f[] primvars:displayColor = [(0.22, 0.22, 0.24)]
         double size = 1
         float3 xformOp:scale = (0.006, 0.02, 0.002)
@@ -221,11 +189,9 @@ def Xform "TrayStack" (
     }
 
     def Cube "end_floor_p_05" (
-        prepend apiSchemas = ["PhysicsCollisionAPI", "PhysxCollisionAPI"]
+        prepend apiSchemas = ["PhysicsCollisionAPI"]
     )
     {
-        custom float physxCollision:contactOffset = 0.002
-        custom float physxCollision:restOffset = 0
         color3f[] primvars:displayColor = [(0.22, 0.22, 0.24)]
         double size = 1
         float3 xformOp:scale = (0.006, 0.02, 0.002)
@@ -234,11 +200,9 @@ def Xform "TrayStack" (
     }
 
     def Cube "top_rim_long_n" (
-        prepend apiSchemas = ["PhysicsCollisionAPI", "PhysxCollisionAPI"]
+        prepend apiSchemas = ["PhysicsCollisionAPI"]
     )
     {
-        custom float physxCollision:contactOffset = 0.002
-        custom float physxCollision:restOffset = 0
         color3f[] primvars:displayColor = [(0.22, 0.22, 0.24)]
         double size = 1
         float3 xformOp:scale = (0.3226, 0.006, 0.00362)
@@ -247,11 +211,9 @@ def Xform "TrayStack" (
     }
 
     def Cube "top_rib_long_n" (
-        prepend apiSchemas = ["PhysicsCollisionAPI", "PhysxCollisionAPI"]
+        prepend apiSchemas = ["PhysicsCollisionAPI"]
     )
     {
-        custom float physxCollision:contactOffset = 0.002
-        custom float physxCollision:restOffset = 0
         color3f[] primvars:displayColor = [(0.22, 0.22, 0.24)]
         double size = 1
         float3 xformOp:scale = (0.3226, 0.003, 0.002)
@@ -260,11 +222,9 @@ def Xform "TrayStack" (
     }
 
     def Cube "top_rim_long_p" (
-        prepend apiSchemas = ["PhysicsCollisionAPI", "PhysxCollisionAPI"]
+        prepend apiSchemas = ["PhysicsCollisionAPI"]
     )
     {
-        custom float physxCollision:contactOffset = 0.002
-        custom float physxCollision:restOffset = 0
         color3f[] primvars:displayColor = [(0.22, 0.22, 0.24)]
         double size = 1
         float3 xformOp:scale = (0.3226, 0.006, 0.00362)
@@ -273,11 +233,9 @@ def Xform "TrayStack" (
     }
 
     def Cube "top_rib_long_p" (
-        prepend apiSchemas = ["PhysicsCollisionAPI", "PhysxCollisionAPI"]
+        prepend apiSchemas = ["PhysicsCollisionAPI"]
     )
     {
-        custom float physxCollision:contactOffset = 0.002
-        custom float physxCollision:restOffset = 0
         color3f[] primvars:displayColor = [(0.22, 0.22, 0.24)]
         double size = 1
         float3 xformOp:scale = (0.3226, 0.003, 0.002)
@@ -286,11 +244,9 @@ def Xform "TrayStack" (
     }
 
     def Cube "top_rim_short_nn" (
-        prepend apiSchemas = ["PhysicsCollisionAPI", "PhysxCollisionAPI"]
+        prepend apiSchemas = ["PhysicsCollisionAPI"]
     )
     {
-        custom float physxCollision:contactOffset = 0.002
-        custom float physxCollision:restOffset = 0
         color3f[] primvars:displayColor = [(0.22, 0.22, 0.24)]
         double size = 1
         float3 xformOp:scale = (0.006, 0.05795, 0.00362)
@@ -299,11 +255,9 @@ def Xform "TrayStack" (
     }
 
     def Cube "top_rib_short_nn" (
-        prepend apiSchemas = ["PhysicsCollisionAPI", "PhysxCollisionAPI"]
+        prepend apiSchemas = ["PhysicsCollisionAPI"]
     )
     {
-        custom float physxCollision:contactOffset = 0.002
-        custom float physxCollision:restOffset = 0
         color3f[] primvars:displayColor = [(0.22, 0.22, 0.24)]
         double size = 1
         float3 xformOp:scale = (0.003, 0.05795, 0.002)
@@ -312,11 +266,9 @@ def Xform "TrayStack" (
     }
 
     def Cube "top_rim_short_np" (
-        prepend apiSchemas = ["PhysicsCollisionAPI", "PhysxCollisionAPI"]
+        prepend apiSchemas = ["PhysicsCollisionAPI"]
     )
     {
-        custom float physxCollision:contactOffset = 0.002
-        custom float physxCollision:restOffset = 0
         color3f[] primvars:displayColor = [(0.22, 0.22, 0.24)]
         double size = 1
         float3 xformOp:scale = (0.006, 0.05795, 0.00362)
@@ -325,11 +277,9 @@ def Xform "TrayStack" (
     }
 
     def Cube "top_rib_short_np" (
-        prepend apiSchemas = ["PhysicsCollisionAPI", "PhysxCollisionAPI"]
+        prepend apiSchemas = ["PhysicsCollisionAPI"]
     )
     {
-        custom float physxCollision:contactOffset = 0.002
-        custom float physxCollision:restOffset = 0
         color3f[] primvars:displayColor = [(0.22, 0.22, 0.24)]
         double size = 1
         float3 xformOp:scale = (0.003, 0.05795, 0.002)
@@ -338,11 +288,9 @@ def Xform "TrayStack" (
     }
 
     def Cube "top_rim_short_pn" (
-        prepend apiSchemas = ["PhysicsCollisionAPI", "PhysxCollisionAPI"]
+        prepend apiSchemas = ["PhysicsCollisionAPI"]
     )
     {
-        custom float physxCollision:contactOffset = 0.002
-        custom float physxCollision:restOffset = 0
         color3f[] primvars:displayColor = [(0.22, 0.22, 0.24)]
         double size = 1
         float3 xformOp:scale = (0.006, 0.05795, 0.00362)
@@ -351,11 +299,9 @@ def Xform "TrayStack" (
     }
 
     def Cube "top_rib_short_pn" (
-        prepend apiSchemas = ["PhysicsCollisionAPI", "PhysxCollisionAPI"]
+        prepend apiSchemas = ["PhysicsCollisionAPI"]
     )
     {
-        custom float physxCollision:contactOffset = 0.002
-        custom float physxCollision:restOffset = 0
         color3f[] primvars:displayColor = [(0.22, 0.22, 0.24)]
         double size = 1
         float3 xformOp:scale = (0.003, 0.05795, 0.002)
@@ -364,11 +310,9 @@ def Xform "TrayStack" (
     }
 
     def Cube "top_rim_short_pp" (
-        prepend apiSchemas = ["PhysicsCollisionAPI", "PhysxCollisionAPI"]
+        prepend apiSchemas = ["PhysicsCollisionAPI"]
     )
     {
-        custom float physxCollision:contactOffset = 0.002
-        custom float physxCollision:restOffset = 0
         color3f[] primvars:displayColor = [(0.22, 0.22, 0.24)]
         double size = 1
         float3 xformOp:scale = (0.006, 0.05795, 0.00362)
@@ -377,11 +321,9 @@ def Xform "TrayStack" (
     }
 
     def Cube "top_rib_short_pp" (
-        prepend apiSchemas = ["PhysicsCollisionAPI", "PhysxCollisionAPI"]
+        prepend apiSchemas = ["PhysicsCollisionAPI"]
     )
     {
-        custom float physxCollision:contactOffset = 0.002
-        custom float physxCollision:restOffset = 0
         color3f[] primvars:displayColor = [(0.22, 0.22, 0.24)]
         double size = 1
         float3 xformOp:scale = (0.003, 0.05795, 0.002)
@@ -390,11 +332,9 @@ def Xform "TrayStack" (
     }
 
     def Cube "top_div_x_01" (
-        prepend apiSchemas = ["PhysicsCollisionAPI", "PhysxCollisionAPI"]
+        prepend apiSchemas = ["PhysicsCollisionAPI"]
     )
     {
-        custom float physxCollision:contactOffset = 0.002
-        custom float physxCollision:restOffset = 0
         color3f[] primvars:displayColor = [(0.22, 0.22, 0.24)]
         double size = 1
         float3 xformOp:scale = (0.002, 0.1239, 0.00362)
@@ -403,11 +343,9 @@ def Xform "TrayStack" (
     }
 
     def Cube "top_div_x_02" (
-        prepend apiSchemas = ["PhysicsCollisionAPI", "PhysxCollisionAPI"]
+        prepend apiSchemas = ["PhysicsCollisionAPI"]
     )
     {
-        custom float physxCollision:contactOffset = 0.002
-        custom float physxCollision:restOffset = 0
         color3f[] primvars:displayColor = [(0.22, 0.22, 0.24)]
         double size = 1
         float3 xformOp:scale = (0.002, 0.1239, 0.00362)
@@ -416,11 +354,9 @@ def Xform "TrayStack" (
     }
 
     def Cube "top_div_x_03" (
-        prepend apiSchemas = ["PhysicsCollisionAPI", "PhysxCollisionAPI"]
+        prepend apiSchemas = ["PhysicsCollisionAPI"]
     )
     {
-        custom float physxCollision:contactOffset = 0.002
-        custom float physxCollision:restOffset = 0
         color3f[] primvars:displayColor = [(0.22, 0.22, 0.24)]
         double size = 1
         float3 xformOp:scale = (0.002, 0.1239, 0.00362)
@@ -429,11 +365,9 @@ def Xform "TrayStack" (
     }
 
     def Cube "top_div_x_04" (
-        prepend apiSchemas = ["PhysicsCollisionAPI", "PhysxCollisionAPI"]
+        prepend apiSchemas = ["PhysicsCollisionAPI"]
     )
     {
-        custom float physxCollision:contactOffset = 0.002
-        custom float physxCollision:restOffset = 0
         color3f[] primvars:displayColor = [(0.22, 0.22, 0.24)]
         double size = 1
         float3 xformOp:scale = (0.002, 0.1239, 0.00362)
@@ -442,11 +376,9 @@ def Xform "TrayStack" (
     }
 
     def Cube "top_div_x_05" (
-        prepend apiSchemas = ["PhysicsCollisionAPI", "PhysxCollisionAPI"]
+        prepend apiSchemas = ["PhysicsCollisionAPI"]
     )
     {
-        custom float physxCollision:contactOffset = 0.002
-        custom float physxCollision:restOffset = 0
         color3f[] primvars:displayColor = [(0.22, 0.22, 0.24)]
         double size = 1
         float3 xformOp:scale = (0.002, 0.1239, 0.00362)
@@ -455,11 +387,9 @@ def Xform "TrayStack" (
     }
 
     def Cube "top_div_x_06" (
-        prepend apiSchemas = ["PhysicsCollisionAPI", "PhysxCollisionAPI"]
+        prepend apiSchemas = ["PhysicsCollisionAPI"]
     )
     {
-        custom float physxCollision:contactOffset = 0.002
-        custom float physxCollision:restOffset = 0
         color3f[] primvars:displayColor = [(0.22, 0.22, 0.24)]
         double size = 1
         float3 xformOp:scale = (0.002, 0.1239, 0.00362)
@@ -468,11 +398,9 @@ def Xform "TrayStack" (
     }
 
     def Cube "top_div_x_07" (
-        prepend apiSchemas = ["PhysicsCollisionAPI", "PhysxCollisionAPI"]
+        prepend apiSchemas = ["PhysicsCollisionAPI"]
     )
     {
-        custom float physxCollision:contactOffset = 0.002
-        custom float physxCollision:restOffset = 0
         color3f[] primvars:displayColor = [(0.22, 0.22, 0.24)]
         double size = 1
         float3 xformOp:scale = (0.002, 0.1239, 0.00362)
@@ -481,11 +409,9 @@ def Xform "TrayStack" (
     }
 
     def Cube "top_div_y_01" (
-        prepend apiSchemas = ["PhysicsCollisionAPI", "PhysxCollisionAPI"]
+        prepend apiSchemas = ["PhysicsCollisionAPI"]
     )
     {
-        custom float physxCollision:contactOffset = 0.002
-        custom float physxCollision:restOffset = 0
         color3f[] primvars:displayColor = [(0.22, 0.22, 0.24)]
         double size = 1
         float3 xformOp:scale = (0.3106, 0.002, 0.00362)
@@ -494,11 +420,9 @@ def Xform "TrayStack" (
     }
 
     def Cube "top_div_y_02" (
-        prepend apiSchemas = ["PhysicsCollisionAPI", "PhysxCollisionAPI"]
+        prepend apiSchemas = ["PhysicsCollisionAPI"]
     )
     {
-        custom float physxCollision:contactOffset = 0.002
-        custom float physxCollision:restOffset = 0
         color3f[] primvars:displayColor = [(0.22, 0.22, 0.24)]
         double size = 1
         float3 xformOp:scale = (0.3106, 0.002, 0.00362)
@@ -507,11 +431,9 @@ def Xform "TrayStack" (
     }
 
     def Cube "carrier_plate" (
-        prepend apiSchemas = ["PhysicsCollisionAPI", "PhysxCollisionAPI"]
+        prepend apiSchemas = ["PhysicsCollisionAPI"]
     )
     {
-        custom float physxCollision:contactOffset = 0.002
-        custom float physxCollision:restOffset = 0
         color3f[] primvars:displayColor = [(0.55, 0.58, 0.62)]
         double size = 1
         float3 xformOp:scale = (0.3286, 0.1359, 0.004)
@@ -520,11 +442,9 @@ def Xform "TrayStack" (
     }
 
     def Cube "carrier_strap_n" (
-        prepend apiSchemas = ["PhysicsCollisionAPI", "PhysxCollisionAPI"]
+        prepend apiSchemas = ["PhysicsCollisionAPI"]
     )
     {
-        custom float physxCollision:contactOffset = 0.002
-        custom float physxCollision:restOffset = 0
         color3f[] primvars:displayColor = [(0.55, 0.58, 0.62)]
         double size = 1
         float3 xformOp:scale = (0.003, 0.02, 0.05372)
@@ -533,11 +453,9 @@ def Xform "TrayStack" (
     }
 
     def Cube "carrier_hook_n" (
-        prepend apiSchemas = ["PhysicsCollisionAPI", "PhysxCollisionAPI"]
+        prepend apiSchemas = ["PhysicsCollisionAPI"]
     )
     {
-        custom float physxCollision:contactOffset = 0.002
-        custom float physxCollision:restOffset = 0
         color3f[] primvars:displayColor = [(0.55, 0.58, 0.62)]
         double size = 1
         float3 xformOp:scale = (0.015, 0.02, 0.003)
@@ -546,11 +464,9 @@ def Xform "TrayStack" (
     }
 
     def Cube "carrier_strap_p" (
-        prepend apiSchemas = ["PhysicsCollisionAPI", "PhysxCollisionAPI"]
+        prepend apiSchemas = ["PhysicsCollisionAPI"]
     )
     {
-        custom float physxCollision:contactOffset = 0.002
-        custom float physxCollision:restOffset = 0
         color3f[] primvars:displayColor = [(0.55, 0.58, 0.62)]
         double size = 1
         float3 xformOp:scale = (0.003, 0.02, 0.05372)
@@ -559,11 +475,9 @@ def Xform "TrayStack" (
     }
 
     def Cube "carrier_hook_p" (
-        prepend apiSchemas = ["PhysicsCollisionAPI", "PhysxCollisionAPI"]
+        prepend apiSchemas = ["PhysicsCollisionAPI"]
     )
     {
-        custom float physxCollision:contactOffset = 0.002
-        custom float physxCollision:restOffset = 0
         color3f[] primvars:displayColor = [(0.55, 0.58, 0.62)]
         double size = 1
         float3 xformOp:scale = (0.015, 0.02, 0.003)
@@ -572,11 +486,9 @@ def Xform "TrayStack" (
     }
 
     def Cube "flange_stem" (
-        prepend apiSchemas = ["PhysicsCollisionAPI", "PhysxCollisionAPI"]
+        prepend apiSchemas = ["PhysicsCollisionAPI"]
     )
     {
-        custom float physxCollision:contactOffset = 0.002
-        custom float physxCollision:restOffset = 0
         color3f[] primvars:displayColor = [(0.95, 0.55, 0.15)]
         double size = 1
         float3 xformOp:scale = (0.02, 0.02, 0.018)
@@ -585,11 +497,9 @@ def Xform "TrayStack" (
     }
 
     def Cube "flange_plate" (
-        prepend apiSchemas = ["PhysicsCollisionAPI", "PhysxCollisionAPI"]
+        prepend apiSchemas = ["PhysicsCollisionAPI"]
     )
     {
-        custom float physxCollision:contactOffset = 0.002
-        custom float physxCollision:restOffset = 0
         color3f[] primvars:displayColor = [(0.95, 0.55, 0.15)]
         double size = 1
         float3 xformOp:scale = (0.08, 0.08, 0.006)

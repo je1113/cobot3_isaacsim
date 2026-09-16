@@ -17,11 +17,9 @@ def Xform "Magazine"
         uniform token[] xformOpOrder = ["xformOp:translate"]
 
         def Cube "base" (
-            prepend apiSchemas = ["PhysicsCollisionAPI", "PhysxCollisionAPI"]
+            prepend apiSchemas = ["PhysicsCollisionAPI"]
         )
         {
-            custom float physxCollision:contactOffset = 0.002
-            custom float physxCollision:restOffset = 0
             color3f[] primvars:displayColor = [(0.75, 0.76, 0.78)]
             double size = 1
             float3 xformOp:scale = (0.25, 0.14, 0.004)
@@ -30,11 +28,9 @@ def Xform "Magazine"
         }
 
         def Cube "wall_n" (
-            prepend apiSchemas = ["PhysicsCollisionAPI", "PhysxCollisionAPI"]
+            prepend apiSchemas = ["PhysicsCollisionAPI"]
         )
         {
-            custom float physxCollision:contactOffset = 0.002
-            custom float physxCollision:restOffset = 0
             color3f[] primvars:displayColor = [(0.75, 0.76, 0.78)]
             double size = 1
             float3 xformOp:scale = (0.25, 0.004, 0.11)
@@ -232,11 +228,9 @@ def Xform "Magazine"
         }
 
         def Cube "wall_p" (
-            prepend apiSchemas = ["PhysicsCollisionAPI", "PhysxCollisionAPI"]
+            prepend apiSchemas = ["PhysicsCollisionAPI"]
         )
         {
-            custom float physxCollision:contactOffset = 0.002
-            custom float physxCollision:restOffset = 0
             color3f[] primvars:displayColor = [(0.75, 0.76, 0.78)]
             double size = 1
             float3 xformOp:scale = (0.25, 0.004, 0.11)
@@ -614,11 +608,9 @@ def Xform "Magazine"
         }
 
         def Cube "bridge" (
-            prepend apiSchemas = ["PhysicsCollisionAPI", "PhysxCollisionAPI"]
+            prepend apiSchemas = ["PhysicsCollisionAPI"]
         )
         {
-            custom float physxCollision:contactOffset = 0.002
-            custom float physxCollision:restOffset = 0
             color3f[] primvars:displayColor = [(0.75, 0.76, 0.78)]
             double size = 1
             float3 xformOp:scale = (0.04, 0.14, 0.008)
@@ -627,11 +619,9 @@ def Xform "Magazine"
         }
 
         def Cube "flange_stem" (
-            prepend apiSchemas = ["PhysicsCollisionAPI", "PhysxCollisionAPI"]
+            prepend apiSchemas = ["PhysicsCollisionAPI"]
         )
         {
-            custom float physxCollision:contactOffset = 0.002
-            custom float physxCollision:restOffset = 0
             color3f[] primvars:displayColor = [(0.95, 0.55, 0.15)]
             double size = 1
             float3 xformOp:scale = (0.02, 0.02, 0.018)
@@ -640,11 +630,9 @@ def Xform "Magazine"
         }
 
         def Cube "flange_plate" (
-            prepend apiSchemas = ["PhysicsCollisionAPI", "PhysxCollisionAPI"]
+            prepend apiSchemas = ["PhysicsCollisionAPI"]
         )
         {
-            custom float physxCollision:contactOffset = 0.002
-            custom float physxCollision:restOffset = 0
             color3f[] primvars:displayColor = [(0.95, 0.55, 0.15)]
             double size = 1
             float3 xformOp:scale = (0.08, 0.08, 0.006)
