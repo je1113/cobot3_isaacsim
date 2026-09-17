@@ -24,6 +24,7 @@ setup(
     },
     entry_points={
         'console_scripts': [
+            'carrier_code_reader = cobot3_perception.carrier_code_reader:main',
         ],
     },
 )

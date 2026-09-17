@@ -24,6 +24,7 @@ setup(
     },
     entry_points={
         'console_scripts': [
+            'pick_place_server = cobot3_manipulation.pick_place_server:main',
         ],
     },
 )
