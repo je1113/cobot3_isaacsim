@@ -1,0 +1,61 @@
+# ═══════════════════════════════════════════════════════════════════════
+#  캐리어 개체 대장 (carrier roster)
+#
+#  QR 에 인쇄된 개체 ID 를 변형(frames.yaml 키)에 잇는다. 나중에 공장 · 라인 ·
+#  로트가 붙는 자리도 여기다 — QR 은 다시 찍지 않는다. (05 §2-1: QR 에는 ID 만)
+#
+#  읽는 곳
+#    task_manager               carrier_id → variant → frames.yaml 로 흡착 파라미터
+#    gen_carrier_assets.py      어느 prim 에 어느 qr_payload 를 인쇄할지  (예정)
+#
+#  frames.yaml 과의 분업
+#    frames.yaml   형상 — 변형별 치수 · 플랜지 · QR 위치. 생성물, 손대지 않음.
+#    carriers.yaml 재고 — 어느 개체가 어느 변형인가. 사람이 관리.
+#
+#  qr_payload 형식 (05 §2-1)
+#    C3 . <MAG|STK> . <serial 3~4자> . <check>
+#    check = mod-36(앞부분). 05 문서 mod36_check() 로 계산한 값이라 손으로
+#    고치면 carrier_code_reader 가 폐기한다. serial 을 바꾸면 check 도 다시 계산.
+#
+#  나중에 SQLite 로 옮길 때 이 파일이 `carrier` 테이블의 seed 가 된다.
+#  (05 §2-6 스키마의 carrier_id / carrier_type / spec_json / plant_id / ...)
+# ═══════════════════════════════════════════════════════════════════════
+
+# ── 매거진 — 씬의 4개체 (frames.yaml observation_poses 의 prim 이름과 대응) ──
+MAG-A17:
+  variant: magazine_1_orange
+  prim: magazine_1_orange
+  qr_payload: "C3.MAG.A17.9"
+  # plant_id:   ""            # ← 생산 트래킹 붙일 때 채운다
+  # line_id:    ""
+  # lot_id:     ""
+  # produced_on: ""
+
+MAG-A18:
+  variant: magazine_1_orange
+  prim: magazine_1_orange_02
+  qr_payload: "C3.MAG.A18.A"
+
+MAG-B03:
+  variant: magazine_2_blue
+  prim: magazine_2_blue
+  qr_payload: "C3.MAG.B03.5"
+
+MAG-B04:
+  variant: magazine_2_blue
+  prim: magazine_2_blue_02
+  qr_payload: "C3.MAG.B04.6"
+
+# ── 트레이 스택 — 아직 씬에 QR 이 없다. frames.yaml 에 tray_* 변형이 들어오고
+#    QR 에셋이 붙으면 그때 활성. produced_from 은 05 §2-6 의 계보(스택 → 매거진). ──
+STK-C41:
+  variant: tray_1_orange
+  prim: tray_1_orange
+  qr_payload: "C3.STK.C41.1"
+  produced_from: MAG-A17
+
+STK-C42:
+  variant: tray_2_blue
+  prim: tray_2_blue
+  qr_payload: "C3.STK.C42.2"
+  produced_from: MAG-B03

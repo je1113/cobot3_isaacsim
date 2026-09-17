@@ -16,21 +16,25 @@ find_package(std_msgs REQUIRED)
 
 # Custom interfaces
 rosidl_generate_interfaces(${PROJECT_NAME}
+  # ── 여기 없는 파일은 만들어도 생성되지 않는다. 에러도 안 난다. ──
   # Messages
-  "msg/TaskOrder.msg"
-  "msg/TrayPose.msg"
-  "msg/BatteryState.msg"
-  "msg/CycleLog.msg"
+  "msg/CarrierScan.msg"       # QR 판독 결과          05 §2-6
+  "msg/CarrierPose.msg"       # 자세 + 실측 치수      06 §6 (흡착 모델)
+  "msg/TraceEvent.msg"        # 추적 이벤트 1건       05 §2-6
+  "msg/BatteryState.msg"      # 배터리 방송           07 §6
+  "msg/TaskOrder.msg"         # 보류 — 웹/MES 연동 시
+  "msg/CycleLog.msg"          # 보류 — event 테이블에서 집계 가능
 
   # Services
-  "srv/RegisterTask.srv"
-  "srv/CheckGrasp.srv"
+  "srv/VerifyCarrier.srv"     # 파지·배치 인터록      05 §2-6
+  "srv/CheckGrasp.srv"        # 흡착 직후 검증        06 §6 (흡착 모델)
+  "srv/RegisterTask.srv"      # 보류 — 웹/MES 연동 시
 
   # Actions
-  "action/NavigateToRack.action"
-  "action/PickTray.action"
-  "action/PlaceTray.action"
-  "action/Dock.action"
+  "action/NavigateTo.action"  # 주행                  06 §6 개명
+  "action/PickCarrier.action" # 흡착 파지             06 §6 개명 (흡착 모델)
+  "action/PlaceCarrier.action" # 흡착 해제 배치       06 §6 개명 (흡착 모델)
+  "action/Dock.action"        # 도킹                  06 §6
 
   DEPENDENCIES
     builtin_interfaces

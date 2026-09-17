@@ -1,0 +1,52 @@
+# ─────────────────────────────────────────────────────────────────────
+#  PlaceCarrier — 흡착 해제 배치
+#  task_manager  →  pick_place_server      액션 /manipulation/place_carrier
+#
+#  목적: 지정 포트의 슬롯에 캐리어를 내려놓고 흡착을 푼다.
+#
+#  오배송 방지가 두 겹으로 타입에 박혀 있다 (06 §6, 확정안 11-1):
+#    expected_carrier_id — 배치 직전 VerifyCarrier(S2/S4) 로 대조
+#    allowed_kind        — "매거진은 패키징 로더만, 스택은 테스트 로더만" 을
+#                          포트 쪽에서 강제. 잘못된 종류면 KIND_NOT_ALLOWED.
+#
+#  흡착이므로 "놓는다" = 슬롯 바닥 위 release_height_m 에서 흡착 OFF.
+#  너무 높으면 떨어뜨리고, 0 이면 컵이 눌린 채 떼어져 캐리어가 튄다.
+#
+#  NOT_GRIPPED: 도착했는데 이미 gripped=false — 이송 중 놓쳤다.
+#  이 경우 슬롯이 아니라 "어디서 떨어졌나" 가 문제라 task_manager 가
+#  event 에 TRANSIT 실패로 따로 남긴다.
+# ─────────────────────────────────────────────────────────────────────
+
+# ── goal ──
+uint8 MAGAZINE=0
+uint8 TRAY_STACK=1
+
+string  dst_port_id             # "pkg_loader" | "test_loader"
+geometry_msgs/Pose slot_pose    # base_link 기준 슬롯 바닥 중심
+string  expected_carrier_id     # 오배송 게이트 — VerifyCarrier 에 그대로 넘긴다
+uint8   allowed_kind            # 이 포트가 받는 종류. 다르면 손대지 않는다.
+float32 release_height_m        # 슬롯 바닥 위 이 높이에서 흡착 OFF
+---
+# ── result ──
+uint8 NONE=0
+uint8 NO_IK=1
+uint8 COLLISION=2
+uint8 PORT_OCCUPIED=3           # 슬롯에 이미 뭔가 있다 (지금은 접촉/깊이로 판정)
+uint8 ID_MISMATCH=4             # VerifyCarrier 가 막았다
+uint8 KIND_NOT_ALLOWED=5        # 들고 온 종류 ≠ allowed_kind
+uint8 NOT_GRIPPED=6             # 도착 시 이미 놓친 상태
+uint8 CANCELED=7
+
+bool    success
+bool    id_matched
+bool    kind_allowed
+uint8   fail_reason
+---
+# ── feedback ──
+uint8 APPROACH=0
+uint8 DESCEND=1
+uint8 RELEASE=2                 # 흡착 OFF
+uint8 RETRACT=3                 # 컵 분리 확인 후 상승
+
+uint8   phase
+bool    gripped                 # RELEASE 뒤 false 가 돼야 정상
