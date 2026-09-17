@@ -4,39 +4,52 @@
 #
 #  목적: 플랜지 판 윗면 중심에 Ø50 흡착 컵을 대고 들어 올린다.
 #
-#  goal 은 두 출처가 나란히 놓인다:
-#    실측   carrier(CarrierPose)     — pose_resolver 가 깊이 영상으로 잰 것
-#    카탈로그 flange_* / expected_*  — task_manager 가 frames.yaml 에서 가져온 것
-#  둘을 한 goal 에 두는 이유: 서버가 "기대 vs 실측" 을 대조하고, 그 차이를
-#  TraceEvent 에 남긴다. (05: DB 조회 방식과 비전 추정 방식을 사후 비교)
+#  goal 은 전부 계산값 · 카탈로그값이다. 실측은 없다.
+#    flange_pose        = CarrierScan.qr_pose + frames.yaml 라벨→플랜지 오프셋
+#                         (task_manager 가 계산)
+#    flange_*_side_m    = frames.yaml 의 flange_plate
+#    grip_gaps_m        = frames.yaml suction_gripper.grip_gaps_m
 #
 #  ★ 서버는 variant 로 분기하지 않는다. 필요한 건 숫자(flange_short_side_m 등)
-#    이고 variant 는 로그와 CheckGrasp 요청에 실어 보낼 라벨일 뿐이다.
+#    이고 variant 는 TraceEvent 에 남길 라벨일 뿐이다.
 #    매거진이 3종·4종으로 늘어도 이 서버 코드는 안 바뀌어야 한다.
 #
-#  서버가 내부에서 부르는 서비스:
-#    VerifyCarrier  — 하강 직전 (S1/S3). ok=false 면 ID_MISMATCH 로 즉시 종료
-#    CheckGrasp     — 흡착 직후. lifted/on_flange/variant_matched 로 판정
+#  서버가 내부에서 부르는 것:
+#    VerifyCarrier   — 하강 직전 (S1/S3). ok=false 면 ID_MISMATCH 로 즉시 종료
+#    SurfaceGripper  — close() · gripped()   Isaac API, ROS 아님
+#
+#  OFF_FLANGE 는 서버가 직접 판정한다. perception 을 부르지 않는다.
+#    Isaac 의 SurfaceGripper 는 maxGripDistance(30 mm) 안에서 뭐든 맞으면
+#    붙는다. 플랜지 윗면과 몸체 윗면 차이가 약 24 mm 라 컵이 빗나가면
+#    몸체에 붙고, gripped=true 만 보면 그걸 못 잡는다.
+#    (frames.yaml open_issues blue-magazine-flange-too-narrow 가 지적한 함정.
+#     플랜지는 450216f 로 80×80 통일 — 함정 자체는 남는다.)
+#    → 흡착이 걸린 순간의 TCP 위치(TF)와 goal.flange_pose 의 횡거리를
+#      final_offset_m 으로 두고, offset_limit_m = (flange_short_side_m − 컵 지름)/2
+#      를 넘으면 OFF_FLANGE. 둘을 result 에 같이 실어 "13.8 / 15.0" 처럼
+#      로그 한 줄에 남긴다 — 시뮬은 성공해도 실물이면 실패했을 건을 잡으려고.
+#
+#  "실제로 들렸나" 는 따로 묻지 않는다. 시뮬에서는 걸리면 coaxial 한계(200 N)
+#  를 넘어 접합이 끊기고 gripped 가 false 로 떨어지므로, LIFT 뒤 gripped=true
+#  가 곧 들린 것이다. SLIP 하나로 충분하다.
 #
 #  흡착 재시도: grip_gaps_m 순서대로 흡착면을 대상 윗면보다 이만큼 띄워 시도.
-#    frames.yaml suction_gripper.grip_gaps_m = [0.005, 0.002, 0.000, -0.003]
-#    (음수 = 살짝 누름). 전부 실패하면 NO_ATTACH.
+#    [0.005, 0.002, 0.000, -0.003] (음수 = 살짝 누름). 전부 실패하면 NO_ATTACH.
 #
 #  액션인 이유: 접근·하강·흡착·리프트·스토우 단계가 있고 각 단계에서 실패
 #  지점을 남겨야 한다. 도킹 선점(hard 임계) 시 취소도 필요하다.
 #
-#  출처: docs/06_System_Architecture.html §6 를 흡착 모델로 고친 것.
+#  출처: docs/06_System_Architecture.html §6 를 흡착 모델 · 계산 자세로 고친 것.
 # ─────────────────────────────────────────────────────────────────────
 
 # ── goal ──
-CarrierPose carrier             # 실측. flange_pose 가 흡착 목표점.
-string  variant                 # 카탈로그 키. 로그·CheckGrasp 용. 분기에 쓰지 말 것.
+geometry_msgs/PoseStamped flange_pose   # 흡착 목표점. frame_id = base_link.
+                                        # position = 판 윗면 중심, +Z = 판 법선(위)
+string  variant                 # 카탈로그 키. 로그용. 분기에 쓰지 말 것.
 
-float32 flange_short_side_m     # 카탈로그. ★ 횡오차 상한 = (이 값 − 컵 지름) / 2
-                                #   80×80 플랜지 → (80−50)/2 = 15 mm. 파랑도 450216f 에서 80×80 으로 맞췄다.
-float32 flange_long_side_m      # 카탈로그
-float32 expected_body_width_m   # 카탈로그. carrier.body_width_m 과 대조
-float32 expected_height_m       # 카탈로그. carrier.stack_height_m 과 대조
+float32 flange_short_side_m     # ★ 횡오차 상한 = (이 값 − 컵 지름) / 2
+                                #   80×80 플랜지 → (80−50)/2 = 15 mm
+float32 flange_long_side_m
 
 float32[] grip_gaps_m           # 흡착 재시도 갭 시퀀스. 비면 서버 기본값.
 float32 approach_dist_m         # 플랜지 위 이 높이에서 수직 하강 시작
@@ -48,25 +61,22 @@ uint8 COLLISION=2               # 접근·하강 중 선반/이웃 캐리어와 
 uint8 ID_MISMATCH=3             # VerifyCarrier 가 막았다 — 손대지 않음
 uint8 NO_ATTACH=4               # 모든 grip_gap 에서 gripped=false
 uint8 SLIP=5                    # gripped=true 였다가 리프트/스토우 중 false 로
-uint8 OFF_FLANGE=6              # gripped=true 인데 CheckGrasp.on_flange=false
-                                #   → 몸체나 이웃에 붙었다. 놓고 재시도.
-uint8 NOT_LIFTED=7              # gripped=true 인데 CheckGrasp.lifted=false
-uint8 VARIANT_MISMATCH=8        # CheckGrasp.variant_matched=false — 품종 혼입
-uint8 CANCELED=9
+uint8 OFF_FLANGE=6              # final_offset_m > offset_limit_m — 몸체나 이웃에
+                                #   붙었다. 놓고 재시도.
+uint8 CANCELED=7
 
 bool    success
 bool    gripped                 # 종료 시점 SurfaceGripper.gripped()
-bool    lifted                  # CheckGrasp.lifted
-bool    grasp_verified          # CheckGrasp 전부 통과 (lifted ∧ on_flange ∧ variant)
 uint8   fail_reason
-float32 final_offset_m          # CheckGrasp.offset_m — limit 과 함께 event 에 남긴다
+float32 final_offset_m          # 흡착 순간 TCP ↔ flange_pose 횡거리
+float32 offset_limit_m          # (flange_short_side_m − 컵 지름)/2 — 로그 한 줄에 둘이 같이
 float32 used_gap_m              # 성공한 갭. 어느 갭이 잘 먹는지 통계용
 ---
 # ── feedback ──
 uint8 APPROACH=0                # approach_dist_m 높이로 이동
 uint8 DESCEND=1                 # 수직 하강
 uint8 SUCTION=2                 # 흡착 ON, gripped 될 때까지 grip_gaps 순회
-uint8 LIFT=3                    # 들어 올림 — 여기서 CheckGrasp
+uint8 LIFT=3                    # 들어 올림
 uint8 STOW=4                    # 이송 자세로
 
 uint8   phase

@@ -19,7 +19,6 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   # ── 여기 없는 파일은 만들어도 생성되지 않는다. 에러도 안 난다. ──
   # Messages
   "msg/CarrierScan.msg"       # QR 판독 결과          05 §2-6
-  "msg/CarrierPose.msg"       # 자세 + 실측 치수      06 §6 (흡착 모델)
   "msg/TraceEvent.msg"        # 추적 이벤트 1건       05 §2-6
   "msg/BatteryState.msg"      # 배터리 방송           07 §6
   "msg/TaskOrder.msg"         # 보류 — 웹/MES 연동 시
@@ -27,7 +26,6 @@ rosidl_generate_interfaces(${PROJECT_NAME}
 
   # Services
   "srv/VerifyCarrier.srv"     # 파지·배치 인터록      05 §2-6
-  "srv/CheckGrasp.srv"        # 흡착 직후 검증        06 §6 (흡착 모델)
   "srv/RegisterTask.srv"      # 보류 — 웹/MES 연동 시
 
   # Actions
