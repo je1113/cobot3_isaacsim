@@ -83,16 +83,18 @@ TARGET_PATH      = "/World/magazine_1_orange"     # 선반 2단 주황 매거진
 ARTICULATION_PATH = None
 
 # ── 1) 선반 앞 정차 (픽업) ────────────────────────────────────
-#   yaw -90 이면 카터 +X 가 world -Y 를 보고, 팔(섀시 뒤쪽 장착)이
-#   선반 쪽(+Y)으로 나온다. 팔이 선반을 정면으로 마주본다.
-PICK_CARTER_POS = np.array([-6.500, 1.400, 0.080])
-PICK_CARTER_YAW = -90.0
+#   yaw 180 이면 카터가 선반과 나란히 서고, 팔은 몸통의 짧은 축(+-0.25 m)을
+#   가로질러 선반 쪽(world +Y)으로 뻗는다. 카터를 선반에 정면으로 붙이면
+#   몸통이 뒤로 0.607 m 나 있어 선반을 파고든다 (아래 CARTER_FOOTPRINT 참고).
+PICK_CARTER_POS = np.array([-6.706, 1.467, 0.080])
+PICK_CARTER_YAW = 180.0
 MAGAZINE_XY     = np.array([-6.500, 2.000])       # 매거진 world xy
 
 # ── 2) 컨베이어 앞 정차 (배치) ────────────────────────────────
-#   yaw 180 이면 팔이 world +X 쪽, 즉 벨트 쪽으로 나온다.
-PLACE_CARTER_POS = np.array([3.700, 0.000, 0.080])
-PLACE_CARTER_YAW = 180.0
+#   yaw 90 이면 팔이 몸통 짧은 축을 가로질러 벨트 쪽(world +X)으로 뻗는다.
+#   픽업과 같은 로컬 방향(-Y)이라 joint_1 스윙이 양쪽 0 도가 된다.
+PLACE_CARTER_POS = np.array([3.800, 0.206, 0.080])
+PLACE_CARTER_YAW = 90.0
 PLACE_XY         = np.array([4.400, 0.000])       # 벨트 위 놓을 자리
 PLACE_SURFACE_Z  = 0.770                          # 벨트 상판 높이
 
@@ -103,12 +105,27 @@ PICK_LIFT_CLEAR      = 0.20   # 집고 매거진 윗면 기준 이만큼 들어�
 PLACE_APPROACH_CLEAR = 0.15   # 벨트 위 이만큼에서 대기
 PLACE_DROP           = 0.005  # 놓을 때 이만큼 높게 두어 튀지 않게 한다
 
-#   운반 자세. 팔 베이스 기준 상대 좌표다. -X 로 둔 이유는 팔이 뻗는 쪽과
-#   같은 방향이라 joint_1 스윙이 0 이 되기 때문이다. (+X 로 두면 픽업에서
-#   180도 휘둘러야 하고, 1 kg 을 흡착으로 물고 하기에 제일 나쁜 동작이다)
-CARRY_OFFSET = np.array([-0.30, 0.00, 0.50])
+#   운반 자세. 팔 베이스 기준 상대 좌표다. 로컬 -Y 로 둔 이유는 두 정거장
+#   모두 팔이 그 방향으로 뻗기 때문이다. 같은 방향이라 joint_1 스윙이 0 이
+#   된다. 반대쪽에 두면 1 kg 을 흡착으로 물고 180도 휘둘러야 한다.
+CARRY_OFFSET = np.array([0.00, -0.30, 0.50])
 
-# ── 4) 흡착 ───────────────────────────────────────────────────
+# ── 4) 카터 몸통과 장애물 (간섭 검사용) ──────────────────────
+#   Nav2 설정에서 가져온 실측 footprint. 원점이 중심이 아니다.
+#   앞으로 0.14 m, 뒤로 0.607 m — 몸통이 뒤로 길다.
+#   src/nova_carter/carter_navigation/params/carter_navigation_params.yaml
+#     footprint: "[ [0.14, 0.25], [0.14, -0.25], [-0.607, -0.25], [-0.607, 0.25] ]"
+CARTER_FOOTPRINT = np.array([[0.14, 0.25], [0.14, -0.25],
+                             [-0.607, -0.25], [-0.607, 0.25]])
+CARTER_MARGIN = 0.10   # m, 이보다 가까우면 경고
+
+#   레이아웃에서 읽은 장애물 AABB (x0, x1, y0, y1)
+OBSTACLES = {
+    "선반 Shelf_01":   (-6.852, -4.352,  1.867,  2.867),
+    "컨베이어 프레임":  ( 4.200,  8.600, -0.675,  0.675),
+}
+
+# ── 5) 흡착 ───────────────────────────────────────────────────
 #   coaxial 500 N 은 실제로 성공을 확인한 값이다.
 #   shear 는 확인된 값이 아니고, 기존 2:1 비율을 유지해 250 으로 올렸다.
 #   흡착은 걸리는데 옮기다 놓친다면 여기부터 본다.
@@ -1109,6 +1126,48 @@ def print_status(robot, solved, fsm, target_tcp):
           f"gripper {fsm.gripper}")
 
 
+def carter_box(pos, yaw_deg):
+    """카터 몸통을 world AABB 로 만든다 (실측 footprint 기준)"""
+    c, s_ = np.cos(np.radians(yaw_deg)), np.sin(np.radians(yaw_deg))
+    rot = np.array([[c, -s_], [s_, c]])
+    w = (rot @ CARTER_FOOTPRINT.T).T + np.array(pos[:2])
+    return w[:, 0].min(), w[:, 0].max(), w[:, 1].min(), w[:, 1].max()
+
+
+def check_clearance():
+    """
+    카터 몸통이 선반/컨베이어를 파고드는지 본다.
+
+    이 검사가 없어서 한 번 틀렸다. footprint 원점이 중심이 아니라
+    뒤로 0.607 m 나 있는데 +-0.375 로 어림잡아, 선반을 140 mm,
+    컨베이어를 107 mm 파고드는 자리에 세워 뒀었다.
+    """
+    worst = None
+    for tag, pos, yaw in (("픽업", PICK_CARTER_POS, PICK_CARTER_YAW),
+                          ("배치", PLACE_CARTER_POS, PLACE_CARTER_YAW)):
+        x0, x1, y0, y1 = carter_box(pos, yaw)
+        print(f"   {tag}  yaw {yaw:+6.1f}   몸통 x[{x0:+.3f}, {x1:+.3f}]  "
+              f"y[{y0:+.3f}, {y1:+.3f}]")
+
+        for name, (ox0, ox1, oy0, oy1) in OBSTACLES.items():
+            # 겹치면 음수, 떨어져 있으면 두 축 중 큰 간격
+            gx = max(ox0 - x1, x0 - ox1)
+            gy = max(oy0 - y1, y0 - oy1)
+            gap = max(gx, gy)
+            if gap >= CARTER_MARGIN:
+                continue
+            mark = "!! 충돌" if gap < 0 else "?  여유 부족"
+            print(f"        {name:<14} {gap*1000:+7.0f} mm  {mark}")
+            if worst is None or gap < worst[1]:
+                worst = (f"{tag}/{name}", gap)
+
+    if worst is None:
+        print(f"   -> 두 정거장 모두 장애물에서 {CARTER_MARGIN*1000:.0f} mm 이상 여유")
+    else:
+        print(f"   -> 가장 위험한 곳 {worst[0]}  {worst[1]*1000:+.0f} mm. "
+              f"카터를 장애물 반대쪽으로 물리자")
+
+
 def check_reach(fsm):
     """
     실제로 IK 에 넣을 웨이포인트가 팔이 닿는 범위인지 본다.
@@ -1204,6 +1263,9 @@ def main():
 
     section("PLAN")
     fsm = PnPFSM(robot, gripper, lula, movables)
+
+    section("CLEARANCE")
+    check_clearance()
 
     section("REACH")
     check_reach(fsm)
