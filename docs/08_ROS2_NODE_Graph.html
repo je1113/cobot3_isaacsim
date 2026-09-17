@@ -443,43 +443,48 @@
     </p>
 
     <div class="note ok">
-      <span class="lbl">확정안이 그 사이 바뀌었다</span>
+      <span class="lbl">확정안과의 관계</span>
       <p>
-        01–03 에 <span class="mono">HOLD</span> 가 들어가면서 아래 논거 중 하나 —
-        <b>본 주체와 가는 주체가 끊어진다</b> — 는 이미 해소됐다. 인식한 로봇이 그 자리에 서서 그 건을 받는다.
-        남는 것은 유령 작업(큐에 들어 있는데 이미 치워진 물건), 상태를 두 벌 드는 문제,
-        그리고 패키징 언로더에서 나온 스택을 어떻게 집을 것인가다.
-      </p>
-      <p>
-        <span class="mono">carrier_scan</span> 도 확정안에서 서비스가 됐다. 아래에서 "토픽" 이라고 적힌 곳은 서비스로 읽으면 된다 —
-        큐를 없애는 것과는 무관한 변경이라 이 절에서 따로 다루지 않는다.
+        01–03 에 이미 <span class="mono">HOLD</span> 와 <span class="mono">carrier_scan</span> 서비스가 들어가 있다.
+        이 제안은 그 위에서 <strong>큐만 뺀다</strong> — 발견하면 <span class="mono">HOLD</span> 로 서서 명령을 기다리고
+        그 뒤는 확정안과 똑같다. <b>명령 큐에 넣는 단계만 없다.</b>
       </p>
     </div>
 
-    <h3>바꾸는 이유 — 큐는 "일을 찾아서 한다" 의 반대편에 있다</h3>
+    <h3>바꾸는 이유 — <span class="mono">patrol</span> 이 "일거리를 찾는" 것이 되려면</h3>
     <p>
-      확정안의 <span class="mono">task_manager</span> 는 인식 결과를 <strong>명령 큐에 넣고</strong>,
-      <span class="mono">patrol</span> 인 로봇이 있으면 큐에서 하나를 꺼내 보낸다.
-      이 두 동작 사이에서 <strong>본 주체와 가는 주체가 끊어진다.</strong>
-      눈앞에 매거진을 두고도 일단 적어 넣고, 큐에서 꺼낸 것이 방금 본 그것이라는 보장은 구조 어디에도 없다.
-      로봇 한 대일 때조차 "보고 → 적고 → 다시 꺼내고" 라는 한 바퀴가 그냥 남는다.
+      <strong>명령 큐에 일이 버젓이 들어 있는데 로봇이 순찰로 일거리를 찾는다는 건 앞뒤가 안 맞는다.</strong>
+      찾을 것이 이미 목록에 적혀 있으면 그건 찾는 게 아니라 <em>순서를 기다리는 것</em>이다.
+      <span class="mono">patrol</span> 이라는 이름만 남고 하는 일은 대기가 된다.
+      큐를 빼면 순찰이 곧 탐색이 되고, 로봇이 움직이는 이유가 "방금 저걸 봤으니까" 하나로 정리된다.
     </p>
+    <p>덧붙는 이유 세 가지:</p>
     <ul>
-      <li><strong>큐는 작업 지시서 모델이다.</strong> 누가 지시를 만들고, 누가 배분하고, 로봇은 배분받은 것을 실행한다.
-        위에 MES 가 있는 공장이라면 맞는 모델이다. 그런데 우리가 보이려는 건
-        <strong>순찰하다 스스로 발견하고 스스로 처리하는 로봇</strong> 이다. 큐는 그 서사를 정확히 뒤집는다.</li>
-      <li><strong>행동의 이유가 화면 밖으로 나간다.</strong> 큐가 없으면 "왜 저기로 가지?" 의 답이
-        <em>"방금 저걸 봤으니까"</em> 로 눈에 보인다. 큐가 있으면 "큐에 뭐가 들었는지 봐야 안다" 가 된다.
-        시연에서 이 차이가 크다 — 자율성은 설명이 아니라 관찰로 전달된다.</li>
-      <li><strong>상태를 두 벌 들게 된다.</strong> 로봇 상태(<span class="mono">patrol</span>/작업중)와 큐가 따로 있으면 둘이 어긋난다 —
-        큐에 들어 있는데 이미 치워진 물건, 넣어 놓고 영영 안 꺼내지는 항목. <strong>유령 작업</strong>이다.
-        큐를 없애고 "PATROL 일 때 본 것만 처리" 로 하면 <strong>본 순간이 곧 최신 정보</strong>라
-        유령 작업이 구조적으로 생기지 않는다.</li>
-      <li><strong>큐를 없애도 잃는 게 없다.</strong> 작업중일 때 들어온 인식은 버리면 된다.
-        그 매거진은 사라지지 않으므로 다음 순찰에 다시 보인다.
-        큐의 "기억" 기능을 <strong>환경 자체가 대신</strong>한다 — 물건이 거기 그대로 있는 것이 곧 대기열이다.
-        자료구조로 들고 있을 이유가 없다.</li>
+      <li><strong>환경이 이미 대기열이다.</strong> 처리하지 못한 매거진은 그 자리에 그대로 남아 다음 순찰에 다시 보인다.
+        큐가 따로 기억해 줄 필요가 없다 — 물건이 거기 있다는 사실이 곧 대기열이다.</li>
+      <li><strong>상태를 두 벌 들면 어긋난다.</strong> 로봇 상태와 큐가 따로 있으면
+        큐에 들어 있는데 이미 치워진 물건, 넣어 놓고 영영 안 꺼내지는 항목이 생긴다 — <b>유령 작업</b>이다.
+        본 순간이 곧 최신 정보면 이게 구조적으로 생기지 않는다.</li>
+      <li><strong>행동의 이유가 눈에 보인다.</strong> "왜 저기로 가지?" 의 답이 화면 안에 있다.
+        큐가 있으면 "큐에 뭐가 들었는지 봐야 안다" 가 된다. 시연에서 이 차이가 크다.</li>
     </ul>
+
+    <h3>확정안에서 바뀌는 것 세 가지</h3>
+    <div class="t-wrap">
+      <table>
+        <thead><tr><th>#</th><th>바뀌는 것</th><th>인터페이스</th></tr></thead>
+        <tbody>
+          <tr class="chg"><td class="n">1</td><td><b>명령 큐를 없앤다.</b> 발견하면 <span class="c">HOLD</span> 로 서서 명령을 기다리고 그 뒤는 확정안과 똑같다 — 큐에 넣는 단계만 빠진다</td><td class="x">삭제 <span class="c">TaskOrder.msg</span> · <span class="c">RegisterTask.srv</span></td></tr>
+          <tr class="chg"><td class="n">2</td><td><b>매거진 place 뒤 언로더 쪽으로 관측 자세를 잡고 5초 기다린다.</b> 그 사이 QR 이 잡히면 그 스택을 옮기고, 안 잡히면 <span class="c">patrol</span> 로 복귀</td><td class="x">없음 — <span class="c">PlaceCarrier</span> 가 관측 자세로 끝나고 파라미터 <span class="c">unloader_watch_s</span></td></tr>
+          <tr class="chg"><td class="n">3</td><td><b>픽업존 매거진을 랜덤 위치 · 랜덤 시간으로 생성한다</b> <span class="mono">(→ 07)</span></td><td class="x">없음 — Isaac Sim 스폰 스크립트</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>
+      1번이 이 절의 주제이고, 2번은 큐를 빼면 반드시 따라오는 것이다 —
+      패키징에서 나온 스택을 큐 없이 처리하려면 누가 가서 봐야 하기 때문이다(다음 절).
+      3번은 큐를 빼고 나면 시스템의 입력이 환경뿐이 되므로, 그 환경이 매번 달라야 의미가 사는 것이다.
+    </p>
 
     <h3>명령이 두 종류라 걸리던 문제 — 규칙 하나로 줄어든다</h3>
     <p>
@@ -513,22 +518,23 @@
         <tbody>
           <tr class="chg"><td class="n">1</td><td>로봇의 현 상태를 트래킹 · 업데이트 · 저장 (기본 <span class="c">patrol</span>)</td><td class="x">여기가 큐의 자리를 대신한다. <b>지금 다루는 캐리어의 QR 원문도 같이 저장</b> — 무슨 물건을 들고 있는지 확인용</td></tr>
           <tr class="chg"><td class="n">2</td><td>로봇이 실행할 명령을 저장하는 <b>명령 큐 보유</b></td><td class="x"><b>삭제.</b> 저장하지 않는다</td></tr>
-          <tr class="chg"><td class="n">3</td><td><span class="c">/perception/carrier_scan</span> 으로 인식되면 <b>큐에 넣음</b></td><td class="x"><span class="c">PATROL</span> 이면 <b>① 로봇 정지 → ② 상태 = <span class="c">SCAN</span> + QR 원문 저장 → ③ 픽 좌표 계산</b>, 아니면 버림</td></tr>
-          <tr class="chg"><td class="n">4</td><td><span class="c">patrol</span> 인 로봇이 있으면 <b>큐에서 하나 빼서</b> 픽 좌표 전달</td><td class="x">꺼낼 곳이 없다 — <b>방금 본 그것</b>의 QR 위치로 바로</td></tr>
+          <tr class="chg"><td class="n">3</td><td>인식되면 ① 그 로봇을 세워 <span class="c">HOLD</span> ② <b>명령 큐에 넣음</b></td><td class="x">①은 그대로. <b>②가 없다</b> — 상태 = <span class="c">SCAN</span> + QR 원문만 저장하고 바로 ③으로</td></tr>
+          <tr class="chg"><td class="n">4</td><td><span class="c">HOLD</span> 중인 그 로봇에게 <b>큐에서 그 건을 빼서</b> 픽 좌표 전달</td><td class="x">뺄 큐가 없다 — <b>방금 받은 그 스캔</b>으로 바로 계산해서 전달</td></tr>
           <tr><td class="n">5</td><td>pick 끝나면 목적지 좌표를 넣어줌</td><td class="x">그대로</td></tr>
           <tr class="chg"><td class="n">6</td><td>place 끝나면 다시 <span class="c">patrol</span> 로 전환</td><td class="x">매거진 place 뒤에 <b>언로더 확인 한 번</b>을 끼우고 <span class="c">patrol</span></td></tr>
         </tbody>
       </table>
     </div>
     <p>
-      1번이 커지고 2·3·4번이 사라지는 변경이다. 큐라는 자료구조가 <strong>상태기계 한 개</strong>로 흡수된다.
-      노드는 다섯 개 그대로고, 주고받는 인터페이스도 그대로다 — 바뀌는 건 거의 전부
-      <span class="mono">task_manager</span> 안쪽이다.
+      2번이 통째로 사라지고 3·4번에서 큐를 참조하던 부분이 빠진다. 1번은 오히려 커진다 —
+      큐라는 자료구조가 <strong>상태기계 한 개</strong>로 흡수되기 때문이다.
+      노드는 다섯 개 그대로고 쓰던 인터페이스 5개도 그대로다 — 바뀌는 건 거의 전부
+      <span class="mono">task_manager</span> 안쪽이고, 밖으로는 안 쓰게 된 스텁 2개가 빠지는 게 전부다.
     </p>
   </section>
   <section class="prop">
     <h2><span class="tag-prop">제안</span><span class="sn">05</span>바뀌는 흐름</h2>
-    <p class="deck">빨간 박스가 제안으로 새로 생기는 상태다. 나머지는 확정안 그대로다. 아래 줄 전체(스택 회수)가 언로더 확인에서 갈라져 나온 가지다.</p>
+    <p class="deck">빨간 박스가 제안으로 새로 생기는 상태다. <span class="mono">HOLD</span> 를 포함해 윗줄은 확정안 그대로고, 바뀌는 것은 <b>그 사이에 큐가 없다는 것</b> 하나다. 아래 줄 전체(스택 회수)가 언로더 관측에서 갈라져 나온 가지다.</p>
 
     <figure>
       <div class="fig-scroll">
@@ -545,8 +551,8 @@
             <rect x="688"  y="56" width="118" height="52" rx="2"/>
             <rect x="854"  y="56" width="118" height="52" rx="2"/>
           </g>
+          <rect x="190" y="56" width="118" height="52" rx="2" fill="var(--surface)" stroke="currentColor" stroke-width="1.3"/>
           <g fill="var(--danger-wash)" stroke="var(--danger)" stroke-width="1.5">
-            <rect x="190"  y="56"  width="118" height="52" rx="2"/>
             <rect x="1020" y="56"  width="118" height="52" rx="2"/>
             <rect x="1020" y="230" width="118" height="52" rx="2"/>
             <rect x="854"  y="230" width="118" height="52" rx="2"/>
@@ -562,8 +568,8 @@
               <text x="747" y="76">GO_LOADER</text>
               <text x="913" y="76">PLACE</text>
             </g>
+            <text x="249" y="76" font-size="10.5" class="m" font-weight="500" fill="var(--ink)">HOLD</text>
             <g font-size="10.5" class="m" font-weight="500" fill="var(--danger)">
-              <text x="249"  y="76">HOLD</text>
               <text x="1079" y="76">WATCH_UNLOADER</text>
               <text x="1079" y="250">HOLD</text>
               <text x="913"  y="250">PICK</text>
@@ -585,7 +591,7 @@
             </g>
             <g font-size="7.5" class="m" fill="var(--ink-3)">
               <text x="83"  y="102">NavigateTo ×N</text>
-              <text x="249" y="102">상태 = SCAN + 원문</text>
+              <text x="249" y="102">goal cancel · 확정안 그대로</text>
               <text x="415" y="102">NavigateTo</text>
               <text x="581" y="102">PickCarrier</text>
               <text x="747" y="102">NavigateTo</text>
@@ -921,10 +927,10 @@
     </div>
   </section>
   <section class="prop">
-    <h2><span class="tag-prop">제안</span><span class="sn">07</span>함께 제안하는 것</h2>
-    <p class="deck">큐를 없애면 따라오는 두 가지. 하나는 지금 하면 좋은 것, 하나는 나중에 여러 대가 될 때의 길이다.</p>
+    <h2><span class="tag-prop">제안</span><span class="sn">07</span>랜덤 생성, 그리고 나중 일</h2>
+    <p class="deck">①은 04 표의 <b>세 번째 변경</b>이다. ②③은 지금 할 일이 아니라 나중에 마주칠 갈림길과, 넣지 말자고 판단한 것이다.</p>
 
-    <h3>① 픽업존에 랜덤 위치 · 랜덤 종류로 매거진을 생성한다</h3>
+    <h3>① 픽업존에 랜덤 위치 · 랜덤 종류로 매거진을 생성한다 <span class="pill gap">변경 3</span></h3>
     <p>
       큐가 사라지면 시스템의 입력은 <strong>환경 그 자체</strong>가 된다.
       명령을 넣어 주는 곳이 없고 로봇은 본 것에만 반응한다.
