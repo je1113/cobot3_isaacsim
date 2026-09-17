@@ -38,6 +38,12 @@ import os
 from isaacsim import SimulationApp
 
 HEADLESS = os.environ.get("PICK_HEADLESS", "0") == "1"
+
+# 몇 판을 연달아 돌릴지. project-plan 의 완료 기준이 "반복 흡착 픽업 성공"이라
+# 한 판만으로는 판정이 안 된다. 헤드리스로 여러 판 돌려 성공률을 본다.
+#   PICK_TRIALS=10 PICK_HEADLESS=1 isaac_python 12_pick_test.py
+# GUI 로 띄웠을 때는 이 판수를 다 돌고 나서 예전처럼 HOLD 로 들어간다.
+TRIALS = max(1, int(os.environ.get("PICK_TRIALS", "1")))
 simulation_app = SimulationApp({"headless": HEADLESS})
 
 import dataclasses
@@ -85,7 +91,14 @@ ARTICULATION_ROOT_CANDIDATES = [
     BASE_XFORM_PATH,
 ]
 
-MAGAZINE_XFORM_PATH = "/World/Magazines/shelf_1_magaines/top_magazines/magazine_1_orange"
+# 다른 매거진으로 바꿔 시험할 수 있게 열어 둔다. 베이스 x 는 대상 매거진의
+# x 에 맞춰 줘야 IK 가 풀린다 (기본값은 magazine_1_orange 의 x=-6.5 에 맞춰
+# 스윕으로 검증된 값이다 — 아래 WP_PICK 주석 참고).
+#   PICK_TARGET=/World/Magazines/shelf_1_magaines/top_magazines/magazine_2_blue \
+#   PICK_BASE_X=-5.9233 PICK_TRIALS=10 PICK_HEADLESS=1 isaac_python 12_pick_test.py
+MAGAZINE_XFORM_PATH = os.environ.get(
+    "PICK_TARGET",
+    "/World/Magazines/shelf_1_magaines/top_magazines/magazine_1_orange")
 # payload 로 합성되면 magazine_1_orange.usda 의 defaultPrim("Magazine")이 이
 # 경로 자체에 별칭(alias)되므로, 그 자식(flange_plate 등)은 별도의 "Magazine"
 # 서브프림이 아니라 MAGAZINE_XFORM_PATH 바로 아래에 붙는다.
@@ -130,7 +143,8 @@ SPEC_REACH  = 0.900
 # 아래 값(1.45)은 그 구간의 여유 있는 지점(간격 약 17.9 cm)이다.
 
 # (베이스 world xyz, yaw_deg) — yaw 는 world +x 축 기준
-WP_PICK  = (np.array([-6.5, 1.45, 0.07963398335074101]), 0.0)
+WP_PICK  = (np.array([float(os.environ.get("PICK_BASE_X", "-6.5")),
+                      1.45, 0.07963398335074101]), 0.0)
 
 
 # ══════════════════════════════════════════════════════════════
@@ -146,7 +160,10 @@ SUCTION_INSET  = 0.0025
 TCP_OFFSET     = np.array([0.0, 0.0, SUCTION_FACE_Z])
 
 # GRIP 재시도 사다리. 흡착면을 대상 윗면보다 이만큼 위에 둔다 (음수=살짝 누름)
-GRIP_GAPS = [0.005, 0.002, 0.000, -0.003]
+# 흡착면을 대상 윗면보다 이만큼 위에 둔다 (음수=살짝 누름). 앞에서부터 재시도.
+# 실험으로 바꿔 볼 수 있게 열어 둔다:  PICK_GRIP_GAPS=0.002,0.000,-0.003
+GRIP_GAPS = [float(v) for v in
+             os.environ.get("PICK_GRIP_GAPS", "0.005,0.002,0.000,-0.003").split(",")]
 
 
 # ══════════════════════════════════════════════════════════════
@@ -321,8 +338,45 @@ def filter_collision(path_a, path_b):
     rel.AddTarget(Sdf.Path(path_b))
 
 
+# 매거진을 물리 API 로 되돌리기 위한 핸들. world.reset() 뒤에 채운다.
+_magazine_rigid = None
+
+
+def bind_magazine_rigid():
+    """매거진의 리지드바디 핸들을 잡는다. 실패하면 None 으로 둔다."""
+    global _magazine_rigid
+    try:
+        from isaacsim.core.prims import SingleRigidPrim
+        _magazine_rigid = SingleRigidPrim(prim_path=MAGAZINE_XFORM_PATH,
+                                          name="magazine_rigid")
+        _magazine_rigid.initialize()
+        print(f"   magazine     리지드바디 핸들 확보 {MAGAZINE_XFORM_PATH}")
+    except Exception as exc:
+        _magazine_rigid = None
+        print(f"   !! magazine  리지드바디 핸들 실패 ({exc}) — "
+              f"USD 쓰기로 떨어진다. 트라이얼 간 위치가 안 맞을 수 있다.")
+
+
 def reset_magazine_pose(spawn_pos, spawn_quat_wxyz=(1.0, 0.0, 0.0, 0.0)):
-    """트라이얼 사이에 매거진을 원래 자리로 되돌린다"""
+    """트라이얼 사이에 매거진을 원래 자리로 되돌린다.
+
+    시뮬이 도는 중에는 USD xform 을 고쳐도 물리 물체가 안 움직인다 — 다음
+    스텝에 PhysX 값으로 덮인다. 그래서 리지드바디 API 로 옮기고 속도까지 턴다.
+    속도를 안 털면 직전 트라이얼에서 들어올렸다 놓은 운동량이 남아, 매거진이
+    트라이얼마다 조금씩 밀려난다. 실제로 y 가 최대 76 mm 까지 흘러서
+    IK 가 안 풀리는 트라이얼이 나왔다.
+    """
+    if _magazine_rigid is not None:
+        try:
+            _magazine_rigid.set_world_pose(
+                position=np.asarray(spawn_pos, dtype=float),
+                orientation=np.asarray(spawn_quat_wxyz, dtype=float))
+            _magazine_rigid.set_linear_velocity(np.zeros(3))
+            _magazine_rigid.set_angular_velocity(np.zeros(3))
+            return
+        except Exception as exc:
+            print(f"   !! magazine  물리 리셋 실패 ({exc}) — USD 쓰기로 떨어진다")
+
     stage = omni.usd.get_context().get_stage()
     xform = UsdGeom.Xformable(stage.GetPrimAtPath(MAGAZINE_XFORM_PATH))
     xform.ClearXformOpOrder()
@@ -834,6 +888,7 @@ def main():
         world.step(render=not HEADLESS)
 
     magazine_spawn_pos, magazine_spawn_quat = get_world_pose(MAGAZINE_XFORM_PATH)
+    bind_magazine_rigid()
 
     section("SOLVER")
     base_pos0, base_quat0 = get_world_pose(BASE_LINK_PATH)
@@ -851,21 +906,56 @@ def main():
     def do_pick(trial_idx):
         # 매거진/그리퍼/베이스를 시작 상태로 되돌린 뒤 pick 한 판을 실행한다.
         # Stop 으로 물리가 초기화돼도 이 함수가 다시 명시적으로 상태를 맞춘다.
+        # 순서가 중요하다. 매거진을 먼저 되돌리면 그 뒤의 베이스 텔레포트와
+        # 팔 스냅(스티프니스 1e8)이 다시 흔들어서, 트라이얼마다 매거진이 조금씩
+        # 밀린다. 실제로 y 진폭이 7 -> 11 -> 21 -> 30 -> 60 -> 100 mm 로 커졌고
+        # 결국 IK 가 안 풀리는 트라이얼이 나왔다.
+        # 그래서 로봇 쪽을 다 세운 다음, 맨 마지막에 매거진을 제자리로 놓는다.
         gripper.open()
-        reset_magazine_pose(magazine_spawn_pos, tuple(magazine_spawn_quat))
+        for _ in range(20):                      # 릴리즈가 실제로 처리되게
+            world.step(render=not HEADLESS)
+
         pos, yaw = WP_PICK
         teleporter.teleport(pos, yaw)
         for _ in range(SETTLE_STEPS):
             world.step(render=not HEADLESS)
         set_ready_pose(robot)
+        for _ in range(SETTLE_STEPS // 2):       # 팔이 멎을 때까지
+            world.step(render=not HEADLESS)
+
+        reset_magazine_pose(magazine_spawn_pos, tuple(magazine_spawn_quat))
+        for _ in range(30):                      # 리셋이 물리에 반영되게
+            world.step(render=not HEADLESS)
         gripper.reinit()
 
         section("RUN")
         result = run_trial(trial_idx, world, robot, lula, solver, gripper, teleporter)
         print(f"   trial {trial_idx + 1} -> fail_code={result.fail_code}  "
               f"cycle_time={result.cycle_time_s:.2f}s")
+        return result
 
-    do_pick(0)
+    results = [do_pick(i) for i in range(TRIALS)]
+
+    if TRIALS > 1:
+        section("SUMMARY")
+        ok = [r for r in results if r.success]
+        print(f"   성공 {len(ok)} / {TRIALS}")
+        if ok:
+            ts = [r.cycle_time_s for r in ok]
+            rs = [r.lift_rise_mm for r in ok]
+            tl = [r.tilt_deg for r in ok]
+            print(f"   cycle  평균 {sum(ts)/len(ts):.2f}s  "
+                  f"최소 {min(ts):.2f}  최대 {max(ts):.2f}")
+            print(f"   rise   최소 {min(rs):.1f} mm  (기준 {LIFT_OK_MIN_M*1000:.0f} mm)")
+            print(f"   tilt   최대 {max(tl):.2f} deg  (기준 {TILT_MAX_DEG:.0f} deg)")
+        bad = [r for r in results if not r.success]
+        for r in bad:
+            print(f"   실패 trial {r.trial + 1}  fail_code={r.fail_code}")
+
+    # 헤드리스는 판정이 끝나면 더 할 일이 없다. 창도 없어서 Stop/Play 도 못 한다.
+    if HEADLESS:
+        simulation_app.close()
+        return
 
     # pick 결과 상태로 정지해서 계속 띄워둔다. Stop 했다가 다시 Play 를 누르면
     # (재생 상태 False -> True 전환을 감지해) pick 을 한 번 더 실행한다.

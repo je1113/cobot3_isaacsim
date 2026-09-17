@@ -70,7 +70,11 @@ FLANGE_STEM   = 0.020    # 기둥 한 변
 FLANGE_STEM_H = 0.018    # 기둥 높이 = 핑거 두께 8 + 여유 10
 
 FLANGE_ORANGE = {"plate": (0.080, 0.080, 0.006), "color": COLOR_ORANGE}
-FLANGE_BLUE   = {"plate": (0.100, 0.060, 0.010), "color": COLOR_BLUE}
+# 파랑도 주황과 같은 80x80 정사각으로 맞춘다. 원래 100x60 이었는데, 짧은 변이
+# 60 mm 라 Ø50 흡착 컵의 편측 여유가 (60-50)/2 = 5 mm 밖에 안 됐다.
+# 캘리브레이션 허용오차만으로 예산이 소진돼서 실물 이관이 불가능했다.
+# 두께 10 mm 는 파랑 고유값이라 그대로 둔다 (주황은 6 mm).
+FLANGE_BLUE   = {"plate": (0.080, 0.080, 0.010), "color": COLOR_BLUE}
 
 # ──────────────────────────────────────────────────────────────
 #  JEDEC 트레이 규격 (m)
@@ -118,13 +122,13 @@ TRAYS = [
     {"file": "tray_1_orange.usda", "count": 6, "flange": FLANGE_ORANGE,
      "doc": "JEDEC 2-inch tray stack, 6 trays (5 loaded + 1 cover) with clip carrier, orange flange 80x80x6"},
     {"file": "tray_2_blue.usda",   "count": 8, "flange": FLANGE_BLUE,
-     "doc": "JEDEC 2-inch tray stack, 8 trays (7 loaded + 1 cover) with clip carrier, blue flange 100x60x10"},
+     "doc": "JEDEC 2-inch tray stack, 8 trays (7 loaded + 1 cover) with clip carrier, blue flange 80x80x10"},
 ]
 MAGAZINES = [
     {"file": "magazine_1_orange.usda", "L": 0.250, "W": 0.140, "H": 0.110, "slots": 20, "flange": FLANGE_ORANGE,
      "doc": "Lead-frame magazine 250x140x110, 20 slots @5 mm, orange flange 80x80x6"},
     {"file": "magazine_2_blue.usda",   "L": 0.300, "W": 0.200, "H": 0.070, "slots": 12, "flange": FLANGE_BLUE,
-     "doc": "Lead-frame magazine 300x200x70 (wider, lower), 12 slots @5 mm, blue flange 100x60x10"},
+     "doc": "Lead-frame magazine 300x200x70 (wider, lower), 12 slots @5 mm, blue flange 80x80x10"},
 ]
 
 

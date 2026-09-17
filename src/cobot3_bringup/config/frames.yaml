@@ -371,7 +371,9 @@ tolerances:
 
   # 파지 목표 자세의 허용 오차 — 주황 매거진(플랜지 80x80) 기준
   grasp_pos_m: 0.003
-  grasp_yaw_rad: 0.0244          # 1.4 deg
+  grasp_yaw_rad: 0.0183          # 1.05 deg — 파랑 플랜지를 80x80 으로 고친 뒤
+                                 # 지배 인자가 주황(레버암 114 mm)에서
+                                 # 파랑(레버암 153 mm)으로 넘어갔다
   # z 는 흡착 성공 조건이 따로 있다 (maxGripDistance). grip_gaps_m 참고.
   grasp_z_m: 0.005
 
@@ -396,19 +398,16 @@ tolerances:
 # ── 남은 문제 ────────────────────────────────────────────────────────
 open_issues:
   - id: blue-magazine-flange-too-narrow
+    status: 해결 (2026-09-17)
     what: >
       magazine_2_blue 의 flange_plate 가 100 x 60 x 10 mm 라 Ø50 컵의 횡여유가
-      (60-50)/2 = 5 mm 뿐이다. 캘리브 허용오차 5 mm 를 다 쓰면 남는 게 없다.
-      본체 윗면(bridge)도 40 mm 폭이라 대안이 안 된다.
-    options:
-      - 파란 매거진 플랜지를 주황과 같은 80x80 으로 수정
-        (isaacpjt/assets/gen_carrier_assets.py 고치고 에셋 재생성)
-      - 흡착 컵을 Ø30~40 으로 교체 (short_gripper 대신 다른 흡착 에셋)
-      - 파란 매거진만 흡착이 아닌 다른 파지 방식 적용
-    note: >
-      Isaac 의 SurfaceGripper 는 forward axis 레이캐스트가 maxGripDistance 안에서
-      뭐든 맞으면 붙으므로, 시뮬에서는 컵이 플랜지 밖으로 나가도 성공할 수 있다.
-      즉 시뮬만 보면 이 문제가 안 드러난다. 실물 이관을 전제로 한 기준이다.
+      (60-50)/2 = 5 mm 뿐이었다. 캘리브 허용오차 5 mm 만으로 예산이 소진됐다.
+    fix: >
+      플랜지를 주황과 같은 80 x 80 으로 바꿨다 (두께 10 mm 는 파랑 고유값이라 유지).
+      gen_carrier_assets.py 의 FLANGE_BLUE 와, 이미 생성된
+      magazine_2_blue.usda / magazine_2_blue_qr.usda / tray_2_blue.usda 를 같이 고쳤다.
+      (_qr 변종은 생성기가 만들지 않아서 직접 수정해야 했다)
+      편측 여유가 5.0 -> 15.0 mm 가 됐고, 10 회 반복 픽업 10/10 을 확인했다.
   - id: bottom-magazines-float-168mm
     what: >
       Level_1 을 z 0.1 로 낮추면서 1층 매거진 8 개의 z 는 그대로 0.29311 로

@@ -1,0 +1,285 @@
+pose: shelf_1_top_close_centered
+target: shelf_1/top/magazine_1_orange:qr_label_ny
+gt_center:
+- -6.59
+- 1.9295
+- 0.675
+summary:
+  data:
+    s_m: 0.0362
+    n: 15
+    pos_err_mm_mean: 4.776
+    pos_err_mm_max: 5.892
+    yaw_err_deg_mean: -1.2607
+    yaw_err_deg_absmax: 6.7777
+    err_along_view_mm_mean: -0.873
+    err_lateral_mm_mean: 4.359
+    pos_repeat_1sigma_mm: 1.8314
+    yaw_repeat_1sigma_deg: 2.3763
+  label:
+    s_m: 0.05
+    n: 15
+    pos_err_mm_mean: 103.082
+    pos_err_mm_max: 108.539
+    yaw_err_deg_mean: -1.2607
+    yaw_err_deg_absmax: 6.7777
+    err_along_view_mm_mean: 99.501
+    err_lateral_mm_mean: 25.202
+    pos_repeat_1sigma_mm: 10.6484
+    yaw_repeat_1sigma_deg: 2.3763
+rows:
+- jitter: -0.04
+  frame: 0
+  detected: true
+  data:
+    pos_err_mm: 4.469
+    yaw_err_deg: -0.3162
+    range_m: 0.2734
+    range_gt_m: 0.2742
+    err_along_view_mm: -0.852
+    err_lateral_mm: 4.387
+  label:
+    pos_err_mm: 103.573
+    yaw_err_deg: -0.3162
+    range_m: 0.3776
+    range_gt_m: 0.2742
+    err_along_view_mm: 96.136
+    err_lateral_mm: 38.54
+- jitter: -0.04
+  frame: 1
+  detected: true
+  data:
+    pos_err_mm: 4.432
+    yaw_err_deg: -1.0373
+    range_m: 0.2734
+    range_gt_m: 0.2742
+    err_along_view_mm: -0.903
+    err_lateral_mm: 4.339
+  label:
+    pos_err_mm: 103.517
+    yaw_err_deg: -1.0373
+    range_m: 0.3776
+    range_gt_m: 0.2742
+    err_along_view_mm: 96.065
+    err_lateral_mm: 38.563
+- jitter: -0.04
+  frame: 2
+  detected: true
+  data:
+    pos_err_mm: 4.43
+    yaw_err_deg: -0.6435
+    range_m: 0.2734
+    range_gt_m: 0.2742
+    err_along_view_mm: -0.936
+    err_lateral_mm: 4.33
+  label:
+    pos_err_mm: 103.479
+    yaw_err_deg: -0.6435
+    range_m: 0.3776
+    range_gt_m: 0.2742
+    err_along_view_mm: 96.02
+    err_lateral_mm: 38.576
+- jitter: -0.02
+  frame: 0
+  detected: true
+  data:
+    pos_err_mm: 4.749
+    yaw_err_deg: -0.9862
+    range_m: 0.2697
+    range_gt_m: 0.2721
+    err_along_view_mm: -2.379
+    err_lateral_mm: 4.11
+  label:
+    pos_err_mm: 100.617
+    yaw_err_deg: -0.9862
+    range_m: 0.3726
+    range_gt_m: 0.2721
+    err_along_view_mm: 95.707
+    err_lateral_mm: 31.047
+- jitter: -0.02
+  frame: 1
+  detected: true
+  data:
+    pos_err_mm: 4.676
+    yaw_err_deg: -0.9473
+    range_m: 0.2699
+    range_gt_m: 0.2721
+    err_along_view_mm: -2.254
+    err_lateral_mm: 4.097
+  label:
+    pos_err_mm: 100.792
+    yaw_err_deg: -0.9473
+    range_m: 0.3727
+    range_gt_m: 0.2721
+    err_along_view_mm: 95.88
+    err_lateral_mm: 31.083
+- jitter: -0.02
+  frame: 2
+  detected: true
+  data:
+    pos_err_mm: 4.698
+    yaw_err_deg: -1.3767
+    range_m: 0.2698
+    range_gt_m: 0.2721
+    err_along_view_mm: -2.279
+    err_lateral_mm: 4.108
+  label:
+    pos_err_mm: 100.757
+    yaw_err_deg: -1.3767
+    range_m: 0.3727
+    range_gt_m: 0.2721
+    err_along_view_mm: 95.845
+    err_lateral_mm: 31.077
+- jitter: 0.0
+  frame: 0
+  detected: true
+  data:
+    pos_err_mm: 5.892
+    yaw_err_deg: -6.7777
+    range_m: 0.2675
+    range_gt_m: 0.2713
+    err_along_view_mm: -3.909
+    err_lateral_mm: 4.409
+  label:
+    pos_err_mm: 98.231
+    yaw_err_deg: -6.7777
+    range_m: 0.3694
+    range_gt_m: 0.2713
+    err_along_view_mm: 95.283
+    err_lateral_mm: 23.885
+- jitter: 0.0
+  frame: 1
+  detected: true
+  data:
+    pos_err_mm: 4.922
+    yaw_err_deg: 3.5836
+    range_m: 0.2686
+    range_gt_m: 0.2713
+    err_along_view_mm: -2.868
+    err_lateral_mm: 3.999
+  label:
+    pos_err_mm: 99.738
+    yaw_err_deg: 3.5836
+    range_m: 0.3709
+    range_gt_m: 0.2713
+    err_along_view_mm: 96.72
+    err_lateral_mm: 24.35
+- jitter: 0.0
+  frame: 2
+  detected: true
+  data:
+    pos_err_mm: 5.062
+    yaw_err_deg: -3.9277
+    range_m: 0.274
+    range_gt_m: 0.2713
+    err_along_view_mm: 2.405
+    err_lateral_mm: 4.455
+  label:
+    pos_err_mm: 107.187
+    yaw_err_deg: -3.9277
+    range_m: 0.3784
+    range_gt_m: 0.2713
+    err_along_view_mm: 104.004
+    err_lateral_mm: 25.925
+- jitter: 0.02
+  frame: 0
+  detected: true
+  data:
+    pos_err_mm: 5.635
+    yaw_err_deg: 0.5943
+    range_m: 0.2755
+    range_gt_m: 0.2721
+    err_along_view_mm: 3.17
+    err_lateral_mm: 4.658
+  label:
+    pos_err_mm: 108.539
+    yaw_err_deg: 0.5943
+    range_m: 0.3805
+    range_gt_m: 0.2721
+    err_along_view_mm: 106.795
+    err_lateral_mm: 19.375
+- jitter: 0.02
+  frame: 1
+  detected: true
+  data:
+    pos_err_mm: 4.726
+    yaw_err_deg: -3.2971
+    range_m: 0.2722
+    range_gt_m: 0.2721
+    err_along_view_mm: -0.032
+    err_lateral_mm: 4.725
+  label:
+    pos_err_mm: 104.058
+    yaw_err_deg: -3.2971
+    range_m: 0.376
+    range_gt_m: 0.2721
+    err_along_view_mm: 102.372
+    err_lateral_mm: 18.657
+- jitter: 0.02
+  frame: 2
+  detected: true
+  data:
+    pos_err_mm: 4.733
+    yaw_err_deg: -4.2012
+    range_m: 0.2721
+    range_gt_m: 0.2721
+    err_along_view_mm: -0.136
+    err_lateral_mm: 4.731
+  label:
+    pos_err_mm: 103.917
+    yaw_err_deg: -4.2012
+    range_m: 0.3758
+    range_gt_m: 0.2721
+    err_along_view_mm: 102.228
+    err_lateral_mm: 18.658
+- jitter: 0.04
+  frame: 0
+  detected: true
+  data:
+    pos_err_mm: 4.424
+    yaw_err_deg: 0.1319
+    range_m: 0.2735
+    range_gt_m: 0.2742
+    err_along_view_mm: -0.888
+    err_lateral_mm: 4.334
+  label:
+    pos_err_mm: 103.689
+    yaw_err_deg: 0.1319
+    range_m: 0.3778
+    range_gt_m: 0.2742
+    err_along_view_mm: 102.902
+    err_lateral_mm: 12.75
+- jitter: 0.04
+  frame: 1
+  detected: true
+  data:
+    pos_err_mm: 4.442
+    yaw_err_deg: 0.2989
+    range_m: 0.2735
+    range_gt_m: 0.2742
+    err_along_view_mm: -0.889
+    err_lateral_mm: 4.352
+  label:
+    pos_err_mm: 103.689
+    yaw_err_deg: 0.2989
+    range_m: 0.3778
+    range_gt_m: 0.2742
+    err_along_view_mm: 102.901
+    err_lateral_mm: 12.765
+- jitter: 0.04
+  frame: 2
+  detected: true
+  data:
+    pos_err_mm: 4.36
+    yaw_err_deg: -0.008
+    range_m: 0.2741
+    range_gt_m: 0.2742
+    err_along_view_mm: -0.34
+    err_lateral_mm: 4.347
+  label:
+    pos_err_mm: 104.443
+    yaw_err_deg: -0.008
+    range_m: 0.3786
+    range_gt_m: 0.2742
+    err_along_view_mm: 103.659
+    err_lateral_mm: 12.774

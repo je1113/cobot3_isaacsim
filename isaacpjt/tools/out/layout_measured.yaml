@@ -300,8 +300,8 @@ magazines:
     - 2.0
     - 0.701
     flange_size:
-    - 0.1
-    - 0.06
+    - 0.08
+    - 0.08
     - 0.01
     suction_point:
     - -5.9233
@@ -452,8 +452,8 @@ magazines:
     - 2.0
     - 0.701
     flange_size:
-    - 0.1
-    - 0.06
+    - 0.08
+    - 0.08
     - 0.01
     suction_point:
     - -4.7
@@ -604,8 +604,8 @@ magazines:
     - 2.0
     - 0.226
     flange_size:
-    - 0.1
-    - 0.06
+    - 0.08
+    - 0.08
     - 0.01
     suction_point:
     - -6.5
@@ -756,8 +756,8 @@ magazines:
     - 2.0
     - 0.226
     flange_size:
-    - 0.1
-    - 0.06
+    - 0.08
+    - 0.08
     - 0.01
     suction_point:
     - -5.2988
@@ -908,8 +908,8 @@ magazines:
     - -2.2
     - 0.701
     flange_size:
-    - 0.1
-    - 0.06
+    - 0.08
+    - 0.08
     - 0.01
     suction_point:
     - -5.9233
@@ -1060,8 +1060,8 @@ magazines:
     - -2.2
     - 0.701
     flange_size:
-    - 0.1
-    - 0.06
+    - 0.08
+    - 0.08
     - 0.01
     suction_point:
     - -4.7
@@ -1212,8 +1212,8 @@ magazines:
     - -2.2
     - 0.226
     flange_size:
-    - 0.1
-    - 0.06
+    - 0.08
+    - 0.08
     - 0.01
     suction_point:
     - -6.5
@@ -1364,8 +1364,8 @@ magazines:
     - -2.2
     - 0.226
     flange_size:
-    - 0.1
-    - 0.06
+    - 0.08
+    - 0.08
     - 0.01
     suction_point:
     - -5.2988
