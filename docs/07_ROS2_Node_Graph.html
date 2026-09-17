@@ -1,0 +1,747 @@
+<title>단일 AMR 노드 구성</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+  :root {
+    color-scheme: light;
+    --ground:#eceff0; --surface:#ffffff; --surface-2:#f5f8f8;
+    --line:#d2dad9; --line-soft:#e0e6e5;
+    --ink:#0f1718; --ink-2:#3e4e4e; --ink-3:#6b7a79;
+    --accent:#0a6d6c; --accent-deep:#064f4e; --accent-wash:#e0eeed;
+    --signal:#9a6e07; --signal-wash:#f6ecd2;
+    --danger:#a03626; --danger-wash:#f6e3df;
+    --measure:66ch; --radius:3px; --fs-body:15px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --ground:#0b1011; --surface:#131a1b; --surface-2:#192122;
+      --line:#273334; --line-soft:#1e2829;
+      --ink:#e6eded; --ink-2:#aebbba; --ink-3:#7e8d8c;
+      --accent:#4cbcb7; --accent-deep:#7ed6d1; --accent-wash:#0f302f;
+      --signal:#dcae4e; --signal-wash:#30260f;
+      --danger:#dc8676; --danger-wash:#341b17;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --ground:#0b1011; --surface:#131a1b; --surface-2:#192122;
+    --line:#273334; --line-soft:#1e2829;
+    --ink:#e6eded; --ink-2:#aebbba; --ink-3:#7e8d8c;
+    --accent:#4cbcb7; --accent-deep:#7ed6d1; --accent-wash:#0f302f;
+    --signal:#dcae4e; --signal-wash:#30260f;
+    --danger:#dc8676; --danger-wash:#341b17;
+  }
+  * { box-sizing: border-box; }
+  body {
+    background: var(--ground); color: var(--ink);
+    font-family: 'IBM Plex Sans KR','IBM Plex Sans',system-ui,-apple-system,sans-serif;
+    font-size: var(--fs-body); line-height: 1.72; -webkit-font-smoothing: antialiased;
+  }
+  .shell { max-width: 1180px; margin: 0 auto; padding-inline: 20px; padding-block: 0 88px; }
+  .mono { font-family: 'IBM Plex Mono', ui-monospace, monospace; }
+
+  .masthead { border-bottom: 1px solid var(--line); padding-block: 52px 30px; }
+  .eyebrow { font-family:'IBM Plex Mono',ui-monospace,monospace; font-size:11px; font-weight:500; letter-spacing:.13em; text-transform:uppercase; color:var(--accent); margin:0 0 14px; }
+  h1 { font-size: clamp(28px,4.6vw,42px); line-height:1.18; font-weight:600; letter-spacing:-.018em; text-wrap:balance; margin:0 0 18px; }
+  .thesis { max-width:var(--measure); font-size:17px; line-height:1.65; color:var(--ink-2); margin:0 0 30px; }
+  .thesis strong { color:var(--ink); font-weight:600; }
+  .chain { display:flex; flex-wrap:wrap; align-items:center; gap:8px 10px; margin:0; padding:0; list-style:none; }
+  .chain li { font-family:'IBM Plex Mono',ui-monospace,monospace; font-size:12.5px; border:1px solid var(--line); background:var(--surface); border-radius:2px; padding:4px 10px; color:var(--ink-2); }
+  .chain li.is-ours { border-color:var(--accent); color:var(--accent-deep); background:var(--accent-wash); font-weight:500; }
+  .chain li.sep { border:0; background:none; padding:0; color:var(--ink-3); }
+
+  section { padding-block:44px 0; scroll-margin-top:24px; }
+  section + section { border-top:1px solid var(--line-soft); margin-top:44px; }
+  h2 { font-size:23px; font-weight:600; letter-spacing:-.012em; margin:0 0 6px; text-wrap:balance; }
+  h2 .sn { font-family:'IBM Plex Mono',ui-monospace,monospace; font-size:12px; font-weight:500; color:var(--accent); margin-right:10px; letter-spacing:.05em; }
+  .deck { max-width:var(--measure); color:var(--ink-3); font-size:14px; margin:0 0 26px; }
+  h3 { font-size:15.5px; font-weight:600; margin:30px 0 8px; }
+  p { max-width:var(--measure); margin:0 0 14px; }
+  ul { max-width:var(--measure); padding-left:19px; margin:0 0 14px; }
+  li { margin-bottom:5px; } li::marker { color:var(--ink-3); }
+  strong { font-weight:600; } a { color:var(--accent); }
+  code { font-family:'IBM Plex Mono',ui-monospace,monospace; font-size:.88em; background:var(--surface-2); border:1px solid var(--line-soft); border-radius:2px; padding:0 4px; }
+  :focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+
+  figure { margin:26px 0 28px; background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); padding:20px 18px 14px; }
+  .fig-scroll { overflow-x:auto; }
+  figure svg { display:block; height:auto; color:var(--ink-2); font-family:'IBM Plex Sans KR','IBM Plex Sans',system-ui,sans-serif; }
+  figure svg.gpu   { width:100%; min-width:1080px; }
+  figure svg.plan  { width:100%; min-width:900px; max-width:940px; margin-inline:auto; }
+  figure svg.graph { width:100%; min-width:1180px; }
+  figure svg.traffic { width:100%; min-width:1000px; }
+  figure svg.carrier { width:100%; min-width:1020px; }
+  figure svg .m { font-family:'IBM Plex Mono',ui-monospace,monospace; }
+  figcaption { margin-top:14px; padding-top:11px; border-top:1px solid var(--line-soft); font-size:12.5px; line-height:1.6; color:var(--ink-3); }
+  figcaption b { color:var(--ink-2); font-weight:600; }
+
+  .legend { display:flex; flex-wrap:wrap; gap:7px 22px; margin:14px 0 0; padding:11px 0 0; border-top:1px solid var(--line-soft); list-style:none; max-width:none; }
+  .legend li { display:flex; align-items:center; gap:8px; margin:0; font-size:12px; color:var(--ink-3); }
+  .legend svg { display:block; flex:none; color:var(--ink-2); }
+  .legend i { display:block; width:26px; height:11px; border-radius:2px; flex:none; }
+
+  .t-wrap { overflow-x:auto; margin:18px 0 22px; border:1px solid var(--line); border-radius:var(--radius); background:var(--surface); }
+  table { border-collapse:collapse; width:100%; min-width:880px; font-size:13.5px; }
+  th, td { text-align:left; padding:10px 14px; border-bottom:1px solid var(--line-soft); vertical-align:top; line-height:1.55; }
+  thead th { font-family:'IBM Plex Mono',ui-monospace,monospace; font-size:10px; font-weight:500; letter-spacing:.1em; text-transform:uppercase; color:var(--ink-3); background:var(--surface-2); border-bottom:1px solid var(--line); white-space:nowrap; }
+  tbody tr:last-child td { border-bottom:0; }
+  td.n { font-family:'IBM Plex Mono',ui-monospace,monospace; color:var(--ink-3); font-size:12px; white-space:nowrap; }
+  td.k { font-weight:600; white-space:nowrap; }
+  td .c { font-family:'IBM Plex Mono',ui-monospace,monospace; font-size:12px; white-space:nowrap; }
+  td.num { font-variant-numeric:tabular-nums; white-space:nowrap; }
+  tr.ours td { background:var(--accent-wash); }
+  tr.ours td.k { color:var(--accent-deep); }
+
+  .pill { display:inline-block; font-family:'IBM Plex Mono',ui-monospace,monospace; font-size:10px; letter-spacing:.08em; text-transform:uppercase; border:1px solid var(--line); border-radius:2px; padding:1px 6px; color:var(--ink-3); vertical-align:2px; margin-left:6px; }
+  .pill.ok { color:var(--accent-deep); border-color:var(--accent); }
+  .pill.todo { color:var(--signal); border-color:var(--signal); }
+  .pill.gap { color:var(--danger); border-color:var(--danger); }
+
+  .specs { display:grid; grid-template-columns:repeat(auto-fit,minmax(300px,1fr)); gap:14px; margin:20px 0 8px; }
+  .spec { background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); overflow:hidden; }
+  .spec > h4 { margin:0; padding:11px 15px 9px; border-bottom:1px solid var(--line-soft); background:var(--surface-2); font-size:13px; font-weight:600; display:flex; align-items:baseline; justify-content:space-between; gap:10px; }
+  .spec > h4 em { font-family:'IBM Plex Mono',ui-monospace,monospace; font-style:normal; font-size:10px; letter-spacing:.1em; text-transform:uppercase; color:var(--ink-3); font-weight:400; }
+  .spec pre { margin:0; padding:13px 15px; font-family:'IBM Plex Mono',ui-monospace,monospace; font-size:11.5px; line-height:1.62; color:var(--ink-2); overflow-x:auto; }
+  .spec pre b { color:var(--accent-deep); font-weight:500; }
+  .spec pre i { color:var(--ink-3); font-style:normal; }
+
+  .note { max-width:var(--measure); border-left:2px solid var(--signal); background:var(--signal-wash); padding:13px 16px; margin:20px 0; border-radius:0 var(--radius) var(--radius) 0; font-size:13.8px; line-height:1.66; color:var(--ink-2); }
+  .note p { margin:0; max-width:none; } .note p + p { margin-top:9px; }
+  .note .lbl { display:block; font-family:'IBM Plex Mono',ui-monospace,monospace; font-size:10px; letter-spacing:.11em; text-transform:uppercase; color:var(--signal); margin-bottom:5px; }
+  .note.ok { border-left-color:var(--accent); background:var(--accent-wash); }
+  .note.ok .lbl { color:var(--accent-deep); }
+  .note.gap { border-left-color:var(--danger); background:var(--danger-wash); }
+  .note.gap .lbl { color:var(--danger); }
+
+  footer { margin-top:56px; padding-top:20px; border-top:1px solid var(--line); font-size:12.5px; color:var(--ink-3); max-width:var(--measure); }
+</style>
+
+<div class="shell">
+  <header class="masthead">
+    <p class="eyebrow">cobot3_isaacsim · 개발 프로세스 07</p>
+    <h1>단일 AMR 노드 구성</h1>
+    <p class="thesis">
+      웹 연동을 떼고 <strong>AMR 한 대</strong>만 놓았을 때의 노드 6개와, 그 사이를 잇는 인터페이스다.
+      핵심은 <strong>미션 상태를 한 노드만 소유한다</strong>는 것과,
+      <strong>오래 걸리고 취소해야 하는 것은 전부 액션</strong>이라는 두 규칙이다.
+      웹은 나중에 <span class="mono">RegisterTask.srv</span> 한 군데로만 붙는다.
+    </p>
+    <ul class="chain" aria-label="한 사이클">
+      <li class="is-ours">순회</li><li class="sep">→</li>
+      <li class="is-ours">QR 판별</li><li class="sep">→</li>
+      <li class="is-ours">파지</li><li class="sep">→</li>
+      <li class="is-ours">이송</li><li class="sep">→</li>
+      <li class="is-ours">배치</li><li class="sep">→</li>
+      <li>복귀 · 도킹</li>
+    </ul>
+  </header>
+
+  <section>
+    <h2><span class="sn">01</span>노드 6개와 패키지 매핑</h2>
+    <p class="deck">적어 준 6개를 그대로 옮기되, 두 군데가 갈라진다 — 인식은 듀티 사이클이 다르고, 도킹은 감시와 실행이 다른 일이다.</p>
+
+    <div class="t-wrap">
+      <table>
+        <thead>
+          <tr><th>#</th><th>적어 준 것</th><th>노드</th><th>패키지</th><th>종류</th></tr>
+        </thead>
+        <tbody>
+          <tr class="ours"><td class="n">6</td><td>픽업존을 정해진 경로대로 순회, QR 보이면 정지</td><td class="k mono">patrol_manager</td><td><span class="c">cobot3_orchestrator</span></td><td>미션 FSM · 전역 1개</td></tr>
+          <tr><td class="n">1</td><td rowspan="2">QR 읽어 매거진/스택 판별</td><td class="k mono">qr_scanner</td><td rowspan="2"><span class="c">cobot3_perception</span></td><td>상시 · pyzbar CPU</td></tr>
+          <tr><td class="n">1</td><td class="k mono">carrier_identifier</td><td>요청 시 · GPU 버스트</td></tr>
+          <tr><td class="n">2·4</td><td>파지 자세 결정 + pick / 목적지에서 place</td><td class="k mono">pick_place_server</td><td><span class="c">cobot3_manipulation</span></td><td>액션 서버 2개 · 한 노드</td></tr>
+          <tr><td class="n">3</td><td>정확한 좌표로 이동 + 충돌 회피</td><td class="k mono">nav_server</td><td><span class="c">cobot3_navigation</span></td><td>Nav2 래핑 액션</td></tr>
+          <tr><td class="n">5</td><td rowspan="2">시간 세다 임계 넘으면 도킹</td><td class="k mono">battery_monitor</td><td rowspan="2"><span class="c">cobot3_docking</span></td><td>상태 방송 1 Hz</td></tr>
+          <tr><td class="n">5</td><td class="k mono">dock_server</td><td>액션 서버</td></tr>
+          <tr><td class="n">—</td><td>(추가) 파지 성립 검증</td><td class="k mono">grasp_checker</td><td><span class="c">cobot3_perception</span></td><td>서비스 · 스텁 이미 있음</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>왜 인식이 둘로 갈라지나</h3>
+    <p>
+      순회 중에는 <strong>QR이 보이는지</strong>만 계속 알면 되고, 이건 pyzbar로 CPU에서 돈다.
+      반면 <strong>무엇이고 어디 있는지</strong>를 재는 일은 깊이 영상에서 폭·스택 높이·플랜지 자세를 뽑는 추론이라 GPU를 쓴다.
+      06 문서 1절이 잡아 둔 전제가 <em>추론을 상시로 돌리지 않는다</em>는 것이므로, 둘을 한 노드에 두면 그 전제가 깨진다.
+      상시로 도는 싼 쪽은 토픽으로 흘리고, 비싼 쪽은 정지한 뒤 서비스로 한 번만 부른다.
+    </p>
+
+    <div class="note">
+      <span class="lbl">짚고 갈 것</span>
+      <p>
+        QR은 <strong>ID만</strong> 준다. 2번 노드가 파지 자세를 결정하려면 <strong>플랜지가 base_link 기준 어디에 있는지</strong>가 있어야 하는데,
+        QR 디코드 결과에는 그게 없다. 그래서 <span class="mono">IdentifyCarrier</span> 응답에 <span class="mono">CarrierPose</span>를 실어
+        "무엇인지"와 "어디 있는지"를 한 번에 돌려준다. 이걸 나누면 manipulation이 카메라를 다시 봐야 하고, 그 사이 AMR이 움직이면 좌표가 틀어진다.
+      </p>
+    </div>
+  </section>
+
+  <section>
+    <h2><span class="sn">02</span>노드 그래프</h2>
+    <p class="deck">화살표 색이 곧 통신 종류다 — 회색 토픽, 청록 액션, 금색 서비스. 액션은 전부 orchestrator에서 나간다.</p>
+
+    <figure>
+      <div class="fig-scroll">
+        <svg class="graph" viewBox="0 0 1300 640" role="img" aria-label="ROS 2 노드 그래프: Isaac Sim이 카메라 토픽을 내보내고 qr_scanner가 QR 힌트를 토픽으로 흘린다. orchestrator의 patrol_manager가 carrier_identifier를 서비스로 부르고, manipulation·navigation·docking 세 스킬 서버를 액션으로 부른다. battery_monitor는 배터리 상태를 토픽으로 방송하고, manipulation은 grasp_checker를 서비스로 직접 부른다.">
+          <defs>
+            <marker id="g-t" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="currentColor"/></marker>
+            <marker id="g-a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--accent)"/></marker>
+            <marker id="g-s" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--signal)"/></marker>
+          </defs>
+
+          <rect x="24" y="84" width="162" height="336" rx="3" fill="var(--surface-2)" stroke="currentColor" stroke-width="1.4"/>
+          <text x="105" y="110" font-size="13.5" font-weight="600" text-anchor="middle" fill="var(--ink)">Isaac Sim 5.x</text>
+          <text x="105" y="127" font-size="10.5" class="m" text-anchor="middle" fill="var(--ink-3)">ROS 2 Bridge</text>
+          <g fill="var(--surface)" stroke="currentColor" stroke-width="1">
+            <rect x="38" y="142" width="134" height="36" rx="2"/>
+            <rect x="38" y="186" width="134" height="36" rx="2"/>
+            <rect x="38" y="230" width="134" height="36" rx="2"/>
+            <rect x="38" y="274" width="134" height="36" rx="2"/>
+            <rect x="38" y="318" width="134" height="36" rx="2"/>
+            <rect x="38" y="362" width="134" height="36" rx="2"/>
+          </g>
+          <g font-size="10" text-anchor="middle" fill="var(--ink-2)">
+            <text x="105" y="164">3존 팹 씬 · 캐리어 QR</text>
+            <text x="105" y="208">RGB-D 손목 카메라</text>
+            <text x="105" y="252">2D LiDAR · odom</text>
+            <text x="105" y="296">M0609 + RG2</text>
+            <text x="105" y="340">Nova Carter base</text>
+            <text x="105" y="384">PhysX 물리 · 충돌</text>
+          </g>
+
+          <rect x="262" y="84" width="194" height="246" rx="3" fill="none" stroke="currentColor" stroke-width="1" stroke-dasharray="3 3"/>
+          <text x="273" y="104" font-size="11.5" class="m" font-weight="500" fill="var(--ink-2)">cobot3_perception</text>
+          <g fill="var(--surface)" stroke="currentColor" stroke-width="1.3">
+            <rect x="276" y="118" width="166" height="52" rx="2"/>
+            <rect x="276" y="246" width="166" height="52" rx="2"/>
+          </g>
+          <rect x="276" y="182" width="166" height="52" rx="2" fill="var(--signal-wash)" stroke="var(--signal)" stroke-width="1.6"/>
+          <g text-anchor="middle">
+            <text x="359" y="139" font-size="11.5" class="m" font-weight="500" fill="var(--ink)">qr_scanner</text>
+            <text x="359" y="156" font-size="9.5" fill="var(--ink-3)">상시 · pyzbar · CPU</text>
+            <text x="359" y="203" font-size="11.5" class="m" font-weight="500" fill="var(--signal)">carrier_identifier</text>
+            <text x="359" y="220" font-size="9.5" fill="var(--ink-2)">종류 · 폭 · 높이 · 플랜지 포즈</text>
+            <text x="359" y="267" font-size="11.5" class="m" font-weight="500" fill="var(--ink)">grasp_checker</text>
+            <text x="359" y="284" font-size="9.5" fill="var(--ink-3)">파지 성립 · 품종 대조</text>
+          </g>
+
+          <rect x="532" y="84" width="222" height="246" rx="3" fill="none" stroke="var(--accent)" stroke-width="1.2" stroke-dasharray="3 3"/>
+          <text x="543" y="104" font-size="11.5" class="m" font-weight="500" fill="var(--accent-deep)">cobot3_orchestrator</text>
+          <rect x="546" y="118" width="194" height="126" rx="2" fill="var(--accent-wash)" stroke="var(--accent)" stroke-width="1.8"/>
+          <text x="643" y="140" font-size="12.5" class="m" font-weight="500" text-anchor="middle" fill="var(--accent-deep)">patrol_manager</text>
+          <text x="643" y="157" font-size="9.5" text-anchor="middle" fill="var(--ink-2)">순회 · 정지 · 사이클 조립</text>
+          <text x="643" y="171" font-size="9" class="m" text-anchor="middle" fill="var(--ink-3)">미션 상태의 단일 소유자</text>
+          <g fill="var(--surface)" stroke="var(--accent)" stroke-width="1">
+            <rect x="556" y="188" width="56" height="17" rx="2"/>
+            <rect x="618" y="188" width="56" height="17" rx="2"/>
+            <rect x="680" y="188" width="56" height="17" rx="2"/>
+            <rect x="556" y="211" width="56" height="17" rx="2"/>
+            <rect x="618" y="211" width="56" height="17" rx="2"/>
+            <rect x="680" y="211" width="56" height="17" rx="2"/>
+          </g>
+          <g font-size="8.5" class="m" text-anchor="middle" fill="var(--accent-deep)">
+            <text x="584" y="200">PATROL</text>
+            <text x="646" y="200">SCAN</text>
+            <text x="708" y="200">PICK</text>
+            <text x="584" y="223">TRANSIT</text>
+            <text x="646" y="223">PLACE</text>
+            <text x="708" y="223">RETURN</text>
+          </g>
+          <rect x="546" y="256" width="194" height="52" rx="2" fill="var(--surface)" stroke="currentColor" stroke-width="1.3"/>
+          <text x="643" y="277" font-size="11.5" class="m" font-weight="500" text-anchor="middle" fill="var(--ink)">cycle_logger</text>
+          <text x="643" y="293" font-size="9.5" text-anchor="middle" fill="var(--ink-3)">/cycle_log — 시행 1건</text>
+
+          <rect x="834" y="84" width="210" height="112" rx="3" fill="none" stroke="currentColor" stroke-width="1" stroke-dasharray="3 3"/>
+          <text x="845" y="104" font-size="11.5" class="m" font-weight="500" fill="var(--ink-2)">cobot3_manipulation</text>
+          <rect x="848" y="118" width="182" height="62" rx="2" fill="var(--surface)" stroke="currentColor" stroke-width="1.3"/>
+          <text x="939" y="139" font-size="11.5" class="m" font-weight="500" text-anchor="middle" fill="var(--ink)">pick_place_server</text>
+          <text x="939" y="155" font-size="9.5" text-anchor="middle" fill="var(--ink-3)">PickCarrier · PlaceCarrier</text>
+          <text x="939" y="169" font-size="9" class="m" text-anchor="middle" fill="var(--ink-3)">팔 1개 — 두 액션 상호 배타</text>
+
+          <rect x="834" y="220" width="210" height="112" rx="3" fill="none" stroke="currentColor" stroke-width="1" stroke-dasharray="3 3"/>
+          <text x="845" y="240" font-size="11.5" class="m" font-weight="500" fill="var(--ink-2)">cobot3_navigation</text>
+          <rect x="848" y="254" width="182" height="62" rx="2" fill="var(--surface)" stroke="currentColor" stroke-width="1.3"/>
+          <text x="939" y="275" font-size="11.5" class="m" font-weight="500" text-anchor="middle" fill="var(--ink)">nav_server</text>
+          <text x="939" y="291" font-size="9.5" text-anchor="middle" fill="var(--ink-3)">Nav2 래핑 · 포트 앞 최종 정렬</text>
+          <text x="939" y="305" font-size="9" class="m" text-anchor="middle" fill="var(--ink-3)">취소 가능 — 정지 · 선점</text>
+
+          <rect x="834" y="356" width="210" height="152" rx="3" fill="none" stroke="currentColor" stroke-width="1" stroke-dasharray="3 3"/>
+          <text x="845" y="376" font-size="11.5" class="m" font-weight="500" fill="var(--ink-2)">cobot3_docking</text>
+          <rect x="848" y="386" width="182" height="52" rx="2" fill="var(--surface)" stroke="currentColor" stroke-width="1.3"/>
+          <text x="939" y="407" font-size="11.5" class="m" font-weight="500" text-anchor="middle" fill="var(--ink)">dock_server</text>
+          <text x="939" y="423" font-size="9.5" text-anchor="middle" fill="var(--ink-3)">충전 도킹 · 로드포트 접안</text>
+          <rect x="848" y="448" width="182" height="46" rx="2" fill="var(--surface)" stroke="currentColor" stroke-width="1.3"/>
+          <text x="939" y="467" font-size="11.5" class="m" font-weight="500" text-anchor="middle" fill="var(--ink)">battery_monitor</text>
+          <text x="939" y="482" font-size="9.5" text-anchor="middle" fill="var(--ink-3)">경과 시간 → SoC 환산</text>
+
+          <rect x="1116" y="244" width="140" height="76" rx="3" fill="var(--surface-2)" stroke="currentColor" stroke-width="1.2"/>
+          <text x="1186" y="270" font-size="11.5" class="m" font-weight="500" text-anchor="middle" fill="var(--ink)">Nav2 스택</text>
+          <text x="1186" y="287" font-size="9.5" text-anchor="middle" fill="var(--ink-3)">전역 · 지역 플래너</text>
+          <text x="1186" y="301" font-size="9.5" text-anchor="middle" fill="var(--ink-3)">costmap 회피</text>
+
+          <g stroke="currentColor" stroke-width="1.3" fill="none">
+            <line x1="186" y1="152" x2="256" y2="152" marker-end="url(#g-t)"/>
+            <line x1="456" y1="144" x2="526" y2="144" marker-end="url(#g-t)"/>
+            <path d="M 834 471 H 620 Q 614 471 614 465 V 336" marker-end="url(#g-t)"/>
+          </g>
+          <g font-size="9" class="m" fill="var(--ink-3)" text-anchor="middle">
+            <text x="221" y="134">/wrist_cam</text>
+            <text x="221" y="145">color+depth</text>
+            <text x="491" y="136">/qr_hint</text>
+            <text x="700" y="463">/battery_state</text>
+          </g>
+
+          <g stroke="var(--signal)" stroke-width="1.4" fill="none">
+            <line x1="532" y1="208" x2="462" y2="208" marker-end="url(#g-s)"/>
+            <path d="M 939 84 V 60 Q 939 52 931 52 H 367 Q 359 52 359 60 V 78" marker-end="url(#g-s)"/>
+          </g>
+          <g font-size="9" class="m" fill="var(--signal)" text-anchor="middle">
+            <text x="497" y="190">Identify</text>
+            <text x="497" y="201">Carrier (srv)</text>
+            <text x="649" y="44">CheckGrasp (srv) — 파지 직후 검증</text>
+          </g>
+
+          <g stroke="var(--accent)" stroke-width="1.5" fill="none">
+            <line x1="754" y1="149" x2="828" y2="149" marker-end="url(#g-a)"/>
+            <line x1="754" y1="285" x2="828" y2="285" marker-end="url(#g-a)"/>
+            <line x1="1044" y1="282" x2="1110" y2="282" marker-end="url(#g-a)"/>
+            <path d="M 700 330 V 406 Q 700 412 706 412 H 828" marker-end="url(#g-a)"/>
+          </g>
+          <g font-size="9" class="m" fill="var(--accent-deep)" text-anchor="middle">
+            <text x="791" y="131">PickCarrier</text>
+            <text x="791" y="142">PlaceCarrier</text>
+            <text x="791" y="267">NavigateTo</text>
+            <text x="791" y="278">(action)</text>
+            <text x="1077" y="264">NavigateTo</text>
+            <text x="1077" y="275">Pose</text>
+            <text x="768" y="404">Dock (action)</text>
+          </g>
+
+          <line x1="24" y1="548" x2="1256" y2="548" stroke="currentColor" stroke-width="1" opacity="0.45"/>
+          <g fill="var(--surface-2)" stroke="currentColor" stroke-width="1">
+            <rect x="24" y="562" width="44" height="19" rx="2"/>
+            <rect x="24" y="592" width="44" height="19" rx="2"/>
+          </g>
+          <g font-size="10" text-anchor="middle" fill="var(--ink-2)">
+            <text x="46" y="575">명령</text>
+            <text x="46" y="605">상태</text>
+          </g>
+          <g font-size="10" class="m" fill="var(--ink-3)">
+            <text x="80" y="575">/cmd_vel · /arm_controller/joint_trajectory · /gripper_cmd → Isaac Sim</text>
+            <text x="80" y="605">/scan · /odom · /joint_states · /tf · /tf_static → Nav2 · perception · nav_server</text>
+          </g>
+        </svg>
+      </div>
+      <ul class="legend">
+        <li><svg width="30" height="10" aria-hidden="true"><line x1="0" y1="5" x2="24" y2="5" stroke="currentColor" stroke-width="1.3"/><path d="M24,1 L30,5 L24,9 z" fill="currentColor"/></svg> 토픽 — 상시 흐름, 응답 없음</li>
+        <li><svg width="30" height="10" aria-hidden="true"><line x1="0" y1="5" x2="24" y2="5" stroke="var(--accent)" stroke-width="1.5"/><path d="M24,1 L30,5 L24,9 z" fill="var(--accent)"/></svg> 액션 — 오래 걸림, 취소·피드백</li>
+        <li><svg width="30" height="10" aria-hidden="true"><line x1="0" y1="5" x2="24" y2="5" stroke="var(--signal)" stroke-width="1.4"/><path d="M24,1 L30,5 L24,9 z" fill="var(--signal)"/></svg> 서비스 — 짧은 요청·응답</li>
+      </ul>
+      <figcaption>
+        <b>액션 화살표 네 개가 전부 orchestrator에서 나간다.</b> 스킬 서버끼리는 서로를 부르지 않는다 —
+        유일한 예외가 위를 가로지르는 <span class="mono">CheckGrasp</span>로, 파지 직후 <em>지금 잡혔나</em>를 묻는 것뿐이라
+        미션 판단이 아니고 orchestrator를 거칠 이유도 없다. <span class="mono">/battery_state</span>가 docking에서 orchestrator로
+        <em>올라가는</em> 방향인 것이 5절의 논점이다.
+      </figcaption>
+    </figure>
+  </section>
+
+  <section>
+    <h2><span class="sn">03</span>토픽 · 서비스 · 액션 — 무엇을 어디에 쓰나</h2>
+    <p class="deck">세 가지를 고르는 기준은 하나다. <strong>기다려야 하는가, 취소해야 하는가.</strong></p>
+
+    <div class="specs">
+      <div class="spec">
+        <h4>토픽 <em>Topic</em></h4>
+        <pre><b>쓸 때</b> 계속 흐르고, 받는 쪽이 여럿이고,
+     한 프레임 놓쳐도 다음이 곧 온다
+
+<b>안 쓸 때</b> "이거 끝났어?"를 알아야 할 때
+      — 토픽에는 완료라는 개념이 없다
+
+<i>여기서는</i> 카메라 · /qr_hint
+        /battery_state · /cycle_log</pre>
+      </div>
+      <div class="spec">
+        <h4>서비스 <em>Service</em></h4>
+        <pre><b>쓸 때</b> 짧고(~수백 ms), 답이 있어야
+     다음 줄로 넘어가고, 취소할 일이 없다
+
+<b>안 쓸 때</b> 수 초 이상 걸릴 때 — 취소도
+      진행률도 없고 콜백이 묶인다
+
+<i>여기서는</i> IdentifyCarrier · CheckGrasp
+        (나중) RegisterTask</pre>
+      </div>
+      <div class="spec">
+        <h4>액션 <em>Action</em></h4>
+        <pre><b>쓸 때</b> 오래 걸리고, 중간에 끊어야 하고,
+     어디까지 갔는지 알아야 한다
+
+<b>안 쓸 때</b> 즉답이면 과하다 — 목표 ID
+      관리와 상태 머신이 공짜가 아니다
+
+<i>여기서는</i> NavigateTo · PickCarrier
+        PlaceCarrier · Dock</pre>
+      </div>
+    </div>
+
+    <h3>전체 인터페이스 표</h3>
+    <div class="t-wrap">
+      <table>
+        <thead>
+          <tr><th>보내는 쪽</th><th>받는 쪽</th><th>이름</th><th>종류</th><th>타입</th><th>QoS · 주기</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Isaac Sim</td><td class="k">qr_scanner</td><td><span class="c">/wrist_cam/color/image_raw</span></td><td>토픽</td><td><span class="c">sensor_msgs/Image</span></td><td>SensorData · 30 Hz</td></tr>
+          <tr><td>Isaac Sim</td><td class="k">carrier_identifier</td><td><span class="c">/wrist_cam/depth/image_rect</span></td><td>토픽</td><td><span class="c">sensor_msgs/Image</span></td><td>SensorData · 30 Hz</td></tr>
+          <tr><td>Isaac Sim</td><td class="k">perception · nav_server</td><td><span class="c">/tf</span> · <span class="c">/tf_static</span></td><td>토픽</td><td><span class="c">tf2_msgs/TFMessage</span></td><td>기본 · TRANSIENT_LOCAL</td></tr>
+          <tr class="ours"><td class="k">qr_scanner</td><td class="k">patrol_manager</td><td><span class="c">/perception/qr_hint</span></td><td>토픽</td><td><span class="c">CarrierScan</span></td><td>BestEffort · 5 Hz · depth 1</td></tr>
+          <tr class="ours"><td class="k">patrol_manager</td><td class="k">carrier_identifier</td><td><span class="c">/perception/identify_carrier</span></td><td>서비스</td><td><span class="c">IdentifyCarrier</span></td><td>정지 후 1회</td></tr>
+          <tr class="ours"><td class="k">patrol_manager</td><td class="k">pick_place_server</td><td><span class="c">/manipulation/pick_carrier</span></td><td>액션</td><td><span class="c">PickCarrier</span></td><td>사이클당 1회</td></tr>
+          <tr class="ours"><td class="k">patrol_manager</td><td class="k">pick_place_server</td><td><span class="c">/manipulation/place_carrier</span></td><td>액션</td><td><span class="c">PlaceCarrier</span></td><td>사이클당 1회</td></tr>
+          <tr class="ours"><td class="k">patrol_manager</td><td class="k">nav_server</td><td><span class="c">/navigation/navigate_to</span></td><td>액션</td><td><span class="c">NavigateTo</span></td><td>사이클당 2~n회</td></tr>
+          <tr class="ours"><td class="k">patrol_manager</td><td class="k">dock_server</td><td><span class="c">/docking/dock</span></td><td>액션</td><td><span class="c">Dock</span></td><td>임계 초과 시</td></tr>
+          <tr class="ours"><td class="k">pick_place_server</td><td class="k">grasp_checker</td><td><span class="c">/perception/check_grasp</span></td><td>서비스</td><td><span class="c">CheckGrasp</span></td><td>파지 직후 1회</td></tr>
+          <tr class="ours"><td class="k">battery_monitor</td><td class="k">patrol_manager</td><td><span class="c">/battery_state</span></td><td>토픽</td><td><span class="c">BatteryState</span></td><td>Reliable · TL · 1 Hz</td></tr>
+          <tr class="ours"><td class="k">cycle_logger</td><td>(기록)</td><td><span class="c">/cycle_log</span></td><td>토픽</td><td><span class="c">CycleLog</span></td><td>Reliable · depth 50</td></tr>
+          <tr><td class="k">nav_server</td><td>Nav2</td><td><span class="c">/navigate_to_pose</span></td><td>액션</td><td><span class="c">nav2_msgs/NavigateToPose</span></td><td>래핑</td></tr>
+          <tr><td>Nav2</td><td>Isaac Sim</td><td><span class="c">/cmd_vel</span></td><td>토픽</td><td><span class="c">geometry_msgs/Twist</span></td><td>Reliable · 20 Hz</td></tr>
+          <tr><td class="k">pick_place_server</td><td>Isaac Sim</td><td><span class="c">/arm_controller/joint_trajectory</span></td><td>토픽</td><td><span class="c">trajectory_msgs/JointTrajectory</span></td><td>Reliable</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>표에서 놓치기 쉬운 네 가지</h3>
+    <ul>
+      <li><strong><span class="mono">/qr_hint</span>는 BestEffort · depth 1이다.</strong> 순회 중 최신 프레임만 의미가 있다. Reliable로 두면 큐가 밀려 <em>3초 전에 지나친 QR</em>을 보고 멈춘다.</li>
+      <li><strong><span class="mono">/battery_state</span>는 TRANSIENT_LOCAL이다.</strong> orchestrator가 늦게 떠도 마지막 값을 즉시 받는다. 이게 없으면 기동 직후 1초 동안 배터리를 모르는 채로 순회를 시작한다.</li>
+      <li><strong>서비스 콜백에서 추론을 돌리면 executor가 막힌다.</strong> <span class="mono">carrier_identifier</span>는 <span class="mono">ReentrantCallbackGroup</span> + <span class="mono">MultiThreadedExecutor</span>로 띄우거나, 추론을 별도 스레드에 넘기고 콜백은 결과만 기다리게 한다.</li>
+      <li><strong>액션 클라이언트를 콜백 안에서 동기 대기하면 데드락이다.</strong> patrol_manager는 타이머 콜백에서 <span class="mono">spin_until_future_complete</span>를 부르면 안 된다. FSM을 상태 변수로 두고 콜백은 즉시 반환하게 짜는 편이 안전하다.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2><span class="sn">04</span>한 사이클의 호출 순서</h2>
+    <p class="deck">FSM 상태가 바뀌는 지점마다 어떤 인터페이스가 오가는지. 표의 상태가 02절 그래프 안의 여섯 칸과 같다.</p>
+
+    <div class="t-wrap">
+      <table>
+        <thead>
+          <tr><th>#</th><th>상태</th><th>patrol_manager가 하는 일</th><th>인터페이스</th><th>선점</th></tr>
+        </thead>
+        <tbody>
+          <tr><td class="n">1</td><td class="k">PATROL</td><td>웨이포인트 목록의 다음 지점으로 목표를 낸다</td><td><span class="c">NavigateTo</span> 액션 전송</td><td>가능</td></tr>
+          <tr><td class="n">2</td><td class="k">PATROL</td><td><span class="c">/qr_hint</span>에 <span class="c">detected=true</span>가 뜨면 주행 목표를 취소한다</td><td><span class="c">cancel_goal()</span></td><td>가능</td></tr>
+          <tr><td class="n">3</td><td class="k">SCAN</td><td>정지를 확인하고 판별을 요청한다</td><td><span class="c">IdentifyCarrier</span> 서비스</td><td>가능</td></tr>
+          <tr><td class="n">4</td><td class="k">SCAN</td><td>응답의 <span class="c">carrier_kind</span>로 목적지를 정한다 — 매거진은 패키징 로더, 스택은 테스트 로더</td><td>내부 판단</td><td>가능</td></tr>
+          <tr class="ours"><td class="n">5</td><td class="k">PICK</td><td>응답의 <span class="c">CarrierPose</span>를 그대로 goal에 실어 보낸다</td><td><span class="c">PickCarrier</span> 액션</td><td><b>불가</b></td></tr>
+          <tr class="ours"><td class="n">6</td><td class="k">PICK</td><td>(manipulation 내부) 파지 직후 성립 여부를 묻는다</td><td><span class="c">CheckGrasp</span> 서비스</td><td><b>불가</b></td></tr>
+          <tr class="ours"><td class="n">7</td><td class="k">TRANSIT</td><td>4에서 정한 목적지로 주행. 회피는 Nav2가 한다</td><td><span class="c">NavigateTo</span> 액션</td><td><b>불가</b></td></tr>
+          <tr class="ours"><td class="n">8</td><td class="k">PLACE</td><td><span class="c">expected_carrier_id</span>를 같이 보내 오배송을 액션 레벨에서 막는다</td><td><span class="c">PlaceCarrier</span> 액션</td><td><b>불가</b></td></tr>
+          <tr><td class="n">9</td><td class="k">RETURN</td><td>빈 몸으로 픽업존 복귀. 여기서 <span class="c">/cycle_log</span> 1건을 낸다</td><td><span class="c">NavigateTo</span> · <span class="c">CycleLog</span></td><td>가능</td></tr>
+          <tr><td class="n">10</td><td class="k">RETURN</td><td><span class="c">needs_charge</span>가 서 있으면 도킹으로, 아니면 1로 돌아간다</td><td><span class="c">Dock</span> 액션</td><td>가능</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="note ok">
+      <span class="lbl">여기서 나오는 규칙</span>
+      <p>
+        <strong>취소는 전부 patrol_manager가 건다.</strong> 2번의 QR 정지도, 10번의 도킹 이탈도 같은 동작 —
+        들고 있던 액션 goal handle에 <span class="mono">cancel_goal()</span>을 부르는 것이다.
+        그래서 주행이 <em>서비스가 아니라 액션</em>이어야 한다. 서비스에는 취소가 없어서 2번을 만들 수가 없다.
+      </p>
+    </div>
+  </section>
+
+  <section>
+    <h2><span class="sn">05</span>도킹 선점 — 서비스로 쏘면 안 되는 이유</h2>
+    <p class="deck">"120초 넘으면 3번에 서비스로 쏜다"는 부분만 바꾸자고 제안한다. 이유는 두 가지고, 두 번째가 더 중요하다.</p>
+
+    <h3>① 주행은 서비스에 담기지 않는다</h3>
+    <p>
+      충전소까지 가는 데 수십 초가 걸린다. 서비스로 부르면 <strong>취소할 방법이 없고</strong>, 진행률도 못 받고,
+      호출한 <span class="mono">battery_monitor</span>의 콜백이 그동안 묶인다. 게다가 도중에 사람이 막아서 실패해도
+      돌아오는 건 불리언 하나다. 주행은 액션이어야 한다 — 이건 3번 노드를 부르는 모든 곳에 똑같이 해당한다.
+    </p>
+
+    <h3>② 언제 끊을지는 미션을 아는 노드만 안다</h3>
+    <p>
+      이쪽이 진짜 문제다. <span class="mono">battery_monitor</span>가 <span class="mono">nav_server</span>를 직접 부르면,
+      <strong>팔이 랙 안에 들어가 있든 캐리어를 싣고 있든 상관없이</strong> 베이스가 출발한다.
+      배터리를 세는 노드는 지금이 PICK인지 RETURN인지 모르기 때문이다.
+    </p>
+
+    <figure>
+      <div class="fig-scroll">
+        <svg class="plan" viewBox="0 0 1180 250" style="min-width:960px;max-width:1180px" role="img" aria-label="한 사이클 타임라인: PATROL과 SCAN, RETURN 구간은 선점이 안전하고 PICK, TRANSIT, PLACE 구간은 불가하다. 임계 120초는 TRANSIT 한가운데에 떨어지며, 직접 호출이면 캐리어를 실은 채 이탈하고 orchestrator가 중재하면 RETURN까지 40초를 기다린다.">
+          <defs>
+            <marker id="p-d" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--danger)"/></marker>
+            <marker id="p-a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--accent)"/></marker>
+          </defs>
+
+          <g font-size="9.5" class="m" fill="var(--ink-3)" text-anchor="middle">
+            <text x="96" y="74">0 s</text>
+            <text x="399" y="74">60</text>
+            <text x="1006" y="74">180</text>
+          </g>
+          <g stroke="currentColor" stroke-width="1" opacity="0.5">
+            <line x1="96" y1="80" x2="96" y2="88"/>
+            <line x1="399" y1="80" x2="399" y2="88"/>
+            <line x1="1006" y1="80" x2="1006" y2="88"/>
+          </g>
+
+          <g fill="var(--accent-wash)" stroke="var(--accent)" stroke-width="1.3">
+            <rect x="96" y="94" width="177" height="46" rx="2"/>
+            <rect x="273" y="94" width="76" height="46" rx="2"/>
+            <rect x="905" y="94" width="101" height="46" rx="2"/>
+          </g>
+          <g fill="var(--danger-wash)" stroke="var(--danger)" stroke-width="1.3">
+            <rect x="349" y="94" width="177" height="46" rx="2"/>
+            <rect x="526" y="94" width="252" height="46" rx="2"/>
+            <rect x="778" y="94" width="127" height="46" rx="2"/>
+          </g>
+          <g font-size="11" class="m" font-weight="500" text-anchor="middle">
+            <text x="184" y="115" fill="var(--accent-deep)">PATROL</text>
+            <text x="311" y="115" fill="var(--accent-deep)">SCAN</text>
+            <text x="437" y="115" fill="var(--danger)">PICK</text>
+            <text x="652" y="115" fill="var(--danger)">TRANSIT</text>
+            <text x="841" y="115" fill="var(--danger)">PLACE</text>
+            <text x="955" y="115" fill="var(--accent-deep)">RETURN</text>
+          </g>
+          <g font-size="8.5" text-anchor="middle" fill="var(--ink-3)">
+            <text x="184" y="131">빈 몸 주행</text>
+            <text x="437" y="131">팔이 랙 안</text>
+            <text x="652" y="131">캐리어 적재</text>
+            <text x="841" y="131">팔이 포트 안</text>
+            <text x="955" y="131">빈 몸 복귀</text>
+          </g>
+
+          <line x1="703" y1="40" x2="703" y2="152" stroke="var(--signal)" stroke-width="1.4" stroke-dasharray="4 3"/>
+          <text x="703" y="32" font-size="10.5" class="m" font-weight="500" text-anchor="middle" fill="var(--signal)">임계 120 s</text>
+
+          <g stroke="var(--signal)" stroke-width="1.1" opacity="0.8">
+            <line x1="703" y1="170" x2="905" y2="170" stroke-dasharray="3 3"/>
+            <line x1="703" y1="165" x2="703" y2="175"/>
+            <line x1="905" y1="165" x2="905" y2="175"/>
+          </g>
+          <text x="804" y="162" font-size="9.5" class="m" text-anchor="middle" fill="var(--signal)">유예 40 s</text>
+
+          <path d="M 640 200 L 697 148" stroke="var(--danger)" stroke-width="1.5" fill="none" marker-end="url(#p-d)"/>
+          <g font-size="10.5" text-anchor="end">
+            <text x="632" y="212" fill="var(--danger)" font-weight="500">① 직접 호출 — 즉시 이탈</text>
+            <text x="632" y="228" fill="var(--ink-3)">캐리어를 실은 채 충전소로 간다</text>
+          </g>
+
+          <path d="M 968 200 L 912 148" stroke="var(--accent)" stroke-width="1.5" fill="none" marker-end="url(#p-a)"/>
+          <g font-size="10.5" text-anchor="start">
+            <text x="976" y="212" fill="var(--accent-deep)" font-weight="500">② orchestrator 중재</text>
+            <text x="976" y="228" fill="var(--ink-3)">배치까지 마치고 빈 몸으로</text>
+          </g>
+        </svg>
+      </div>
+      <ul class="legend">
+        <li><i style="background:var(--accent-wash);border:1px solid var(--accent)"></i> 선점 가능 — 캐리어도 없고 팔도 접혀 있다</li>
+        <li><i style="background:var(--danger-wash);border:1px solid var(--danger)"></i> 선점 불가 — 끊으면 캐리어를 놓치거나 팔이 끌린다</li>
+      </ul>
+      <figcaption>
+        <b>임계값이 떨어지는 자리는 고를 수 없다.</b> 사이클 어디에든 떨어지므로, 문제는 임계값을 몇으로 잡느냐가 아니라
+        <em>떨어진 다음에 누가 판단하느냐</em>다. ②는 <span class="mono">needs_charge</span>를 세워 두고 RETURN까지 기다린다 —
+        그 유예가 여기서는 40초다. 시간 눈금은 설명용 비율이고 실측이 아니다.
+      </figcaption>
+    </figure>
+
+    <h3>그래서 이렇게 바꾼다</h3>
+    <div class="t-wrap">
+      <table>
+        <thead><tr><th></th><th>적어 준 안</th><th>제안</th></tr></thead>
+        <tbody>
+          <tr><td class="k">누가 판단</td><td><span class="c">battery_monitor</span></td><td><span class="c">patrol_manager</span></td></tr>
+          <tr><td class="k">docking이 내는 것</td><td><span class="c">nav_server</span>로 서비스 요청</td><td><span class="c">/battery_state</span> 토픽 방송</td></tr>
+          <tr><td class="k">주행 명령</td><td>서비스 — 취소 불가</td><td>액션 — <span class="c">cancel_goal()</span> 가능</td></tr>
+          <tr><td class="k">이탈 시점</td><td>임계 즉시</td><td>다음 RETURN 진입</td></tr>
+          <tr><td class="k">docking 패키지 역할</td><td>감시 + 명령</td><td>감시(토픽) + 접안(액션 서버)</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p>
+      바꿔도 <strong>노드 개수는 그대로고</strong>, <span class="mono">cobot3_docking</span>이 하는 일도 그대로다.
+      화살표 하나의 방향과 종류만 뒤집힌다 — docking이 navigation을 <em>부르는</em> 대신, orchestrator에게 <em>알리는</em> 쪽이 된다.
+    </p>
+
+    <div class="note">
+      <span class="lbl">임계값을 정할 때</span>
+      <p>
+        ②를 쓰면 임계값은 "여기서 출발"이 아니라 "이번 사이클 끝나면 출발"이라는 뜻이 된다.
+        그래서 <span class="mono">임계값 + 최악의 남은 사이클 &lt; 방전</span>이 되도록 여유를 두고 잡아야 한다.
+        사이클이 180초면 임계 120초는 최악의 경우 300초까지 버텨야 한다는 뜻이다.
+      </p>
+      <p>
+        여유가 모자라면 <strong>임계를 둘로 나눈다</strong> — soft(120초)는 RETURN까지 기다리고,
+        hard(예: 170초)는 그 자리에서 중단하고 캐리어를 가장 가까운 안전 지점에 내려놓은 뒤 도킹한다.
+        지금은 soft 하나로 시작하고, 사이클 타임이 실측되면 hard를 넣을지 정하면 된다.
+      </p>
+    </div>
+  </section>
+
+  <section>
+    <h2><span class="sn">06</span>인터페이스 정의</h2>
+    <p class="deck">06 문서 6절에서 이름을 정리한 것을 따르고, 웹 없는 구성에서 새로 필요한 넷을 여기서 채운다.</p>
+
+    <div class="specs">
+      <div class="spec">
+        <h4>NavigateTo.action <em>신규 · 개명</em></h4>
+        <pre># goal
+<b>string</b> target_id        <i># shelf_1_s3 / pkg_loader / dock_pad</i>
+<b>geometry_msgs</b>/PoseStamped pose <i># 비면 target_id로 조회</i>
+<b>float32</b> xy_tolerance_m   <i># 순회 0.25 / 포트 앞 0.02</i>
+<b>float32</b> yaw_tolerance_rad
+<b>bool</b> final_align        <i># 포트 앞 정밀 정렬 수행</i>
+---
+# result
+<b>bool</b> success
+<b>uint8</b> fail_reason       <i># PLAN_FAIL/BLOCKED/CANCELED/TOL</i>
+<b>float32</b> final_xy_err_m
+---
+# feedback
+<b>float32</b> distance_remaining_m
+<b>float32</b> eta_s</pre>
+      </div>
+
+      <div class="spec">
+        <h4>IdentifyCarrier.srv <em>신규</em></h4>
+        <pre># request
+<b>string</b> hint_code        <i># qr_hint가 읽은 ID (검증용)</i>
+<b>bool</b> need_pose          <i># false면 종류만 — 빠름</i>
+---
+# response
+<b>bool</b> ok
+<b>string</b> carrier_id
+<b>uint8</b> carrier_kind      <i># MAGAZINE / TRAY_STACK</i>
+<b>uint8</b> carrier_type      <i># 품종</i>
+<b>cobot3_interfaces</b>/CarrierPose pose
+<b>bool</b> code_matched       <i># hint_code와 대조</i>
+<b>float32</b> confidence
+<b>uint8</b> fail_reason       <i># NO_CODE/NO_POSE/LOW_CONF</i></pre>
+      </div>
+
+      <div class="spec">
+        <h4>Dock.action <em>필드만</em></h4>
+        <pre># goal
+<b>uint8</b> dock_kind         <i># CHARGER / LOAD_PORT</i>
+<b>string</b> target_id        <i># dock_pad_1 / pkg_loader</i>
+<b>float32</b> approach_dist_m
+---
+# result
+<b>bool</b> success
+<b>bool</b> contact_ok         <i># 충전 접점 / 접안 성립</i>
+<b>float32</b> final_yaw_err_rad
+<b>uint8</b> fail_reason       <i># NO_MARKER/MISALIGN/TIMEOUT</i>
+---
+# feedback
+<b>uint8</b> phase             <i># SEARCH/APPROACH/BERTH/LATCH</i>
+<b>float32</b> marker_err_m</pre>
+      </div>
+
+      <div class="spec">
+        <h4>BatteryState.msg <em>필드만</em></h4>
+        <pre><b>std_msgs</b>/Header header
+<b>float32</b> soc               <i># 0.0 ~ 1.0</i>
+<b>float32</b> elapsed_s         <i># 마지막 충전 이후 경과</i>
+<b>float32</b> soft_threshold_s  <i># 120 — RETURN에서 이탈</i>
+<b>float32</b> hard_threshold_s  <i># 0이면 미사용</i>
+<b>bool</b> needs_charge        <i># elapsed &gt; soft</i>
+<b>bool</b> critical            <i># elapsed &gt; hard</i>
+<b>bool</b> charging
+
+<i># 시뮬에는 배터리가 없다. elapsed_s를 SoC로
+# 환산해 두면 실기로 옮길 때 이 노드만 바뀐다.</i></pre>
+      </div>
+
+      <div class="spec">
+        <h4>CarrierScan.msg <em>신규</em></h4>
+        <pre><b>std_msgs</b>/Header header
+<b>bool</b> detected            <i># 이것만 보고 순회를 멈춘다</i>
+<b>string</b> decoded_id
+<b>bool</b> checksum_ok
+<b>uint8</b> vote_count         <i># N-of-M 다수결 (05 문서)</i>
+<b>float32</b> read_distance_m
+<b>geometry_msgs</b>/Point image_center <i># 정렬 보정용</i>
+<b>uint8</b> symbol_kind        <i># QR / ARUCO 폴백</i></pre>
+      </div>
+
+      <div class="spec">
+        <h4>06 문서 6절 그대로 <em>변경 없음</em></h4>
+        <pre><b>PickCarrier</b>.action   goal에 CarrierPose
+<b>PlaceCarrier</b>.action  goal에 expected_carrier_id
+<b>CheckGrasp</b>.srv       grasped · type_matched
+<b>CarrierPose</b>.msg      flange_pose · body_width_m
+                     stack_height_m · tilt_rad
+<b>CycleLog</b>.msg         시행 1건 · 실패 단계
+
+<i># 단일 AMR이라 CycleLog.amr_id와 lane_wait_s는
+# 당장 안 쓰지만, 필드는 두고 비워 둔다.</i></pre>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2><span class="sn">07</span>지금 채울 파일과 웹 붙일 때 채울 파일</h2>
+    <p class="deck"><span class="mono">cobot3_interfaces</span>의 스텁 10개 중 지금 필요한 건 7개다. 나머지는 웹과 멀티 AMR이 붙을 때 채운다.</p>
+
+    <div class="t-wrap">
+      <table>
+        <thead><tr><th>파일</th><th>지금 상태</th><th>이번에</th><th>쓰는 곳</th></tr></thead>
+        <tbody>
+          <tr class="ours"><td class="k mono">NavigateTo.action</td><td><span class="c">NavigateToRack</span> 빈 스텁</td><td>개명 + 채움<span class="pill todo">필수</span></td><td>orchestrator → navigation</td></tr>
+          <tr class="ours"><td class="k mono">PickCarrier.action</td><td><span class="c">PickTray</span> 빈 스텁</td><td>개명 + 채움<span class="pill todo">필수</span></td><td>orchestrator → manipulation</td></tr>
+          <tr class="ours"><td class="k mono">PlaceCarrier.action</td><td><span class="c">PlaceTray</span> 빈 스텁</td><td>개명 + 채움<span class="pill todo">필수</span></td><td>orchestrator → manipulation</td></tr>
+          <tr class="ours"><td class="k mono">Dock.action</td><td>빈 스텁</td><td>채움<span class="pill todo">필수</span></td><td>orchestrator → docking</td></tr>
+          <tr class="ours"><td class="k mono">CarrierPose.msg</td><td><span class="c">TrayPose</span> 빈 스텁</td><td>개명 + 채움<span class="pill todo">필수</span></td><td>perception → 전부</td></tr>
+          <tr class="ours"><td class="k mono">CheckGrasp.srv</td><td>빈 스텁</td><td>채움<span class="pill todo">필수</span></td><td>manipulation → perception</td></tr>
+          <tr class="ours"><td class="k mono">BatteryState.msg</td><td>빈 스텁</td><td>채움<span class="pill todo">필수</span></td><td>docking → orchestrator</td></tr>
+          <tr class="ours"><td class="k mono">IdentifyCarrier.srv</td><td>없음</td><td>신규<span class="pill todo">필수</span></td><td>orchestrator → perception</td></tr>
+          <tr class="ours"><td class="k mono">CarrierScan.msg</td><td>없음</td><td>신규<span class="pill todo">필수</span></td><td>perception → orchestrator</td></tr>
+          <tr><td class="k mono">CycleLog.msg</td><td>빈 스텁</td><td>채움<span class="pill ok">권장</span></td><td>사이클 기록 — 지표가 여기서 나온다</td></tr>
+          <tr><td class="k mono">TaskOrder.msg</td><td>빈 스텁</td><td>보류<span class="pill gap">웹</span></td><td>지금은 순회가 스스로 만든다</td></tr>
+          <tr><td class="k mono">RegisterTask.srv</td><td>빈 스텁</td><td>보류<span class="pill gap">웹</span></td><td>웹이 붙는 유일한 지점</td></tr>
+          <tr><td class="k mono">ReserveLane.srv</td><td>없음</td><td>보류<span class="pill gap">AMR 2대</span></td><td>단일 AMR은 통로 경합이 없다</td></tr>
+          <tr><td class="k mono">PortState.msg</td><td>없음</td><td>보류<span class="pill gap">웹</span></td><td>존 블랙박스 → dispatcher</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="note ok">
+      <span class="lbl">웹은 한 군데로만 붙는다</span>
+      <p>
+        지금은 <span class="mono">patrol_manager</span>가 순회하다 QR을 보고 <em>스스로</em> 작업을 만든다.
+        웹이 붙으면 그 작업을 <span class="mono">RegisterTask.srv</span>로 <em>받아서</em> 큐에 넣는 것으로 바뀐다.
+        바뀌는 건 patrol_manager의 작업 생성 지점 하나뿐이고,
+        <strong>perception · manipulation · navigation · docking은 손대지 않는다</strong> —
+        그쪽은 이미 "누가 시켰는지"를 모르는 채로 액션만 받고 있기 때문이다.
+      </p>
+      <p>
+        같은 이유로 AMR을 2대로 늘릴 때도 스킬 서버 넷은 네임스페이스만 붙여 복제하면 되고,
+        새로 생기는 전역 노드는 06 문서의 <span class="mono">traffic_manager</span> 하나다.
+      </p>
+    </div>
+
+    <h3>다음에 손댈 순서</h3>
+    <ul>
+      <li><strong>인터페이스 9개를 먼저 확정한다.</strong> 이름을 고치는 건 지금이 가장 싸다 — 아직 이 타입을 쓰는 코드가 한 줄도 없다.</li>
+      <li><strong><span class="mono">nav_server</span>부터 만든다.</strong> <span class="mono">carter_navigation</span>의 Nav2가 이미 돌아가므로, <span class="mono">NavigateToPose</span>를 <span class="mono">NavigateTo</span>로 감싸는 얇은 래퍼면 된다. 순회가 여기서 바로 나온다.</li>
+      <li><strong><span class="mono">patrol_manager</span>를 QR 없이 먼저 돌린다.</strong> 웨이포인트만 도는 상태로 사이클 루프를 세워 두면, 나머지 노드를 하나씩 끼워 넣으며 검증할 수 있다.</li>
+      <li><strong>perception은 색 검출 베이스라인으로 시작한다.</strong> <span class="mono">m0609_color_detector.py</span>가 주황·파랑을 이미 가른다. 매거진 2종이 색으로 갈리므로 QR 전에 이걸로 <span class="mono">IdentifyCarrier</span> 응답을 채워 두면 파이프라인이 먼저 닫힌다.</li>
+    </ul>
+  </section>
+
+  <footer>
+    cobot3_isaacsim · 개발 프로세스 07 · 2026-09 ·
+    관련 문서: 06_System_Architecture(3존 · 멀티 AMR 목표 구조), 05_QR_Traceability, 용어정리 ·
+    이 문서는 그 목표 구조에서 <b>웹과 두 번째 AMR을 뺀</b> 최소 구성이다.
+  </footer>
+</div>
