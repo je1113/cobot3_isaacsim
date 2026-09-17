@@ -5,7 +5,10 @@
 #       "들고 있는 게 명령받은 그거 맞나" 는 goal 을 보내기 전에
 #       task_manager 가 끝낸다. 팔은 종류도 ID 도 모른다.
 #
-# pick_place_server 파라미터 (goal 에 없다): release_height_m · approach_dist_m
+# ★ pick_place_server 가 declare_parameter 로 정의해야 하는 것 (PickCarrier 와 공유)
+#   release_height_m   (double, 0.005 제안)  슬롯 바닥 위 이 높이에서 흡착 OFF.
+#                                             0 이면 컵이 눌린 채 떼어져 캐리어가 튄다
+#   approach_dist_m    (double, 0.10 제안)   PickCarrier 와 같은 값
 #
 # NOT_GRIPPED: 도착했는데 이미 gripped=false — 이송 중 놓쳤다.
 #              task_manager 는 이걸 PLACE 가 아니라 TRANSIT 실패로 기록한다.

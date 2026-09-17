@@ -10,6 +10,18 @@
 # 여기 없는 것(raw_payload · symbology · frame_votes · decode_latency_ms ·
 # range_m · reader_id · payload_valid)은 튜닝·분석 지표라 노드 로그로 뺐다.
 # 페이로드 형식 "C3.MAG.A17.9" 는 05 §2-1.
+#
+# ★ carrier_code_reader 가 declare_parameter 로 정의해야 하는 것
+#   decode_hz       (double, 5.0)    30 Hz 전부 디코드하지 않는다      05 §2-5
+#   roi_fraction    (double, 0.6)    중앙 크롭 — 옆 슬롯 라벨 오검출 차단  05 §2-5
+#   vote_window     (int, 5)         N-of-M 의 M                        05 §2-5
+#   vote_required   (int, 3)         N-of-M 의 N                        05 §2-5
+#   output_frame    (string)         qr_pose 의 frame_id — map / base_link 미정
+#   publish_debug   (bool, false)    크롭 이미지를 /perception/carrier_scan_debug 로
+#
+# ★ task_manager 가 정의해야 하는 것 (이 메시지를 쓰려면)
+#   carriers_yaml   (string)         carrier_id → variant        cobot3_bringup/config
+#   frames_yaml     (string)         variant → 라벨→플랜지 오프셋  cobot3_bringup/config
 
 std_msgs/Header header          # stamp = 판독한 프레임 시각
 

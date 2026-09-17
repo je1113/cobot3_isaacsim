@@ -7,9 +7,17 @@
 # 라벨→플랜지 오프셋을 더해 만든다. "잡아도 되는 캐리어인가"(ID 대조)는
 # goal 을 보내기 전에 task_manager 가 끝낸다.
 #
-# pick_place_server 파라미터 (goal 에 없다):
-#   approach_dist_m · grip_gaps_m[] · offset_limit_m · 컵 지름
-#   offset_limit_m = (플랜지 짧은 변 − 컵 지름)/2. 지금 80×80 이라 15 mm 상수.
+# ★ pick_place_server 가 declare_parameter 로 정의해야 하는 것
+#   approach_dist_m      (double, 0.10 제안)   플랜지 위 이 높이에서 수직 하강 시작
+#   grip_gaps_m          (double[], [0.005, 0.002, 0.000, -0.003])
+#                          흡착면을 윗면보다 띄우는 재시도 갭    frames.yaml suction_gripper.grip_gaps_m
+#   cup_diameter_m       (double, 0.050)       frames.yaml suction_gripper.cup_diameter_m
+#   offset_limit_m       (double, 0.015)       = (플랜지 짧은 변 − 컵 지름)/2. 80×80 → 15 mm
+#   coaxial_force_limit  (double, 200.0)       frames.yaml suction_gripper.runtime
+#   shear_force_limit    (double, 100.0)       frames.yaml suction_gripper.runtime
+#   max_grip_distance    (double, 0.03)        frames.yaml suction_gripper.runtime
+#   lift_height_m        (double, 0.05 제안)   흡착 후 들어 올리는 높이
+#   → PlaceCarrier 와 같은 노드. release_height_m 도 여기서 함께 정의.
 #
 # OFF_FLANGE 는 서버가 흡착 순간 TCP(TF) 와 flange_pose 의 횡거리로 판정한다.
 # Isaac SurfaceGripper 는 maxGripDistance 안에서 뭐든 맞으면 붙으므로

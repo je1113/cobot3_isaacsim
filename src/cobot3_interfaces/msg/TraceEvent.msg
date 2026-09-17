@@ -9,6 +9,12 @@
 #
 # 05 §2-6 의 event_type(PICK_TRY / PICK_OK / ...)은 stage + success 로 풀었다.
 # "단계별 실패율" 이 GROUP BY stage WHERE success=0 으로 바로 나온다.
+#
+# ★ event_logger 가 declare_parameter 로 정의해야 하는 것
+#   db_path   (string)            SQLite 파일 경로
+#   run_id    (string)            반복 시행 회차. 런치마다 지정, 모든 행에 붙인다
+#   amr_id    (string, "amr_1")   단일 AMR
+#   → 메시지에 없는 이 셋과 벽시계(datetime('now'))는 INSERT 때 로거가 붙인다.
 
 std_msgs/Header header          # stamp = 시뮬 시각 (use_sim_time)
 

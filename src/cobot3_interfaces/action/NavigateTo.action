@@ -8,7 +8,10 @@
 # 액션인 이유: 순회 중 CarrierScan 이 오면 task_manager 가 cancel_goal() 로
 #              세운다. 도킹 선점도 같은 cancel 이다. 서비스에는 취소가 없다.
 #
-# 허용오차(xy · yaw)는 nav_server 파라미터 — Nav2 goal_checker 와 같은 자리.
+# ★ nav_server 가 declare_parameter 로 정의해야 하는 것
+#   xy_goal_tolerance_m     (double, 0.25 제안)  Nav2 goal_checker 로 넘긴다
+#   yaw_goal_tolerance_rad  (double, 0.15 제안)
+#   → goal 마다 다르게 주고 싶어지면 그때 goal 필드로 올린다. 지금은 상수.
 # 포트 앞 정밀 정렬은 여기 없다. 그건 docking(접안) 또는 팔의 fiducial 보정.
 
 # ── goal ──
