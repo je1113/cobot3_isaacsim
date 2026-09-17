@@ -4,7 +4,7 @@
 #       SQLite event 테이블에 1행 append 한다 — 판단하지 않는다.
 #
 # 공통 정보(run_id · amr_id · 벽시계)는 메시지에 없다. 로거가 INSERT 할 때
-# 자기 파라미터와 datetime('now') 로 붙인다. 시뮬 시각은 header.stamp 다.
+# 자기 파라미터와 datetime('now') 로 붙인다. 시뮬 시각은 stamp 다.
 # 공장·라인·로트는 carrier_id 로 carrier 테이블(지금은 carriers.yaml) 조인.
 #
 # 05 §2-6 의 event_type(PICK_TRY / PICK_OK / ...)은 stage + success 로 풀었다.
@@ -16,7 +16,9 @@
 #   amr_id    (string, "amr_1")   단일 AMR
 #   → 메시지에 없는 이 셋과 벽시계(datetime('now'))는 INSERT 때 로거가 붙인다.
 
-std_msgs/Header header          # stamp = 시뮬 시각 (use_sim_time)
+builtin_interfaces/Time stamp   # 시뮬 시각 (use_sim_time).
+                                # std_msgs/Header 가 아닌 이유: 로그 이벤트에는
+                                # 좌표계가 없어 frame_id 가 영원히 빈 값이 된다.
 
 string carrier_id               # "MAG-A17". 미판독이면 빈 문자열
 string stage                    # SCAN | PICK | TRANSIT | PLACE | RETURN | DOCK

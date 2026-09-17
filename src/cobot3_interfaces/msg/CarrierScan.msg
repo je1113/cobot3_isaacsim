@@ -23,7 +23,9 @@
 #   carriers_yaml   (string)         carrier_id → variant        cobot3_bringup/config
 #   frames_yaml     (string)         variant → 라벨→플랜지 오프셋  cobot3_bringup/config
 
-std_msgs/Header header          # stamp = 판독한 프레임 시각
+std_msgs/Header header          # stamp   = 판독한 프레임 시각
+                                # frame_id = qr_pose 의 좌표계. 이 메시지에서
+                                #            좌표계를 말하는 곳은 여기 하나다.
 
 uint8 MAGAZINE=0
 uint8 TRAY_STACK=1
@@ -32,7 +34,8 @@ string carrier_id               # "MAG-A17" — 페이로드의 <kind>-<serial>
 uint8  carrier_kind             # MAGAZINE | TRAY_STACK — 페이로드의 MAG/STK.
                                 # carrier_id 앞글자로도 알 수 있지만, 받는 쪽이
                                 # 페이로드 문법을 몰라도 되게 따로 둔다.
-geometry_msgs/PoseStamped qr_pose
-                                # 라벨 중심 자세. +Z = 라벨 법선(바깥), +X = 라벨 가로.
-                                # frame_id 는 header 에 명시 — map / base_link 미정.
-                                # reader 가 프레임 시각의 TF 로 변환해 낸다.
+geometry_msgs/Pose qr_pose      # 라벨 중심 자세. +Z = 라벨 법선(바깥), +X = 라벨 가로.
+                                # 좌표계는 header.frame_id — map 예정, 미확정.
+                                # reader 가 header.stamp 시각의 TF 로 변환해 낸다.
+                                # PoseStamped 가 아닌 이유: 그건 Header 를 품고 있어
+                                # 최상위 header 와 stamp·frame_id 가 두 벌이 된다.
