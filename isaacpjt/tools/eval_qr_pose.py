@@ -43,7 +43,7 @@ import yaml
 from pxr import Usd, UsdGeom, UsdPhysics
 
 from isaacsim.core.api import World
-from isaacsim.core.prims import SingleArticulation
+from isaacsim.core.prims import SingleArticulation, SingleRigidPrim
 from isaacsim.core.utils.types import ArticulationAction
 
 sys.stdout.reconfigure(line_buffering=True)
@@ -155,9 +155,16 @@ def main():
     base_y = float(pose["base_link_world"][1])
 
     tgt = meas["magazines"][TARGET_KEY]
+    # yaml 의 center_world 는 물리 전 저작값이다. 매거진이 상판 위에 떠 있게
+    # 저작돼 있어 물리를 돌리면 4.58 mm 내려앉는다. 그 값을 정답으로 쓰면
+    # 이미지 v 로 10 px, 거리 273 mm 에서 횡 4.4 mm 가 정답 쪽 오차로 들어온다
+    # (diag_qr_reproj.py 로 확인). 그래서 정답은 매 표본마다 리지드바디의
+    # 현재 pose 로 다시 만든다. yaml 값은 베이스 위치 잡는 데만 쓴다.
     qr_gt_c = np.array(tgt["qr"][LABEL]["center_world"])
     qr_gt_n = np.array(tgt["qr"][LABEL]["normal_world"])
-    R_gt = qr_frame_from_normal(qr_gt_n)
+    mag_origin0 = np.array(tgt["origin_world"])
+    qr_local_c = qr_gt_c - mag_origin0            # 저작 시 매거진 회전이 0 이다
+    qr_local_n = qr_gt_n
 
     R_l6_cam  = quat_xyzw_to_mat(
         cfg["static_transforms"]["m0609_tool0__camera_link"]["quat_xyzw"])
@@ -176,6 +183,7 @@ def main():
     configure_drives()
     world = World(stage_units_in_meters=1.0)
     robot = world.scene.add(SingleArticulation(prim_path=CHASSIS, name="carter"))
+    mag = world.scene.add(SingleRigidPrim(prim_path=tgt["prim"], name="eval_magazine"))
     world.reset()
     idx = np.array([robot.get_dof_index(j) for j in ARM_JOINTS])
     q = robot.get_joint_positions()
@@ -242,6 +250,12 @@ def main():
         cam_p, _ = world_mat(CAMERA)
         _, R_l6 = world_mat(LINK6)
         R_opt = R_l6 @ R_l6_cam @ R_cam_opt          # world <- optical
+
+        mag_p, mag_q = mag.get_world_pose()
+        w_, x_, y_, z_ = mag_q
+        R_mag = quat_xyzw_to_mat([x_, y_, z_, w_])
+        qr_gt_c = R_mag @ qr_local_c + mag_p
+        R_gt = qr_frame_from_normal(R_mag @ qr_local_n)
 
         for fi in range(FRAMES_PER_POSE):
             for _ in range(3):

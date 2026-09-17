@@ -46,6 +46,21 @@ CAPTURE_BASE=shelf_2_b isaac_python isaacpjt/tools/capture_pose.py
 #        echo "shelf_1_top_scan" > /tmp/capture_pose
 #    -> out/taught_poses.yaml
 
+# 6. QR 자세추정 정확도 — GT 는 매 표본 리지드바디 pose 로 만든다
+isaac_python isaacpjt/tools/eval_qr_pose.py
+#    -> out/qr_pose_eval.yaml
+
+# 6b. 오차가 이상하면 꼭짓점 재투영으로 GT / 카메라 / K 중 뭐가 틀렸는지 가른다
+isaac_python isaacpjt/tools/diag_qr_reproj.py
+#    -> out/qr_reproj_diag.yaml, out/qr_reproj_frames/*.png
+
+# 7. 비전 파지 — QR 대략값 -> 플랜지 상방 관측 -> 파지 (grasp.yaml flange_vision)
+PICK_VISION=1 PICK_TRIALS=10 PICK_HEADLESS=1 \
+    isaac_python isaacpjt/M0609/lula_ik/12_pick_test.py
+#    매거진을 ±10 mm / ±5도 밀어 두고, prior 에 ≤5 mm / ±7도 오차를 넣는다.
+#    PICK_DEPTH_NOISE_MM=2 로 깊이 노이즈를 얹어 볼 수 있다.
+#    프레임: isaacpjt/M0609/lula_ik/out/vision_frames/*.png
+
 # Isaac Sim 메뉴(Tools > Robotics > ...)는 찾아도 없다. isaac_python 이 띄우는
 # isaacsim.exp.base.python.kit 에는 메뉴 확장이 아예 안 올라온다.
 # 그래서 조작 UI 를 capture_pose.py 안에 직접 넣었다.
@@ -67,3 +82,25 @@ source install/setup.bash
 ros2 launch cobot3_bringup tf.launch.py use_fake_joints:=true
 ros2 run tf2_tools view_frames
 ```
+
+## QR 은 ID 와 대략 위치만, 파지 목표는 플랜지를 위에서 찍어 정한다
+
+`eval_qr_pose.py` 로 QR 자세추정을 재 보면 위치는 평균 1.6 mm 로 쓸 만한데
+yaw 는 1σ 2.3도, 최대 4.6도다. 파지 허용치(1.05도)의 네 배다.
+
+라벨이 옆벽에 서 있어서 매거진 yaw 가 카메라에서는 '화면 밖으로 기우는'
+회전이 되기 때문이다. 36 mm 코드를 273 mm 에서 보면 1도에 좌우 변 길이 차가
+0.2 px 인데, `diag_qr_reproj.py` 로 잰 cv2 꼭짓점 잔차는 RMS 2.1 px
+(오른쪽 아래 꼭짓점은 finder pattern 이 없어 3.5 px) 다. 필터로는 못 줄인다.
+
+그래서 근거리에서 플랜지를 위에서 찍는다
+(`src/cobot3_perception/cobot3_perception/flange_topview.py`).
+yaw 가 화면 안의 회전이 되고, 컵이 닿을 면을 직접 재므로 QR -> 플랜지
+레버암(114/153 mm)을 타고 오차가 커지지도 않는다.
+
+### 함정: 물리 전 저작값을 GT 로 쓰지 마라
+
+매거진이 상판 위 4.6 mm 떠 있게 저작돼 있다. `layout_measured.yaml` 의 좌표는
+물리 전 값이라, 그걸 정답으로 쓰면 QR 이 4.58 mm 아래에 있는 걸 오차로 센다.
+이전 `eval_qr_pose.py` 의 "횡오차 4.4 mm" 는 전부 이것이었다
+(이미지 v 로 10.2 px, GT 를 고치자 0.55 mm). 카메라 pose · TF · K 는 맞았다.

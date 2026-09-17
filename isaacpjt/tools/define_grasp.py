@@ -50,6 +50,34 @@ GRIP_GAPS_M   = [0.005, 0.002, 0.000, -0.003]   # 재시도 사다리 (아래 �
 LIFT_M        = 0.100      # = LIFT_HEIGHT_OFFSET.
                            # 0.23 으로 두면 LIFT 목표가 IK 경계 밖이라 절반쯤 실패한다.
 
+# 플랜지 상방 관측 — QR 은 ID 와 대략 위치만, 파지 목표 xy / 윗면 z / yaw 는
+# 손목 카메라로 플랜지를 위에서 찍어 정한다.
+# 검출 코드: src/cobot3_perception/cobot3_perception/flange_topview.py
+# 검증:      PICK_VISION=1 PICK_TRIALS=10 PICK_HEADLESS=1 isaac_python 12_pick_test.py
+FLANGE_VISION = {
+    "why": (
+        "QR 라벨은 옆벽에 서 있어 매거진 yaw 가 '화면 밖으로 기우는' 회전이 된다. "
+        "36 mm 코드를 273 mm 에서 보면 1도에 좌우 변 길이 차가 0.2 px 인데 "
+        "cv2 꼭짓점 잔차가 RMS 2.1 px 라 yaw 가 1σ 2.3도로 흔들린다 "
+        "(diag_qr_reproj.py, eval_qr_pose.py). 위에서 보면 yaw 는 화면 안 회전이고 "
+        "80 mm 변 전체에 직선을 맞추며, 컵을 놓을 바로 그 면을 잰다."),
+    # 카메라 광학 중심이 prior 윗면에서 이만큼 위
+    "observe_cam_height_m": 0.25,
+    # prior 가 화면의 (중앙 + 이 값) 픽셀에 오게 관측 자세를 잡는다.
+    # 흡착 컵이 화면 아래쪽(광학 +y)을 가려서 플랜지를 위쪽에 둔다.
+    "observe_image_offset_px": [0, -110],
+    "settle_steps": 30,          # 관측 자세 도착 후 팔이 멎을 때까지
+    "render_steps": 4,           # 캡처 전 렌더 (annotator 가 최신 프레임을 주게)
+    "search_radius_m": 0.05,     # prior 주변 탐색 반경
+    # 깊이로 윗면만 자른다. 다음 면(bridge 윗면)이 24 mm 아래이고 prior z 오차가
+    # 수 mm 라 ±12 mm 면 양쪽 다 여유가 있다. 색은 깊이가 없을 때만 쓴다.
+    "use_depth": True,
+    "depth_band_m": 0.012,
+    "size_tol": 0.10,            # 변 길이 허용 비율
+    "min_fill": 0.90,            # 성분 면적 / 맞춘 사각형 면적
+    "max_depth_correction_m": 0.015,
+}
+
 
 def parse_label_uv(asset_path, label_name):
     """에셋에서 라벨 메시의 points 와 st 를 읽어 u 축이 어느 월드 축인지 낸다.
@@ -178,6 +206,7 @@ def main():
                   f"{'OK' if diff < 1e-4 else '<< 불일치'}")
 
         results[kind] = dict(
+            color="orange" if "orange" in kind else "blue",   # flange_topview.HSV_RANGES 키
             flange_size=[float(v) for v in fl_s],
             cup_margin_m=round(margin, 5),
             T_QR_grasp_xyz=[round(float(v), 5) for v in per_label[labs[0]]["t"]],
@@ -221,6 +250,7 @@ def main():
             "접근고도(145 mm)에서 곧장 내려오는 대신 3 mm 만 더 내려가게 만들고, "
             "그 사이 물리가 안정된다. 빼지 마라."),
         "lift_m": LIFT_M,
+        "flange_vision": FLANGE_VISION,
         "verified": {
             "tool": "PICK_TRIALS=10 PICK_HEADLESS=1 [PICK_TARGET=...] "
                     "isaac_python isaacpjt/M0609/lula_ik/12_pick_test.py",
@@ -234,6 +264,22 @@ def main():
                 "cycle_time_s": {"mean": 2.04, "min": 2.01, "max": 2.06},
                 "lift_rise_mm_min": 88.4, "tilt_deg_max": 0.10,
                 "base_x": -5.9233,
+            },
+            "flange_vision": {
+                "tool": "PICK_VISION=1 PICK_TRIALS=10 PICK_HEADLESS=1 [PICK_DEPTH_NOISE_MM=2] "
+                        "isaac_python isaacpjt/M0609/lula_ik/12_pick_test.py",
+                "setup": "매거진 ±10 mm / ±5도 교란, prior(QR 대역) 오차 ≤5 mm / ±7도, 관측 높이 250 mm",
+                "measurement_2026_09_17": {
+                    "orange":         {"detected": "10/10", "xy_mm_max": 0.28, "z_mm_max": 0.00, "yaw_deg_max": 0.018},
+                    "orange_noise2mm": {"detected": "10/10", "xy_mm_max": 0.29, "z_mm_max": 0.02, "yaw_deg_max": 0.011},
+                    "blue":           {"detected": "10/10", "xy_mm_max": 0.27, "z_mm_max": 0.00, "yaw_deg_max": 0.032},
+                    "blue_noise2mm":  {"detected": "10/10", "xy_mm_max": 0.27, "z_mm_max": 0.02, "yaw_deg_max": 0.029},
+                },
+                "pick_result": "주황 9/10, 파랑 10/10. 주황 실패 1 건(trial 8)은 인식 오차 0.26 mm 였고 "
+                               "PICK_MAG_DELTA=6.65,5.74,-2.61 로 GT 파지를 해도 3/3 실패한다 — 인식 문제가 아니다. "
+                               "frames.yaml open_issues pick-magazine-pushed-on-descent 참고.",
+                "caveat": "시뮬 깊이는 가장자리가 칼같고, 가우시안 노이즈는 실물의 flying pixel / 가장자리 "
+                          "번짐을 흉내 내지 못한다. xy 0.3 mm 는 실물에서 그대로 기대할 수 없다.",
             },
             "criteria": "rise >= 5 mm, tilt <= 5 deg",
             "note": "GT 플랜지 pose 로 파지한다. QR 인식 오차는 아직 안 들어가 있다.",

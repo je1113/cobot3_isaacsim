@@ -47,6 +47,8 @@ TRIALS = max(1, int(os.environ.get("PICK_TRIALS", "1")))
 simulation_app = SimulationApp({"headless": HEADLESS})
 
 import dataclasses
+import math
+import sys
 import time
 from pathlib import Path
 
@@ -70,7 +72,14 @@ THIS_DIR   = Path(__file__).resolve().parent
 M0609_DIR  = THIS_DIR.parent
 ISAACPJT_DIR = M0609_DIR.parent
 
+WS_ROOT          = ISAACPJT_DIR.parent
 WORLD_USD        = str(ISAACPJT_DIR / "worlds/simple_factory_layout.usda")
+FRAMES_YAML      = WS_ROOT / "src/cobot3_bringup/config/frames.yaml"
+GRASP_YAML       = WS_ROOT / "src/cobot3_bringup/config/grasp.yaml"
+VISION_DUMP_DIR  = THIS_DIR / "out/vision_frames"
+
+# 플랜지 검출기는 ROS 패키지 쪽에 있다 (ROS 의존성 없음). 노드와 같은 코드를 쓴다.
+sys.path.insert(0, str(WS_ROOT / "src/cobot3_perception"))
 URDF_PATH        = str(M0609_DIR / "doosan-robot2/urdf/m0609_isaac_sim.urdf")
 DESCRIPTION_PATH = str(M0609_DIR / "descriptor/m0609_description.yaml")
 
@@ -84,6 +93,7 @@ EE_LINK_NAME    = "link_6"
 EE_LINK_PATH    = f"{ROBOT_PRIM_PATH}/{EE_LINK_NAME}"
 BASE_LINK_PATH  = f"{ROBOT_PRIM_PATH}/base_link"
 GRIPPER_PRIM    = f"{ROBOT_PRIM_PATH}/short_gripper"
+CAMERA_PRIM     = f"{GRIPPER_PRIM}/rsd455/RSD455/Camera_OmniVision_OV9782_Color"
 
 # 아티큘레이션 루트일 가능성이 있는 경로들. 앞에서부터 시도해 성공하는 걸 쓴다.
 ARTICULATION_ROOT_CANDIDATES = [
@@ -164,6 +174,34 @@ TCP_OFFSET     = np.array([0.0, 0.0, SUCTION_FACE_Z])
 # 실험으로 바꿔 볼 수 있게 열어 둔다:  PICK_GRIP_GAPS=0.002,0.000,-0.003
 GRIP_GAPS = [float(v) for v in
              os.environ.get("PICK_GRIP_GAPS", "0.005,0.002,0.000,-0.003").split(",")]
+
+
+# ══════════════════════════════════════════════════════════════
+#  비전 파지 — 플랜지 상방 관측 (PICK_VISION=1)
+# ══════════════════════════════════════════════════════════════
+# GT 대신 손목 카메라로 플랜지를 위에서 찍어 파지 목표를 정한다.
+#   1) 대략값(prior) = GT + 인위 오차.  QR 추정을 흉내 낸다
+#      (eval_qr_pose.py 실측: 위치 최대 3.5 mm, yaw 최대 4.6도 -> 여유를 줘서 5 mm / 7도)
+#   2) OBSERVE  prior 위로 카메라를 가져가 한 장 찍는다
+#   3) cobot3_perception.flange_topview 로 중심 xy / 윗면 z / yaw 측정
+#   4) 그 값으로 APPROACH 부터 기존 FSM 을 그대로 돈다
+# 매거진도 트라이얼마다 실제로 밀고 돌려 놓는다 — 정답 자리에서만 되는지 보면 의미가 없다.
+#   PICK_VISION=1 PICK_TRIALS=10 PICK_HEADLESS=1 isaac_python 12_pick_test.py
+VISION          = os.environ.get("PICK_VISION", "0") == "1"
+PERTURB_XY_M    = float(os.environ.get("PICK_PERTURB_XY_MM", "10" if VISION else "0")) / 1000.0
+PERTURB_YAW_DEG = float(os.environ.get("PICK_PERTURB_YAW_DEG", "5" if VISION else "0"))
+PRIOR_ERR_M     = float(os.environ.get("PICK_PRIOR_ERR_MM", "5")) / 1000.0
+PRIOR_Z_ERR_M   = float(os.environ.get("PICK_PRIOR_Z_ERR_MM", "3")) / 1000.0
+PRIOR_YAW_DEG   = float(os.environ.get("PICK_PRIOR_YAW_DEG", "7"))
+SEED            = int(os.environ.get("PICK_SEED", "0"))
+# 시뮬 깊이는 오차가 0 이라 결과가 낙관적이다. 실물 깊이를 흉내 내려고 가우시안
+# 노이즈(1σ, mm)를 얹어 볼 수 있다. D455 는 0.25 m 에서 대략 1~2 mm 급이다.
+DEPTH_NOISE_M   = float(os.environ.get("PICK_DEPTH_NOISE_MM", "0")) / 1000.0
+# 특정 트라이얼을 재현하려고 매거진 교란을 고정값으로 줄 수 있다 (비전 없이도 된다).
+#   PICK_MAG_DELTA=6.65,5.74,-2.61   (dx mm, dy mm, yaw deg)
+MAG_DELTA = ([float(v) for v in os.environ["PICK_MAG_DELTA"].split(",")]
+             if os.environ.get("PICK_MAG_DELTA") else None)
+VISION_RES      = (1280, 720)
 
 
 # ══════════════════════════════════════════════════════════════
@@ -618,13 +656,19 @@ class PickFSM:
     NAMES = ["APPROACH", "DESCEND", "GRIP", "HOLD", "LIFT", "DONE"]
     DONE_STATE = 5
 
-    def __init__(self, robot, gripper):
+    def __init__(self, robot, gripper, flange_override=None):
         self._robot = robot
         self._gripper = gripper
+        self._override = flange_override
         self.reset()
 
     def reset(self):
-        center_xy, top_z, height = measure_prim(FLANGE_PATH)
+        if self._override is not None:
+            # 비전 모드: 측정한 (중심 xy, 윗면 z) 로 파지한다. GT 는 판정에만 쓴다.
+            center_xy, top_z = self._override
+            center_xy = np.asarray(center_xy, dtype=float)
+        else:
+            center_xy, top_z, height = measure_prim(FLANGE_PATH)
         self.center_xy = center_xy
         self.obj_top = top_z
         self.attempt = 0
@@ -723,6 +767,9 @@ class PickFSM:
         self.dropped = True
         self.done = True
         self.fail_code = FAIL_SLIP
+        mp, mq = get_world_pose(MAGAZINE_PATH)
+        print(f"   !! 매거진 {vec(mp, 4)}  yaw {math.degrees(yaw_of_quat(mq)):+.2f}°  "
+              f"tilt {tilt_deg_from_quat(mq):.2f}°  TCP {vec(get_tcp_pose(self._robot), 4)}")
         print(f"   !! 놓쳤다  단계 {self.NAMES[self.state]}  {self.step}/{self.n_steps} 스텝")
 
     def _check_grip(self):
@@ -733,6 +780,8 @@ class PickFSM:
               f"status {self._gripper.status()}  -> {'붙었다' if ok else '안 붙었다'}")
         if ok:
             self.grip_ok = True
+            mp, mq = get_world_pose(MAGAZINE_PATH)
+            print(f"      흡착 직후 매거진 {vec(mp, 4)}  yaw {math.degrees(yaw_of_quat(mq)):+.2f}°")
             return True
 
         self.attempt += 1
@@ -774,6 +823,7 @@ class TrialResult:
     cycle_time_s: float
     lift_rise_mm: float
     tilt_deg: float
+    vision: dict = None       # 비전 모드에서만 채운다
 
     @property
     def success(self):
@@ -791,6 +841,135 @@ def section(title):
 
 def vec(v, digits=3):
     return "[" + " ".join(f"{x:+.{digits}f}" for x in v) + "]"
+
+
+# ══════════════════════════════════════════════════════════════
+#  비전 — 플랜지 상방 관측
+# ══════════════════════════════════════════════════════════════
+def _quat_xyzw_to_mat(q):
+    x, y, z, w = q
+    return quat_to_matrix([w, x, y, z])
+
+
+def yaw_of_quat(quat_wxyz):
+    R = quat_to_matrix(quat_wxyz)
+    return math.atan2(R[1, 0], R[0, 0])
+
+
+def wrap_deg(a):
+    return (a + 180.0) % 360.0 - 180.0
+
+
+class FlangeVision:
+    """손목 카메라 한 장으로 플랜지 pose 를 잰다.
+
+    카메라 pose 는 USD 카메라 prim 이 아니라 link_6 x frames.yaml 정적변환으로
+    만든다. ROS 에서 TF 로 조회하게 될 경로와 같게 두려는 것이다
+    (diag_qr_reproj.py: 두 경로 차이 0.0 mm / 0.0 도).
+    """
+
+    def __init__(self):
+        import yaml
+        from cobot3_perception.flange_topview import detect_flange, draw_observation
+        self._detect = detect_flange
+        self._draw = draw_observation
+
+        frames = yaml.safe_load(FRAMES_YAML.read_text(encoding="utf-8"))
+        grasp = yaml.safe_load(GRASP_YAML.read_text(encoding="utf-8"))
+        ci = frames["wrist_camera"]["camera_info_observed"]
+        self.K = np.array(ci["k"], dtype=float).reshape(3, 3)
+        self.dist = np.array(ci["d"], dtype=float)
+        st = frames["static_transforms"]
+        self.t_l6_cam = np.array(st["m0609_tool0__camera_link"]["xyz"], dtype=float)
+        self.R_l6_opt = (_quat_xyzw_to_mat(st["m0609_tool0__camera_link"]["quat_xyzw"])
+                         @ _quat_xyzw_to_mat(
+                             st["camera_link__camera_color_optical_frame"]["quat_xyzw"]))
+        self.p = grasp["flange_vision"]
+        kind = MAGAZINE_XFORM_PATH.rsplit("/", 1)[1].replace("_02", "")
+        self.kind = kind
+        self.color = grasp["magazines"][kind]["color"]
+        self.flange_size = grasp["magazines"][kind]["flange_size"][:2]
+
+        import omni.replicator.core as rep
+        self._rp = rep.create.render_product(CAMERA_PRIM, VISION_RES)
+        self._annot = rep.AnnotatorRegistry.get_annotator("rgb")
+        self._annot.attach([self._rp])
+        # 광학 z 거리 (m). 실물 RealSense 의 aligned depth 에 해당한다.
+        self._depth = rep.AnnotatorRegistry.get_annotator("distance_to_image_plane")
+        self._depth.attach([self._rp])
+        self._noise_rng = np.random.default_rng(SEED + 1000)
+        VISION_DUMP_DIR.mkdir(parents=True, exist_ok=True)
+        print(f"   vision       {CAMERA_PRIM}  {VISION_RES}  색 {self.color}  "
+              f"관측 높이 {self.p['observe_cam_height_m']*1000:.0f} mm")
+
+    def observe_tcp(self, prior_center, target_quat):
+        """prior 가 화면의 observe_image_offset_px 에 오도록 카메라를 둘 TCP 목표.
+
+        흡착 컵이 화면 아래쪽을 가리므로(광학 y = 툴 y, 컵이 그쪽 45 mm 에 있다)
+        플랜지를 화면 중앙보다 위에 오게 한다.
+        """
+        h = float(self.p["observe_cam_height_m"])
+        du, dv = self.p["observe_image_offset_px"]
+        R_tool = quat_to_matrix(target_quat)
+        R_wo = R_tool @ self.R_l6_opt
+        p_c = np.array([du / self.K[0, 0] * h, dv / self.K[1, 1] * h, h])
+        cam = np.asarray(prior_center, dtype=float) - R_wo @ p_c
+        tool0 = cam - R_tool @ self.t_l6_cam
+        return tool0 + R_tool @ TCP_OFFSET
+
+    def capture(self, world, prior_center, prior_yaw, tag):
+        for _ in range(int(self.p["render_steps"])):
+            world.step(render=True)
+        img = np.asarray(self._annot.get_data())
+        if img.size == 0:
+            return None, None
+        import cv2
+        bgr = img[:, :, :3][:, :, ::-1].copy()
+        depth = np.asarray(self._depth.get_data(), dtype=np.float64)
+        depth = depth.reshape(bgr.shape[:2]) if depth.size == bgr.shape[0] * bgr.shape[1] else None
+        if depth is not None and DEPTH_NOISE_M > 0:
+            depth = depth + self._noise_rng.normal(0.0, DEPTH_NOISE_M, depth.shape)
+
+        l6_p, l6_q = get_world_pose(EE_LINK_PATH)
+        R_l6 = quat_to_matrix(l6_q)
+        R_wo = R_l6 @ self.R_l6_opt
+        p_wo = l6_p + R_l6 @ self.t_l6_cam
+
+        dbg = {}
+        obs = self._detect(
+            bgr, self.K, self.dist, R_wo, p_wo,
+            expected_center_world=prior_center, top_z_prior=float(prior_center[2]),
+            yaw_prior_rad=prior_yaw, color=self.color, flange_size_m=self.flange_size,
+            depth=depth if self.p.get("use_depth", True) else None,
+            depth_band_m=float(self.p["depth_band_m"]),
+            search_radius_m=float(self.p["search_radius_m"]),
+            size_tol=float(self.p["size_tol"]), min_fill=float(self.p["min_fill"]),
+            max_depth_correction_m=float(self.p["max_depth_correction_m"]),
+            debug=dbg)
+        cv2.imwrite(str(VISION_DUMP_DIR / f"{self.kind}_{tag}.png"),
+                    self._draw(bgr, obs, self.K, self.dist, R_wo, p_wo, dbg))
+        return obs, bgr
+
+
+def servo_tcp(world, robot, solver, target_quat, goal_tcp, label):
+    """현재 TCP 에서 goal 까지 FSM 과 같은 방식(smoothstep 보간 + 매 스텝 IK)으로 옮긴다"""
+    start = get_tcp_pose(robot)
+    n_steps, dist = steps_for(start, goal_tcp)
+    print(f"   [-] {label:9s} goal {vec(goal_tcp)}  {dist:.4f} m  {n_steps} steps")
+    fail = 0
+    for i in range(1, n_steps + 1):
+        world.step(render=not HEADLESS)
+        tcp = start + ease(i / float(n_steps)) * (goal_tcp - start)
+        action, solved = solver.compute_inverse_kinematics(
+            target_position=tcp_to_flange(tcp, target_quat), target_orientation=target_quat)
+        if solved:
+            robot.apply_action(action)
+            fail = 0
+        else:
+            fail += 1
+            if fail >= MAX_IK_FAIL_STEPS:
+                return False
+    return True
 
 
 # ══════════════════════════════════════════════════════════════
@@ -831,7 +1010,8 @@ def reachability_check(world, robot, lula, solver, teleporter, target_quat):
 # ══════════════════════════════════════════════════════════════
 #  한 트라이얼 실행
 # ══════════════════════════════════════════════════════════════
-def run_trial(trial_idx, world, robot, lula, solver, gripper, teleporter):
+def run_trial(trial_idx, world, robot, lula, solver, gripper, teleporter,
+              vision=None, rng=None):
     t0 = time.time()
 
     # ── 1) PICK ────────────────────────────────────────────
@@ -842,7 +1022,70 @@ def run_trial(trial_idx, world, robot, lula, solver, gripper, teleporter):
     sync_ik_base_pose(lula)
 
     target_quat = make_target_quat(APPROACH_ROLL_DEG, APPROACH_PITCH_DEG, GRIPPER_YAW_DEG)
-    pick_fsm = PickFSM(robot, gripper)
+
+    vinfo, override = None, None
+    if vision is not None:
+        # ── 정답 (판정용) ──
+        gt_xy, gt_top, _ = measure_prim(FLANGE_PATH)
+        gt_c = np.array([gt_xy[0], gt_xy[1], gt_top])
+        gt_yaw = yaw_of_quat(get_world_pose(MAGAZINE_PATH)[1])
+
+        # ── QR 에서 왔다고 치는 대략값 ──
+        r = PRIOR_ERR_M * math.sqrt(rng.uniform())
+        a = rng.uniform(0, 2 * math.pi)
+        prior_c = gt_c + np.array([r * math.cos(a), r * math.sin(a),
+                                   rng.uniform(-PRIOR_Z_ERR_M, PRIOR_Z_ERR_M)])
+        prior_yaw = gt_yaw + math.radians(rng.uniform(-PRIOR_YAW_DEG, PRIOR_YAW_DEG))
+
+        section(f"OBSERVE  trial {trial_idx + 1}")
+        obs_tcp = vision.observe_tcp(prior_c, target_quat)
+        if not servo_tcp(world, robot, solver, target_quat, obs_tcp, "OBSERVE"):
+            print("   !! 관측 자세 IK 실패")
+            return TrialResult(trial_idx, FAIL_UNREACHABLE, time.time() - t0, 0.0, 0.0,
+                               dict(stage="observe_ik"))
+        for _ in range(int(vision.p["settle_steps"])):
+            world.step(render=not HEADLESS)
+        obs, _ = vision.capture(world, prior_c, prior_yaw, f"trial{trial_idx + 1:02d}")
+
+        # 정답을 촬영 시점 값으로 다시 읽는다. 관측 자세로 가는 동안 매거진이
+        # 움직였으면 그건 인식 오차가 아니다 — 따로 drift 로 기록한다.
+        gt_xy2, gt_top2, _ = measure_prim(FLANGE_PATH)
+        gt_c2 = np.array([gt_xy2[0], gt_xy2[1], gt_top2])
+        gt_yaw2 = yaw_of_quat(get_world_pose(MAGAZINE_PATH)[1])
+        drift_mm = float(np.linalg.norm(gt_c2 - gt_c) * 1000)
+        drift_deg = wrap_deg(math.degrees(gt_yaw2 - gt_yaw))
+        if drift_mm > 0.5 or abs(drift_deg) > 0.2:
+            print(f"   !! 관측 중 매거진이 움직였다  {drift_mm:.2f} mm / {drift_deg:+.2f}°")
+        gt_c, gt_yaw = gt_c2, gt_yaw2
+
+        vinfo = dict(
+            prior_xy_err_mm=float(np.linalg.norm(prior_c[:2] - gt_c[:2]) * 1000),
+            prior_yaw_err_deg=wrap_deg(math.degrees(prior_yaw - gt_yaw)),
+            gt_center=gt_c.round(5).tolist(), gt_yaw_deg=math.degrees(gt_yaw),
+            gt_drift_mm=drift_mm, gt_drift_deg=drift_deg)
+        if obs is None or not obs.ok:
+            reason = "이미지 없음" if obs is None else obs.reason
+            print(f"   !! 플랜지 검출 실패: {reason}")
+            vinfo.update(stage="detect", reason=reason)
+            return TrialResult(trial_idx, FAIL_NOT_FOUND, time.time() - t0, 0.0, 0.0, vinfo)
+
+        e = obs.center_world - gt_c
+        vinfo.update(
+            stage="ok", obs=obs.as_dict(),
+            xy_err_mm=float(np.linalg.norm(e[:2]) * 1000),
+            z_err_mm=float(e[2] * 1000),
+            yaw_err_deg=wrap_deg(math.degrees(obs.yaw_rad - gt_yaw)))
+        print(f"   flange  측정 {vec(obs.center_world, 4)}  yaw {math.degrees(obs.yaw_rad):+.2f}°  "
+              f"크기 {obs.size_m[0]*1000:.1f}x{obs.size_m[1]*1000:.1f} mm  "
+              f"채움 {obs.fill_ratio:.3f}")
+        print(f"           정답 {vec(gt_c, 4)}  yaw {math.degrees(gt_yaw):+.2f}°")
+        print(f"           오차 xy {vinfo['xy_err_mm']:.2f} mm  z {vinfo['z_err_mm']:+.2f} mm  "
+              f"yaw {vinfo['yaw_err_deg']:+.3f}°   "
+              f"(prior 는 xy {vinfo['prior_xy_err_mm']:.2f} mm, "
+              f"yaw {vinfo['prior_yaw_err_deg']:+.2f}°)")
+        override = (obs.center_world[:2], float(obs.center_world[2]))
+
+    pick_fsm = PickFSM(robot, gripper, flange_override=override)
 
     step = 0
     while not pick_fsm.done:
@@ -865,6 +1108,7 @@ def run_trial(trial_idx, world, robot, lula, solver, gripper, teleporter):
         cycle_time_s=time.time() - t0,
         lift_rise_mm=pick_fsm.lift_rise_m * 1000.0,
         tilt_deg=pick_fsm.tilt_at_lift_deg,
+        vision=vinfo,
     )
 
 
@@ -873,6 +1117,26 @@ def run_trial(trial_idx, world, robot, lula, solver, gripper, teleporter):
 # ══════════════════════════════════════════════════════════════
 #  메인
 # ══════════════════════════════════════════════════════════════
+def print_vision_summary(results):
+    v = [r.vision for r in results if r.vision and r.vision.get("stage") == "ok"]
+    n_all = len(results)
+    print(f"\n   [비전]  검출 {len(v)} / {n_all}   "
+          f"매거진 교란 ±{PERTURB_XY_M*1000:.0f} mm / ±{PERTURB_YAW_DEG:.0f}°   "
+          f"prior 오차 ≤{PRIOR_ERR_M*1000:.0f} mm / ±{PRIOR_YAW_DEG:.0f}°   "
+          f"깊이 노이즈 {DEPTH_NOISE_M*1000:.1f} mm")
+    if not v:
+        return
+    xy = np.array([x["xy_err_mm"] for x in v])
+    z = np.array([x["z_err_mm"] for x in v])
+    yw = np.array([x["yaw_err_deg"] for x in v])
+    pxy = np.array([x["prior_xy_err_mm"] for x in v])
+    pyw = np.array([x["prior_yaw_err_deg"] for x in v])
+    print(f"   xy   평균 {xy.mean():.2f}  최대 {xy.max():.2f} mm   (prior 최대 {pxy.max():.2f})")
+    print(f"   z    평균 {z.mean():+.2f}  |최대| {np.abs(z).max():.2f} mm")
+    print(f"   yaw  평균 {yw.mean():+.3f}  |최대| {np.abs(yw).max():.3f}°  1σ {yw.std():.3f}°"
+          f"   (prior |최대| {np.abs(pyw).max():.2f})")
+
+
 def main():
     world = World(stage_units_in_meters=1.0)
 
@@ -898,6 +1162,8 @@ def main():
 
     target_quat = make_target_quat(APPROACH_ROLL_DEG, APPROACH_PITCH_DEG, GRIPPER_YAW_DEG)
     reachable = reachability_check(world, robot, lula, solver, teleporter, target_quat)
+    vision = FlangeVision() if VISION else None
+    rng = np.random.default_rng(SEED)
     if not reachable:
         print("\n   WP_PICK 좌표를 먼저 조정하세요")
         simulation_app.close()
@@ -923,13 +1189,25 @@ def main():
         for _ in range(SETTLE_STEPS // 2):       # 팔이 멎을 때까지
             world.step(render=not HEADLESS)
 
-        reset_magazine_pose(magazine_spawn_pos, tuple(magazine_spawn_quat))
+        # 비전 모드는 매거진을 실제로 밀고 돌려 놓는다 (PICK_PERTURB_*)
+        pos = np.array(magazine_spawn_pos, dtype=float)
+        quat = np.array(magazine_spawn_quat, dtype=float)
+        if MAG_DELTA is not None:
+            pos[:2] += np.array(MAG_DELTA[:2]) / 1000.0
+            quat = quat_mul(quat_from_axis([0, 0, 1], MAG_DELTA[2]), quat)
+        elif PERTURB_XY_M > 0 or PERTURB_YAW_DEG > 0:
+            pos[:2] += rng.uniform(-PERTURB_XY_M, PERTURB_XY_M, 2)
+            quat = quat_mul(quat_from_axis([0, 0, 1],
+                                           rng.uniform(-PERTURB_YAW_DEG, PERTURB_YAW_DEG)),
+                            quat)
+        reset_magazine_pose(pos, tuple(quat))
         for _ in range(30):                      # 리셋이 물리에 반영되게
             world.step(render=not HEADLESS)
         gripper.reinit()
 
         section("RUN")
-        result = run_trial(trial_idx, world, robot, lula, solver, gripper, teleporter)
+        result = run_trial(trial_idx, world, robot, lula, solver, gripper, teleporter,
+                           vision=vision, rng=rng)
         print(f"   trial {trial_idx + 1} -> fail_code={result.fail_code}  "
               f"cycle_time={result.cycle_time_s:.2f}s")
         return result
@@ -950,7 +1228,10 @@ def main():
             print(f"   tilt   최대 {max(tl):.2f} deg  (기준 {TILT_MAX_DEG:.0f} deg)")
         bad = [r for r in results if not r.success]
         for r in bad:
-            print(f"   실패 trial {r.trial + 1}  fail_code={r.fail_code}")
+            print(f"   실패 trial {r.trial + 1}  fail_code={r.fail_code}"
+                  + (f"  {r.vision}" if r.vision else ""))
+        if VISION:
+            print_vision_summary(results)
 
     # 헤드리스는 판정이 끝나면 더 할 일이 없다. 창도 없어서 Stop/Play 도 못 한다.
     if HEADLESS:
