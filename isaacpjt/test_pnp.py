@@ -75,6 +75,13 @@ ROBOT_PRIM_PATH  = f"{CARTER_PRIM_PATH}/m0609"
 GRIPPER_PRIM     = f"{ROBOT_PRIM_PATH}/short_gripper"
 TARGET_PATH      = "/World/magazine_1_orange"     # 선반 2단 주황 매거진
 
+#   ArticulationView 를 걸 경로. None 이면 자동 탐색한다.
+#   팔은 arm_mount_joint 로 카터에 물려 있어서 PhysX 가 둘을 하나의
+#   아티큘레이션으로 본다. m0609 경로로 걸면
+#     "Pattern '/World/nova_carter1/m0609' did not match any articulations"
+#   가 뜨고 world.reset() 이 죽는다. 자동 탐색이 틀리면 여기에 직접 적는다.
+ARTICULATION_PATH = None
+
 # ── 1) 선반 앞 정차 (픽업) ────────────────────────────────────
 #   yaw -90 이면 카터 +X 가 world -Y 를 보고, 팔(섀시 뒤쪽 장착)이
 #   선반 쪽(+Y)으로 나온다. 팔이 선반을 정면으로 마주본다.
@@ -478,14 +485,18 @@ def teleport(movables, lula, from_pos, from_quat, to_pos, to_quat):
         robot_orientation=to_quat,
     )
 
-    # 카터가 진짜 갔는지 확인한다
-    if movables and movables[0].ok:
+    # 카터가 진짜 갔는지 확인한다.
+    #   아티큘레이션의 world pose 는 루트 '링크'(섀시) 기준이라 카터 prim
+    #   위치와 다를 수 있다. 그래서 절대 위치가 아니라 '이동량'을 본다.
+    if movables and movables[0].ok and poses[0] is not None:
         try:
-            actual, _ = movables[0].get_world_pose()
-            err = float(np.linalg.norm(actual - to_pos))
+            before = poses[0][0]
+            after, _ = movables[0].get_world_pose()
+            want = to_pos + R_to @ (R_from.T @ (before - from_pos))
+            err = float(np.linalg.norm(after - want))
             mark = "ok" if err < 0.02 else "!! 안 옮겨졌다"
-            print(f"   carter       목표 {vec(to_pos)}  실제 {vec(actual)}  "
-                  f"오차 {err*1000:.1f} mm  {mark}")
+            print(f"   carter       {vec(before)} -> {vec(after)}   "
+                  f"기대 {vec(want)}   오차 {err*1000:.1f} mm  {mark}")
         except Exception:
             pass
 
@@ -869,6 +880,39 @@ def read_arm_local_offset():
         print(f"   arm offset   실측 실패, 기본값 사용: {exc}")
 
 
+def find_articulation_root():
+    """
+    ArticulationView 를 걸 실제 경로를 찾는다.
+
+    팔 단독 경로(/World/nova_carter1/m0609)로는 안 잡힌다. arm_mount_joint
+    로 카터 섀시에 물려 있어서 PhysX 가 카터와 팔을 하나의 아티큘레이션으로
+    합쳐 버리기 때문이다. 합쳐진 쪽의 루트(=카터)에 걸어야 한다.
+
+    팔 관절은 그 아티큘레이션의 DOF 안에 이름으로 들어 있으므로,
+    Lula 솔버는 ArticulationSubset 으로 joint_1~6 만 골라 쓴다.
+    """
+    global ARTICULATION_PATH
+    if ARTICULATION_PATH:
+        print(f"   articulation {ARTICULATION_PATH}  (설정값 고정)")
+        return ARTICULATION_PATH
+
+    stage = omni.usd.get_context().get_stage()
+    roots = [str(prim.GetPath())
+             for prim in Usd.PrimRange(stage.GetPrimAtPath(CARTER_PRIM_PATH))
+             if prim.HasAPI(UsdPhysics.ArticulationRootAPI)]
+    print(f"   articulation ArticulationRootAPI 후보 {roots if roots else '없음'}")
+
+    if CARTER_PRIM_PATH in roots or not roots:
+        # 카터가 루트다. 후보가 아예 안 잡히면 (페이로드 합성 타이밍) 여기로 간다
+        ARTICULATION_PATH = CARTER_PRIM_PATH
+    else:
+        # 바깥쪽(경로가 짧은) 루트가 전체를 덮는다
+        ARTICULATION_PATH = min(roots, key=len)
+
+    print(f"   articulation {ARTICULATION_PATH}  <- 여기에 건다")
+    return ARTICULATION_PATH
+
+
 class PnPTask(BaseTask):
     """레이아웃을 열고, 이미 있는 카터/팔/그리퍼/매거진을 연결만 한다"""
 
@@ -962,10 +1006,12 @@ class PnPTask(BaseTask):
         ee_path = find_prim_path(ROBOT_PRIM_PATH, EE_LINK_NAME)
         if ee_path is None:
             raise RuntimeError(f"'{EE_LINK_NAME}' not found under {ROBOT_PRIM_PATH}")
+        # prim_path 는 팔이 아니라 합쳐진 아티큘레이션의 루트(카터)다.
+        # end_effector 만 팔의 link_6 를 가리킨다
         self._robot = scene.add(
             SingleManipulator(
-                prim_path=ROBOT_PRIM_PATH,
-                name="m0609_robot",
+                prim_path=find_articulation_root(),
+                name="carter_m0609",
                 end_effector_prim_path=ee_path,
             )
         )
@@ -977,8 +1023,26 @@ class PnPTask(BaseTask):
 
 
 def set_ready_pose(robot):
-    q = np.zeros(robot.num_dof)
-    q[:6] = np.deg2rad(READY_JOINTS_DEG)
+    """
+    카터와 팔이 한 아티큘레이션이라 DOF 에 바퀴 관절이 섞여 있다.
+    q[:6] 으로 넣으면 앞 6개가 바퀴일 수 있어 엉뚱한 데를 돌린다.
+    이름으로 팔 관절만 찾아서 넣는다.
+    """
+    names = list(robot.dof_names)
+    q = robot.get_joint_positions()
+    if q is None:
+        q = np.zeros(robot.num_dof)
+    q = np.array(q, dtype=float)
+
+    missing = []
+    for name, deg in zip(ARM_JOINTS, READY_JOINTS_DEG):
+        if name in names:
+            q[names.index(name)] = np.deg2rad(deg)
+        else:
+            missing.append(name)
+    if missing:
+        print(f"   !! dof       팔 관절을 아티큘레이션에서 못 찾았다: {missing}")
+        print(f"      dof_names = {names}")
     robot.set_joint_positions(q)
 
 
@@ -1084,13 +1148,25 @@ def main():
 
     robot = task.robot
     robot.initialize()
+
+    names = list(robot.dof_names)
+    found = [n for n in ARM_JOINTS if n in names]
+    print(f"   dof          {robot.num_dof}개  팔 관절 {len(found)}/6 확인")
+    if len(found) < 6:
+        print(f"   !! dof_names {names}")
+        print(f"      팔 관절이 이 아티큘레이션에 없다. ARTICULATION_PATH 를 "
+              f"직접 지정해야 한다")
+
     set_ready_pose(robot)
 
     section("MOVABLES")
-    # 순간이동 때 같이 옮길 것들. 카터가 첫 번째여야 한다 (검증에 쓴다)
+    # 순간이동 때 같이 옮길 것. 카터가 첫 번째여야 한다 (검증에 쓴다).
+    #
+    # 팔은 따로 넣지 않는다. 카터와 한 아티큘레이션으로 합쳐져 있어서
+    # 카터를 옮기면 팔이 관절 각도를 유지한 채 그대로 따라온다.
+    # 따로 옮기려 들면 같은 몸을 두 번 건드려 오히려 터진다.
     movables = [
-        Movable(CARTER_PRIM_PATH, "articulation"),
-        Movable(ROBOT_PRIM_PATH, "articulation", obj=robot),
+        Movable(ARTICULATION_PATH, "articulation", obj=robot),
         Movable(TARGET_PATH, "rigid"),
     ]
     for mv in movables:
@@ -1134,23 +1210,20 @@ def main():
             robot.initialize()
             # 카터를 선반 앞으로 되돌린다. 앞 시행에서 옮겨 뒀을 수 있다
             pick_quat = yaw_quat(PICK_CARTER_YAW)
-            # 카터와 팔을 함께 선반 앞으로 되돌린다.
-            # 카터만 되돌리면 arm_mount_joint 가 팔을 끌어당기며 터진다
-            arm_home = arm_base_of(PICK_CARTER_POS, PICK_CARTER_YAW)
-            for mv, home in ((movables[0], PICK_CARTER_POS),
-                             (movables[1], arm_home)):
-                mv.initialize()
-                try:
-                    mv.set_world_pose(home, pick_quat)
-                    mv.zero_velocity()
-                except Exception:
-                    pass
+            # 카터를 선반 앞으로 되돌린다. 팔은 같은 아티큘레이션이라
+            # 따라온다. world.reset() 이 이미 되돌렸어도 한 번 더 눌러 둔다
+            movables[0].initialize()
+            try:
+                movables[0].set_world_pose(PICK_CARTER_POS, pick_quat)
+                movables[0].zero_velocity()
+            except Exception:
+                pass
             lula.set_robot_base_pose(
                 robot_position=arm_base_of(PICK_CARTER_POS, PICK_CARTER_YAW),
                 robot_orientation=pick_quat,
             )
             set_ready_pose(robot)
-            movables[2].initialize()
+            movables[1].initialize()
             gripper.reinit()
             gripper.open()
             for _ in range(SETTLE_STEPS):
