@@ -452,20 +452,6 @@ def Xform "World"
                 uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:scale"]
             }
 
-            def Cube "TestItem" (
-                prepend apiSchemas = ["PhysicsCollisionAPI", "PhysicsRigidBodyAPI"]
-            )
-            {
-                float3[] primvars:displayColor = [(0.18, 0.62, 0.82)]
-                uniform token primvars:displayColor:interpolation = "constant"
-                double size = 1
-                token visibility = "inherited"
-                quatf xformOp:orient = (1, 0, 0, 0)
-                double3 xformOp:scale = (0.65, 0.65, 0.55)
-                double3 xformOp:translate = (4.5, 0, 1.05)
-                uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
-            }
-
             def Xform "PackagingTunnel"
             {
                 quatf xformOp:orient = (1, 0, 0, 0)

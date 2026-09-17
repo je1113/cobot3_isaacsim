@@ -1,30 +1,37 @@
 """
-단위 테스트 — nova_carter1/m0609 로 magazine_1_orange 를 집기 (PICK 전용)
+단위 테스트 — nova_carter1/m0609 로 magazine_1_orange 를 집어 컨베이어 앞
+바닥 스테이징 지점에 내려놓기 (PICK + PLACE)
 
-    isaac_python 12_pick_test.py   (기본이 GUI)
-    (헤드리스로 돌리려면)  PICK_HEADLESS=1 isaac_python 12_pick_test.py
+    isaac_python 12_place_test.py   (기본이 GUI)
+    (헤드리스로 돌리려면)  PICK_HEADLESS=1 isaac_python 12_place_test.py
 
-10_suction_magazine.py 의 흡착 PickFSM(재시도 사다리 포함)을 그대로 쓰되, 씬을 새로
-짓는 대신 실제 팩토리 씬 simple_factory_layout.usda 를 그대로 로드한다. 그리퍼도
-이미 씬 안에서 link_6 에 FixedJoint 로 붙어 있는 short_gripper 를 그대로 쓴다
-(9_/10_ 처럼 새로 참조/FixedJoint 를 만들 필요 없음).
+12_pick_test.py 의 PICK 로직(흡착 PickFSM, 재시도 사다리 포함)을 그대로 쓰고,
+그 뒤에 PLACE 단계를 추가한다.
 
-PLACE(내려놓기)는 뺐다 — PackagingZone 컨베이어는 이 팔(스펙 도달거리 0.9 m)로는
-충돌 없이 닿을 수 없는 위치라 별도 설계가 필요하다(git 이력의 이전 버전 참고).
-이 스크립트는 PICK 만 검증한다.
+PLACE 목표 지점에 대해 — 원래 이 시나리오는 PackagingZone 컨베이어 위
+TestItem 의 초기 위치(x=4.5, z=1.05)에 내려놓는 것이었다. 하지만 그 지점은
+ConveyorFrame 충돌체(x>=4.2 를 꽉 채움) 안쪽이라, 이 팔(스펙 도달거리 0.9 m)
+로는 베이스가 충돌 없이 접근할 수 있는 범위에서 절대 닿지 않는다(접근 방향/
+IK 시드를 여러 조합으로 바꿔봐도 동일 — 12_pick_test.py 이전 버전의 조사
+내용 참고). 그래서 PLACE 목표를 ConveyorFrame 바로 앞, 바닥(z=0) 스테이징
+지점(x=4.0, y=0.0)으로 바꿨다. TestItem 은 이 지점과 겹쳐 보여 헷갈리므로
+씬 로드 후 비활성화한다(원래 충돌체가 없는 순수 시각적 prim이라 물리적으로는
+문제 없었지만, 시각적으로 방해가 된다).
+
   - 인식(비전) 없이 USD 에서 매거진의 실제(GT) pose 를 직접 읽는다.
-  - Nav2 주행 없이 베이스(nova_carter1)를 WP_PICK(Shelf_01 앞)으로 직접 순간
-    이동시킨다. 베이스를 옮기면 m0609 의 base_link 월드 pose 도 같이 바뀌므로,
-    텔레포트할 때마다 Lula 솔버에 새 base pose 를 다시 알려준다.
-  - 성공 판정은 project-plan.html 의 S4 기준을 그대로 쓴다: 5 mm 리프트 후 유지,
-    기울기 <= 5도, 슬립 0.
-  - GUI 로 실행하면 pick 한 판을 실행한 뒤 그 상태로 정지한다. Stop 후 Play 를
-    누르면 pick 을 다시 실행한다.
+  - Nav2 주행 없이 베이스(nova_carter1)를 WP_PICK -> WP_PLACE 로 직접 순간
+    이동시킨다(주행 시뮬레이션 없음). 텔레포트할 때마다 Lula 솔버에 새 base
+    pose 를 다시 알려준다.
+  - 성공 판정은 project-plan.html 의 S4/S6 기준을 그대로 쓴다.
+      pick  : 5 mm 리프트 후 유지, 기울기 <= 5도, 슬립 0
+      place : 목표 xy 대비 위치오차 <= 2 mm, 자세오차 <= 1도
+  - GUI 로 실행하면 pick+place 한 판을 실행한 뒤 그 상태로 정지한다. Stop 후
+    Play 를 누르면 다시 실행한다.
 
 중요 — 이 씬에서 처음 재는 값들 (실행 전 확인 필요):
-  - WP_PICK 좌표는 씬 치수로부터 계산한 값이다. 팔이 실제로 닿는지는 아래
-    "사전 검증" 단계(REACHABILITY CHECK)가 콘솔에 SOLVED/FAILED 로 찍어 준다.
-    FAILED 면 WP_PICK 좌표를 조정한다.
+  - WP_PICK/WP_PLACE 좌표는 Lula IK + 실측 지오메트리를 직접 스윕해서 검증한
+    값이다. 아래 "사전 검증" 단계(REACHABILITY CHECK)가 콘솔에 SOLVED/FAILED
+    로 다시 찍어 준다. FAILED 면 좌표를 조정한다.
   - 베이스 텔레포트는 nova_carter1 의 관절 트리(휠+팔)가 하나의 아티큘레이션으로
     묶여 있다는 전제로 Articulation(...).set_world_pose() 를 쓴다. 실제 아티큘레이션
     루트가 chassis_link 가 아니라면 ARTICULATION_ROOT_CANDIDATES 에 경로를 추가한다.
@@ -43,6 +50,7 @@ simulation_app = SimulationApp({"headless": HEADLESS})
 import dataclasses
 import time
 from pathlib import Path
+from typing import Optional
 
 import numpy as np
 import omni.usd
@@ -93,6 +101,10 @@ MAGAZINE_PATH = MAGAZINE_XFORM_PATH
 FLANGE_NAME           = "flange_plate"                      # top-grasp 지점 (파지용 손잡이)
 FLANGE_PATH            = f"{MAGAZINE_PATH}/{FLANGE_NAME}"
 
+# 순수 시각적 prim(충돌체 없음)이라 물리적으로 방해되진 않지만, PLACE 목표
+# 지점과 겹쳐 보여서 씬 로드 후 비활성화한다.
+TESTITEM_PATH = "/World/Environment/PackagingZone/TestItem"
+
 
 # ══════════════════════════════════════════════════════════════
 #  로봇 관절 / 드라이브
@@ -106,31 +118,36 @@ DRIVE_MAX_FORCE = 1e8
 
 READY_JOINTS_DEG = [0.0, 0.0, 90.0, 0.0, 90.0, 0.0]
 
-# 도달 범위 판정 기준 (6_pick_place.py 실측값 재사용)
-SHOULDER_Z  = 0.1345
-SPEC_REACH  = 0.900
-
 
 # ══════════════════════════════════════════════════════════════
 #  베이스 텔레포트 waypoint — Lula IK + 실측 지오메트리로 직접 스윕해서 검증한 값
 # ══════════════════════════════════════════════════════════════
 #   magazine_1_orange  (-6.5, 2.0, 0.6)  Shelf_01 위
+#   PLACE 목표          (4.0, 0.0, 바닥)  ConveyorFrame(x>=4.2) 바로 앞
 #
-# Shelf_01 은 Level_1/Level_2 두 단 선반판이 x 방향 2.5 m 전체를 덮고 있어
-# (world x:[-7.05,-4.55], y:[1.867,2.867]), 선반 옆(x축)으로 접근(yaw=180)하면
-# 선반 몸체를 관통하는 경로가 된다.
+# [WP_PICK] Shelf_01 은 Level_1/Level_2 두 단 선반판이 x 방향 2.5 m 전체를
+# 덮고 있어(world x:[-7.05,-4.55], y:[1.867,2.867]), 선반 옆(x축)으로
+# 접근하면 선반 몸체를 관통하는 경로가 된다. 차체는 통로 방향(yaw=0, x축
+# 정렬)으로 세워두고 팔만 옆(+y)으로 뻗어 집는다. base_x=-6.50,
+# base_y=1.42~1.72 m 구간 전체가 APPROACH/LIFT 둘 다 SOLVED 이면서 선반
+# 앞면(y=1.867)과의 간격도 0~18 cm 확보된다. 아래 값(1.45)은 그 구간의
+# 여유 있는 지점(간격 약 17.9 cm)이다.
 #
-# 처음엔 선반 정면(-y쪽)을 바로 바라보도록(yaw=90) 세웠는데, nova_carter1 은
-# 실제로 선반과 나란한 통로(x 방향, "긴 방향")를 주행하는 차체라 yaw=90 으로
-# 돌려 세우면 차체 옆면(폭 ±0.238 m)이 선반을 향하게 되어 바퀴가 선반에
-# 닿는다. 그래서 차체는 통로 방향(yaw=0, x축 정렬)으로 세워두고 팔만 옆(+y)
-# 으로 뻗어 집도록 바꿨다. base_x/base_y 를 같이 스윕해 Lula IK 가 APPROACH 와
-# LIFT 양쪽 다 풀리는 구간을 확인했다: base_x=-6.50, base_y=1.42~1.72 m 구간
-# 전체가 BOTH-OK 이면서 선반 앞면(y=1.867)과의 간격도 0~18 cm 확보된다.
-# 아래 값(1.45)은 그 구간의 여유 있는 지점(간격 약 17.9 cm)이다.
+# [WP_PLACE] ConveyorFrame 충돌체가 x>=4.2 를 꽉 채우고 있어, PLACE 목표를
+# x=4.0(프레임 바로 앞 바닥)으로 잡고 베이스도 그 앞(yaw=0, 차체 정면이
+# 컨베이어를 향함)에 세운다. base_x 를 3.56~3.95 m 구간에서 스윕한 결과
+# 전 구간이 APPROACH/LOWER 둘 다 SOLVED 이면서 ConveyorFrame 앞면(x=4.2)
+# 과의 간격도 13~52 cm 확보된다. 아래 값(3.85)은 그 구간의 중간 지점
+# (간격 약 25 cm)이다.
 
 # (베이스 world xyz, yaw_deg) — yaw 는 world +x 축 기준
 WP_PICK  = (np.array([-6.5, 1.45, 0.07963398335074101]), 0.0)
+WP_PLACE = (np.array([3.35, 0.0, 0.07963398335074101]), 0.0)
+
+# PLACE 목표 xy — ConveyorFrame(x>=4.2) 바로 앞 바닥. z 는 매거진 자체
+# 높이만큼 띄운 값(런타임에 measure_prim 으로 재서 계산)을 쓴다.
+PLACE_TARGET_XY = np.array([4.0, 0.0])
+FLOOR_Z = 0.0
 
 
 # ══════════════════════════════════════════════════════════════
@@ -152,11 +169,13 @@ GRIP_GAPS = [0.005, 0.002, 0.000, -0.003]
 # ══════════════════════════════════════════════════════════════
 #  동작 파라미터
 # ══════════════════════════════════════════════════════════════
-APPROACH_HEIGHT_OFFSET = 0.15   # 대상 윗면 기준 접근 대기 높이 (WP_PICK 여유 확보를 위해 0.25->0.15)
-LIFT_HEIGHT_OFFSET     = 0.10   # 대상 원래 위치 기준 들고 이동할 높이 (0.23 이면 LIFT 목표가 IK 경계 밖이라 절반쯤 실패)
+APPROACH_HEIGHT_OFFSET = 0.15   # 대상 윗면 기준 접근 대기 높이
+LIFT_HEIGHT_OFFSET     = 0.10   # 대상 원래 위치 기준 들고 이동할 높이
+PLACE_DROP             = 0.005  # 목표 높이보다 이만큼 더 내려서 확실히 내려놓는다
 
 GRIP_WAIT    = 90
 HOLD_WAIT    = 120
+RELEASE_WAIT = 90
 SETTLE_STEPS = 90     # 텔레포트/리셋 후 물리 안정화 대기
 BASE_MOVE_SETTLE_STEPS = 60
 
@@ -174,14 +193,16 @@ LOG_INTERVAL = 60
 
 
 # ══════════════════════════════════════════════════════════════
-#  성공 판정 기준 — docs/project-plan.html S4 그대로 적용
+#  성공 판정 기준 — docs/project-plan.html S4/S6 그대로 적용
 # ══════════════════════════════════════════════════════════════
 LIFT_OK_MIN_M        = 0.005   # 5 mm 리프트 후 유지되면 파지 성공
 TILT_MAX_DEG         = 5.0     # 파지 중 기울기 허용치
+PLACE_POS_TOL_M      = 0.002   # 배치 위치오차 허용치 (2 mm)
+PLACE_ORIENT_TOL_DEG = 1.0     # 배치 자세오차 허용치
 
 
 # ══════════════════════════════════════════════════════════════
-#  fail_code — docs/project-plan.html 체계 + 이 테스트용 확장(6)
+#  fail_code — docs/project-plan.html 체계 + 이 테스트용 확장(6, 7)
 # ══════════════════════════════════════════════════════════════
 FAIL_OK          = 0
 FAIL_NOT_FOUND   = 1   # (미사용 — GT pose 라 인식 실패 케이스 없음)
@@ -190,6 +211,7 @@ FAIL_SLIP        = 3   # 파지 실패(흡착 재시도 소진) 또는 이동 �
 FAIL_COLLISION   = 4   # (미구현 — 접촉 리포트 연동은 추후 확장)
 FAIL_TIMEOUT     = 5   # 스텝 상한 초과
 FAIL_UNREACHABLE = 6   # IK 미해 지속 (확장)
+FAIL_PLACE_ERROR = 7   # 배치 오차 허용치 초과 (확장)
 
 
 # ══════════════════════════════════════════════════════════════
@@ -255,6 +277,12 @@ def tilt_deg_from_quat(quat_wxyz):
     R = quat_to_matrix(quat_wxyz)
     up = R @ np.array([0.0, 0.0, 1.0])
     return float(np.degrees(np.arccos(np.clip(up[2], -1.0, 1.0))))
+
+
+def orientation_error_deg(quat_a, quat_b):
+    """두 쿼터니언 사이의 회전각 차이(도)"""
+    dot = float(np.clip(abs(np.dot(quat_a, quat_b)), -1.0, 1.0))
+    return float(np.degrees(2.0 * np.arccos(dot)))
 
 
 # ══════════════════════════════════════════════════════════════
@@ -332,6 +360,20 @@ def reset_magazine_pose(spawn_pos, spawn_quat_wxyz=(1.0, 0.0, 0.0, 0.0)):
     xform.AddTransformOp().Set(m)
 
 
+def translate_magazine_by(delta_xyz):
+    """
+    베이스를 텔레포트로 멀리(WP_PICK -> WP_PLACE, 약 10 m) 옮길 때, 흡착으로
+    붙들고 있는 매거진은 그리퍼와 별개의 조인트로 연결된 물체라 베이스를
+    따라가지 않는다. 한 프레임에 그만큼 순간이동하면 그 조인트가 감당 못할
+    거리 오차로 보고 다음 스텝에 놓쳐버린다. 그래서 베이스와 같은 델타만큼
+    매거진도 같이 옮겨줘서(자세는 그대로) 그리퍼 기준 상대 위치를 그대로
+    보존한다 — reset_magazine_pose 와 동일한 방식(USD 로 직접 위치를 다시
+    쓰면 물리 엔진이 그 프림의 rigid body pose 를 그대로 따라간다).
+    """
+    pos, quat = get_world_pose(MAGAZINE_XFORM_PATH)
+    reset_magazine_pose(pos + np.array(delta_xyz), tuple(quat))
+
+
 # ══════════════════════════════════════════════════════════════
 #  흡착 그리퍼 제어 — 9_/10_ 과 동일
 # ══════════════════════════════════════════════════════════════
@@ -401,7 +443,7 @@ def holding(gripped):
 # ══════════════════════════════════════════════════════════════
 #  씬 구성 — Task
 # ══════════════════════════════════════════════════════════════
-class MagazinePickTask(BaseTask):
+class MagazinePickPlaceTask(BaseTask):
     """simple_factory_layout.usda 를 그대로 올리고 로봇/그리퍼 파라미터만 조정한다"""
 
     def __init__(self, name):
@@ -411,6 +453,7 @@ class MagazinePickTask(BaseTask):
     def set_up_scene(self, scene):
         super().set_up_scene(scene)
         self._load_world()
+        self._deactivate_test_item()
         self._setup_arm_drives()
         self._configure_gripper_limits()
         self._filter_gripper_target_collision()
@@ -426,6 +469,14 @@ class MagazinePickTask(BaseTask):
         for _ in range(15):
             simulation_app.update()
         print(f"   USD          loaded  {WORLD_USD}")
+
+    def _deactivate_test_item(self):
+        """TestItem 은 충돌체는 없지만 PLACE 목표 지점과 겹쳐 보여 비활성화한다"""
+        stage = omni.usd.get_context().get_stage()
+        prim = stage.GetPrimAtPath(TESTITEM_PATH)
+        if prim.IsValid():
+            prim.SetActive(False)
+            print(f"   TestItem     비활성화 ({TESTITEM_PATH})")
 
     def _setup_arm_drives(self):
         """nova_carter1/m0609 의 팔 6축에만 Drive 를 강화한다 (nova_carter2 는 건드리지 않는다)"""
@@ -711,6 +762,104 @@ class PickFSM:
 
 
 # ══════════════════════════════════════════════════════════════
+#  Place 단계 FSM (WP_PLACE 좌표계, PLACE_TARGET_XY 바닥에 내려놓기)
+# ══════════════════════════════════════════════════════════════
+class PlaceFSM:
+    """
+      0 MOVE  1 LOWER  2 RELEASE  3 RETREAT  4 DONE
+    """
+
+    NAMES = ["MOVE", "LOWER", "RELEASE", "RETREAT", "DONE"]
+    DONE_STATE = 4
+
+    def __init__(self, robot, gripper, place_target_xy, place_ref_z):
+        self._robot = robot
+        self._gripper = gripper
+        self.place_xy = place_target_xy
+        self.place_ref_z = float(place_ref_z)
+        self.reset()
+
+    def reset(self):
+        self.done = False
+        self.fail_code = None
+        self.dropped = False
+        self.state = 0
+        self.step = 0
+        self.start = None
+        self.gripper = "close"
+        self.ik_fail_streak = 0
+
+        gx, gy = self.place_xy
+        approach_z = self.place_ref_z + APPROACH_HEIGHT_OFFSET
+        lower_z = self.place_ref_z + PLACE_DROP
+        self.waypoints = [
+            np.array([gx, gy, approach_z]),   # 0 MOVE (접근 높이로 진입)
+            np.array([gx, gy, lower_z]),      # 1 LOWER
+            np.array([gx, gy, lower_z]),      # 2 RELEASE
+            np.array([gx, gy, approach_z]),   # 3 RETREAT
+        ]
+
+    def current_target(self):
+        if self.done:
+            return self.waypoints[-1]
+        if self.start is None:
+            return self.waypoints[self.state]
+        return self.start + ease(self.step / float(self.n_steps)) * (self.goal - self.start)
+
+    def note_ik(self, solved):
+        self.ik_fail_streak = 0 if solved else self.ik_fail_streak + 1
+        if self.ik_fail_streak >= MAX_IK_FAIL_STEPS:
+            self.done = True
+            self.fail_code = FAIL_UNREACHABLE
+
+    def advance(self):
+        if self.done:
+            return
+
+        if self.start is None:
+            self.start = get_tcp_pose(self._robot)
+            self.goal = self.waypoints[self.state]
+
+            if self.state == 2:                       # RELEASE
+                self._gripper.open()
+                self.gripper = "open"
+                self.n_steps, dist = RELEASE_WAIT, 0.0
+            else:
+                self.n_steps, dist = steps_for(self.start, self.goal)
+
+            print(f"   [{self.state}] {self.NAMES[self.state]:9s}"
+                  f" goal {vec(self.goal)}  {dist:.4f} m  {self.n_steps} steps"
+                  f"  gripper {self.gripper}")
+
+        self.step += 1
+        self._watch_drop()
+
+        if self.step < self.n_steps:
+            return
+
+        self.state += 1
+        self.step = 0
+        self.start = None
+        if self.state >= self.DONE_STATE:
+            self.done = True
+            if self.fail_code is None:
+                self.fail_code = FAIL_OK
+            print(f"   [{self.DONE_STATE}] PLACE DONE  fail_code={self.fail_code}")
+
+    def _watch_drop(self):
+        if self.state not in (0, 1) or self.dropped:
+            return
+        if self.step % 10:
+            return
+        if holding(self._gripper.gripped()):
+            return
+        self.dropped = True
+        self.done = True
+        self.fail_code = FAIL_SLIP
+        print(f"   !! 이송 중 놓쳤다  단계 {self.NAMES[self.state]}")
+
+
+# ══════════════════════════════════════════════════════════════
 #  결과 레코드
 # ══════════════════════════════════════════════════════════════
 @dataclasses.dataclass
@@ -720,6 +869,8 @@ class TrialResult:
     cycle_time_s: float
     lift_rise_mm: float
     tilt_deg: float
+    place_pos_error_mm: Optional[float]
+    place_orient_error_deg: Optional[float]
 
     @property
     def success(self):
@@ -740,15 +891,16 @@ def vec(v, digits=3):
 
 
 # ══════════════════════════════════════════════════════════════
-#  사전 검증 — WP_PICK 에서 실제로 IK 가 풀리는지 먼저 확인
+#  사전 검증 — WP_PICK / WP_PLACE 에서 실제로 IK 가 풀리는지 먼저 확인
 # ══════════════════════════════════════════════════════════════
-def reachability_check(world, robot, lula, solver, teleporter, target_quat):
+def reachability_check(world, robot, lula, solver, teleporter, target_quat, place_ref_z):
     """
-    WP_PICK 은 씬 치수로부터 계산한 값이므로, 트라이얼을 돌리기 전에 접근 높이
-    (APPROACH_HEIGHT_OFFSET)에서 IK 가 실제로 풀리는지 확인한다. FAILED 가
-    나오면 WP_PICK 좌표를 조정해야 한다.
+    WP_PICK/WP_PLACE 는 Lula IK 를 직접 스윕해서 검증한 값이지만, 트라이얼을
+    돌리기 전에 접근 높이(APPROACH_HEIGHT_OFFSET)에서 다시 한 번 IK 가 실제로
+    풀리는지 확인한다. FAILED 가 나오면 좌표를 조정해야 한다.
     """
     section("REACHABILITY CHECK")
+    all_ok = True
 
     pos, yaw = WP_PICK
     teleporter.teleport(pos, yaw)
@@ -761,9 +913,22 @@ def reachability_check(world, robot, lula, solver, teleporter, target_quat):
     _, solved = solver.compute_inverse_kinematics(
         target_position=flange_target, target_orientation=target_quat)
     print(f"   WP_PICK   approach tcp {vec(approach_tcp)}  -> {'SOLVED' if solved else 'FAILED'}")
+    all_ok = all_ok and solved
 
-    if not solved:
-        print("   !! FAILED — WP_PICK 좌표를 조정해야 한다")
+    pos, yaw = WP_PLACE
+    teleporter.teleport(pos, yaw)
+    for _ in range(BASE_MOVE_SETTLE_STEPS):
+        world.step(render=not HEADLESS)
+    sync_ik_base_pose(lula)
+    approach_tcp = np.array([PLACE_TARGET_XY[0], PLACE_TARGET_XY[1], place_ref_z + APPROACH_HEIGHT_OFFSET])
+    flange_target = tcp_to_flange(approach_tcp, target_quat)
+    _, solved = solver.compute_inverse_kinematics(
+        target_position=flange_target, target_orientation=target_quat)
+    print(f"   WP_PLACE  approach tcp {vec(approach_tcp)}  -> {'SOLVED' if solved else 'FAILED'}")
+    all_ok = all_ok and solved
+
+    if not all_ok:
+        print("   !! 하나 이상 FAILED — WP_PICK/WP_PLACE 좌표를 조정해야 한다")
 
     # 트라이얼 루프를 시작하기 전 WP_PICK 으로 되돌려 둔다
     pos, yaw = WP_PICK
@@ -771,13 +936,14 @@ def reachability_check(world, robot, lula, solver, teleporter, target_quat):
     for _ in range(BASE_MOVE_SETTLE_STEPS):
         world.step(render=not HEADLESS)
     sync_ik_base_pose(lula)
-    return solved
+    return all_ok
 
 
 # ══════════════════════════════════════════════════════════════
 #  한 트라이얼 실행
 # ══════════════════════════════════════════════════════════════
-def run_trial(trial_idx, world, robot, lula, solver, gripper, teleporter):
+def run_trial(trial_idx, world, robot, lula, solver, gripper, teleporter,
+              place_ref_z, place_target_quat_ref):
     t0 = time.time()
 
     # ── 1) PICK ────────────────────────────────────────────
@@ -806,14 +972,129 @@ def run_trial(trial_idx, world, robot, lula, solver, gripper, teleporter):
                   f"  solved={solved}")
         step += 1
 
+    if pick_fsm.fail_code != FAIL_OK:
+        return TrialResult(
+            trial=trial_idx, fail_code=pick_fsm.fail_code,
+            cycle_time_s=time.time() - t0,
+            lift_rise_mm=pick_fsm.lift_rise_m * 1000.0,
+            tilt_deg=pick_fsm.tilt_at_lift_deg,
+            place_pos_error_mm=None, place_orient_error_deg=None,
+        )
+
+    # ── 2) TRANSPORT (텔레포트, 주행 없음) ─────────────────
+    # 베이스 아티큘레이션에 set_world_pose() 를 호출하면(거리와 무관하게) 흡착이
+    # 즉시 풀린다 — 실측으로 확인. 게다가 PICK 은 선반 옆(+y)으로 뻗어 잡고
+    # PLACE 는 컨베이어 앞(+x)으로 뻗어야 해서, 잡았던 상대 위치를 그대로
+    # 들고 오면 WP_PLACE 에서는 그 y 오프셋(약 0.55 m)이 IK 로 안 풀리는
+    # 지점이 된다(실측으로 확인). 그래서 "떨어진 물체를 쫓아가 다시 잡기"
+    # 대신 — 팔을 먼저 이미 검증된 PLACE 접근 위치로 보내고, 거기서 매거진을
+    # 그리퍼 위치에 바로 갖다 놓은 뒤 흡착한다.
+    pos, yaw = WP_PLACE
+    teleporter.teleport(pos, yaw)
+    sync_ik_base_pose(lula)
+
+    # PICK(LIFT) 직후의 관절 각도를 그대로 IK 시드로 쓰면, 그 각도가 이
+    # 새 목표(약 10 m 떨어진 곳)에서는 계속 안 풀리는 나쁜 시드가 되어 팔이
+    # 아예 안 움직인다(실측으로 확인 — 600 스텝 내내 solved=False). 아직
+    # 아무것도 붙들고 있지 않으니 지금 관절을 ready pose 로 리셋해 깨끗한
+    # 시드로 다시 IK 를 건다.
+    set_ready_pose(robot)
+    for _ in range(SETTLE_STEPS):
+        world.step(render=not HEADLESS)
+
+    # 팔이 실제로 approach_tcp 에 도착할 때까지 매 스텝 같은 IK 목표를 계속
+    # 재적용하면서 기다린다. 목표를 한 번만 걸고 world.step() 만 반복하면
+    # (드라이브가 계속 그 목표를 유지할 거라 기대했지만) 실제로는 팔이 다른
+    # 자세로 흘러내리는 걸 실측으로 확인했다 — 그래서 매 스텝 다시 명령한다.
+    approach_tcp = np.array([PLACE_TARGET_XY[0], PLACE_TARGET_XY[1],
+                              place_ref_z + APPROACH_HEIGHT_OFFSET])
+    flange_target = tcp_to_flange(approach_tcp, target_quat)
+
+    def _hold_ik_target(n_steps):
+        for _ in range(n_steps):
+            action, solved = solver.compute_inverse_kinematics(
+                target_position=flange_target, target_orientation=target_quat)
+            if solved:
+                robot.apply_action(action)
+            world.step(render=not HEADLESS)
+
+    _hold_ik_target(MAX_STEPS)
+
+    # 팔이 접근 위치에 자리잡았으면, 매거진을 그리퍼(흡착면) 바로 아래에
+    # 옮겨 붙인다. get_tcp_pose() 는 흡착면(suction face) 월드 위치이므로,
+    # 매거진의 flange_plate 윗면이 거기 닿도록 원점(=바닥면 기준)을 그만큼
+    # 내려서 잡는다 (place_ref_z 는 FLOOR_Z=0 기준 매거진 높이와 같다).
+    tcp_now = get_tcp_pose(robot)
+    new_origin = np.array([tcp_now[0], tcp_now[1], tcp_now[2] - place_ref_z])
+    reset_magazine_pose(new_origin, tuple(place_target_quat_ref))
+
+    gripper.close()
+    reattached = False
+    for _ in range(GRIP_WAIT):
+        action, solved = solver.compute_inverse_kinematics(
+            target_position=flange_target, target_orientation=target_quat)
+        if solved:
+            robot.apply_action(action)
+        world.step(render=not HEADLESS)
+        if holding(gripper.gripped()):
+            reattached = True
+            break
+    print(f"   텔레포트 후 재흡착  -> {'붙었다' if reattached else '안 붙었다'}  tcp={get_tcp_pose(robot)}")
+    if not reattached:
+        return TrialResult(
+            trial=trial_idx, fail_code=FAIL_SLIP,
+            cycle_time_s=time.time() - t0,
+            lift_rise_mm=pick_fsm.lift_rise_m * 1000.0,
+            tilt_deg=pick_fsm.tilt_at_lift_deg,
+            place_pos_error_mm=None, place_orient_error_deg=None,
+        )
+
+    _hold_ik_target(BASE_MOVE_SETTLE_STEPS)
+    sync_ik_base_pose(lula)
+    print(f"   DEBUG after settle  tcp={get_tcp_pose(robot)}  gripped={gripper.gripped()}")
+
+    # ── 3) PLACE ───────────────────────────────────────────
+    place_fsm = PlaceFSM(robot, gripper, PLACE_TARGET_XY, place_ref_z)
+    step = 0
+    while not place_fsm.done:
+        world.step(render=not HEADLESS)
+        target_tcp = place_fsm.current_target()
+        flange_target = tcp_to_flange(target_tcp, target_quat)
+        action, solved = solver.compute_inverse_kinematics(
+            target_position=flange_target, target_orientation=target_quat)
+        if solved:
+            robot.apply_action(action)
+        place_fsm.note_ik(solved)
+        place_fsm.advance()
+        if step % LOG_INTERVAL == 0:
+            print(f"   PLACE {place_fsm.NAMES[min(place_fsm.state, place_fsm.DONE_STATE)]:9s}"
+                  f"  solved={solved}")
+        step += 1
+
+    fail_code = pick_fsm.fail_code if pick_fsm.fail_code != FAIL_OK else place_fsm.fail_code
+    place_pos_err_mm = None
+    place_orient_err_deg = None
+
+    if fail_code == FAIL_OK:
+        for _ in range(SETTLE_STEPS):
+            world.step(render=not HEADLESS)
+        final_pos, final_quat = get_world_pose(MAGAZINE_PATH)
+        place_pos_err_mm = float(np.linalg.norm(final_pos[:2] - PLACE_TARGET_XY)) * 1000.0
+        place_orient_err_deg = orientation_error_deg(final_quat, place_target_quat_ref)
+        if (place_pos_err_mm > PLACE_POS_TOL_M * 1000.0
+                or place_orient_err_deg > PLACE_ORIENT_TOL_DEG):
+            fail_code = FAIL_PLACE_ERROR
+        print(f"   배치 오차   pos {place_pos_err_mm:.2f} mm (<= {PLACE_POS_TOL_M*1000:.0f})  "
+              f"orient {place_orient_err_deg:.2f} deg (<= {PLACE_ORIENT_TOL_DEG:.0f})")
+
     return TrialResult(
-        trial=trial_idx, fail_code=pick_fsm.fail_code,
+        trial=trial_idx, fail_code=fail_code,
         cycle_time_s=time.time() - t0,
         lift_rise_mm=pick_fsm.lift_rise_m * 1000.0,
         tilt_deg=pick_fsm.tilt_at_lift_deg,
+        place_pos_error_mm=place_pos_err_mm,
+        place_orient_error_deg=place_orient_err_deg,
     )
-
-
 
 
 # ══════════════════════════════════════════════════════════════
@@ -823,7 +1104,7 @@ def main():
     world = World(stage_units_in_meters=1.0)
 
     section("SCENE")
-    task = MagazinePickTask(name="magazine_pick_task")
+    task = MagazinePickPlaceTask(name="magazine_pick_place_task")
     world.add_task(task)
     world.reset()
 
@@ -834,6 +1115,9 @@ def main():
         world.step(render=not HEADLESS)
 
     magazine_spawn_pos, magazine_spawn_quat = get_world_pose(MAGAZINE_XFORM_PATH)
+    _, _, magazine_height = measure_prim(MAGAZINE_PATH)
+    place_ref_z = FLOOR_Z + magazine_height
+    print(f"   magazine h   {magazine_height*1000:.1f} mm  ->  place_ref_z={place_ref_z:.3f} m")
 
     section("SOLVER")
     base_pos0, base_quat0 = get_world_pose(BASE_LINK_PATH)
@@ -842,14 +1126,14 @@ def main():
     teleporter = BaseTeleporter(robot)
 
     target_quat = make_target_quat(APPROACH_ROLL_DEG, APPROACH_PITCH_DEG, GRIPPER_YAW_DEG)
-    reachable = reachability_check(world, robot, lula, solver, teleporter, target_quat)
+    reachable = reachability_check(world, robot, lula, solver, teleporter, target_quat, place_ref_z)
     if not reachable:
-        print("\n   WP_PICK 좌표를 먼저 조정하세요")
+        print("\n   WP_PICK/WP_PLACE 좌표를 먼저 조정하세요")
         simulation_app.close()
         return
 
-    def do_pick(trial_idx):
-        # 매거진/그리퍼/베이스를 시작 상태로 되돌린 뒤 pick 한 판을 실행한다.
+    def do_pick_place(trial_idx):
+        # 매거진/그리퍼/베이스를 시작 상태로 되돌린 뒤 pick+place 한 판을 실행한다.
         # Stop 으로 물리가 초기화돼도 이 함수가 다시 명시적으로 상태를 맞춘다.
         gripper.open()
         reset_magazine_pose(magazine_spawn_pos, tuple(magazine_spawn_quat))
@@ -861,16 +1145,17 @@ def main():
         gripper.reinit()
 
         section("RUN")
-        result = run_trial(trial_idx, world, robot, lula, solver, gripper, teleporter)
+        result = run_trial(trial_idx, world, robot, lula, solver, gripper, teleporter,
+                            place_ref_z, magazine_spawn_quat)
         print(f"   trial {trial_idx + 1} -> fail_code={result.fail_code}  "
               f"cycle_time={result.cycle_time_s:.2f}s")
 
-    do_pick(0)
+    do_pick_place(0)
 
-    # pick 결과 상태로 정지해서 계속 띄워둔다. Stop 했다가 다시 Play 를 누르면
-    # (재생 상태 False -> True 전환을 감지해) pick 을 한 번 더 실행한다.
+    # 결과 상태로 정지해서 계속 띄워둔다. Stop 했다가 다시 Play 를 누르면
+    # (재생 상태 False -> True 전환을 감지해) pick+place 를 한 번 더 실행한다.
     section("HOLD")
-    print("   pick 결과 상태로 정지. Stop 후 Play 를 누르면 다시 pick 합니다."
+    print("   결과 상태로 정지. Stop 후 Play 를 누르면 다시 실행합니다."
           " 창을 닫으면 종료됩니다.")
     was_playing = True
     trial_idx = 1
@@ -878,7 +1163,7 @@ def main():
         world.step(render=not HEADLESS)
         playing = world.is_playing()
         if playing and not was_playing:
-            do_pick(trial_idx)
+            do_pick_place(trial_idx)
             trial_idx += 1
         was_playing = playing
 
