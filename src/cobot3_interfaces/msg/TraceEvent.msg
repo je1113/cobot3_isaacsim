@@ -1,6 +1,12 @@
-# cobot3_orchestrator (task_manager)  →  cobot3_orchestrator (event_logger)
-#                                        토픽 /trace/event
-#
+# ══════════════════════════════════════════════════════════════════════
+#  보내는 노드 : cobot3_orchestrator / task_manager
+#  받는 노드   : cobot3_orchestrator / event_logger
+#  종류        : 토픽  /trace/event   (Reliable, depth 50)
+#  역할        : 미션 단계가 하나 끝날 때마다 결과를 한 건 낸다. event_logger 는 그대로
+#                SQLite event 테이블에 append 한다 — 판단하지 않는다. 생산 트래킹 원천.
+#  전달 내용   : stamp · carrier_id · stage(SCAN/PICK/TRANSIT/PLACE/RETURN/DOCK) · success · fail_reason · port
+# ══════════════════════════════════════════════════════════════════════
+
 # 기능: 미션 단계 하나가 끝날 때마다 한 건. event_logger 는 받은 그대로
 #       SQLite event 테이블에 1행 append 한다 — 판단하지 않는다.
 #

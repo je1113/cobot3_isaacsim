@@ -1,6 +1,12 @@
-# cobot3_perception (carrier_code_reader)  →  cobot3_orchestrator (task_manager)
-#                                             토픽 /perception/carrier_scan
-#
+# ══════════════════════════════════════════════════════════════════════
+#  보내는 노드 : cobot3_perception / carrier_code_reader
+#  받는 노드   : cobot3_orchestrator / task_manager
+#  종류        : 토픽  /perception/carrier_scan   (Reliable, depth 5 — 다수결 통과 시만 발행)
+#  역할        : 카메라로 QR 을 읽어 "무엇이 어디에 있다" 를 알린다. orchestrator 는 이걸
+#                받으면 명령 큐에 한 건 넣는다. perception 은 해석하지 않는다.
+#  전달 내용   : payload (QR 원문 str) · qr_pose (라벨 위치+방향, Pose) · header (시각·좌표계)
+# ══════════════════════════════════════════════════════════════════════
+
 # 기능: 카메라 토픽을 받아 QR 을 읽고, "무엇이(payload) 어디에(qr_pose)" 를 알린다.
 #       perception 의 일은 여기까지다 — 이 ID 가 어느 변형인지, 어디로 가야 하는지는
 #       모른다. payload 해석도 orchestrator 가 한다.

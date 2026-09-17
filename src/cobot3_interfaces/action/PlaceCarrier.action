@@ -1,6 +1,12 @@
-# cobot3_orchestrator (task_manager)  →  cobot3_manipulation (pick_place_server)
-#                                        액션 /manipulation/place_carrier
-#
+# ══════════════════════════════════════════════════════════════════════
+#  보내는 노드 : cobot3_orchestrator / task_manager
+#  받는 노드   : cobot3_manipulation / pick_place_server
+#  종류        : 액션  /manipulation/place_carrier
+#  역할        : "이 종류를 놓아라". 놓을 자리는 종류로 정해지므로(매거진→패키징 로더,
+#                스택→테스트 로더) 좌표를 받지 않고 place.yaml 에서 찾는다.
+#  전달 내용   : goal: variant  /  result: success · fail_reason  /  feedback: phase(MOVE/LOWER/RELEASE/RETREAT)
+# ══════════════════════════════════════════════════════════════════════
+
 # 기능: "이 종류를 여기 내려놔라" 를 받으면 배치 동작을 스스로 계산해서 내려놓는다.
 #
 # goal 이 variant 하나인 이유

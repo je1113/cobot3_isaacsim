@@ -1,6 +1,12 @@
-# cobot3_orchestrator (task_manager)  →  cobot3_manipulation (pick_place_server)
-#                                        액션 /manipulation/pick_carrier
-#
+# ══════════════════════════════════════════════════════════════════════
+#  보내는 노드 : cobot3_orchestrator / task_manager
+#  받는 노드   : cobot3_manipulation / pick_place_server
+#  종류        : 액션  /manipulation/pick_carrier
+#  역할        : "이 종류를 집어라". 서버가 파지점을 스스로 계산해 흡착·리프트한다.
+#                중간보고는 feedback.phase 로.
+#  전달 내용   : goal: variant(grasp.yaml 키) · qr_pose(대략 위치 prior)  /  result: success · fail_reason  /  feedback: phase
+# ══════════════════════════════════════════════════════════════════════
+
 # 기능: "이 종류를 집어라" 를 받으면 파지점을 스스로 계산해서 집는다.
 #       orchestrator 는 파지점을 계산하지 않는다 — 기하는 전부 여기 안에 있다.
 #

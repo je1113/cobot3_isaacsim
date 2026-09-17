@@ -1,7 +1,12 @@
-# cobot3_orchestrator (task_manager)  →  cobot3_navigation (nav_server)
-#                                        액션 /navigation/navigate_to
-# nav_server 는 Nav2 NavigateToPose 를 감싼다.
-#
+# ══════════════════════════════════════════════════════════════════════
+#  보내는 노드 : cobot3_orchestrator / task_manager
+#  받는 노드   : cobot3_navigation / nav_server   (Nav2 NavigateToPose 를 감싼다)
+#  종류        : 액션  /navigation/navigate_to
+#  역할        : "이 좌표로 가라". 픽하러 갈 자리(QR 위치 − 상대좌표)와 목적지 로더 앞,
+#                충전 패드까지 전부 이 액션이다. 취소 가능해야 해서 서비스가 아니다.
+#  전달 내용   : goal: pose(PoseStamped, map)  /  result: success · fail_reason  /  feedback: distance_remaining_m
+# ══════════════════════════════════════════════════════════════════════
+
 # 기능: 목적지 좌표로 자율주행. 회피는 Nav2 가 한다.
 #       goal 은 pose 하나 — "shelf_1_s3" 같은 이름을 좌표로 푸는 건
 #       task_manager 가 frames.yaml 보고 한다. 주행 노드는 이름을 모른다.
