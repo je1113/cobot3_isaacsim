@@ -636,7 +636,7 @@ def Xform "Magazine" (
         uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:scale"]
     }
 
-    def Mesh "qr_label" (
+    def Mesh "qr_label_ny" (
         prepend apiSchemas = ["MaterialBindingAPI"]
     )
     {
@@ -644,7 +644,7 @@ def Xform "Magazine" (
         float3[] extent = [(-0.115, -0.0705, 0.05), (-0.065, -0.0705, 0.1)]
         int[] faceVertexCounts = [4]
         int[] faceVertexIndices = [0, 1, 2, 3]
-        rel material:binding = </Magazine/Looks/qr_label_mat>
+        rel material:binding = </Magazine/Looks/qr_mat>
         point3f[] points = [(-0.115, -0.0705, 0.05), (-0.065, -0.0705, 0.05), (-0.065, -0.0705, 0.1), (-0.115, -0.0705, 0.1)]
         texCoord2f[] primvars:st = [(0, 0), (1, 0), (1, 1), (0, 1)] (
             interpolation = "varying"
@@ -653,9 +653,9 @@ def Xform "Magazine" (
 
     def "Looks"
     {
-        def Material "qr_label_mat"
+        def Material "qr_mat"
         {
-            token outputs:surface.connect = </Magazine/Looks/qr_label_mat/surface.outputs:surface>
+            token outputs:surface.connect = </Magazine/Looks/qr_mat/surface.outputs:surface>
 
             def Shader "stReader"
             {
@@ -668,7 +668,7 @@ def Xform "Magazine" (
             {
                 uniform token info:id = "UsdUVTexture"
                 asset inputs:file = @./qr_1.png@
-                float2 inputs:st.connect = </Magazine/Looks/qr_label_mat/stReader.outputs:result>
+                float2 inputs:st.connect = </Magazine/Looks/qr_mat/stReader.outputs:result>
                 token inputs:wrapS = "clamp"
                 token inputs:wrapT = "clamp"
                 float3 outputs:rgb
@@ -677,12 +677,27 @@ def Xform "Magazine" (
             def Shader "surface"
             {
                 uniform token info:id = "UsdPreviewSurface"
-                color3f inputs:diffuseColor.connect = </Magazine/Looks/qr_label_mat/tex.outputs:rgb>
+                color3f inputs:diffuseColor.connect = </Magazine/Looks/qr_mat/tex.outputs:rgb>
                 float inputs:metallic = 0
                 float inputs:roughness = 0.7
                 token outputs:surface
             }
         }
+    }
+
+    def Mesh "qr_label_py" (
+        prepend apiSchemas = ["MaterialBindingAPI"]
+    )
+    {
+        uniform bool doubleSided = 1
+        float3[] extent = [(0.065, 0.0705, 0.05), (0.115, 0.0705, 0.1)]
+        int[] faceVertexCounts = [4]
+        int[] faceVertexIndices = [0, 1, 2, 3]
+        rel material:binding = </Magazine/Looks/qr_mat>
+        point3f[] points = [(0.115, 0.0705, 0.05), (0.065, 0.0705, 0.05), (0.065, 0.0705, 0.1), (0.115, 0.0705, 0.1)]
+        texCoord2f[] primvars:st = [(0, 0), (1, 0), (1, 1), (0, 1)] (
+            interpolation = "varying"
+        )
     }
 }
 
