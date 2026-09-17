@@ -471,9 +471,9 @@
       <table>
         <thead><tr><th>#</th><th>확정안 — <span class="mono">cobot3_orchestrator</span></th><th>제안</th></tr></thead>
         <tbody>
-          <tr><td class="n">1</td><td>로봇의 현 상태를 트래킹 · 업데이트 · 저장 (기본 <span class="c">patrol</span>)</td><td class="x">그대로 — 오히려 여기가 큐의 자리를 대신한다</td></tr>
+          <tr class="chg"><td class="n">1</td><td>로봇의 현 상태를 트래킹 · 업데이트 · 저장 (기본 <span class="c">patrol</span>)</td><td class="x">여기가 큐의 자리를 대신한다. <b>지금 다루는 캐리어의 QR 원문도 같이 저장</b> — 무슨 물건을 들고 있는지 확인용</td></tr>
           <tr class="chg"><td class="n">2</td><td>로봇이 실행할 명령을 저장하는 <b>명령 큐 보유</b></td><td class="x"><b>삭제.</b> 저장하지 않는다</td></tr>
-          <tr class="chg"><td class="n">3</td><td><span class="c">/perception/carrier_scan</span> 으로 인식되면 <b>큐에 넣음</b></td><td class="x"><span class="c">PATROL</span> 이면 <b>그 자리에서 미션 시작</b>, 아니면 버림</td></tr>
+          <tr class="chg"><td class="n">3</td><td><span class="c">/perception/carrier_scan</span> 으로 인식되면 <b>큐에 넣음</b></td><td class="x"><span class="c">PATROL</span> 이면 <b>① 로봇 정지 → ② 상태 = <span class="c">SCAN</span> + QR 원문 저장 → ③ 픽 좌표 계산</b>, 아니면 버림</td></tr>
           <tr class="chg"><td class="n">4</td><td><span class="c">patrol</span> 인 로봇이 있으면 <b>큐에서 하나 빼서</b> 픽 좌표 전달</td><td class="x">꺼낼 곳이 없다 — <b>방금 본 그것</b>의 QR 위치로 바로</td></tr>
           <tr><td class="n">5</td><td>pick 끝나면 목적지 좌표를 넣어줌</td><td class="x">그대로</td></tr>
           <tr class="chg"><td class="n">6</td><td>place 끝나면 다시 <span class="c">patrol</span> 로 전환</td><td class="x">매거진 place 뒤에 <b>언로더 확인 한 번</b>을 끼우고 <span class="c">patrol</span></td></tr>
@@ -545,7 +545,7 @@
             </g>
             <g font-size="7.5" class="m" fill="var(--ink-3)">
               <text x="83"  y="102">NavigateTo ×N</text>
-              <text x="249" y="102">goal cancel</text>
+              <text x="249" y="102">상태 = SCAN + 원문</text>
               <text x="415" y="102">NavigateTo</text>
               <text x="581" y="102">PickCarrier</text>
               <text x="747" y="102">NavigateTo</text>
@@ -598,18 +598,20 @@
         <li><i style="background:var(--danger-wash);border:1px solid var(--danger)"></i> 제안으로 새로 생기는 상태</li>
       </ul>
       <figcaption>
-        <b>HOLD 는 인터페이스가 아니라 취소다.</b> 순찰은 <span class="mono">NavigateTo</span> 를 정차점마다 보내는 것이고,
-        QR 이 잡히면 진행 중인 그 goal 을 <span class="mono">cancel</span> 한다 — 로봇이 선다. STOP 명령을 새로 만들 필요가 없다.
-        로봇 한 대 기준이라 HOLD 는 사실상 한순간이지만, 나중에 여러 대가 되어 누구를 보낼지 고르는 주체가 생기면
-        실제로 기다리는 자리가 여기다.
+        <b>정지를 시키는 건 orchestrator 다.</b> 스캔이 들어오면 orchestrator 가 ① 진행 중인 goal 을 거둬 로봇을 세우고
+        ② 상태를 <span class="mono">SCAN</span> 으로 바꾸며 QR 원문을 보관하고 ③ 픽 좌표를 계산해 다시 보낸다.
+        <span class="mono">navigation</span> 은 "정지" 라는 개념을 모른다 — 받은 좌표로 가다가 취소되면 설 뿐이다.
+        사람이 누르는 정지는 이것과 별개로 <span class="mono">/orchestrator/stop_robot</span> 서비스로 들어온다.
       </figcaption>
     </figure>
 
-    <h3>노드 그래프 — 박스도 화살표도 그대로다</h3>
+    <h3>노드 그래프 — 노드는 그대로, 서비스가 하나 생긴다</h3>
     <p>
-      노드 다섯 개, 토픽 둘, 액션 셋. <strong>하나도 늘거나 줄지 않는다.</strong>
-      바뀌는 것은 <span class="mono">task_manager</span> 박스 <em>안쪽</em>의 목록과, 화살표에 붙은 역할 설명뿐이다.
-      큐를 없애는 변경이 통신 구조를 건드리지 않는다는 게 이 그림의 요점이다.
+      노드 다섯 개, 토픽 둘, 액션 셋. <strong>노드도 기존 인터페이스도 늘거나 줄지 않는다.</strong>
+      큐를 없애는 변경 자체는 <span class="mono">task_manager</span> 박스 <em>안쪽</em>만 건드린다.
+      바깥으로 드러나는 유일한 추가가 <strong>정지 서비스 하나</strong>다 —
+      지금까지 서비스가 0개였으니 이게 이 시스템의 첫 서비스가 된다.
+      사람이 누르는 정지는 goal 을 들고 있지 않아 취소를 할 수 없고, 그래서 입구가 따로 있어야 한다.
     </p>
 
     <figure>
@@ -618,6 +620,7 @@
           <defs>
             <marker id="p-t" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="currentColor"/></marker>
             <marker id="p-a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--accent)"/></marker>
+            <marker id="p-s" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--danger)"/></marker>
           </defs>
 
           <rect x="24" y="96" width="150" height="268" rx="3" fill="var(--surface-2)" stroke="currentColor" stroke-width="1.4"/>
@@ -645,9 +648,9 @@
           <text x="337" y="165" font-size="8.5" text-anchor="middle" fill="var(--ink-2)">역할 — QR 읽어 원문 + 위치 전달</text>
           <text x="337" y="180" font-size="8.5" text-anchor="middle" fill="var(--ink-3)">변화 없음</text>
 
-          <rect x="540" y="96" width="220" height="322" rx="3" fill="none" stroke="var(--accent)" stroke-width="1.2" stroke-dasharray="3 3"/>
+          <rect x="540" y="96" width="220" height="350" rx="3" fill="none" stroke="var(--accent)" stroke-width="1.2" stroke-dasharray="3 3"/>
           <text x="551" y="116" font-size="11" class="m" font-weight="500" fill="var(--accent-deep)">cobot3_orchestrator</text>
-          <rect x="552" y="128" width="196" height="172" rx="2" fill="var(--accent-wash)" stroke="var(--accent)" stroke-width="1.8"/>
+          <rect x="552" y="128" width="196" height="186" rx="2" fill="var(--accent-wash)" stroke="var(--accent)" stroke-width="1.8"/>
           <text x="650" y="149" font-size="12" class="m" font-weight="500" text-anchor="middle" fill="var(--accent-deep)">task_manager</text>
           <text x="650" y="164" font-size="9" text-anchor="middle" fill="var(--ink-2)">역할 — 미션 지휘 · 어휘는 전부 여기</text>
           <line x1="562" y1="174" x2="738" y2="174" stroke="var(--accent)" stroke-width="0.8" opacity="0.6"/>
@@ -655,17 +658,18 @@
             <text x="562" y="188" fill="var(--danger)">상태기계 — 기본 patrol</text>
             <text x="562" y="202" fill="var(--danger)" text-decoration="line-through">명령 큐</text>
             <text x="616" y="202" fill="var(--danger)">← 삭제</text>
-            <text x="562" y="216" fill="var(--danger)">본 즉시 그 로봇이 출발</text>
-            <text x="562" y="230" fill="var(--ink-3)">payload 해석 → variant</text>
-            <text x="562" y="244" fill="var(--ink-3)">qr 위치 − 상대좌표 = 주행 목표</text>
-            <text x="562" y="258" fill="var(--ink-3)">종류 → 목적지 (매거진 = 패키징)</text>
-            <text x="562" y="272" fill="var(--danger)">매거진 놓으면 언로더 확인</text>
-            <text x="562" y="286" fill="var(--ink-3)">단계마다 TraceEvent</text>
+            <text x="562" y="216" fill="var(--danger)">보면 정지 → 그 자리에서 시작</text>
+            <text x="562" y="230" fill="var(--danger)">상태 = 단계 + QR 원문 보관</text>
+            <text x="562" y="244" fill="var(--ink-3)">payload 해석 → variant</text>
+            <text x="562" y="258" fill="var(--ink-3)">qr 위치 − 상대좌표 = 주행 목표</text>
+            <text x="562" y="272" fill="var(--ink-3)">종류 → 목적지 (매거진 = 패키징)</text>
+            <text x="562" y="286" fill="var(--danger)">매거진 놓으면 언로더 확인</text>
+            <text x="562" y="300" fill="var(--ink-3)">단계마다 TraceEvent</text>
           </g>
-          <rect x="552" y="344" width="160" height="58" rx="2" fill="var(--surface)" stroke="currentColor" stroke-width="1.3"/>
-          <text x="632" y="365" font-size="10.5" class="m" font-weight="500" text-anchor="middle" fill="var(--ink)">event_logger</text>
-          <text x="632" y="380" font-size="8.5" text-anchor="middle" fill="var(--ink-2)">역할 — 단계 결과를 SQLite 에 쌓음</text>
-          <text x="632" y="393" font-size="8" class="m" text-anchor="middle" fill="var(--ink-3)">run_id · amr_id 는 로거가 붙임</text>
+          <rect x="552" y="358" width="160" height="58" rx="2" fill="var(--surface)" stroke="currentColor" stroke-width="1.3"/>
+          <text x="632" y="379" font-size="10.5" class="m" font-weight="500" text-anchor="middle" fill="var(--ink)">event_logger</text>
+          <text x="632" y="394" font-size="8.5" text-anchor="middle" fill="var(--ink-2)">역할 — 단계 결과를 SQLite 에 쌓음</text>
+          <text x="632" y="407" font-size="8" class="m" text-anchor="middle" fill="var(--ink-3)">run_id · amr_id 는 로거가 붙임</text>
 
           <rect x="860" y="96" width="210" height="170" rx="3" fill="none" stroke="currentColor" stroke-width="1" stroke-dasharray="3 3"/>
           <text x="871" y="116" font-size="11" class="m" font-weight="500" fill="var(--ink-2)">cobot3_manipulation</text>
@@ -688,10 +692,16 @@
           <text x="1208" y="349" font-size="11" class="m" font-weight="500" text-anchor="middle" fill="var(--ink)">Nav2 스택</text>
           <text x="1208" y="365" font-size="8.5" text-anchor="middle" fill="var(--ink-3)">전역 · 지역 플래너 · 회피</text>
 
+          <rect x="368" y="244" width="160" height="56" rx="3" fill="none" stroke="var(--danger)" stroke-width="1.2" stroke-dasharray="4 3"/>
+          <text x="448" y="262" font-size="9" text-anchor="middle" fill="var(--danger)">웹 — 안전 정지 버튼</text>
+          <text x="448" y="276" font-size="7.5" class="m" text-anchor="middle" fill="var(--danger)">/orchestrator/stop_robot</text>
+          <text x="448" y="290" font-size="7.5" text-anchor="middle" fill="var(--danger)">서비스 · 아직 호출자 없음</text>
+          <line x1="528" y1="272" x2="548" y2="272" stroke="var(--danger)" stroke-width="1.4" stroke-dasharray="4 3" fill="none" marker-end="url(#p-s)"/>
+
           <g stroke="currentColor" stroke-width="1.3" fill="none">
             <line x1="174" y1="161" x2="250" y2="161" marker-end="url(#p-t)"/>
             <line x1="418" y1="161" x2="546" y2="161" marker-end="url(#p-t)"/>
-            <line x1="600" y1="300" x2="600" y2="338" marker-end="url(#p-t)"/>
+            <line x1="600" y1="314" x2="600" y2="352" marker-end="url(#p-t)"/>
           </g>
           <g class="m" text-anchor="middle">
             <text x="212" y="128" font-size="7.5" fill="var(--ink-3)">/wrist_camera</text>
@@ -702,16 +712,16 @@
             <text x="479" y="145" font-size="8" fill="var(--danger)">역할: 인식 → 즉시 출발</text>
           </g>
           <g class="m" text-anchor="start">
-            <text x="612" y="308" font-size="8.5" fill="var(--ink)" font-weight="500">/trace/event</text>
-            <text x="612" y="318" font-size="8" fill="var(--ink-3)">TraceEvent · 토픽</text>
-            <text x="612" y="328" font-size="8" fill="var(--ink-3)">역할: 단계 결과 기록</text>
-            <text x="612" y="338" font-size="8" fill="var(--danger)">+ UNLOAD_CHECK 추가</text>
+            <text x="612" y="322" font-size="8.5" fill="var(--ink)" font-weight="500">/trace/event</text>
+            <text x="612" y="332" font-size="8" fill="var(--ink-3)">TraceEvent · 토픽</text>
+            <text x="612" y="342" font-size="8" fill="var(--ink-3)">역할: 단계 결과 기록</text>
+            <text x="612" y="352" font-size="8" fill="var(--danger)">+ UNLOAD_CHECK 추가</text>
           </g>
 
           <g stroke="var(--accent)" stroke-width="1.5" fill="none">
             <line x1="748" y1="150" x2="866" y2="150" marker-end="url(#p-a)"/>
             <line x1="748" y1="188" x2="866" y2="188" marker-end="url(#p-a)"/>
-            <path d="M 740 300 V 349 Q 740 355 746 355 H 866" marker-end="url(#p-a)"/>
+            <path d="M 740 314 V 349 Q 740 355 746 355 H 866" marker-end="url(#p-a)"/>
             <line x1="1058" y1="355" x2="1134" y2="355" marker-end="url(#p-a)"/>
           </g>
           <g class="m" text-anchor="middle">
@@ -724,7 +734,6 @@
             <text x="812" y="316" font-size="7" fill="var(--accent-deep)" font-weight="500">/navigation/navigate_to</text>
             <text x="812" y="325" font-size="7.5" fill="var(--ink-3)">NavigateTo · 액션</text>
             <text x="812" y="334" font-size="7.5" fill="var(--ink-3)">역할: 이 좌표로 가라</text>
-            <text x="812" y="343" font-size="7.5" fill="var(--danger)">+ cancel = 감지 시 정지</text>
             <text x="1096" y="326" font-size="7" fill="var(--ink-3)">/navigate_to_pose</text>
             <text x="1096" y="335" font-size="7.5" fill="var(--ink-3)">Nav2 표준 · 액션</text>
             <text x="1096" y="344" font-size="7.5" fill="var(--ink-3)">역할: Nav2 에 위임</text>
@@ -751,10 +760,14 @@
       <ul class="legend">
         <li><svg width="30" height="10" aria-hidden="true"><line x1="0" y1="5" x2="24" y2="5" stroke="currentColor" stroke-width="1.3"/><path d="M24,1 L30,5 L24,9 z" fill="currentColor"/></svg> 토픽 2개 — 그대로</li>
         <li><svg width="30" height="10" aria-hidden="true"><line x1="0" y1="5" x2="24" y2="5" stroke="var(--accent)" stroke-width="1.5"/><path d="M24,1 L30,5 L24,9 z" fill="var(--accent)"/></svg> 액션 3개 — 그대로</li>
+        <li><svg width="30" height="10" aria-hidden="true"><line x1="0" y1="5" x2="24" y2="5" stroke="var(--danger)" stroke-width="1.4" stroke-dasharray="4 3"/><path d="M24,1 L30,5 L24,9 z" fill="var(--danger)"/></svg> 서비스 1개 — 새로 생김</li>
         <li><i style="background:var(--danger-wash);border:1px solid var(--danger)"></i> 빨간 글씨 = 제안으로 바뀌는 곳</li>
       </ul>
       <figcaption>
-        <b>선이 하나도 안 바뀐다.</b> 큐 삭제는 <span class="mono">task_manager</span> 내부 변경이라 노드 경계를 넘지 않는다.
+        <b>기존 선은 하나도 안 바뀌고, 들어오는 선이 하나 는다.</b> 큐 삭제는 <span class="mono">task_manager</span> 내부라 노드 경계를 넘지 않는다.
+        새로 생기는 <span class="mono">/orchestrator/stop_robot</span> 은 <b>바깥에서 들어오는</b> 서비스다 —
+        사람이 누르는 정지는 액션 goal 을 들고 있지 않아 취소를 할 수 없기 때문이다.
+        QR 을 보고 서는 것은 이 서비스를 거치지 않는다. <span class="mono">task_manager</span> 가 같은 정지 로직을 내부에서 직접 부른다.
         언로더에서 집는 스택도 같은 <span class="mono">PickCarrier</span> 를 쓴다 —
         <span class="mono">variant</span> 가 스택이면 <span class="mono">PlaceCarrier</span> 가 <span class="mono">place.yaml</span> 에서
         테스트 로더를 찾으므로, "어디서 봤는지" 를 인터페이스가 알 필요가 없다.
@@ -788,19 +801,19 @@
   string payload                  <span class="dim">그대로</span>
   geometry_msgs/Pose qr_pose      <span class="dim">그대로</span>
 
-  ★ carrier_code_reader 파라미터 6개   <span class="dim">그대로 (decode_hz · roi_fraction · vote_window ·</span>
-                                       <span class="dim">vote_required · output_frame · publish_debug)</span></pre>
+  ★ carrier_code_reader 파라미터 6개   <span class="dim">이름은 그대로. 값 하나만 바뀐다 —</span>
+<span class="add">+   vote_required  3 → 5      "5프레임 이상 보이면" 이므로. 아래 파라미터 블록 참조</span></pre>
     </div>
 
     <div class="diffwrap">
       <h4><span>action/NavigateTo.action</span><em>머리글 주석만</em></h4>
 <pre class="diff">  #  역할 : "이 좌표로 가라". 픽하러 갈 자리와 목적지 로더 앞, 충전 패드까지
   #         전부 이 액션이다. 취소 가능해야 해서 서비스가 아니다.
-<span class="add">+ #         ↳ 그 취소가 이 제안의 "감지하면 정지" 다. 순찰 중인 goal 을</span>
-<span class="add">+ #           cancel 하면 로봇이 그 자리에 선다. STOP 명령도, 새 인터페이스도</span>
-<span class="add">+ #           필요 없다. result 는 fail_reason = CANCELED(3) 으로 돌아오는데</span>
-<span class="add">+ #           이건 실패가 아니라 의도된 중단이므로 task_manager 가 정상</span>
-<span class="add">+ #           흐름으로 다룬다 — TraceEvent 에 실패로 적지 않는다.</span>
+<span class="add">+ #         ↳ nav_server 는 "정지" 라는 개념을 모른다. 받은 좌표로 가다가</span>
+<span class="add">+ #           취소되면 설 뿐이고, 세우기로 결정하는 건 언제나 orchestrator 다.</span>
+<span class="add">+ #           취소된 result 는 fail_reason = CANCELED(3) 으로 돌아오는데</span>
+<span class="add">+ #           실패가 아니라 의도된 중단이므로 task_manager 가 정상 흐름으로</span>
+<span class="add">+ #           다룬다 — TraceEvent 에 실패로 적지 않는다.</span>
 
   goal    geometry_msgs/PoseStamped pose              <span class="dim">그대로</span>
   result  success · fail_reason                       <span class="dim">그대로</span>
@@ -840,6 +853,33 @@
     </div>
 
     <div class="diffwrap">
+      <h4><span>srv/StopRobot.srv</span><em class="r">새 파일 — 이 시스템의 첫 서비스</em></h4>
+<pre class="diff"><span class="add">+ #  보내는 노드 : (웹 / 운영자)  — 지금은 호출자가 없다. 자리만 만든다</span>
+<span class="add">+ #  받는 노드   : cobot3_orchestrator / task_manager</span>
+<span class="add">+ #  종류        : 서비스  /orchestrator/stop_robot</span>
+<span class="add">+ #  역할        : 사람이 로봇을 세운다. 진행 중인 NavigateTo · PickCarrier ·</span>
+<span class="add">+ #                PlaceCarrier goal 을 전부 취소하고 상태를 STOPPED 로 래치한다.</span>
+<span class="add">+ #                풀기 전까지 새 미션을 시작하지 않는다. 해제도 같은 서비스다.</span>
+<span class="add">+ #  왜 서비스인가 : 사람은 액션 goal 을 들고 있지 않아 취소를 할 수 없다.</span>
+<span class="add">+ #                바깥에서 들어오는 입구가 따로 있어야 한다. 그리고 "섰다 /</span>
+<span class="add">+ #                풀렸다" 를 즉시 돌려받아야 하므로 토픽이 아니다.</span>
+<span class="add">+ #  왜 orchestrator 가 서버인가 : 주행과 팔을 한 번에 멈출 수 있는 유일한</span>
+<span class="add">+ #                지점이고, orchestrator 가 모르는 정지가 생기면 상태기계가</span>
+<span class="add">+ #                깨진다. nav_server 를 직접 부르면 팔은 계속 움직인다.</span>
+<span class="add">+</span>
+<span class="add">+ bool stop              # true = 정지, false = 해제</span>
+<span class="add">+ ---</span>
+<span class="add">+ bool   ok</span>
+<span class="add">+ string state           # 처리 뒤 상태. "STOPPED" / "PATROL" / …</span>
+<span class="add">+</span>
+<span class="add">+ CMakeLists.txt   "srv/StopRobot.srv"   한 줄 추가</span>
+
+  <span class="dim"># QR 을 보고 서는 것은 이 서비스를 거치지 않는다. task_manager 가 같은 정지</span>
+  <span class="dim"># 로직을 내부에서 부르고, 래치 없이 곧바로 HOLD 로 간다. 그래야 QR 을 볼 때마다</span>
+  <span class="dim"># 비상정지 상태를 들락거리지 않는다 — 둘은 멈추는 범위도 푸는 방법도 다르다.</span></pre>
+    </div>
+
+    <div class="diffwrap">
       <h4><span>삭제</span><em class="r">파일 2개 + CMakeLists 2줄</em></h4>
 <pre class="diff"><span class="del">− msg/TaskOrder.msg          파일 삭제</span>
 <span class="del">− srv/RegisterTask.srv       파일 삭제</span>
@@ -854,8 +894,14 @@
     </div>
 
     <div class="diffwrap">
-      <h4><span>노드 파라미터 — 여기가 진짜 변화다</span><em class="r">추가 4개</em></h4>
-<pre class="diff">  ★ task_manager
+      <h4><span>노드 파라미터 — 여기가 진짜 변화다</span><em class="r">추가 4개 · 값 1개</em></h4>
+<pre class="diff">  ★ carrier_code_reader
+    decode_hz · roi_fraction · output_frame · publish_debug   <span class="dim">그대로</span>
+<span class="add">~   vote_required  3 → 5    "5프레임 이상 보이면" 을 그대로 옮기면 5중 5 가 된다.</span>
+<span class="add">~   vote_window    5        한 장만 튀어도 판정이 처음부터라, 창을 7~8 로 넓히고</span>
+<span class="add">~                           5 를 요구하는 쪽이 안전하다. 값은 정해야 한다.</span>
+
+  ★ task_manager
     carriers_yaml · frames_yaml                 <span class="dim">그대로</span>
     soft_threshold_s · hard_threshold_s         <span class="dim">그대로 (배터리 타이머)</span>
     charge_duration_s                           <span class="dim">그대로</span>
@@ -881,8 +927,12 @@
     <div class="note">
       <span class="lbl">정리</span>
       <p>
-        <strong>.msg / .action 의 필드는 하나도 안 바뀐다.</strong> 큐를 없애는 게 통신 구조를 안 건드린다는 뜻이고,
-        뒤집어 말하면 확정한 인터페이스 5개가 이 설계 변경을 그대로 버틴다는 뜻이다.
+        <strong>기존 5개는 필드가 하나도 안 바뀌고, 서비스가 하나 새로 생긴다.</strong>
+        큐를 없애는 변경 자체는 통신 구조를 안 건드린다 — 확정한 인터페이스 5개가 이 설계 변경을 그대로 버틴다.
+        새로 생기는 <span class="mono">StopRobot.srv</span> 는 큐 제거와 무관하게 필요한 것이다:
+        사람이 누르는 정지는 밖에서 들어오는 입구가 있어야 하고, 지금까지 그 자리가 없었다.
+        <span class="mono">TaskOrder</span> · <span class="mono">RegisterTask</span> 가 빠지고 이게 들어오므로 서비스 수는 0 → 1,
+        파일 수는 8 → 7 이 된다.
         실제 작업량은 <span class="mono">task_manager</span> 의 상태기계를 새로 쓰는 것과,
         <span class="mono">frames.yaml</span> 에 언로더 관측점 · 로더 포트 좌표를 넣는 것 두 가지다.
       </p>
@@ -974,7 +1024,17 @@
         <span class="mono">measure_layout.py</span> 로 생성되므로 USD 쪽이 먼저다.
       </p>
       <p>
-        <strong>④ <span class="mono">TaskOrder</span> · <span class="mono">RegisterTask</span> 삭제는 웹 계획에 달렸다.</strong>
+        <strong>④ 정지를 풀면 어디로 돌아가나.</strong> 매거진을 들고 가던 중에 세웠다면, 해제했을 때
+        하던 미션을 이어서 하는 게 맞는지 처음부터 다시 하는 게 맞는지 정해야 한다.
+        팔에 흡착된 채로 멈춰 있을 수 있어서 그냥 <span class="mono">PATROL</span> 로 보내면 물건을 든 채 순찰한다.
+      </p>
+      <p>
+        <strong>⑤ 판독 기준을 5중 5 로 둘지.</strong> "5프레임 이상" 을 그대로 옮기면
+        <span class="mono">vote_window 5 / vote_required 5</span> 가 되는데, 한 장만 튀어도 판정이 처음부터다.
+        창을 7~8 로 넓히고 5 를 요구하는 쪽이 같은 엄격함에 덜 예민하다. 어느 쪽인지 정해야 한다.
+      </p>
+      <p>
+        <strong>⑥ <span class="mono">TaskOrder</span> · <span class="mono">RegisterTask</span> 삭제는 웹 계획에 달렸다.</strong>
         웹을 안 붙일 거면 지금 지우는 게 맞고, 붙일 거면 그때 모양을 새로 정하는 게 맞다.
         어느 쪽이든 지금 이름만 남겨 둘 이유는 없어 보이지만, 지우는 건 결정이 필요하다.
       </p>
