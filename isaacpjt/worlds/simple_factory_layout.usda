@@ -7,8 +7,8 @@
                 double radius = 5
             }
             dictionary Perspective = {
-                double3 position = (-5.222923156332667, -4.696363991579866, 3.625423906509321)
-                double3 target = (-6.486769702020564, 2.871258417387465, 0.04177531551379765)
+                double3 position = (-1.6568257080033133, -4.1929715838989114, 2.3007498790767795)
+                double3 target = (0.97290582682596, -4.239925956966359, 1.5651836570087951)
             }
             dictionary Right = {
                 double3 position = (0, -5, 0)
@@ -526,950 +526,6 @@ def Xform "World"
         }
     }
 
-    def "nova_carter1" (
-        prepend payload = @https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/5.1/Isaac/Samples/ROS2/Robots/Nova_Carter_ROS.usd@
-    )
-    {
-        quatd xformOp:orient = (1, 0, 0, 0)
-        double3 xformOp:scale = (1, 1, 1)
-        double3 xformOp:translate = (3.490373703049795, -4.243819003153972, 0.07963398335074101)
-        uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
-
-        over "differential_drive"
-        {
-            over "joint_name_array"
-            {
-                custom token inputs:input0
-                delete token inputs:input0.connect = </World/nova_carter1/differential_drive/joint_wheel_left_name.inputs:value>
-                prepend token inputs:input0.connect = </World/nova_carter1/differential_drive/joint_wheel_left_name.inputs:value>
-                custom token inputs:input1
-                delete token inputs:input1.connect = </World/nova_carter1/differential_drive/joint_wheel_right_name.inputs:value>
-                prepend token inputs:input1.connect = </World/nova_carter1/differential_drive/joint_wheel_right_name.inputs:value>
-            }
-        }
-
-        over "chassis_link" (
-            prepend apiSchemas = ["PhysicsFilteredPairsAPI"]
-        )
-        {
-            prepend rel physics:filteredPairs = </World/nova_carter1/m0609/base_link>
-            rel physics:simulationOwner
-
-            over "visual"
-            {
-                rel physics:simulationOwner
-            }
-        }
-
-        over "caster_frame_base"
-        {
-            rel physics:simulationOwner
-
-            over "visual"
-            {
-                rel physics:simulationOwner
-            }
-        }
-
-        over "caster_swivel_left"
-        {
-            rel physics:simulationOwner
-        }
-
-        over "caster_wheel_left"
-        {
-            rel physics:simulationOwner
-        }
-
-        over "caster_swivel_right"
-        {
-            rel physics:simulationOwner
-        }
-
-        over "caster_wheel_right"
-        {
-            rel physics:simulationOwner
-        }
-
-        over "wheel_left"
-        {
-            rel physics:simulationOwner
-        }
-
-        over "wheel_right"
-        {
-            rel physics:simulationOwner
-        }
-
-        over "joint_caster_base"
-        {
-            float physics:lowerLimit = -2
-            float physics:upperLimit = 2
-            float state:angular:physics:position = 0
-            float state:angular:physics:velocity = 0
-        }
-
-        over "joint_wheel_left"
-        {
-            float physics:lowerLimit = -inf
-            float physics:upperLimit = inf
-            float state:angular:physics:position = 0
-            float state:angular:physics:velocity = 0
-        }
-
-        over "joint_wheel_right"
-        {
-            float physics:lowerLimit = -inf
-            float physics:upperLimit = inf
-            float state:angular:physics:position = 0
-            float state:angular:physics:velocity = 0
-        }
-
-        over "joint_swing_left"
-        {
-            float physics:lowerLimit = -inf
-            float physics:upperLimit = inf
-            float state:angular:physics:position = 0
-            float state:angular:physics:velocity = 0
-        }
-
-        over "joint_swing_right"
-        {
-            float physics:lowerLimit = -inf
-            float physics:upperLimit = inf
-            float state:angular:physics:position = 0
-            float state:angular:physics:velocity = 0
-        }
-
-        over "joint_caster_left"
-        {
-            float physics:lowerLimit = -inf
-            float physics:upperLimit = inf
-            float state:angular:physics:position = 0
-            float state:angular:physics:velocity = 0
-        }
-
-        over "joint_caster_right"
-        {
-            float physics:lowerLimit = -inf
-            float physics:upperLimit = inf
-            float state:angular:physics:position = 0
-            float state:angular:physics:velocity = 0
-        }
-
-        over "front_hawk"
-        {
-            over "isaac_read_imu_node"
-            {
-                custom uint inputs:execIn
-                delete uint inputs:execIn.connect = </World/nova_carter1/front_hawk/on_playback_tick.outputs:tick>
-            }
-
-            over "isaac_run_one_simualtion_frame"
-            {
-                custom uint inputs:execIn
-                delete uint inputs:execIn.connect = </World/nova_carter1/front_hawk/on_playback_tick.outputs:tick>
-            }
-
-            over "ros2_publish_imu"
-            {
-                custom vector3d inputs:angularVelocity
-                delete vector3d inputs:angularVelocity.connect = </World/nova_carter1/front_hawk/isaac_read_imu_node.outputs:angVel>
-                custom uint64 inputs:context
-                delete uint64 inputs:context.connect = </World/nova_carter1/front_hawk/ros2_context.outputs:context>
-                custom uint inputs:execIn
-                delete uint inputs:execIn.connect = </World/nova_carter1/front_hawk/isaac_read_imu_node.outputs:execOut>
-                custom vector3d inputs:linearAcceleration
-                delete vector3d inputs:linearAcceleration.connect = </World/nova_carter1/front_hawk/isaac_read_imu_node.outputs:linAcc>
-                custom quatd inputs:orientation
-                delete quatd inputs:orientation.connect = </World/nova_carter1/front_hawk/isaac_read_imu_node.outputs:orientation>
-                custom string inputs:qosProfile
-                delete string inputs:qosProfile.connect = </World/nova_carter1/front_hawk/ros2_qos_profile.outputs:qosProfile>
-                custom double inputs:timeStamp
-                delete double inputs:timeStamp.connect = </World/nova_carter1/front_hawk/isaac_read_simulation_time.outputs:simulationTime>
-            }
-
-            over "ros2_camera_info_helper"
-            {
-                custom uint64 inputs:context
-                delete uint64 inputs:context.connect = </World/nova_carter1/front_hawk/ros2_context.outputs:context>
-                custom uint inputs:execIn
-                delete uint inputs:execIn.connect = </World/nova_carter1/front_hawk/left_camera_render_product.outputs:execOut>
-                custom string inputs:nodeNamespace
-                delete string inputs:nodeNamespace.connect = </World/nova_carter1/front_hawk/camera_namespace.inputs:value>
-                custom token inputs:renderProductPath
-                delete token inputs:renderProductPath.connect = </World/nova_carter1/front_hawk/left_camera_render_product.outputs:renderProductPath>
-                custom token inputs:renderProductPathRight
-                delete token inputs:renderProductPathRight.connect = </World/nova_carter1/front_hawk/right_camera_render_product.outputs:renderProductPath>
-            }
-
-            over "right_camera_publish_image"
-            {
-                custom uint64 inputs:context
-                delete uint64 inputs:context.connect = </World/nova_carter1/front_hawk/ros2_context.outputs:context>
-                custom uint inputs:execIn
-                delete uint inputs:execIn.connect = </World/nova_carter1/front_hawk/right_camera_render_product.outputs:execOut>
-                custom string inputs:nodeNamespace
-                delete string inputs:nodeNamespace.connect = </World/nova_carter1/front_hawk/camera_namespace.inputs:value>
-                custom token inputs:renderProductPath
-                delete token inputs:renderProductPath.connect = </World/nova_carter1/front_hawk/right_camera_render_product.outputs:renderProductPath>
-            }
-
-            over "left_camera_publish_image"
-            {
-                custom uint64 inputs:context
-                delete uint64 inputs:context.connect = </World/nova_carter1/front_hawk/ros2_context.outputs:context>
-                custom uint inputs:execIn
-                delete uint inputs:execIn.connect = </World/nova_carter1/front_hawk/left_camera_render_product.outputs:execOut>
-                custom string inputs:frameId
-                delete string inputs:frameId.connect = </World/nova_carter1/front_hawk/left_camera_frame_id.inputs:value>
-                custom string inputs:nodeNamespace
-                delete string inputs:nodeNamespace.connect = </World/nova_carter1/front_hawk/camera_namespace.inputs:value>
-                custom string inputs:qosProfile
-                delete string inputs:qosProfile.connect = </World/nova_carter1/front_hawk/ros2_qos_profile.outputs:qosProfile>
-                custom token inputs:renderProductPath
-                delete token inputs:renderProductPath.connect = </World/nova_carter1/front_hawk/left_camera_render_product.outputs:renderProductPath>
-            }
-        }
-
-        over "left_hawk"
-        {
-            over "ros2_publish_imu"
-            {
-                custom uint64 inputs:context
-                delete uint64 inputs:context.connect = </World/nova_carter1/left_hawk/ros2_context.outputs:context>
-                custom string inputs:qosProfile
-                delete string inputs:qosProfile.connect = </World/nova_carter1/left_hawk/ros2_qos_profile.outputs:qosProfile>
-                custom double inputs:timeStamp
-                delete double inputs:timeStamp.connect = </World/nova_carter1/left_hawk/isaac_read_simulation_time.outputs:simulationTime>
-            }
-
-            over "right_camera_publish_image"
-            {
-                custom uint64 inputs:context
-                delete uint64 inputs:context.connect = </World/nova_carter1/left_hawk/ros2_context.outputs:context>
-                custom uint inputs:execIn
-                delete uint inputs:execIn.connect = </World/nova_carter1/left_hawk/right_camera_render_product.outputs:execOut>
-                custom string inputs:qosProfile
-                delete string inputs:qosProfile.connect = </World/nova_carter1/left_hawk/ros2_qos_profile.outputs:qosProfile>
-                custom token inputs:renderProductPath
-                delete token inputs:renderProductPath.connect = </World/nova_carter1/left_hawk/right_camera_render_product.outputs:renderProductPath>
-            }
-
-            over "left_camera_publish_image"
-            {
-                custom uint64 inputs:context
-                delete uint64 inputs:context.connect = </World/nova_carter1/left_hawk/ros2_context.outputs:context>
-                custom uint inputs:execIn
-                delete uint inputs:execIn.connect = </World/nova_carter1/left_hawk/left_camera_render_product.outputs:execOut>
-                custom string inputs:qosProfile
-                delete string inputs:qosProfile.connect = </World/nova_carter1/left_hawk/ros2_qos_profile.outputs:qosProfile>
-                custom token inputs:renderProductPath
-                delete token inputs:renderProductPath.connect = </World/nova_carter1/left_hawk/left_camera_render_product.outputs:renderProductPath>
-            }
-
-            over "ros2_camera_info_helper"
-            {
-                custom uint64 inputs:context
-                delete uint64 inputs:context.connect = </World/nova_carter1/left_hawk/ros2_context.outputs:context>
-                custom uint inputs:execIn
-                delete uint inputs:execIn.connect = </World/nova_carter1/left_hawk/left_camera_render_product.outputs:execOut>
-                custom string inputs:frameId
-                delete string inputs:frameId.connect = </World/nova_carter1/left_hawk/left_camera_frame_id.inputs:value>
-                custom string inputs:frameIdRight
-                delete string inputs:frameIdRight.connect = </World/nova_carter1/left_hawk/right_camera_frame_id.inputs:value>
-                custom string inputs:qosProfile
-                delete string inputs:qosProfile.connect = </World/nova_carter1/left_hawk/ros2_qos_profile.outputs:qosProfile>
-                custom token inputs:renderProductPath
-                delete token inputs:renderProductPath.connect = </World/nova_carter1/left_hawk/left_camera_render_product.outputs:renderProductPath>
-                custom token inputs:renderProductPathRight
-                delete token inputs:renderProductPathRight.connect = </World/nova_carter1/left_hawk/right_camera_render_product.outputs:renderProductPath>
-            }
-
-            over "left_camera_render_product"
-            {
-                custom uint inputs:execIn
-                delete uint inputs:execIn.connect = </World/nova_carter1/left_hawk/isaac_run_one_simualtion_frame.outputs:step>
-            }
-
-            over "right_camera_render_product"
-            {
-                custom uint inputs:execIn
-                delete uint inputs:execIn.connect = </World/nova_carter1/left_hawk/isaac_run_one_simualtion_frame.outputs:step>
-            }
-
-            over "isaac_read_imu_node"
-            {
-                custom uint inputs:execIn
-                delete uint inputs:execIn.connect = </World/nova_carter1/left_hawk/on_playback_tick.outputs:tick>
-            }
-        }
-
-        over "m0609" (
-            prepend references = @file:/home/rokey/cobot3_ws/isaacpjt/M0609/doosan-robot2/urdf/m0609_isaac_sim/m0609_isaac_sim.usd@
-        )
-        {
-            string isaac:namespace (
-                displayName = "Namespace"
-                doc = "Namespace of the prim in Isaac Sim"
-            )
-            quatd xformOp:orient = (1, 0, 0, 0)
-            double3 xformOp:scale = (1, 1, 1)
-            double3 xformOp:translate = (-0.20649390288330727, 0, 0.5492008321030571)
-            uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
-
-            over "root_joint" (
-                active = false
-            )
-            {
-            }
-
-            def "short_gripper" (
-                prepend payload = @https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/5.1/Isaac/Robots/UniversalRobots/ur10/grippers/short_gripper.usd@
-            )
-            {
-                rel physics:simulationOwner
-                double3 xformOp:rotateXYZ = (0, -90, 0)
-                double3 xformOp:scale = (1, 1, 1)
-                double3 xformOp:translate = (0.0001, 0.00638, 1.0345)
-                uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:rotateXYZ", "xformOp:scale"]
-
-                over "gripper_tip"
-                {
-                    rel physics:simulationOwner
-                }
-
-                over "gripper_base"
-                {
-                    rel physics:simulationOwner
-                }
-
-                over "tube"
-                {
-                    rel physics:simulationOwner
-                }
-
-                over "camera_mount"
-                {
-                    rel physics:simulationOwner
-                }
-
-                over "wrist"
-                {
-                    rel physics:simulationOwner
-                }
-
-                over "mount"
-                {
-                    rel physics:simulationOwner
-                }
-
-                def "rsd455" (
-                    prepend payload = @https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/5.1/Isaac/Sensors/Intel/RealSense/rsd455.usd@
-                )
-                {
-                    double3 xformOp:rotateZYX = (90, 0, 0)
-                    double3 xformOp:scale = (1, 1, 1)
-                    double3 xformOp:translate = (0.035, -0.0450011848228975, 0)
-                    uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:rotateZYX", "xformOp:scale"]
-                }
-            }
-
-            over "link_6" (
-                prepend apiSchemas = ["PhysicsFilteredPairsAPI"]
-            )
-            {
-                string isaac:nameOverride (
-                    displayName = "Name Override"
-                    doc = "Name override for prim lookup in base name search"
-                )
-                prepend rel physics:filteredPairs = </World/nova_carter1/m0609/short_gripper>
-                rel physics:simulationOwner
-
-                def PhysicsFixedJoint "FixedJoint"
-                {
-                    rel physics:body0 = </World/nova_carter1/m0609/short_gripper>
-                    rel physics:body1 = </World/nova_carter1/m0609/link_6>
-                    float physics:breakForce = 3.4028235e38
-                    float physics:breakTorque = 3.4028235e38
-                    point3f physics:localPos0 = (-2.3555755e-7, 0.0000033612948, 3.471603e-7)
-                    point3f physics:localPos1 = (0, 0, 0)
-                    quatf physics:localRot0 = (0.7068625, -0.00024411494, 0.70735085, -0.00024411494)
-                    quatf physics:localRot1 = (1, 0, 0, 0)
-                }
-            }
-
-            over "base_link"
-            {
-                rel physics:simulationOwner
-            }
-
-            over "link_1"
-            {
-                rel physics:simulationOwner
-            }
-
-            over "link_2"
-            {
-                rel physics:simulationOwner
-            }
-
-            over "link_3"
-            {
-                rel physics:simulationOwner
-            }
-
-            over "link_4"
-            {
-                rel physics:simulationOwner
-            }
-
-            over "link_5"
-            {
-                rel physics:simulationOwner
-            }
-
-            over "joints"
-            {
-                over "joint_1"
-                {
-                    float drive:angular:physics:targetPosition = 0.4
-                    float physics:lowerLimit = -360.00082
-                    float physics:upperLimit = 360.00082
-                    float state:angular:physics:position = 0
-                    float state:angular:physics:velocity = 0
-                }
-
-                over "joint_2"
-                {
-                    float drive:angular:physics:targetPosition = 0.4
-                    float physics:lowerLimit = -360.00082
-                    float physics:upperLimit = 360.00082
-                    float state:angular:physics:position = 0
-                    float state:angular:physics:velocity = 0
-                }
-
-                over "joint_3"
-                {
-                    float drive:angular:physics:targetPosition = 88.200005
-                    float physics:lowerLimit = -150.00035
-                    float physics:upperLimit = 150.00035
-                    float state:angular:physics:position = 0
-                    float state:angular:physics:velocity = 0
-                }
-
-                over "joint_4"
-                {
-                    float drive:angular:physics:targetPosition = -16.9
-                    float physics:lowerLimit = -360.00082
-                    float physics:upperLimit = 360.00082
-                    float state:angular:physics:position = 0
-                    float state:angular:physics:velocity = 0
-                }
-
-                over "joint_5"
-                {
-                    float drive:angular:physics:targetPosition = 90.4
-                    float physics:lowerLimit = -360.00082
-                    float physics:upperLimit = 360.00082
-                    float state:angular:physics:position = 0
-                    float state:angular:physics:velocity = 0
-                }
-
-                over "joint_6"
-                {
-                    float drive:angular:physics:targetPosition = -9.900001
-                    float physics:lowerLimit = -360.00082
-                    float physics:upperLimit = 360.00082
-                    float state:angular:physics:position = 0
-                    float state:angular:physics:velocity = 0
-                }
-            }
-        }
-
-        def PhysicsFixedJoint "arm_mount_joint"
-        {
-            rel physics:body0 = </World/nova_carter1/chassis_link>
-            rel physics:body1 = </World/nova_carter1/m0609/base_link>
-            point3f physics:localPos0 = (-0.20649381, -2.336014e-7, 0.54920083)
-            point3f physics:localPos1 = (9.604432e-8, -2.336014e-7, -1.4160438e-8)
-            quatf physics:localRot0 = (1, 0, 0, 0)
-            quatf physics:localRot1 = (1, 0, 0, 0)
-        }
-    }
-
-    def "nova_carter2" (
-        prepend payload = @https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/5.1/Isaac/Samples/ROS2/Robots/Nova_Carter_ROS.usd@
-    )
-    {
-        quatd xformOp:orient = (1, 0, 0, 0)
-        double3 xformOp:scale = (1, 1, 1)
-        double3 xformOp:translate = (3.490373703049795, -5.227116321664516, 0.07963398335074101)
-        uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
-
-        over "differential_drive"
-        {
-            over "joint_name_array"
-            {
-                custom token inputs:input0
-                delete token inputs:input0.connect = </World/nova_carter2/differential_drive/joint_wheel_left_name.inputs:value>
-                prepend token inputs:input0.connect = </World/nova_carter2/differential_drive/joint_wheel_left_name.inputs:value>
-                custom token inputs:input1
-                delete token inputs:input1.connect = </World/nova_carter2/differential_drive/joint_wheel_right_name.inputs:value>
-                prepend token inputs:input1.connect = </World/nova_carter2/differential_drive/joint_wheel_right_name.inputs:value>
-            }
-        }
-
-        over "chassis_link" (
-            prepend apiSchemas = ["PhysicsFilteredPairsAPI"]
-        )
-        {
-            prepend rel physics:filteredPairs = </World/nova_carter2/m0609/base_link>
-            rel physics:simulationOwner
-
-            over "visual"
-            {
-                rel physics:simulationOwner
-            }
-        }
-
-        over "caster_frame_base"
-        {
-            rel physics:simulationOwner
-
-            over "visual"
-            {
-                rel physics:simulationOwner
-            }
-        }
-
-        over "caster_swivel_left"
-        {
-            rel physics:simulationOwner
-        }
-
-        over "caster_wheel_left"
-        {
-            rel physics:simulationOwner
-        }
-
-        over "caster_swivel_right"
-        {
-            rel physics:simulationOwner
-        }
-
-        over "caster_wheel_right"
-        {
-            rel physics:simulationOwner
-        }
-
-        over "wheel_left"
-        {
-            rel physics:simulationOwner
-        }
-
-        over "wheel_right"
-        {
-            rel physics:simulationOwner
-        }
-
-        over "joint_caster_base"
-        {
-            float physics:lowerLimit = -2
-            float physics:upperLimit = 2
-            float state:angular:physics:position = 0
-            float state:angular:physics:velocity = 0
-        }
-
-        over "joint_wheel_left"
-        {
-            float physics:lowerLimit = -inf
-            float physics:upperLimit = inf
-            float state:angular:physics:position = 0
-            float state:angular:physics:velocity = 0
-        }
-
-        over "joint_wheel_right"
-        {
-            float physics:lowerLimit = -inf
-            float physics:upperLimit = inf
-            float state:angular:physics:position = 0
-            float state:angular:physics:velocity = 0
-        }
-
-        over "joint_swing_left"
-        {
-            float physics:lowerLimit = -inf
-            float physics:upperLimit = inf
-            float state:angular:physics:position = 0
-            float state:angular:physics:velocity = 0
-        }
-
-        over "joint_swing_right"
-        {
-            float physics:lowerLimit = -inf
-            float physics:upperLimit = inf
-            float state:angular:physics:position = 0
-            float state:angular:physics:velocity = 0
-        }
-
-        over "joint_caster_left"
-        {
-            float physics:lowerLimit = -inf
-            float physics:upperLimit = inf
-            float state:angular:physics:position = 0
-            float state:angular:physics:velocity = 0
-        }
-
-        over "joint_caster_right"
-        {
-            float physics:lowerLimit = -inf
-            float physics:upperLimit = inf
-            float state:angular:physics:position = 0
-            float state:angular:physics:velocity = 0
-        }
-
-        over "front_hawk"
-        {
-            over "isaac_read_imu_node"
-            {
-                custom uint inputs:execIn
-                delete uint inputs:execIn.connect = </World/nova_carter2/front_hawk/on_playback_tick.outputs:tick>
-            }
-
-            over "isaac_run_one_simualtion_frame"
-            {
-                custom uint inputs:execIn
-                delete uint inputs:execIn.connect = </World/nova_carter2/front_hawk/on_playback_tick.outputs:tick>
-            }
-
-            over "ros2_publish_imu"
-            {
-                custom vector3d inputs:angularVelocity
-                delete vector3d inputs:angularVelocity.connect = </World/nova_carter2/front_hawk/isaac_read_imu_node.outputs:angVel>
-                custom uint64 inputs:context
-                delete uint64 inputs:context.connect = </World/nova_carter2/front_hawk/ros2_context.outputs:context>
-                custom uint inputs:execIn
-                delete uint inputs:execIn.connect = </World/nova_carter2/front_hawk/isaac_read_imu_node.outputs:execOut>
-                custom vector3d inputs:linearAcceleration
-                delete vector3d inputs:linearAcceleration.connect = </World/nova_carter2/front_hawk/isaac_read_imu_node.outputs:linAcc>
-                custom quatd inputs:orientation
-                delete quatd inputs:orientation.connect = </World/nova_carter2/front_hawk/isaac_read_imu_node.outputs:orientation>
-                custom string inputs:qosProfile
-                delete string inputs:qosProfile.connect = </World/nova_carter2/front_hawk/ros2_qos_profile.outputs:qosProfile>
-                custom double inputs:timeStamp
-                delete double inputs:timeStamp.connect = </World/nova_carter2/front_hawk/isaac_read_simulation_time.outputs:simulationTime>
-            }
-
-            over "ros2_camera_info_helper"
-            {
-                custom uint64 inputs:context
-                delete uint64 inputs:context.connect = </World/nova_carter2/front_hawk/ros2_context.outputs:context>
-                custom uint inputs:execIn
-                delete uint inputs:execIn.connect = </World/nova_carter2/front_hawk/left_camera_render_product.outputs:execOut>
-                custom string inputs:nodeNamespace
-                delete string inputs:nodeNamespace.connect = </World/nova_carter2/front_hawk/camera_namespace.inputs:value>
-                custom token inputs:renderProductPath
-                delete token inputs:renderProductPath.connect = </World/nova_carter2/front_hawk/left_camera_render_product.outputs:renderProductPath>
-                custom token inputs:renderProductPathRight
-                delete token inputs:renderProductPathRight.connect = </World/nova_carter2/front_hawk/right_camera_render_product.outputs:renderProductPath>
-            }
-
-            over "right_camera_publish_image"
-            {
-                custom uint64 inputs:context
-                delete uint64 inputs:context.connect = </World/nova_carter2/front_hawk/ros2_context.outputs:context>
-                custom uint inputs:execIn
-                delete uint inputs:execIn.connect = </World/nova_carter2/front_hawk/right_camera_render_product.outputs:execOut>
-                custom string inputs:nodeNamespace
-                delete string inputs:nodeNamespace.connect = </World/nova_carter2/front_hawk/camera_namespace.inputs:value>
-                custom token inputs:renderProductPath
-                delete token inputs:renderProductPath.connect = </World/nova_carter2/front_hawk/right_camera_render_product.outputs:renderProductPath>
-            }
-
-            over "left_camera_publish_image"
-            {
-                custom uint64 inputs:context
-                delete uint64 inputs:context.connect = </World/nova_carter2/front_hawk/ros2_context.outputs:context>
-                custom uint inputs:execIn
-                delete uint inputs:execIn.connect = </World/nova_carter2/front_hawk/left_camera_render_product.outputs:execOut>
-                custom string inputs:frameId
-                delete string inputs:frameId.connect = </World/nova_carter2/front_hawk/left_camera_frame_id.inputs:value>
-                custom string inputs:nodeNamespace
-                delete string inputs:nodeNamespace.connect = </World/nova_carter2/front_hawk/camera_namespace.inputs:value>
-                custom string inputs:qosProfile
-                delete string inputs:qosProfile.connect = </World/nova_carter2/front_hawk/ros2_qos_profile.outputs:qosProfile>
-                custom token inputs:renderProductPath
-                delete token inputs:renderProductPath.connect = </World/nova_carter2/front_hawk/left_camera_render_product.outputs:renderProductPath>
-            }
-        }
-
-        over "left_hawk"
-        {
-            over "ros2_publish_imu"
-            {
-                custom uint64 inputs:context
-                delete uint64 inputs:context.connect = </World/nova_carter2/left_hawk/ros2_context.outputs:context>
-                custom string inputs:qosProfile
-                delete string inputs:qosProfile.connect = </World/nova_carter2/left_hawk/ros2_qos_profile.outputs:qosProfile>
-                custom double inputs:timeStamp
-                delete double inputs:timeStamp.connect = </World/nova_carter2/left_hawk/isaac_read_simulation_time.outputs:simulationTime>
-            }
-
-            over "right_camera_publish_image"
-            {
-                custom uint64 inputs:context
-                delete uint64 inputs:context.connect = </World/nova_carter2/left_hawk/ros2_context.outputs:context>
-                custom uint inputs:execIn
-                delete uint inputs:execIn.connect = </World/nova_carter2/left_hawk/right_camera_render_product.outputs:execOut>
-                custom string inputs:qosProfile
-                delete string inputs:qosProfile.connect = </World/nova_carter2/left_hawk/ros2_qos_profile.outputs:qosProfile>
-                custom token inputs:renderProductPath
-                delete token inputs:renderProductPath.connect = </World/nova_carter2/left_hawk/right_camera_render_product.outputs:renderProductPath>
-            }
-
-            over "left_camera_publish_image"
-            {
-                custom uint64 inputs:context
-                delete uint64 inputs:context.connect = </World/nova_carter2/left_hawk/ros2_context.outputs:context>
-                custom uint inputs:execIn
-                delete uint inputs:execIn.connect = </World/nova_carter2/left_hawk/left_camera_render_product.outputs:execOut>
-                custom string inputs:qosProfile
-                delete string inputs:qosProfile.connect = </World/nova_carter2/left_hawk/ros2_qos_profile.outputs:qosProfile>
-                custom token inputs:renderProductPath
-                delete token inputs:renderProductPath.connect = </World/nova_carter2/left_hawk/left_camera_render_product.outputs:renderProductPath>
-            }
-
-            over "ros2_camera_info_helper"
-            {
-                custom uint64 inputs:context
-                delete uint64 inputs:context.connect = </World/nova_carter2/left_hawk/ros2_context.outputs:context>
-                custom uint inputs:execIn
-                delete uint inputs:execIn.connect = </World/nova_carter2/left_hawk/left_camera_render_product.outputs:execOut>
-                custom string inputs:frameId
-                delete string inputs:frameId.connect = </World/nova_carter2/left_hawk/left_camera_frame_id.inputs:value>
-                custom string inputs:frameIdRight
-                delete string inputs:frameIdRight.connect = </World/nova_carter2/left_hawk/right_camera_frame_id.inputs:value>
-                custom string inputs:qosProfile
-                delete string inputs:qosProfile.connect = </World/nova_carter2/left_hawk/ros2_qos_profile.outputs:qosProfile>
-                custom token inputs:renderProductPath
-                delete token inputs:renderProductPath.connect = </World/nova_carter2/left_hawk/left_camera_render_product.outputs:renderProductPath>
-                custom token inputs:renderProductPathRight
-                delete token inputs:renderProductPathRight.connect = </World/nova_carter2/left_hawk/right_camera_render_product.outputs:renderProductPath>
-            }
-
-            over "left_camera_render_product"
-            {
-                custom uint inputs:execIn
-                delete uint inputs:execIn.connect = </World/nova_carter2/left_hawk/isaac_run_one_simualtion_frame.outputs:step>
-            }
-
-            over "right_camera_render_product"
-            {
-                custom uint inputs:execIn
-                delete uint inputs:execIn.connect = </World/nova_carter2/left_hawk/isaac_run_one_simualtion_frame.outputs:step>
-            }
-
-            over "isaac_read_imu_node"
-            {
-                custom uint inputs:execIn
-                delete uint inputs:execIn.connect = </World/nova_carter2/left_hawk/on_playback_tick.outputs:tick>
-            }
-        }
-
-        over "m0609" (
-            prepend references = @file:/home/rokey/cobot3_ws/isaacpjt/M0609/doosan-robot2/urdf/m0609_isaac_sim/m0609_isaac_sim.usd@
-        )
-        {
-            string isaac:namespace (
-                displayName = "Namespace"
-                doc = "Namespace of the prim in Isaac Sim"
-            )
-            quatd xformOp:orient = (1, 0, 0, 0)
-            double3 xformOp:scale = (1, 1, 1)
-            double3 xformOp:translate = (-0.20649390288330727, 0, 0.5492008321030571)
-            uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
-
-            over "root_joint" (
-                active = false
-            )
-            {
-            }
-
-            def "short_gripper" (
-                prepend payload = @https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/5.1/Isaac/Robots/UniversalRobots/ur10/grippers/short_gripper.usd@
-            )
-            {
-                rel physics:simulationOwner
-                double3 xformOp:rotateXYZ = (0, -90, 0)
-                double3 xformOp:scale = (1, 1, 1)
-                double3 xformOp:translate = (0.0001, 0.00638, 1.0345)
-                uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:rotateXYZ", "xformOp:scale"]
-
-                over "gripper_tip"
-                {
-                    rel physics:simulationOwner
-                }
-
-                over "gripper_base"
-                {
-                    rel physics:simulationOwner
-                }
-
-                over "tube"
-                {
-                    rel physics:simulationOwner
-                }
-
-                over "camera_mount"
-                {
-                    rel physics:simulationOwner
-                }
-
-                over "wrist"
-                {
-                    rel physics:simulationOwner
-                }
-
-                over "mount"
-                {
-                    rel physics:simulationOwner
-                }
-
-                def "rsd455" (
-                    prepend payload = @https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/5.1/Isaac/Sensors/Intel/RealSense/rsd455.usd@
-                )
-                {
-                    double3 xformOp:rotateZYX = (90, 0, 0)
-                    double3 xformOp:scale = (1, 1, 1)
-                    double3 xformOp:translate = (0.035, -0.0450011848228975, 0)
-                    uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:rotateZYX", "xformOp:scale"]
-                }
-            }
-
-            over "link_6" (
-                prepend apiSchemas = ["PhysicsFilteredPairsAPI"]
-            )
-            {
-                string isaac:nameOverride (
-                    displayName = "Name Override"
-                    doc = "Name override for prim lookup in base name search"
-                )
-                prepend rel physics:filteredPairs = </World/nova_carter2/m0609/short_gripper>
-                rel physics:simulationOwner
-
-                def PhysicsFixedJoint "FixedJoint"
-                {
-                    rel physics:body0 = </World/nova_carter2/m0609/short_gripper>
-                    rel physics:body1 = </World/nova_carter2/m0609/link_6>
-                    float physics:breakForce = 3.4028235e38
-                    float physics:breakTorque = 3.4028235e38
-                    point3f physics:localPos0 = (-2.3555755e-7, 0.0000033612948, 3.471603e-7)
-                    point3f physics:localPos1 = (0, 0, 0)
-                    quatf physics:localRot0 = (0.7068625, -0.00024411494, 0.70735085, -0.00024411494)
-                    quatf physics:localRot1 = (1, 0, 0, 0)
-                }
-            }
-
-            over "base_link"
-            {
-                rel physics:simulationOwner
-            }
-
-            over "link_1"
-            {
-                rel physics:simulationOwner
-            }
-
-            over "link_2"
-            {
-                rel physics:simulationOwner
-            }
-
-            over "link_3"
-            {
-                rel physics:simulationOwner
-            }
-
-            over "link_4"
-            {
-                rel physics:simulationOwner
-            }
-
-            over "link_5"
-            {
-                rel physics:simulationOwner
-            }
-
-            over "joints"
-            {
-                over "joint_1"
-                {
-                    float drive:angular:physics:targetPosition = 0.4
-                    float physics:lowerLimit = -360.00082
-                    float physics:upperLimit = 360.00082
-                    float state:angular:physics:position = 0
-                    float state:angular:physics:velocity = 0
-                }
-
-                over "joint_2"
-                {
-                    float drive:angular:physics:targetPosition = 0.4
-                    float physics:lowerLimit = -360.00082
-                    float physics:upperLimit = 360.00082
-                    float state:angular:physics:position = 0
-                    float state:angular:physics:velocity = 0
-                }
-
-                over "joint_3"
-                {
-                    float drive:angular:physics:targetPosition = 88.200005
-                    float physics:lowerLimit = -150.00035
-                    float physics:upperLimit = 150.00035
-                    float state:angular:physics:position = 0
-                    float state:angular:physics:velocity = 0
-                }
-
-                over "joint_4"
-                {
-                    float drive:angular:physics:targetPosition = -16.9
-                    float physics:lowerLimit = -360.00082
-                    float physics:upperLimit = 360.00082
-                    float state:angular:physics:position = 0
-                    float state:angular:physics:velocity = 0
-                }
-
-                over "joint_5"
-                {
-                    float drive:angular:physics:targetPosition = 90.4
-                    float physics:lowerLimit = -360.00082
-                    float physics:upperLimit = 360.00082
-                    float state:angular:physics:position = 0
-                    float state:angular:physics:velocity = 0
-                }
-
-                over "joint_6"
-                {
-                    float drive:angular:physics:targetPosition = -9.900001
-                    float physics:lowerLimit = -360.00082
-                    float physics:upperLimit = 360.00082
-                    float state:angular:physics:position = 0
-                    float state:angular:physics:velocity = 0
-                }
-            }
-        }
-
-        def PhysicsFixedJoint "arm_mount_joint"
-        {
-            rel physics:body0 = </World/nova_carter2/chassis_link>
-            rel physics:body1 = </World/nova_carter2/m0609/base_link>
-            point3f physics:localPos0 = (-0.20649381, -2.336014e-7, 0.54920083)
-            point3f physics:localPos1 = (9.604432e-8, -2.336014e-7, -1.4160438e-8)
-            quatf physics:localRot0 = (1, 0, 0, 0)
-            quatf physics:localRot1 = (1, 0, 0, 0)
-        }
-    }
-
     def Xform "Magazines"
     {
         quatd xformOp:orient = (1, 0, 0, 0)
@@ -1690,6 +746,958 @@ def Xform "World"
                     double3 xformOp:translate = (-5.29877, -2.2, 0.29311178287374434)
                     uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
                 }
+            }
+        }
+    }
+
+    def Xform "Robots"
+    {
+        quatd xformOp:orient = (1, 0, 0, 0)
+        double3 xformOp:scale = (1, 1, 1)
+        double3 xformOp:translate = (0, 0, 0)
+        uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
+
+        def "nova_carter1" (
+            prepend payload = @https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/5.1/Isaac/Samples/ROS2/Robots/Nova_Carter_ROS.usd@
+        )
+        {
+            quatd xformOp:orient = (1, 0, 0, 0)
+            double3 xformOp:scale = (1, 1, 1)
+            double3 xformOp:translate = (3.490373703049795, -4.243819003153972, 0.07963398335074101)
+            uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
+
+            over "differential_drive"
+            {
+                over "joint_name_array"
+                {
+                    custom token inputs:input0
+                    delete token inputs:input0.connect = </World/Robots/nova_carter1/differential_drive/joint_wheel_left_name.inputs:value>
+                    prepend token inputs:input0.connect = </World/Robots/nova_carter1/differential_drive/joint_wheel_left_name.inputs:value>
+                    custom token inputs:input1
+                    delete token inputs:input1.connect = </World/Robots/nova_carter1/differential_drive/joint_wheel_right_name.inputs:value>
+                    prepend token inputs:input1.connect = </World/Robots/nova_carter1/differential_drive/joint_wheel_right_name.inputs:value>
+                }
+            }
+
+            over "chassis_link" (
+                prepend apiSchemas = ["PhysicsFilteredPairsAPI"]
+            )
+            {
+                prepend rel physics:filteredPairs = </World/Robots/nova_carter1/m0609/base_link>
+                rel physics:simulationOwner
+
+                over "visual"
+                {
+                    rel physics:simulationOwner
+                }
+            }
+
+            over "caster_frame_base"
+            {
+                rel physics:simulationOwner
+
+                over "visual"
+                {
+                    rel physics:simulationOwner
+                }
+            }
+
+            over "caster_swivel_left"
+            {
+                rel physics:simulationOwner
+            }
+
+            over "caster_wheel_left"
+            {
+                rel physics:simulationOwner
+            }
+
+            over "caster_swivel_right"
+            {
+                rel physics:simulationOwner
+            }
+
+            over "caster_wheel_right"
+            {
+                rel physics:simulationOwner
+            }
+
+            over "wheel_left"
+            {
+                rel physics:simulationOwner
+            }
+
+            over "wheel_right"
+            {
+                rel physics:simulationOwner
+            }
+
+            over "joint_caster_base"
+            {
+                float physics:lowerLimit = -2
+                float physics:upperLimit = 2
+                float state:angular:physics:position = 0
+                float state:angular:physics:velocity = 0
+            }
+
+            over "joint_wheel_left"
+            {
+                float physics:lowerLimit = -inf
+                float physics:upperLimit = inf
+                float state:angular:physics:position = 0
+                float state:angular:physics:velocity = 0
+            }
+
+            over "joint_wheel_right"
+            {
+                float physics:lowerLimit = -inf
+                float physics:upperLimit = inf
+                float state:angular:physics:position = 0
+                float state:angular:physics:velocity = 0
+            }
+
+            over "joint_swing_left"
+            {
+                float physics:lowerLimit = -inf
+                float physics:upperLimit = inf
+                float state:angular:physics:position = 0
+                float state:angular:physics:velocity = 0
+            }
+
+            over "joint_swing_right"
+            {
+                float physics:lowerLimit = -inf
+                float physics:upperLimit = inf
+                float state:angular:physics:position = 0
+                float state:angular:physics:velocity = 0
+            }
+
+            over "joint_caster_left"
+            {
+                float physics:lowerLimit = -inf
+                float physics:upperLimit = inf
+                float state:angular:physics:position = 0
+                float state:angular:physics:velocity = 0
+            }
+
+            over "joint_caster_right"
+            {
+                float physics:lowerLimit = -inf
+                float physics:upperLimit = inf
+                float state:angular:physics:position = 0
+                float state:angular:physics:velocity = 0
+            }
+
+            over "front_hawk"
+            {
+                over "isaac_read_imu_node"
+                {
+                    custom uint inputs:execIn
+                    delete uint inputs:execIn.connect = </World/Robots/nova_carter1/front_hawk/on_playback_tick.outputs:tick>
+                }
+
+                over "isaac_run_one_simualtion_frame"
+                {
+                    custom uint inputs:execIn
+                    delete uint inputs:execIn.connect = </World/Robots/nova_carter1/front_hawk/on_playback_tick.outputs:tick>
+                }
+
+                over "ros2_publish_imu"
+                {
+                    custom vector3d inputs:angularVelocity
+                    delete vector3d inputs:angularVelocity.connect = </World/Robots/nova_carter1/front_hawk/isaac_read_imu_node.outputs:angVel>
+                    custom uint64 inputs:context
+                    delete uint64 inputs:context.connect = </World/Robots/nova_carter1/front_hawk/ros2_context.outputs:context>
+                    custom uint inputs:execIn
+                    delete uint inputs:execIn.connect = </World/Robots/nova_carter1/front_hawk/isaac_read_imu_node.outputs:execOut>
+                    custom vector3d inputs:linearAcceleration
+                    delete vector3d inputs:linearAcceleration.connect = </World/Robots/nova_carter1/front_hawk/isaac_read_imu_node.outputs:linAcc>
+                    custom quatd inputs:orientation
+                    delete quatd inputs:orientation.connect = </World/Robots/nova_carter1/front_hawk/isaac_read_imu_node.outputs:orientation>
+                    custom string inputs:qosProfile
+                    delete string inputs:qosProfile.connect = </World/Robots/nova_carter1/front_hawk/ros2_qos_profile.outputs:qosProfile>
+                    custom double inputs:timeStamp
+                    delete double inputs:timeStamp.connect = </World/Robots/nova_carter1/front_hawk/isaac_read_simulation_time.outputs:simulationTime>
+                }
+
+                over "ros2_camera_info_helper"
+                {
+                    custom uint64 inputs:context
+                    delete uint64 inputs:context.connect = </World/Robots/nova_carter1/front_hawk/ros2_context.outputs:context>
+                    custom uint inputs:execIn
+                    delete uint inputs:execIn.connect = </World/Robots/nova_carter1/front_hawk/left_camera_render_product.outputs:execOut>
+                    custom string inputs:nodeNamespace
+                    delete string inputs:nodeNamespace.connect = </World/Robots/nova_carter1/front_hawk/camera_namespace.inputs:value>
+                    custom token inputs:renderProductPath
+                    delete token inputs:renderProductPath.connect = </World/Robots/nova_carter1/front_hawk/left_camera_render_product.outputs:renderProductPath>
+                    custom token inputs:renderProductPathRight
+                    delete token inputs:renderProductPathRight.connect = </World/Robots/nova_carter1/front_hawk/right_camera_render_product.outputs:renderProductPath>
+                }
+
+                over "right_camera_publish_image"
+                {
+                    custom uint64 inputs:context
+                    delete uint64 inputs:context.connect = </World/Robots/nova_carter1/front_hawk/ros2_context.outputs:context>
+                    custom uint inputs:execIn
+                    delete uint inputs:execIn.connect = </World/Robots/nova_carter1/front_hawk/right_camera_render_product.outputs:execOut>
+                    custom string inputs:nodeNamespace
+                    delete string inputs:nodeNamespace.connect = </World/Robots/nova_carter1/front_hawk/camera_namespace.inputs:value>
+                    custom token inputs:renderProductPath
+                    delete token inputs:renderProductPath.connect = </World/Robots/nova_carter1/front_hawk/right_camera_render_product.outputs:renderProductPath>
+                }
+
+                over "left_camera_publish_image"
+                {
+                    custom uint64 inputs:context
+                    delete uint64 inputs:context.connect = </World/Robots/nova_carter1/front_hawk/ros2_context.outputs:context>
+                    custom uint inputs:execIn
+                    delete uint inputs:execIn.connect = </World/Robots/nova_carter1/front_hawk/left_camera_render_product.outputs:execOut>
+                    custom string inputs:frameId
+                    delete string inputs:frameId.connect = </World/Robots/nova_carter1/front_hawk/left_camera_frame_id.inputs:value>
+                    custom string inputs:nodeNamespace
+                    delete string inputs:nodeNamespace.connect = </World/Robots/nova_carter1/front_hawk/camera_namespace.inputs:value>
+                    custom string inputs:qosProfile
+                    delete string inputs:qosProfile.connect = </World/Robots/nova_carter1/front_hawk/ros2_qos_profile.outputs:qosProfile>
+                    custom token inputs:renderProductPath
+                    delete token inputs:renderProductPath.connect = </World/Robots/nova_carter1/front_hawk/left_camera_render_product.outputs:renderProductPath>
+                }
+            }
+
+            over "left_hawk"
+            {
+                over "ros2_publish_imu"
+                {
+                    custom uint64 inputs:context
+                    delete uint64 inputs:context.connect = </World/Robots/nova_carter1/left_hawk/ros2_context.outputs:context>
+                    custom string inputs:qosProfile
+                    delete string inputs:qosProfile.connect = </World/Robots/nova_carter1/left_hawk/ros2_qos_profile.outputs:qosProfile>
+                    custom double inputs:timeStamp
+                    delete double inputs:timeStamp.connect = </World/Robots/nova_carter1/left_hawk/isaac_read_simulation_time.outputs:simulationTime>
+                }
+
+                over "right_camera_publish_image"
+                {
+                    custom uint64 inputs:context
+                    delete uint64 inputs:context.connect = </World/Robots/nova_carter1/left_hawk/ros2_context.outputs:context>
+                    custom uint inputs:execIn
+                    delete uint inputs:execIn.connect = </World/Robots/nova_carter1/left_hawk/right_camera_render_product.outputs:execOut>
+                    custom string inputs:qosProfile
+                    delete string inputs:qosProfile.connect = </World/Robots/nova_carter1/left_hawk/ros2_qos_profile.outputs:qosProfile>
+                    custom token inputs:renderProductPath
+                    delete token inputs:renderProductPath.connect = </World/Robots/nova_carter1/left_hawk/right_camera_render_product.outputs:renderProductPath>
+                }
+
+                over "left_camera_publish_image"
+                {
+                    custom uint64 inputs:context
+                    delete uint64 inputs:context.connect = </World/Robots/nova_carter1/left_hawk/ros2_context.outputs:context>
+                    custom uint inputs:execIn
+                    delete uint inputs:execIn.connect = </World/Robots/nova_carter1/left_hawk/left_camera_render_product.outputs:execOut>
+                    custom string inputs:qosProfile
+                    delete string inputs:qosProfile.connect = </World/Robots/nova_carter1/left_hawk/ros2_qos_profile.outputs:qosProfile>
+                    custom token inputs:renderProductPath
+                    delete token inputs:renderProductPath.connect = </World/Robots/nova_carter1/left_hawk/left_camera_render_product.outputs:renderProductPath>
+                }
+
+                over "ros2_camera_info_helper"
+                {
+                    custom uint64 inputs:context
+                    delete uint64 inputs:context.connect = </World/Robots/nova_carter1/left_hawk/ros2_context.outputs:context>
+                    custom uint inputs:execIn
+                    delete uint inputs:execIn.connect = </World/Robots/nova_carter1/left_hawk/left_camera_render_product.outputs:execOut>
+                    custom string inputs:frameId
+                    delete string inputs:frameId.connect = </World/Robots/nova_carter1/left_hawk/left_camera_frame_id.inputs:value>
+                    custom string inputs:frameIdRight
+                    delete string inputs:frameIdRight.connect = </World/Robots/nova_carter1/left_hawk/right_camera_frame_id.inputs:value>
+                    custom string inputs:qosProfile
+                    delete string inputs:qosProfile.connect = </World/Robots/nova_carter1/left_hawk/ros2_qos_profile.outputs:qosProfile>
+                    custom token inputs:renderProductPath
+                    delete token inputs:renderProductPath.connect = </World/Robots/nova_carter1/left_hawk/left_camera_render_product.outputs:renderProductPath>
+                    custom token inputs:renderProductPathRight
+                    delete token inputs:renderProductPathRight.connect = </World/Robots/nova_carter1/left_hawk/right_camera_render_product.outputs:renderProductPath>
+                }
+
+                over "left_camera_render_product"
+                {
+                    custom uint inputs:execIn
+                    delete uint inputs:execIn.connect = </World/Robots/nova_carter1/left_hawk/isaac_run_one_simualtion_frame.outputs:step>
+                }
+
+                over "right_camera_render_product"
+                {
+                    custom uint inputs:execIn
+                    delete uint inputs:execIn.connect = </World/Robots/nova_carter1/left_hawk/isaac_run_one_simualtion_frame.outputs:step>
+                }
+
+                over "isaac_read_imu_node"
+                {
+                    custom uint inputs:execIn
+                    delete uint inputs:execIn.connect = </World/Robots/nova_carter1/left_hawk/on_playback_tick.outputs:tick>
+                }
+            }
+
+            over "m0609" (
+                prepend references = @file:/home/rokey/cobot3_ws/isaacpjt/M0609/doosan-robot2/urdf/m0609_isaac_sim/m0609_isaac_sim.usd@
+            )
+            {
+                string isaac:namespace (
+                    displayName = "Namespace"
+                    doc = "Namespace of the prim in Isaac Sim"
+                )
+                quatd xformOp:orient = (1, 0, 0, 0)
+                double3 xformOp:scale = (1, 1, 1)
+                double3 xformOp:translate = (-0.20649390288330727, 0, 0.5492008321030571)
+                uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
+
+                over "root_joint" (
+                    active = false
+                )
+                {
+                }
+
+                def "short_gripper" (
+                    prepend payload = @https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/5.1/Isaac/Robots/UniversalRobots/ur10/grippers/short_gripper.usd@
+                )
+                {
+                    rel physics:simulationOwner
+                    double3 xformOp:rotateXYZ = (0, -90, 0)
+                    double3 xformOp:scale = (1, 1, 1)
+                    double3 xformOp:translate = (0.0001, 0.00638, 1.0345)
+                    uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:rotateXYZ", "xformOp:scale"]
+
+                    over "gripper_tip"
+                    {
+                        rel physics:simulationOwner
+                    }
+
+                    over "gripper_base"
+                    {
+                        rel physics:simulationOwner
+                    }
+
+                    over "tube"
+                    {
+                        rel physics:simulationOwner
+                    }
+
+                    over "camera_mount"
+                    {
+                        rel physics:simulationOwner
+                    }
+
+                    over "wrist"
+                    {
+                        rel physics:simulationOwner
+                    }
+
+                    over "mount"
+                    {
+                        rel physics:simulationOwner
+                    }
+
+                    def "rsd455" (
+                        prepend payload = @https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/5.1/Isaac/Sensors/Intel/RealSense/rsd455.usd@
+                    )
+                    {
+                        double3 xformOp:rotateZYX = (90, 0, 0)
+                        double3 xformOp:scale = (1, 1, 1)
+                        double3 xformOp:translate = (0.035, -0.0450011848228975, 0)
+                        uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:rotateZYX", "xformOp:scale"]
+                    }
+                }
+
+                over "link_6" (
+                    prepend apiSchemas = ["PhysicsFilteredPairsAPI"]
+                )
+                {
+                    string isaac:nameOverride (
+                        displayName = "Name Override"
+                        doc = "Name override for prim lookup in base name search"
+                    )
+                    prepend rel physics:filteredPairs = </World/Robots/nova_carter1/m0609/short_gripper>
+                    rel physics:simulationOwner
+
+                    def PhysicsFixedJoint "FixedJoint"
+                    {
+                        rel physics:body0 = </World/Robots/nova_carter1/m0609/short_gripper>
+                        rel physics:body1 = </World/Robots/nova_carter1/m0609/link_6>
+                        float physics:breakForce = 3.4028235e38
+                        float physics:breakTorque = 3.4028235e38
+                        point3f physics:localPos0 = (-2.3555755e-7, 0.0000033612948, 3.471603e-7)
+                        point3f physics:localPos1 = (0, 0, 0)
+                        quatf physics:localRot0 = (0.7068625, -0.00024411494, 0.70735085, -0.00024411494)
+                        quatf physics:localRot1 = (1, 0, 0, 0)
+                    }
+                }
+
+                over "base_link"
+                {
+                    rel physics:simulationOwner
+                }
+
+                over "link_1"
+                {
+                    rel physics:simulationOwner
+                }
+
+                over "link_2"
+                {
+                    rel physics:simulationOwner
+                }
+
+                over "link_3"
+                {
+                    rel physics:simulationOwner
+                }
+
+                over "link_4"
+                {
+                    rel physics:simulationOwner
+                }
+
+                over "link_5"
+                {
+                    rel physics:simulationOwner
+                }
+
+                over "joints"
+                {
+                    over "joint_1"
+                    {
+                        float drive:angular:physics:targetPosition = 0.4
+                        float physics:lowerLimit = -360.00082
+                        float physics:upperLimit = 360.00082
+                        float state:angular:physics:position = 0
+                        float state:angular:physics:velocity = 0
+                    }
+
+                    over "joint_2"
+                    {
+                        float drive:angular:physics:targetPosition = 0.4
+                        float physics:lowerLimit = -360.00082
+                        float physics:upperLimit = 360.00082
+                        float state:angular:physics:position = 0
+                        float state:angular:physics:velocity = 0
+                    }
+
+                    over "joint_3"
+                    {
+                        float drive:angular:physics:targetPosition = 88.200005
+                        float physics:lowerLimit = -150.00035
+                        float physics:upperLimit = 150.00035
+                        float state:angular:physics:position = 0
+                        float state:angular:physics:velocity = 0
+                    }
+
+                    over "joint_4"
+                    {
+                        float drive:angular:physics:targetPosition = -16.9
+                        float physics:lowerLimit = -360.00082
+                        float physics:upperLimit = 360.00082
+                        float state:angular:physics:position = 0
+                        float state:angular:physics:velocity = 0
+                    }
+
+                    over "joint_5"
+                    {
+                        float drive:angular:physics:targetPosition = 90.4
+                        float physics:lowerLimit = -360.00082
+                        float physics:upperLimit = 360.00082
+                        float state:angular:physics:position = 0
+                        float state:angular:physics:velocity = 0
+                    }
+
+                    over "joint_6"
+                    {
+                        float drive:angular:physics:targetPosition = -9.900001
+                        float physics:lowerLimit = -360.00082
+                        float physics:upperLimit = 360.00082
+                        float state:angular:physics:position = 0
+                        float state:angular:physics:velocity = 0
+                    }
+                }
+            }
+
+            def PhysicsFixedJoint "arm_mount_joint"
+            {
+                rel physics:body0 = </World/Robots/nova_carter1/chassis_link>
+                rel physics:body1 = </World/Robots/nova_carter1/m0609/base_link>
+                point3f physics:localPos0 = (-0.20649381, -2.336014e-7, 0.54920083)
+                point3f physics:localPos1 = (9.604432e-8, -2.336014e-7, -1.4160438e-8)
+                quatf physics:localRot0 = (1, 0, 0, 0)
+                quatf physics:localRot1 = (1, 0, 0, 0)
+            }
+        }
+
+        def "nova_carter2" (
+            prepend payload = @https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/5.1/Isaac/Samples/ROS2/Robots/Nova_Carter_ROS.usd@
+        )
+        {
+            quatd xformOp:orient = (1, 0, 0, 0)
+            double3 xformOp:scale = (1, 1, 1)
+            double3 xformOp:translate = (3.490373703049795, -5.227116321664516, 0.07963398335074101)
+            uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
+
+            over "differential_drive"
+            {
+                over "joint_name_array"
+                {
+                    custom token inputs:input0
+                    delete token inputs:input0.connect = </World/Robots/nova_carter2/differential_drive/joint_wheel_left_name.inputs:value>
+                    prepend token inputs:input0.connect = </World/Robots/nova_carter2/differential_drive/joint_wheel_left_name.inputs:value>
+                    custom token inputs:input1
+                    delete token inputs:input1.connect = </World/Robots/nova_carter2/differential_drive/joint_wheel_right_name.inputs:value>
+                    prepend token inputs:input1.connect = </World/Robots/nova_carter2/differential_drive/joint_wheel_right_name.inputs:value>
+                }
+            }
+
+            over "chassis_link" (
+                prepend apiSchemas = ["PhysicsFilteredPairsAPI"]
+            )
+            {
+                prepend rel physics:filteredPairs = </World/Robots/nova_carter2/m0609/base_link>
+                rel physics:simulationOwner
+
+                over "visual"
+                {
+                    rel physics:simulationOwner
+                }
+            }
+
+            over "caster_frame_base"
+            {
+                rel physics:simulationOwner
+
+                over "visual"
+                {
+                    rel physics:simulationOwner
+                }
+            }
+
+            over "caster_swivel_left"
+            {
+                rel physics:simulationOwner
+            }
+
+            over "caster_wheel_left"
+            {
+                rel physics:simulationOwner
+            }
+
+            over "caster_swivel_right"
+            {
+                rel physics:simulationOwner
+            }
+
+            over "caster_wheel_right"
+            {
+                rel physics:simulationOwner
+            }
+
+            over "wheel_left"
+            {
+                rel physics:simulationOwner
+            }
+
+            over "wheel_right"
+            {
+                rel physics:simulationOwner
+            }
+
+            over "joint_caster_base"
+            {
+                float physics:lowerLimit = -2
+                float physics:upperLimit = 2
+                float state:angular:physics:position = 0
+                float state:angular:physics:velocity = 0
+            }
+
+            over "joint_wheel_left"
+            {
+                float physics:lowerLimit = -inf
+                float physics:upperLimit = inf
+                float state:angular:physics:position = 0
+                float state:angular:physics:velocity = 0
+            }
+
+            over "joint_wheel_right"
+            {
+                float physics:lowerLimit = -inf
+                float physics:upperLimit = inf
+                float state:angular:physics:position = 0
+                float state:angular:physics:velocity = 0
+            }
+
+            over "joint_swing_left"
+            {
+                float physics:lowerLimit = -inf
+                float physics:upperLimit = inf
+                float state:angular:physics:position = 0
+                float state:angular:physics:velocity = 0
+            }
+
+            over "joint_swing_right"
+            {
+                float physics:lowerLimit = -inf
+                float physics:upperLimit = inf
+                float state:angular:physics:position = 0
+                float state:angular:physics:velocity = 0
+            }
+
+            over "joint_caster_left"
+            {
+                float physics:lowerLimit = -inf
+                float physics:upperLimit = inf
+                float state:angular:physics:position = 0
+                float state:angular:physics:velocity = 0
+            }
+
+            over "joint_caster_right"
+            {
+                float physics:lowerLimit = -inf
+                float physics:upperLimit = inf
+                float state:angular:physics:position = 0
+                float state:angular:physics:velocity = 0
+            }
+
+            over "front_hawk"
+            {
+                over "isaac_read_imu_node"
+                {
+                    custom uint inputs:execIn
+                    delete uint inputs:execIn.connect = </World/Robots/nova_carter2/front_hawk/on_playback_tick.outputs:tick>
+                }
+
+                over "isaac_run_one_simualtion_frame"
+                {
+                    custom uint inputs:execIn
+                    delete uint inputs:execIn.connect = </World/Robots/nova_carter2/front_hawk/on_playback_tick.outputs:tick>
+                }
+
+                over "ros2_publish_imu"
+                {
+                    custom vector3d inputs:angularVelocity
+                    delete vector3d inputs:angularVelocity.connect = </World/Robots/nova_carter2/front_hawk/isaac_read_imu_node.outputs:angVel>
+                    custom uint64 inputs:context
+                    delete uint64 inputs:context.connect = </World/Robots/nova_carter2/front_hawk/ros2_context.outputs:context>
+                    custom uint inputs:execIn
+                    delete uint inputs:execIn.connect = </World/Robots/nova_carter2/front_hawk/isaac_read_imu_node.outputs:execOut>
+                    custom vector3d inputs:linearAcceleration
+                    delete vector3d inputs:linearAcceleration.connect = </World/Robots/nova_carter2/front_hawk/isaac_read_imu_node.outputs:linAcc>
+                    custom quatd inputs:orientation
+                    delete quatd inputs:orientation.connect = </World/Robots/nova_carter2/front_hawk/isaac_read_imu_node.outputs:orientation>
+                    custom string inputs:qosProfile
+                    delete string inputs:qosProfile.connect = </World/Robots/nova_carter2/front_hawk/ros2_qos_profile.outputs:qosProfile>
+                    custom double inputs:timeStamp
+                    delete double inputs:timeStamp.connect = </World/Robots/nova_carter2/front_hawk/isaac_read_simulation_time.outputs:simulationTime>
+                }
+
+                over "ros2_camera_info_helper"
+                {
+                    custom uint64 inputs:context
+                    delete uint64 inputs:context.connect = </World/Robots/nova_carter2/front_hawk/ros2_context.outputs:context>
+                    custom uint inputs:execIn
+                    delete uint inputs:execIn.connect = </World/Robots/nova_carter2/front_hawk/left_camera_render_product.outputs:execOut>
+                    custom string inputs:nodeNamespace
+                    delete string inputs:nodeNamespace.connect = </World/Robots/nova_carter2/front_hawk/camera_namespace.inputs:value>
+                    custom token inputs:renderProductPath
+                    delete token inputs:renderProductPath.connect = </World/Robots/nova_carter2/front_hawk/left_camera_render_product.outputs:renderProductPath>
+                    custom token inputs:renderProductPathRight
+                    delete token inputs:renderProductPathRight.connect = </World/Robots/nova_carter2/front_hawk/right_camera_render_product.outputs:renderProductPath>
+                }
+
+                over "right_camera_publish_image"
+                {
+                    custom uint64 inputs:context
+                    delete uint64 inputs:context.connect = </World/Robots/nova_carter2/front_hawk/ros2_context.outputs:context>
+                    custom uint inputs:execIn
+                    delete uint inputs:execIn.connect = </World/Robots/nova_carter2/front_hawk/right_camera_render_product.outputs:execOut>
+                    custom string inputs:nodeNamespace
+                    delete string inputs:nodeNamespace.connect = </World/Robots/nova_carter2/front_hawk/camera_namespace.inputs:value>
+                    custom token inputs:renderProductPath
+                    delete token inputs:renderProductPath.connect = </World/Robots/nova_carter2/front_hawk/right_camera_render_product.outputs:renderProductPath>
+                }
+
+                over "left_camera_publish_image"
+                {
+                    custom uint64 inputs:context
+                    delete uint64 inputs:context.connect = </World/Robots/nova_carter2/front_hawk/ros2_context.outputs:context>
+                    custom uint inputs:execIn
+                    delete uint inputs:execIn.connect = </World/Robots/nova_carter2/front_hawk/left_camera_render_product.outputs:execOut>
+                    custom string inputs:frameId
+                    delete string inputs:frameId.connect = </World/Robots/nova_carter2/front_hawk/left_camera_frame_id.inputs:value>
+                    custom string inputs:nodeNamespace
+                    delete string inputs:nodeNamespace.connect = </World/Robots/nova_carter2/front_hawk/camera_namespace.inputs:value>
+                    custom string inputs:qosProfile
+                    delete string inputs:qosProfile.connect = </World/Robots/nova_carter2/front_hawk/ros2_qos_profile.outputs:qosProfile>
+                    custom token inputs:renderProductPath
+                    delete token inputs:renderProductPath.connect = </World/Robots/nova_carter2/front_hawk/left_camera_render_product.outputs:renderProductPath>
+                }
+            }
+
+            over "left_hawk"
+            {
+                over "ros2_publish_imu"
+                {
+                    custom uint64 inputs:context
+                    delete uint64 inputs:context.connect = </World/Robots/nova_carter2/left_hawk/ros2_context.outputs:context>
+                    custom string inputs:qosProfile
+                    delete string inputs:qosProfile.connect = </World/Robots/nova_carter2/left_hawk/ros2_qos_profile.outputs:qosProfile>
+                    custom double inputs:timeStamp
+                    delete double inputs:timeStamp.connect = </World/Robots/nova_carter2/left_hawk/isaac_read_simulation_time.outputs:simulationTime>
+                }
+
+                over "right_camera_publish_image"
+                {
+                    custom uint64 inputs:context
+                    delete uint64 inputs:context.connect = </World/Robots/nova_carter2/left_hawk/ros2_context.outputs:context>
+                    custom uint inputs:execIn
+                    delete uint inputs:execIn.connect = </World/Robots/nova_carter2/left_hawk/right_camera_render_product.outputs:execOut>
+                    custom string inputs:qosProfile
+                    delete string inputs:qosProfile.connect = </World/Robots/nova_carter2/left_hawk/ros2_qos_profile.outputs:qosProfile>
+                    custom token inputs:renderProductPath
+                    delete token inputs:renderProductPath.connect = </World/Robots/nova_carter2/left_hawk/right_camera_render_product.outputs:renderProductPath>
+                }
+
+                over "left_camera_publish_image"
+                {
+                    custom uint64 inputs:context
+                    delete uint64 inputs:context.connect = </World/Robots/nova_carter2/left_hawk/ros2_context.outputs:context>
+                    custom uint inputs:execIn
+                    delete uint inputs:execIn.connect = </World/Robots/nova_carter2/left_hawk/left_camera_render_product.outputs:execOut>
+                    custom string inputs:qosProfile
+                    delete string inputs:qosProfile.connect = </World/Robots/nova_carter2/left_hawk/ros2_qos_profile.outputs:qosProfile>
+                    custom token inputs:renderProductPath
+                    delete token inputs:renderProductPath.connect = </World/Robots/nova_carter2/left_hawk/left_camera_render_product.outputs:renderProductPath>
+                }
+
+                over "ros2_camera_info_helper"
+                {
+                    custom uint64 inputs:context
+                    delete uint64 inputs:context.connect = </World/Robots/nova_carter2/left_hawk/ros2_context.outputs:context>
+                    custom uint inputs:execIn
+                    delete uint inputs:execIn.connect = </World/Robots/nova_carter2/left_hawk/left_camera_render_product.outputs:execOut>
+                    custom string inputs:frameId
+                    delete string inputs:frameId.connect = </World/Robots/nova_carter2/left_hawk/left_camera_frame_id.inputs:value>
+                    custom string inputs:frameIdRight
+                    delete string inputs:frameIdRight.connect = </World/Robots/nova_carter2/left_hawk/right_camera_frame_id.inputs:value>
+                    custom string inputs:qosProfile
+                    delete string inputs:qosProfile.connect = </World/Robots/nova_carter2/left_hawk/ros2_qos_profile.outputs:qosProfile>
+                    custom token inputs:renderProductPath
+                    delete token inputs:renderProductPath.connect = </World/Robots/nova_carter2/left_hawk/left_camera_render_product.outputs:renderProductPath>
+                    custom token inputs:renderProductPathRight
+                    delete token inputs:renderProductPathRight.connect = </World/Robots/nova_carter2/left_hawk/right_camera_render_product.outputs:renderProductPath>
+                }
+
+                over "left_camera_render_product"
+                {
+                    custom uint inputs:execIn
+                    delete uint inputs:execIn.connect = </World/Robots/nova_carter2/left_hawk/isaac_run_one_simualtion_frame.outputs:step>
+                }
+
+                over "right_camera_render_product"
+                {
+                    custom uint inputs:execIn
+                    delete uint inputs:execIn.connect = </World/Robots/nova_carter2/left_hawk/isaac_run_one_simualtion_frame.outputs:step>
+                }
+
+                over "isaac_read_imu_node"
+                {
+                    custom uint inputs:execIn
+                    delete uint inputs:execIn.connect = </World/Robots/nova_carter2/left_hawk/on_playback_tick.outputs:tick>
+                }
+            }
+
+            over "m0609" (
+                prepend references = @file:/home/rokey/cobot3_ws/isaacpjt/M0609/doosan-robot2/urdf/m0609_isaac_sim/m0609_isaac_sim.usd@
+            )
+            {
+                string isaac:namespace (
+                    displayName = "Namespace"
+                    doc = "Namespace of the prim in Isaac Sim"
+                )
+                quatd xformOp:orient = (1, 0, 0, 0)
+                double3 xformOp:scale = (1, 1, 1)
+                double3 xformOp:translate = (-0.20649390288330727, 0, 0.5492008321030571)
+                uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
+
+                over "root_joint" (
+                    active = false
+                )
+                {
+                }
+
+                def "short_gripper" (
+                    prepend payload = @https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/5.1/Isaac/Robots/UniversalRobots/ur10/grippers/short_gripper.usd@
+                )
+                {
+                    rel physics:simulationOwner
+                    double3 xformOp:rotateXYZ = (0, -90, 0)
+                    double3 xformOp:scale = (1, 1, 1)
+                    double3 xformOp:translate = (0.0001, 0.00638, 1.0345)
+                    uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:rotateXYZ", "xformOp:scale"]
+
+                    over "gripper_tip"
+                    {
+                        rel physics:simulationOwner
+                    }
+
+                    over "gripper_base"
+                    {
+                        rel physics:simulationOwner
+                    }
+
+                    over "tube"
+                    {
+                        rel physics:simulationOwner
+                    }
+
+                    over "camera_mount"
+                    {
+                        rel physics:simulationOwner
+                    }
+
+                    over "wrist"
+                    {
+                        rel physics:simulationOwner
+                    }
+
+                    over "mount"
+                    {
+                        rel physics:simulationOwner
+                    }
+
+                    def "rsd455" (
+                        prepend payload = @https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/5.1/Isaac/Sensors/Intel/RealSense/rsd455.usd@
+                    )
+                    {
+                        double3 xformOp:rotateZYX = (90, 0, 0)
+                        double3 xformOp:scale = (1, 1, 1)
+                        double3 xformOp:translate = (0.035, -0.0450011848228975, 0)
+                        uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:rotateZYX", "xformOp:scale"]
+                    }
+                }
+
+                over "link_6" (
+                    prepend apiSchemas = ["PhysicsFilteredPairsAPI"]
+                )
+                {
+                    string isaac:nameOverride (
+                        displayName = "Name Override"
+                        doc = "Name override for prim lookup in base name search"
+                    )
+                    prepend rel physics:filteredPairs = </World/Robots/nova_carter2/m0609/short_gripper>
+                    rel physics:simulationOwner
+
+                    def PhysicsFixedJoint "FixedJoint"
+                    {
+                        rel physics:body0 = </World/Robots/nova_carter2/m0609/short_gripper>
+                        rel physics:body1 = </World/Robots/nova_carter2/m0609/link_6>
+                        float physics:breakForce = 3.4028235e38
+                        float physics:breakTorque = 3.4028235e38
+                        point3f physics:localPos0 = (-2.3555755e-7, 0.0000033612948, 3.471603e-7)
+                        point3f physics:localPos1 = (0, 0, 0)
+                        quatf physics:localRot0 = (0.7068625, -0.00024411494, 0.70735085, -0.00024411494)
+                        quatf physics:localRot1 = (1, 0, 0, 0)
+                    }
+                }
+
+                over "base_link"
+                {
+                    rel physics:simulationOwner
+                }
+
+                over "link_1"
+                {
+                    rel physics:simulationOwner
+                }
+
+                over "link_2"
+                {
+                    rel physics:simulationOwner
+                }
+
+                over "link_3"
+                {
+                    rel physics:simulationOwner
+                }
+
+                over "link_4"
+                {
+                    rel physics:simulationOwner
+                }
+
+                over "link_5"
+                {
+                    rel physics:simulationOwner
+                }
+
+                over "joints"
+                {
+                    over "joint_1"
+                    {
+                        float drive:angular:physics:targetPosition = 0.4
+                        float physics:lowerLimit = -360.00082
+                        float physics:upperLimit = 360.00082
+                        float state:angular:physics:position = 0
+                        float state:angular:physics:velocity = 0
+                    }
+
+                    over "joint_2"
+                    {
+                        float drive:angular:physics:targetPosition = 0.4
+                        float physics:lowerLimit = -360.00082
+                        float physics:upperLimit = 360.00082
+                        float state:angular:physics:position = 0
+                        float state:angular:physics:velocity = 0
+                    }
+
+                    over "joint_3"
+                    {
+                        float drive:angular:physics:targetPosition = 88.200005
+                        float physics:lowerLimit = -150.00035
+                        float physics:upperLimit = 150.00035
+                        float state:angular:physics:position = 0
+                        float state:angular:physics:velocity = 0
+                    }
+
+                    over "joint_4"
+                    {
+                        float drive:angular:physics:targetPosition = -16.9
+                        float physics:lowerLimit = -360.00082
+                        float physics:upperLimit = 360.00082
+                        float state:angular:physics:position = 0
+                        float state:angular:physics:velocity = 0
+                    }
+
+                    over "joint_5"
+                    {
+                        float drive:angular:physics:targetPosition = 90.4
+                        float physics:lowerLimit = -360.00082
+                        float physics:upperLimit = 360.00082
+                        float state:angular:physics:position = 0
+                        float state:angular:physics:velocity = 0
+                    }
+
+                    over "joint_6"
+                    {
+                        float drive:angular:physics:targetPosition = -9.900001
+                        float physics:lowerLimit = -360.00082
+                        float physics:upperLimit = 360.00082
+                        float state:angular:physics:position = 0
+                        float state:angular:physics:velocity = 0
+                    }
+                }
+            }
+
+            def PhysicsFixedJoint "arm_mount_joint"
+            {
+                rel physics:body0 = </World/Robots/nova_carter2/chassis_link>
+                rel physics:body1 = </World/Robots/nova_carter2/m0609/base_link>
+                point3f physics:localPos0 = (-0.20649381, -2.336014e-7, 0.54920083)
+                point3f physics:localPos1 = (9.604432e-8, -2.336014e-7, -1.4160438e-8)
+                quatf physics:localRot0 = (1, 0, 0, 0)
+                quatf physics:localRot1 = (1, 0, 0, 0)
             }
         }
     }
@@ -1936,7 +1944,7 @@ def "Render" (
                 no_delete = true
             )
             {
-                rel camera = </World/nova_carter1/chassis_link/sensors/XT_32/PandarXT_32_10hz>
+                rel camera = </World/Robots/nova_carter1/chassis_link/sensors/XT_32/PandarXT_32_10hz>
                 custom string ogPostProcessPath = "/Render/OmniverseKit/HydraTextures/Replicator_11/PostRender"
                 bool omni:rtx:material:db:syncLoads = 1
                 bool omni:rtx:rt:ecoMode:enabled = 0
@@ -1955,7 +1963,7 @@ def "Render" (
                 no_delete = true
             )
             {
-                rel camera = </World/nova_carter2/chassis_link/sensors/XT_32/PandarXT_32_10hz>
+                rel camera = </World/Robots/nova_carter2/chassis_link/sensors/XT_32/PandarXT_32_10hz>
                 custom string ogPostProcessPath = "/Render/OmniverseKit/HydraTextures/Replicator_12/PostRender"
                 bool omni:rtx:material:db:syncLoads = 1
                 bool omni:rtx:rt:ecoMode:enabled = 0
@@ -1974,7 +1982,7 @@ def "Render" (
                 no_delete = true
             )
             {
-                rel camera = </World/nova_carter2/chassis_link/sensors/XT_32/PandarXT_32_10hz>
+                rel camera = </World/Robots/nova_carter2/chassis_link/sensors/XT_32/PandarXT_32_10hz>
                 bool omni:rtx:material:db:syncLoads = 1
                 bool omni:rtx:rt:ecoMode:enabled = 0
                 bool omni:rtx:scene:hydra:materialSyncLoads = 1
@@ -1989,7 +1997,7 @@ def "Render" (
                 no_delete = true
             )
             {
-                rel camera = </World/nova_carter1/chassis_link/sensors/XT_32/PandarXT_32_10hz>
+                rel camera = </World/Robots/nova_carter1/chassis_link/sensors/XT_32/PandarXT_32_10hz>
                 bool omni:rtx:material:db:syncLoads = 1
                 bool omni:rtx:rt:ecoMode:enabled = 0
                 bool omni:rtx:scene:hydra:materialSyncLoads = 1
