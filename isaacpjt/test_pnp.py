@@ -182,10 +182,13 @@ MAX_STEPS = 600
 
 SETTLE_STEPS = 60       # 씬이 안정될 때까지
 
-# 툴(link_6 로컬 +Z)이 바닥을 향하게. 11단계 내내 이 자세를 유지한다
+# 툴(link_6 로컬 +Z)이 바닥을 향하게.
+#   yaw 는 정거장의 카터 yaw 를 따라간다 (PnPFSM.tool_quat 참고).
+#   월드 기준으로 고정해 두면 베이스가 180/90 도 돌아간 정거장에서 손목이
+#   그만큼 비틀린 해를 찾아야 해서, 관절 한계에 걸리거나 기괴한 자세가 나온다.
 APPROACH_ROLL_DEG  = 180.0
 APPROACH_PITCH_DEG = 0.0
-GRIPPER_YAW_DEG    = 0.0
+GRIPPER_YAW_DEG    = 0.0    # 툴축 추가 회전. 흡착컵은 축대칭이라 보통 0
 
 LOG_INTERVAL = 60
 
@@ -452,6 +455,16 @@ class Movable:
         다행이지만 조용히 먹어 버리면 엉뚱한 값이 들어가므로 갈라서 부른다.
         """
         obj = self._obj
+        if self._kind == "articulation":
+            # 아티큘레이션에는 관절 속도만 건드린다. 루트 속도 API 는
+            # 내부에서 get -> 수정 -> set 을 하는데, 뷰 크기가 어긋나 있으면
+            # 그 getter 에서 텐서 크기 에러가 난다
+            try:
+                obj.set_joint_velocities(np.zeros(obj.num_dof))
+            except Exception:
+                pass
+            return
+
         if self._batch:
             try:
                 obj.set_velocities(np.zeros((1, 6)))
@@ -463,11 +476,6 @@ class Movable:
                     getattr(obj, fn)(np.zeros(3))
                 except Exception:
                     pass
-        # 아티큘레이션이면 관절 속도도 함께 눌러 준다
-        try:
-            obj.set_joint_velocities(np.zeros(obj.num_dof))
-        except Exception:
-            pass
 
 
 # ══════════════════════════════════════════════════════════════
@@ -665,6 +673,23 @@ class PnPFSM:
     def base_for(self, state):
         """그 단계에서 팔 베이스가 어디에 있는가 (도달거리 계산용)"""
         return self.pick_base if state <= 5 else self.place_base
+
+    def carter_yaw_for(self, state):
+        """그 단계에서 카터가 어느 쪽을 보고 있는가"""
+        return PICK_CARTER_YAW if state <= 5 else PLACE_CARTER_YAW
+
+    def tool_quat(self):
+        """
+        이번 단계의 툴 목표 자세.
+
+        베이스 yaw 를 빼서 넣는다. roll 180 도가 툴 Z 축을 뒤집기 때문에
+        툴 프레임 yaw 는 월드에서 반대로 돈다. 더하면 베이스와 정반대로
+        돌아가 손목이 두 배로 비틀린다. (수치로 확인했다)
+        """
+        return make_target_quat(
+            APPROACH_ROLL_DEG, APPROACH_PITCH_DEG,
+            GRIPPER_YAW_DEG - self.carter_yaw_for(self.state),
+        )
 
     # ── 진행 ────────────────────────────────────────────
     def current_target(self):
@@ -908,6 +933,47 @@ def read_arm_local_offset():
         print(f"   arm offset   실측 실패, 기본값 사용: {exc}")
 
 
+def disable_nested_articulations():
+    """
+    다른 아티큘레이션 안에 들어 있는 아티큘레이션 루트를 꺼 준다.
+
+    팔은 arm_mount_joint 로 카터에 물려 PhysX 에서는 카터와 한 몸이 됐는데,
+    USD 에는 ArticulationRootAPI 가 그대로 남아 있다. 그러면 Isaac 은
+    USD 기준으로 4개(카터 2 + 팔 2)를 세고 PhysX 는 2개만 만들어,
+    매 스텝 이 에러가 난다.
+
+        Incompatible size of velocity tensor in function getVelocities:
+        expected total size 12, received total size 24 with shape (4, 6)
+
+    12 = 2 x 6 (PhysX 가 만든 아티큘레이션), 24 = 4 x 6 (USD 가 센 개수).
+    바깥쪽 루트의 자손인 루트를 꺼서 개수를 맞춘다.
+    """
+    stage = omni.usd.get_context().get_stage()
+    roots = [str(prim.GetPath()) for prim in stage.Traverse()
+             if prim.HasAPI(UsdPhysics.ArticulationRootAPI)]
+    nested = [r for r in roots
+              if any(r != o and r.startswith(o + "/") for o in roots)]
+
+    if not nested:
+        print(f"   articulation 중첩 루트 없음 (전체 {len(roots)}개)")
+        return
+
+    try:
+        from pxr import PhysxSchema
+    except ImportError as exc:
+        print(f"   !! PhysxSchema 를 못 불러왔다, 중첩 루트를 못 끈다: {exc}")
+        return
+
+    for path in nested:
+        prim = stage.GetPrimAtPath(path)
+        try:
+            api = PhysxSchema.PhysxArticulationAPI.Apply(prim)
+            api.CreateArticulationEnabledAttr().Set(False)
+            print(f"   articulation 중첩 루트 비활성화  {path}")
+        except Exception as exc:
+            print(f"   !! {path} 비활성화 실패: {exc}")
+
+
 def find_articulation_root():
     """
     ArticulationView 를 걸 실제 경로를 찾는다.
@@ -956,6 +1022,7 @@ class PnPTask(BaseTask):
     def set_up_scene(self, scene):
         super().set_up_scene(scene)
         self._require_prims()
+        disable_nested_articulations()
         read_arm_local_offset()
         self._park_carter()
         self._setup_gripper_limits()
@@ -1257,9 +1324,6 @@ def main():
     section("SOLVER")
     ik_solver, lula = create_ik_solver(robot)
     gripper = SurfaceGripperCtl(GRIPPER_NODE)
-    target_quat = make_target_quat(
-        APPROACH_ROLL_DEG, APPROACH_PITCH_DEG, GRIPPER_YAW_DEG
-    )
 
     section("PLAN")
     fsm = PnPFSM(robot, gripper, lula, movables)
@@ -1275,6 +1339,7 @@ def main():
 
     was_playing = False
     step = 0
+    ik_bad = 0
 
     while simulation_app.is_running():
         world.step(render=True)
@@ -1308,9 +1373,11 @@ def main():
                 world.step(render=True)
             fsm.reset()
             step = 0
+            ik_bad = 0
 
         if is_playing:
             target_tcp = fsm.current_target()
+            target_quat = fsm.tool_quat()          # 정거장마다 베이스를 따라간다
             flange_target = tcp_to_flange(target_tcp, target_quat)
 
             action, solved = ik_solver.compute_inverse_kinematics(
@@ -1319,6 +1386,16 @@ def main():
             )
             if solved:
                 robot.apply_action(action)
+                ik_bad = 0
+            else:
+                ik_bad += 1
+                # 몇 프레임 튀는 건 흔하다. 계속 실패하면 자세/좌표 문제다
+                if ik_bad in (30, 300, 3000):
+                    print(f"   !! IK 연속 실패 {ik_bad} 프레임  "
+                          f"단계 {fsm.NAMES[fsm.state]}  목표 {vec(target_tcp)}")
+                    print(f"      팔 베이스에서 "
+                          f"{np.linalg.norm(target_tcp - fsm.base_for(fsm.state)):.3f} m"
+                          f"  (반경 약 0.9 m)")
 
             fsm.advance()
 
