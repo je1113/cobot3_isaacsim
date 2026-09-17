@@ -30,7 +30,6 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "action/NavigateTo.action"  # task_manager → nav_server
   "action/PickCarrier.action" # task_manager → pick_place_server
   "action/PlaceCarrier.action" # task_manager → pick_place_server
-  "action/Dock.action"        # task_manager → docking_server
 
   DEPENDENCIES
     builtin_interfaces
