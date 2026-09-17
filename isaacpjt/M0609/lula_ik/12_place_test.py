@@ -142,7 +142,7 @@ READY_JOINTS_DEG = [0.0, 0.0, 90.0, 0.0, 90.0, 0.0]
 
 # (베이스 world xyz, yaw_deg) — yaw 는 world +x 축 기준
 WP_PICK  = (np.array([-6.5, 1.45, 0.07963398335074101]), 0.0)
-WP_PLACE = (np.array([3.35, 0.0, 0.07963398335074101]), 0.0)
+WP_PLACE = (np.array([4.0, 0.0, 0.07963398335074101]), 0.0)
 
 # PLACE 목표 xy — ConveyorFrame(x>=4.2) 바로 앞 바닥. z 는 매거진 자체
 # 높이만큼 띄운 값(런타임에 measure_prim 으로 재서 계산)을 쓴다.
