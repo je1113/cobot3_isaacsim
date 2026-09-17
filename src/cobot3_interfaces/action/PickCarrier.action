@@ -33,7 +33,7 @@ CarrierPose carrier             # 실측. flange_pose 가 흡착 목표점.
 string  variant                 # 카탈로그 키. 로그·CheckGrasp 용. 분기에 쓰지 말 것.
 
 float32 flange_short_side_m     # 카탈로그. ★ 횡오차 상한 = (이 값 − 컵 지름) / 2
-                                #   주황 80×80 → 15 mm 여유, 파랑 100×60 → 5 mm
+                                #   80×80 플랜지 → (80−50)/2 = 15 mm. 파랑도 450216f 에서 80×80 으로 맞췄다.
 float32 flange_long_side_m      # 카탈로그
 float32 expected_body_width_m   # 카탈로그. carrier.body_width_m 과 대조
 float32 expected_height_m       # 카탈로그. carrier.stack_height_m 과 대조
