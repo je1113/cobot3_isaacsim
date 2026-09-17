@@ -1240,16 +1240,57 @@ def vec(v, digits=3):
     return "[" + " ".join(f"{x:+.{digits}f}" for x in v) + "]"
 
 
+def suction_world_pos():
+    """
+    흡착컵 위치를 그리퍼 prim 에서 직접 읽는다.
+
+    우리는 TCP 를 link_6 pose + TCP_OFFSET(로컬 +Z 로 0.161) 로 계산한다.
+    그 가정이 레이아웃의 실제 장착과 어긋나면 팔은 '계산상 TCP' 를 목표에
+    맞추지만 진짜 컵은 엉뚱한 데 있게 된다. 눈에는 '좌표를 못 잡는' 걸로
+    보이는데 원인은 좌표가 아니라 오프셋이다. 그래서 한 번 대조한다.
+    """
+    stage = omni.usd.get_context().get_stage()
+    prim = stage.GetPrimAtPath(GRIPPER_PRIM)
+    if not prim.IsValid():
+        return None
+    try:
+        m = UsdGeom.XformCache().GetLocalToWorldTransform(prim)
+        pos = np.array(m.ExtractTranslation())
+        rot = np.array(m.ExtractRotationMatrix()).T   # 열이 축이 되게
+        # short_gripper 는 자기 로컬 +X 로 뻗는다
+        return pos + rot @ np.array([SUCTION_FACE_Z, 0.0, 0.0])
+    except Exception:
+        return None
+
+
+def check_tcp_offset(robot):
+    """계산한 TCP 와 실제 흡착컵 위치가 맞는지 본다"""
+    ours = get_tcp_pose(robot)
+    real = suction_world_pos()
+    print(f"   계산 TCP     {vec(ours)}   (link_6 + 로컬 +Z {SUCTION_FACE_Z:.3f})")
+    if real is None:
+        print(f"   !! 그리퍼 prim 에서 실제 컵 위치를 못 읽었다")
+        return
+    err = float(np.linalg.norm(ours - real))
+    print(f"   실제 컵      {vec(real)}   차이 {err*1000:.1f} mm  "
+          f"{'ok' if err < 0.02 else '!! 오프셋 가정이 틀렸다'}")
+    if err >= 0.02:
+        print(f"      SUCTION_FACE_Z 나 툴축 방향이 레이아웃 장착과 다르다.")
+        print(f"      팔은 계산상 TCP 를 목표에 맞추므로, 진짜 컵은 이만큼 빗나간다.")
+
+
 def print_status(robot, solved, fsm, target_tcp):
     if fsm.done:
         return
     name = fsm.NAMES[fsm.state]
     if not solved:
-        print(f"   {name:9s} IK FAILED  target {vec(target_tcp)}")
+        print(f"   {name:9s} IK FAILED  cmd {vec(target_tcp)}")
         return
     tcp = get_tcp_pose(robot)
-    print(f"   {name:9s} tcp {vec(tcp)}   top {top_z():.4f}   "
-          f"gripper {fsm.gripper}")
+    err = float(np.linalg.norm(np.array(target_tcp) - tcp))
+    # 명령과 실제를 나란히 찍는다. 이게 갈라져 있으면 좌표가 아니라 추종 문제다
+    print(f"   {name:9s} cmd {vec(target_tcp)}  tcp {vec(tcp)}  "
+          f"err {err*1000:6.1f}mm  top {top_z():.4f}  {fsm.gripper}")
 
 
 def carter_box(pos, yaw_deg):
@@ -1376,6 +1417,9 @@ def main():
     # 씬이 안정될 시간을 준다. 실측은 이 뒤에 해야 맞다
     for _ in range(SETTLE_STEPS):
         world.step(render=True)
+
+    section("TCP")
+    check_tcp_offset(robot)
 
     section("TARGET")
     describe_target()
