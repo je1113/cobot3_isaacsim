@@ -1,4 +1,5 @@
-# task_manager  →  nav_server        액션 /navigation/navigate_to
+# cobot3_orchestrator (task_manager)  →  cobot3_navigation (nav_server)
+#                                        액션 /navigation/navigate_to
 # nav_server 는 Nav2 NavigateToPose 를 감싼다.
 #
 # 기능: 목적지 좌표로 자율주행. 회피는 Nav2 가 한다.

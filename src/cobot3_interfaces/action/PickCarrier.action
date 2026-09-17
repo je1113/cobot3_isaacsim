@@ -1,52 +1,60 @@
-# task_manager  →  pick_place_server        액션 /manipulation/pick_carrier
+# cobot3_orchestrator (task_manager)  →  cobot3_manipulation (pick_place_server)
+#                                        액션 /manipulation/pick_carrier
 #
-# 기능: 주어진 점에 Ø50 흡착 컵을 대고 들어 올린다. 그게 전부다.
-#       팔은 캐리어가 뭔지, 누구 건지 모른다. 좌표 하나만 받는다.
+# 기능: "이 종류를 집어라" 를 받으면 파지점을 스스로 계산해서 집는다.
+#       orchestrator 는 파지점을 계산하지 않는다 — 기하는 전부 여기 안에 있다.
 #
-# flange_pose 는 task_manager 가 CarrierScan.qr_pose 에 frames.yaml 의
-# 라벨→플랜지 오프셋을 더해 만든다. "잡아도 되는 캐리어인가"(ID 대조)는
-# goal 을 보내기 전에 task_manager 가 끝낸다.
+# goal 이 둘인 이유
+#   variant   grasp.yaml 의 어느 레시피를 쓸지. 캐리어가 누구 건지가 아니라
+#             "어느 파지법" 이라는 뜻이다 — manipulation 자기 설정의 키.
+#   qr_pose   플랜지를 어디쯤에서 찾을지 알려주는 대략값(prior).
+#             주차 오차가 flange_topview 탐색 반경(search_radius_m 0.05)보다 크므로
+#             prior 없이는 탐색 창을 못 잡는다.
+#
+# 서버가 내부에서 하는 일 (12_pick_test.py PICK_VISION=1 과 같은 순서)
+#   1) qr_pose + grasp.yaml T_QR_grasp[variant] 로 관측 자세를 잡는다
+#   2) OBSERVE   플랜지 위 flange_vision.observe_cam_height_m 로 카메라를 가져간다
+#   3) 손목 카메라 한 장 → cobot3_perception.flange_topview.detect_flange()
+#      중심 xy · 윗면 z · yaw 실측. 이게 진짜 파지점이다.
+#   4) APPROACH → DESCEND → SUCTION(grip_gaps 재시도) → LIFT → STOW
 #
 # ★ pick_place_server 가 declare_parameter 로 정의해야 하는 것
-#   approach_dist_m      (double, 0.10 제안)   플랜지 위 이 높이에서 수직 하강 시작
-#   grip_gaps_m          (double[], [0.005, 0.002, 0.000, -0.003])
-#                          흡착면을 윗면보다 띄우는 재시도 갭    frames.yaml suction_gripper.grip_gaps_m
-#   cup_diameter_m       (double, 0.050)       frames.yaml suction_gripper.cup_diameter_m
-#   offset_limit_m       (double, 0.015)       = (플랜지 짧은 변 − 컵 지름)/2. 80×80 → 15 mm
-#   coaxial_force_limit  (double, 200.0)       frames.yaml suction_gripper.runtime
-#   shear_force_limit    (double, 100.0)       frames.yaml suction_gripper.runtime
-#   max_grip_distance    (double, 0.03)        frames.yaml suction_gripper.runtime
-#   lift_height_m        (double, 0.05 제안)   흡착 후 들어 올리는 높이
-#   → PlaceCarrier 와 같은 노드. release_height_m 도 여기서 함께 정의.
+#   grasp_yaml        (string)   cobot3_bringup/config/grasp.yaml 경로.
+#                                pre_grasp_m · approach_slow_from_m · grip_gaps_m ·
+#                                lift_m · cup_diameter_m · flange_vision · T_QR_grasp
+#                                가 전부 그 안에 있다. goal 로 받지 않는다.
+#   camera_topic      (string)   /wrist_camera/color/image_raw
+#   camera_info_topic (string)   /wrist_camera/color/camera_info
+#   depth_topic       (string)   /wrist_camera/depth/image_rect_raw
+#   offset_limit_m    (double, 0.015)  = (플랜지 짧은 변 − 컵 지름)/2. 80×80 → 15 mm
 #
-# OFF_FLANGE 는 서버가 흡착 순간 TCP(TF) 와 flange_pose 의 횡거리로 판정한다.
-# Isaac SurfaceGripper 는 maxGripDistance 안에서 뭐든 맞으면 붙으므로
-# gripped=true 만으로는 몸체에 붙은 걸 못 잡는다. 그 숫자는 노드 로그에.
-#
-# "들렸나" 는 안 묻는다 — 시뮬에서 걸리면 접합이 끊겨 gripped 가 false 가
-# 되므로 LIFT 뒤 gripped 로 충분하다. SLIP 이 그 경우다.
+# OFF_FLANGE 는 서버가 직접 판정한다. Isaac SurfaceGripper 는 maxGripDistance 안에서
+# 뭐든 맞으면 붙으므로 gripped=true 만으로는 몸체에 붙은 걸 못 잡는다. 흡착 순간
+# TCP(TF)와 목표의 횡거리를 offset_limit_m 과 비교한다.
 
 # ── goal ──
-geometry_msgs/PoseStamped flange_pose   # 흡착 목표점 — 플랜지 판 윗면 중심.
-                                        # frame_id = base_link. +Z = 판 법선(위)
+string variant                          # grasp.yaml 키. 예: "magazine_1_orange"
+geometry_msgs/PoseStamped qr_pose       # 대략값(prior). CarrierScan 의 것을 그대로 넘긴다
 ---
 # ── result ──
 uint8 NONE=0
 uint8 NO_IK=1
 uint8 COLLISION=2
-uint8 NO_ATTACH=3               # 모든 grip_gap 에서 gripped=false
-uint8 SLIP=4                    # 붙었다가 리프트/스토우 중 떨어짐
-uint8 OFF_FLANGE=5              # 붙긴 했는데 목표에서 offset_limit 이상 빗나감
-uint8 CANCELED=6
+uint8 NO_FLANGE=3               # flange_topview 가 탐색 창에서 플랜지를 못 찾음
+uint8 NO_ATTACH=4               # 모든 grip_gap 에서 gripped=false
+uint8 SLIP=5                    # 붙었다가 리프트/스토우 중 떨어짐
+uint8 OFF_FLANGE=6              # 붙긴 했는데 목표에서 offset_limit 이상 빗나감
+uint8 CANCELED=7
 
 bool  success
 uint8 fail_reason
 ---
 # ── feedback ──
-uint8 APPROACH=0
-uint8 DESCEND=1
-uint8 SUCTION=2
-uint8 LIFT=3
-uint8 STOW=4
+uint8 OBSERVE=0                 # 플랜지 상방 관측 자세로 이동 + 촬영
+uint8 APPROACH=1
+uint8 DESCEND=2
+uint8 SUCTION=3
+uint8 LIFT=4
+uint8 STOW=5
 
 uint8 phase

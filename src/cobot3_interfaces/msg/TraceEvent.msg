@@ -1,4 +1,5 @@
-# task_manager  →  event_logger        토픽 /trace/event
+# cobot3_orchestrator (task_manager)  →  cobot3_orchestrator (event_logger)
+#                                        토픽 /trace/event
 #
 # 기능: 미션 단계 하나가 끝날 때마다 한 건. event_logger 는 받은 그대로
 #       SQLite event 테이블에 1행 append 한다 — 판단하지 않는다.
