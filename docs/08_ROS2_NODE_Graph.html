@@ -141,7 +141,7 @@
 
   <section>
     <h2><span class="sn">01</span>노드 그래프</h2>
-    <p class="deck">회색 토픽 · 청록 액션. 서비스는 없다. 화살표는 노드 박스 변에서 노드 박스 변으로 잇고, 패키지 점선은 가로지른다.</p>
+    <p class="deck">회색 토픽 · 청록 액션. 서비스는 없다. 노드 박스마다 <b>역할 —</b>, 화살표마다 <b>역할:</b> 을 달았다. 화살표는 노드 박스 변에서 노드 박스 변으로 잇는다.</p>
 
     <figure>
       <div class="fig-scroll">
@@ -173,14 +173,14 @@
           <text x="255" y="116" font-size="11" class="m" font-weight="500" fill="var(--ink-2)">cobot3_perception</text>
           <rect x="256" y="128" width="162" height="66" rx="2" fill="var(--signal-wash)" stroke="var(--signal)" stroke-width="1.6"/>
           <text x="337" y="149" font-size="10.5" class="m" font-weight="500" text-anchor="middle" fill="var(--signal)">carrier_code_reader</text>
-          <text x="337" y="165" font-size="8.5" text-anchor="middle" fill="var(--ink-2)">QR 원문 + 라벨 위치만</text>
-          <text x="337" y="180" font-size="8.5" text-anchor="middle" fill="var(--ink-3)">해석하지 않는다</text>
+          <text x="337" y="165" font-size="8.5" text-anchor="middle" fill="var(--ink-2)">역할 — QR 읽어 원문 + 위치 전달</text>
+          <text x="337" y="180" font-size="8.5" text-anchor="middle" fill="var(--ink-3)">해석은 하지 않는다</text>
 
           <rect x="540" y="96" width="220" height="300" rx="3" fill="none" stroke="var(--accent)" stroke-width="1.2" stroke-dasharray="3 3"/>
           <text x="551" y="116" font-size="11" class="m" font-weight="500" fill="var(--accent-deep)">cobot3_orchestrator</text>
           <rect x="552" y="128" width="196" height="140" rx="2" fill="var(--accent-wash)" stroke="var(--accent)" stroke-width="1.8"/>
           <text x="650" y="149" font-size="12" class="m" font-weight="500" text-anchor="middle" fill="var(--accent-deep)">task_manager</text>
-          <text x="650" y="164" font-size="9" text-anchor="middle" fill="var(--ink-2)">미션 어휘는 전부 여기</text>
+          <text x="650" y="164" font-size="9" text-anchor="middle" fill="var(--ink-2)">역할 — 미션 지휘 · 어휘는 전부 여기</text>
           <line x1="562" y1="174" x2="738" y2="174" stroke="var(--accent)" stroke-width="0.8" opacity="0.6"/>
           <g font-size="8" class="m" fill="var(--ink-3)">
             <text x="562" y="190">로봇 상태 (기본 patrol)</text>
@@ -192,14 +192,14 @@
           </g>
           <rect x="552" y="322" width="160" height="58" rx="2" fill="var(--surface)" stroke="currentColor" stroke-width="1.3"/>
           <text x="632" y="343" font-size="10.5" class="m" font-weight="500" text-anchor="middle" fill="var(--ink)">event_logger</text>
-          <text x="632" y="358" font-size="8.5" text-anchor="middle" fill="var(--ink-3)">SQLite append-only</text>
+          <text x="632" y="358" font-size="8.5" text-anchor="middle" fill="var(--ink-2)">역할 — 단계 결과를 SQLite 에 쌓음</text>
           <text x="632" y="371" font-size="8" class="m" text-anchor="middle" fill="var(--ink-3)">run_id · amr_id 는 로거가 붙임</text>
 
           <rect x="860" y="96" width="210" height="170" rx="3" fill="none" stroke="currentColor" stroke-width="1" stroke-dasharray="3 3"/>
           <text x="871" y="116" font-size="11" class="m" font-weight="500" fill="var(--ink-2)">cobot3_manipulation</text>
           <rect x="872" y="128" width="186" height="76" rx="2" fill="var(--surface)" stroke="currentColor" stroke-width="1.3"/>
           <text x="965" y="149" font-size="10.5" class="m" font-weight="500" text-anchor="middle" fill="var(--ink)">pick_place_server</text>
-          <text x="965" y="165" font-size="8.5" text-anchor="middle" fill="var(--ink-3)">종류를 받으면 파지점을 스스로 계산</text>
+          <text x="965" y="165" font-size="8" text-anchor="middle" fill="var(--ink-2)">역할 — 파지점 계산 · pick/place 실행</text>
           <text x="965" y="179" font-size="8" class="m" text-anchor="middle" fill="var(--ink-3)">grasp.yaml · place.yaml</text>
           <text x="965" y="192" font-size="8" class="m" text-anchor="middle" fill="var(--ink-3)">중간보고 = feedback.phase</text>
           <rect x="872" y="218" width="186" height="34" rx="2" fill="var(--signal-wash)" stroke="var(--signal)" stroke-width="1.2" stroke-dasharray="3 2"/>
@@ -210,7 +210,7 @@
           <text x="871" y="316" font-size="11" class="m" font-weight="500" fill="var(--ink-2)">cobot3_navigation</text>
           <rect x="872" y="328" width="186" height="54" rx="2" fill="var(--surface)" stroke="currentColor" stroke-width="1.3"/>
           <text x="965" y="349" font-size="10.5" class="m" font-weight="500" text-anchor="middle" fill="var(--ink)">nav_server</text>
-          <text x="965" y="365" font-size="8.5" text-anchor="middle" fill="var(--ink-3)">받은 좌표로 주행. Nav2 래핑</text>
+          <text x="965" y="365" font-size="8.5" text-anchor="middle" fill="var(--ink-2)">역할 — 받은 좌표로 주행 (Nav2 래핑)</text>
 
           <rect x="1140" y="328" width="136" height="54" rx="3" fill="var(--surface-2)" stroke="currentColor" stroke-width="1.2"/>
           <text x="1208" y="349" font-size="11" class="m" font-weight="500" text-anchor="middle" fill="var(--ink)">Nav2 스택</text>
@@ -222,14 +222,17 @@
             <line x1="600" y1="268" x2="600" y2="316" marker-end="url(#e-t)"/>
           </g>
           <g class="m" text-anchor="middle">
-            <text x="212" y="136" font-size="7.5" fill="var(--ink-3)">/wrist_camera</text>
-            <text x="212" y="146" font-size="7.5" fill="var(--ink-3)">Image+Info · 토픽</text>
-            <text x="485" y="130" font-size="8.5" fill="var(--ink)" font-weight="500">/perception/carrier_scan</text>
-            <text x="485" y="141" font-size="8" fill="var(--ink-3)">CarrierScan · 토픽</text>
+            <text x="212" y="128" font-size="7.5" fill="var(--ink-3)">/wrist_camera</text>
+            <text x="212" y="137" font-size="7.5" fill="var(--ink-3)">Image+Info · 토픽</text>
+            <text x="212" y="147" font-size="7.5" fill="var(--ink-2)">역할: 카메라 영상 입력</text>
+            <text x="485" y="124" font-size="8.5" fill="var(--ink)" font-weight="500">/perception/carrier_scan</text>
+            <text x="485" y="134" font-size="8" fill="var(--ink-3)">CarrierScan · 토픽</text>
+            <text x="485" y="145" font-size="8" fill="var(--ink-2)">역할: 인식 결과 → 명령 큐 투입</text>
           </g>
           <g class="m" text-anchor="start">
-            <text x="612" y="288" font-size="8.5" fill="var(--ink)" font-weight="500">/trace/event</text>
-            <text x="612" y="299" font-size="8" fill="var(--ink-3)">TraceEvent · 토픽</text>
+            <text x="612" y="282" font-size="8.5" fill="var(--ink)" font-weight="500">/trace/event</text>
+            <text x="612" y="292" font-size="8" fill="var(--ink-3)">TraceEvent · 토픽</text>
+            <text x="612" y="303" font-size="8" fill="var(--ink-2)">역할: 단계 결과 기록</text>
           </g>
 
           <g stroke="var(--accent)" stroke-width="1.5" fill="none">
@@ -239,14 +242,18 @@
             <line x1="1058" y1="355" x2="1134" y2="355" marker-end="url(#e-a)"/>
           </g>
           <g class="m" text-anchor="middle">
-            <text x="804" y="126" font-size="7" fill="var(--accent-deep)" font-weight="500">/manipulation/pick_carrier</text>
-            <text x="804" y="137" font-size="8" fill="var(--ink-3)">PickCarrier · 액션</text>
-            <text x="804" y="164" font-size="7" fill="var(--accent-deep)" font-weight="500">/manipulation/place_carrier</text>
-            <text x="804" y="175" font-size="8" fill="var(--ink-3)">PlaceCarrier · 액션</text>
-            <text x="812" y="334" font-size="7" fill="var(--accent-deep)" font-weight="500">/navigation/navigate_to</text>
-            <text x="812" y="345" font-size="8" fill="var(--ink-3)">NavigateTo · 액션</text>
-            <text x="1096" y="334" font-size="7" fill="var(--ink-3)">/navigate_to_pose</text>
-            <text x="1096" y="345" font-size="8" fill="var(--ink-3)">Nav2 표준</text>
+            <text x="804" y="124" font-size="7" fill="var(--accent-deep)" font-weight="500">/manipulation/pick_carrier</text>
+            <text x="804" y="133" font-size="7.5" fill="var(--ink-3)">PickCarrier · 액션</text>
+            <text x="804" y="142" font-size="7.5" fill="var(--ink-2)">역할: 이 종류를 집어라</text>
+            <text x="804" y="162" font-size="7" fill="var(--accent-deep)" font-weight="500">/manipulation/place_carrier</text>
+            <text x="804" y="171" font-size="7.5" fill="var(--ink-3)">PlaceCarrier · 액션</text>
+            <text x="804" y="180" font-size="7.5" fill="var(--ink-2)">역할: 이 종류를 놓아라</text>
+            <text x="812" y="326" font-size="7" fill="var(--accent-deep)" font-weight="500">/navigation/navigate_to</text>
+            <text x="812" y="335" font-size="7.5" fill="var(--ink-3)">NavigateTo · 액션</text>
+            <text x="812" y="344" font-size="7.5" fill="var(--ink-2)">역할: 이 좌표로 가라</text>
+            <text x="1096" y="326" font-size="7" fill="var(--ink-3)">/navigate_to_pose</text>
+            <text x="1096" y="335" font-size="7.5" fill="var(--ink-3)">Nav2 표준 · 액션</text>
+            <text x="1096" y="344" font-size="7.5" fill="var(--ink-2)">역할: Nav2 에 위임</text>
           </g>
 
           <line x1="24" y1="510" x2="1276" y2="510" stroke="currentColor" stroke-width="1" opacity="0.45"/>
