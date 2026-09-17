@@ -167,10 +167,23 @@ TCP_OFFSET = np.array([0.0, 0.0, SUCTION_FACE_Z])
 # ══════════════════════════════════════════════════════════════
 #  동작 파라미터
 # ══════════════════════════════════════════════════════════════
-# GRIP 재시도 사다리. 흡착면을 물체 윗면보다 이만큼 위에 둔다.
-GRIP_GAPS = [0.005, 0.002, 0.000, -0.003]
+# ── 프로브 (가드 무브) ───────────────────────────────────────
+#   정확한 z 를 몰라도 되게 만든다. 예상 윗면보다 한참 위에서 흡착을 켠 채
+#   천천히 내려가면서, 붙는 순간 멈춘다.
+#
+#   흡착 그리퍼라 힘 센서가 필요 없다. maxGripDistance(30 mm) 안에 물체가
+#   들어오면 조인트가 붙고 get_gripped_objects() 가 채워지므로, 그게 곧
+#   "닿았다" 신호다. 내려가는 내내 포착 범위가 쓸리며 지나가기 때문에
+#   높이를 몰라도 걸린다.
+PROBE_START_ABOVE = 0.10    # 예상 윗면보다 이만큼 위에서 시작
+PROBE_MAX_BELOW   = 0.03    # 예상 윗면보다 이만큼 아래까지만. 그 아래는 누르는 것
+PROBE_SPEED       = 0.0005  # m/step. 60 Hz 기준 약 30 mm/s
 
-GRIP_WAIT       = 90    # 흡착 명령 후 붙었는지 보기까지
+#   안 붙었는데 못 따라가면 뭔가에 눌린 것이다. 힘 센서 없이 접촉을 아는 법.
+PROBE_CONTACT_ERR = 0.004   # 명령 TCP 와 실제 TCP 가 이만큼 벌어지면 접촉
+PROBE_CONTACT_N   = 5       # 연속 이만큼 넘어야 인정 (순간 튐 걸러내기)
+PROBE_SETTLE      = 30      # 시작 직후 이 스텝 동안은 추종 오차를 안 본다
+
 HOLD_WAIT       = 120   # 들기 전에 제자리에서 버티는 스텝
 RELEASE_WAIT    = 90
 TELEPORT_SETTLE = 120   # 순간이동 직후 안정될 때까지
@@ -561,30 +574,35 @@ def ease(alpha):
 
 class PnPFSM:
     """
-       0 APPROACH   선반 위 매거진 바로 위로
-       1 DESCEND    이번 시도의 흡착 높이까지 하강
-       2 GRIP       흡착하고 붙었는지 확인
-                      붙었으면 -> HOLD
-                      아니면   -> 간격을 낮춰 DESCEND 로 되돌아간다
-                      사다리를 다 쓰면 -> 포기하고 DONE
-       3 HOLD       제자리에서 잠깐 버틴다. 잡자마자 놓치는지 여기서 걸린다
-       4 LIFT       선반에서 수직으로 인출   <- 파지 성공 판정
-       5 CARRY      팔을 베이스 쪽으로 접는다 (순간이동 준비)
-       6 TELEPORT   카터+팔+매거진 함께 컨베이어 앞으로
-       7 APPROACH2  벨트 위 대기 높이로
-       8 LOWER      놓을 높이까지 하강
-       9 RELEASE    해제
-      10 RETREAT    위로 빠지기
-      11 DONE
+       0 HOVER      매거진 예상 위치 위 PROBE_START_ABOVE 높이
+       1 PROBE      흡착을 켠 채 천천히 하강. 붙는 순간 멈춘다 (가드 무브)
+       2 HOLD       붙은 자리에서 잠깐 버틴다. 잡자마자 놓치는지 여기서 걸린다
+       3 LIFT       선반에서 수직으로 인출   <- 파지 성공 판정
+       4 CARRY      팔을 베이스 쪽으로 접는다 (순간이동 준비)
+       5 TELEPORT   카터 + 팔 + 매거진 함께 컨베이어 앞으로
+       6 APPROACH2  벨트 위 대기 높이로
+       7 LOWER      가드 하강. 벨트에 닿으면 멈춘다
+       8 RELEASE    해제
+       9 RETREAT    위로 빠지기
+      10 DONE
+
+    PROBE 와 LOWER 가 이 설계의 핵심이다. 둘 다 "정확한 z 를 안다"는 전제를
+    버리고, 내려가면서 신호가 올 때 멈춘다.
+      PROBE  - 흡착이 걸리면(get_gripped_objects) 멈춘다
+      LOWER  - 명령 TCP 를 실제가 못 따라오면(눌렸다) 멈춘다
+    덕분에 선반 높이나 벨트 높이가 몇 cm 틀려도 동작한다.
 
     HOLD 부터 LOWER 까지는 매 스텝 붙어 있는지 감시한다.
-    놓치는 순간의 단계, 경과 스텝, TCP, 물체 높이를 한 줄로 남긴다.
     """
 
-    NAMES = ["APPROACH", "DESCEND", "GRIP", "HOLD", "LIFT", "CARRY",
+    NAMES = ["HOVER", "PROBE", "HOLD", "LIFT", "CARRY",
              "TELEPORT", "APPROACH2", "LOWER", "RELEASE", "RETREAT", "DONE"]
-    DONE_STATE = 11
-    WATCH_STATES = (3, 4, 5, 6, 7, 8)     # HOLD ~ LOWER
+    S_HOVER, S_PROBE, S_HOLD, S_LIFT, S_CARRY = 0, 1, 2, 3, 4
+    S_TELEPORT, S_APPROACH2, S_LOWER, S_RELEASE, S_RETREAT = 5, 6, 7, 8, 9
+    DONE_STATE = 10
+    PICK_SIDE_LAST = S_CARRY          # 여기까지가 픽업쪽 베이스
+    PROBE_STATES = (S_PROBE, S_LOWER)
+    WATCH_STATES = (S_HOLD, S_LIFT, S_CARRY, S_TELEPORT, S_APPROACH2, S_LOWER)
     WATCH_EVERY = 10
 
     def __init__(self, robot, gripper, lula, movables):
@@ -598,85 +616,83 @@ class PnPFSM:
     def reset(self):
         center_xy, t_z, height = measure()
         self.center_xy = center_xy
-        self.obj_top = t_z
+        self.obj_top = t_z              # 예상값일 뿐이다. 프로브가 실제를 찾는다
         self.height = height
 
-        self.attempt = 0
         self.z_at_grip = None
         self.grip_ok = False
         self.dropped = False
         self.teleported = False
         self.done = False
+        self.contact_hits = 0
+        self.caught_gap = 0.0           # 실제로 붙은 간격. 놓는 높이에 쓴다
+        self.catch_tcp = None
 
         self.pick_quat  = yaw_quat(PICK_CARTER_YAW)
         self.place_quat = yaw_quat(PLACE_CARTER_YAW)
         self.pick_base  = arm_base_of(PICK_CARTER_POS, PICK_CARTER_YAW)
         self.place_base = arm_base_of(PLACE_CARTER_POS, PLACE_CARTER_YAW)
 
-        # 놓는 높이는 GRIP 이 실제로 성공한 간격을 알고 나서 확정한다
-        self.place_gap = GRIP_GAPS[0]
-
         cx, cy = center_xy
         px, py = PLACE_XY
         print(f"   target       {TARGET_NAME}  center ({cx:+.3f}, {cy:+.3f})  "
-              f"top z {t_z:.4f}  height {height*1000:.1f} mm")
+              f"예상 윗면 {t_z:.4f}  height {height*1000:.1f} mm")
         print(f"   pick  carter {vec(PICK_CARTER_POS)}  yaw {PICK_CARTER_YAW:+.1f}"
               f"  -> 팔 베이스 {vec(self.pick_base)}")
         print(f"   place carter {vec(PLACE_CARTER_POS)}  yaw {PLACE_CARTER_YAW:+.1f}"
               f"  -> 팔 베이스 {vec(self.place_base)}")
-        print(f"   place xy     ({px:+.3f}, {py:+.3f})  벨트 상판 {PLACE_SURFACE_Z:.3f}")
-        print(f"   grip gaps    {[f'{g*1000:+.0f}mm' for g in GRIP_GAPS]}  "
-              f"(앞에서 실패하면 다음 값으로 더 내려간다)")
+        print(f"   probe        윗면 +{PROBE_START_ABOVE*1000:.0f} mm 에서 시작해 "
+              f"-{PROBE_MAX_BELOW*1000:.0f} mm 까지  "
+              f"{PROBE_SPEED*1000:.1f} mm/step")
 
-        self.state = 0
+        self.state = self.S_HOVER
         self.step = 0
         self.start = None
         self.gripper = "open"
         self._rebuild()
 
     def _rebuild(self):
-        """이번 시도의 흡착 높이로 웨이포인트를 다시 만든다"""
+        """웨이포인트를 다시 만든다. 프로브 단계의 목표는 '허용 최심부'다"""
         cx, cy = self.center_xy
         px, py = PLACE_XY
 
-        grip_z = self.obj_top + GRIP_GAPS[self.attempt]
-        self.grip_z = grip_z
+        hover_z = self.obj_top + PROBE_START_ABOVE
+        probe_z = self.obj_top - PROBE_MAX_BELOW      # 여기까지만 내려간다
+        lift_z  = self.obj_top + PICK_LIFT_CLEAR
 
-        # 선반쪽 — 매거진 실측 윗면 기준
-        approach_z = self.obj_top + PICK_APPROACH_CLEAR
-        lift_z     = self.obj_top + PICK_LIFT_CLEAR
-
-        # 운반 자세 — 팔 베이스 기준이라 두 스테이션에서 같은 모양이 된다
         carry_pick  = self.pick_base  + quat_to_matrix(self.pick_quat)  @ CARRY_OFFSET
         carry_place = self.place_base + quat_to_matrix(self.place_quat) @ CARRY_OFFSET
 
-        # 벨트쪽 — 상판에 매거진 바닥이 닿게
-        place_top = PLACE_SURFACE_Z + self.height
-        release_z = place_top + self.place_gap + PLACE_DROP
-        hover_z   = place_top + PLACE_APPROACH_CLEAR
-        self.release_z = release_z
+        # 벨트쪽. 명목 접촉 높이에서 PROBE_MAX_BELOW 만큼 더 내려갈 수 있게 둔다
+        touch_z  = PLACE_SURFACE_Z + self.height + self.caught_gap
+        self.touch_z = touch_z
+        place_hi = touch_z + PLACE_APPROACH_CLEAR
+        place_lo = touch_z - PROBE_MAX_BELOW
+
+        hold_wp = self.catch_tcp if self.catch_tcp is not None \
+            else np.array([cx, cy, self.obj_top])
 
         self.waypoints = [
-            np.array([cx, cy, approach_z]),        #  0 APPROACH
-            np.array([cx, cy, grip_z]),            #  1 DESCEND
-            np.array([cx, cy, grip_z]),            #  2 GRIP
-            np.array([cx, cy, grip_z]),            #  3 HOLD
-            np.array([cx, cy, lift_z]),            #  4 LIFT
-            carry_pick,                            #  5 CARRY
-            carry_place,                           #  6 TELEPORT (이동 직후 이미 여기)
-            np.array([px, py, hover_z]),           #  7 APPROACH2
-            np.array([px, py, release_z]),         #  8 LOWER
-            np.array([px, py, release_z]),         #  9 RELEASE
-            np.array([px, py, hover_z]),           # 10 RETREAT
+            np.array([cx, cy, hover_z]),     # 0 HOVER
+            np.array([cx, cy, probe_z]),     # 1 PROBE     (최심부, 보통 도중에 멈춘다)
+            hold_wp,                         # 2 HOLD      (붙은 자리)
+            np.array([cx, cy, lift_z]),      # 3 LIFT
+            carry_pick,                      # 4 CARRY
+            carry_place,                     # 5 TELEPORT
+            np.array([px, py, place_hi]),    # 6 APPROACH2
+            np.array([px, py, place_lo]),    # 7 LOWER     (최심부, 보통 도중에 멈춘다)
+            np.array([px, py, touch_z]),     # 8 RELEASE   (접촉하면 그 자리로 덮어쓴다)
+            np.array([px, py, place_hi]),    # 9 RETREAT
         ]
 
+    # ── 조회 ────────────────────────────────────────────
     def base_for(self, state):
         """그 단계에서 팔 베이스가 어디에 있는가 (도달거리 계산용)"""
-        return self.pick_base if state <= 5 else self.place_base
+        return self.pick_base if state <= self.PICK_SIDE_LAST else self.place_base
 
     def carter_yaw_for(self, state):
         """그 단계에서 카터가 어느 쪽을 보고 있는가"""
-        return PICK_CARTER_YAW if state <= 5 else PLACE_CARTER_YAW
+        return PICK_CARTER_YAW if state <= self.PICK_SIDE_LAST else PLACE_CARTER_YAW
 
     def tool_quat(self):
         """
@@ -691,7 +707,6 @@ class PnPFSM:
             GRIPPER_YAW_DEG - self.carter_yaw_for(self.state),
         )
 
-    # ── 진행 ────────────────────────────────────────────
     def current_target(self):
         if self.done:
             return self.waypoints[-1]
@@ -699,6 +714,7 @@ class PnPFSM:
             return self.waypoints[self.state]
         return self.start + ease(self.step / float(self.n_steps)) * (self.goal - self.start)
 
+    # ── 진행 ────────────────────────────────────────────
     def advance(self):
         if self.done:
             return
@@ -709,22 +725,33 @@ class PnPFSM:
         self.step += 1
         self._watch_drop()
 
+        # 프로브 단계는 끝까지 가기 전에 멈출 수 있다
+        if self.state in self.PROBE_STATES and self._probe_stop():
+            return
+
         if self.step < self.n_steps:
             return
 
-        if self.state == 2:                           # GRIP 끝 -> 붙었나
-            if not self._check_grip():
-                return                                # 재시도로 되돌아갔다
-        elif self.state == 4:                         # LIFT 끝 -> 파지 판정
+        if self.state == self.S_PROBE:
+            self._probe_exhausted()
+            if self.done:
+                return
+        elif self.state == self.S_LIFT:
             self._judge_grasp()
-        elif self.state == 6:                         # TELEPORT 끝 -> 아직 들고 있나
+        elif self.state == self.S_TELEPORT:
             self._judge_teleport()
-        elif self.state == 9:                         # RELEASE 끝 -> 배치 판정
+        elif self.state == self.S_LOWER:
+            self._lower_exhausted()
+        elif self.state == self.S_RELEASE:
             self._judge_place()
 
-        self.state += 1
+        self._goto(self.state + 1)
+
+    def _goto(self, state):
+        self.state = state
         self.step = 0
         self.start = None
+        self.contact_hits = 0
         if self.state >= self.DONE_STATE:
             self.done = True
             print(f"   [{self.DONE_STATE}] DONE")
@@ -733,14 +760,16 @@ class PnPFSM:
         self.start = get_tcp_pose(self._robot)
         self.goal = self.waypoints[self.state]
 
-        if self.state == 2:                           # GRIP
+        if self.state == self.S_PROBE:
+            # 흡착을 미리 켜 둔다. 내려가다 포착 범위에 들어오면 알아서 붙는다
             self.z_at_grip = top_z()
             self._gripper.close()
             self.gripper = "close"
-            self.n_steps, dist = GRIP_WAIT, 0.0
-        elif self.state == 3:                         # HOLD
+            dist = float(np.linalg.norm(self.goal - self.start))
+            self.n_steps = max(int(dist / PROBE_SPEED), MIN_STEPS)
+        elif self.state == self.S_HOLD:
             self.n_steps, dist = HOLD_WAIT, 0.0
-        elif self.state == 6:                         # TELEPORT
+        elif self.state == self.S_TELEPORT:
             print()
             print(f"   {'─' * 56}")
             print(f"   순간이동  카터 {vec(PICK_CARTER_POS)} yaw {PICK_CARTER_YAW:+.0f}"
@@ -749,10 +778,12 @@ class PnPFSM:
                      PICK_CARTER_POS, self.pick_quat,
                      PLACE_CARTER_POS, self.place_quat)
             self.teleported = True
-            # 관절이 그대로라 TCP 는 이미 새 CARRY 위치에 있다. 안정만 기다린다
             self.start = self.goal
             self.n_steps, dist = TELEPORT_SETTLE, 0.0
-        elif self.state == 9:                         # RELEASE
+        elif self.state == self.S_LOWER:
+            dist = float(np.linalg.norm(self.goal - self.start))
+            self.n_steps = max(int(dist / PROBE_SPEED), MIN_STEPS)
+        elif self.state == self.S_RELEASE:
             self._gripper.open()
             self.gripper = "open"
             self.n_steps, dist = RELEASE_WAIT, 0.0
@@ -763,14 +794,92 @@ class PnPFSM:
               f" goal {vec(self.goal)}  {dist:.4f} m  {self.n_steps} steps"
               f"  gripper {self.gripper}")
 
+    # ── 가드 무브 ───────────────────────────────────────
+    def _tracking_error(self):
+        """명령한 TCP 를 실제가 얼마나 못 따라오고 있는가"""
+        return float(np.linalg.norm(self.current_target() - get_tcp_pose(self._robot)))
+
+    def _pressed(self):
+        """추종 오차가 연속으로 임계를 넘으면 뭔가에 눌린 것으로 본다"""
+        if self.step <= PROBE_SETTLE:
+            return False
+        if self._tracking_error() > PROBE_CONTACT_ERR:
+            self.contact_hits += 1
+        else:
+            self.contact_hits = 0
+        return self.contact_hits >= PROBE_CONTACT_N
+
+    def _probe_stop(self):
+        """멈춰야 하면 처리하고 True. 계속 내려가도 되면 False"""
+        tcp = get_tcp_pose(self._robot)
+
+        if self.state == self.S_PROBE:
+            if holding(self._gripper.gripped()):
+                self.grip_ok = True
+                self.catch_tcp = self.current_target().copy()
+                actual_top = top_z()
+                self.caught_gap = (tcp[2] + SUCTION_INSET) - actual_top
+                print()
+                print(f"   {'─' * 56}")
+                print(f"   붙었다      {self.step}/{self.n_steps} 스텝 "
+                      f"({self.step * PROBE_SPEED * 1000:.0f} mm 내려와서)")
+                print(f"   흡착점 z    {tcp[2] + SUCTION_INSET:.4f}   "
+                      f"물체 윗면 {actual_top:.4f}   간격 {self.caught_gap*1000:+.1f} mm")
+                print(f"   예상 대비   {(actual_top - self.obj_top)*1000:+.1f} mm "
+                      f"(예상 {self.obj_top:.4f})")
+                print(f"   {'─' * 56}")
+                print()
+                self._rebuild()            # 실제 간격으로 놓는 높이를 다시 잡는다
+                self._goto(self.S_HOLD)
+                return True
+
+            if self._pressed():
+                print()
+                print(f"   !! 닿았는데 안 붙었다  tcp {vec(tcp)}  "
+                      f"추종오차 {self._tracking_error()*1000:.1f} mm")
+                print(f"      흡착면이 플랜지(80x80)를 빗나갔거나 "
+                      f"COAXIAL_FORCE_LIMIT({COAXIAL_FORCE_LIMIT:.0f} N)가 모자라다")
+                print()
+                self.done = True
+                return True
+
+        elif self.state == self.S_LOWER:
+            if self._pressed():
+                self.waypoints[self.S_RELEASE] = self.current_target().copy()
+                print(f"   벨트에 닿았다  tcp {vec(tcp)}  "
+                      f"{self.step}/{self.n_steps} 스텝  여기서 놓는다")
+                self._goto(self.S_RELEASE)
+                return True
+
+        return False
+
+    def _probe_exhausted(self):
+        """끝까지 내려갔는데 안 붙었다"""
+        print()
+        print(f"   {'─' * 56}")
+        print(f"   흡착 실패 — 예상 윗면 {self.obj_top:.4f} 기준 "
+              f"+{PROBE_START_ABOVE*1000:.0f} ~ -{PROBE_MAX_BELOW*1000:.0f} mm "
+              f"를 다 훑었다")
+        print(f"   높이 문제가 아니다. 다음을 보자")
+        print(f"     - rigid body 경로가 위에 찍혔는지 (없으면 물리 물체가 아니다)")
+        print(f"     - 흡착면 xy 가 플랜지(80x80 mm) 위에 오는지")
+        print(f"     - MAX_GRIP_DISTANCE({MAX_GRIP_DISTANCE*1000:.0f} mm) 를 키워보기")
+        print(f"   {'─' * 56}")
+        print()
+        self.done = True
+
+    def _lower_exhausted(self):
+        """끝까지 내려갔는데 접촉을 못 느꼈다. 그래도 놓는 게 낫다"""
+        print(f"   !! 접촉 없이 최심부까지 내려왔다  "
+              f"PLACE_SURFACE_Z({PLACE_SURFACE_Z:.3f}) 가 실제보다 높을 수 있다")
+        print(f"      여기서 놓는다 (낙하 {PROBE_MAX_BELOW*1000:.0f} mm 이내)")
+
     # ── 드롭 감시 ───────────────────────────────────────
     def _watch_drop(self):
         """잡고 있다가 놓치는 순간을 잡아낸다"""
         if self.state not in self.WATCH_STATES or not self.grip_ok:
             return
-        if self.step % self.WATCH_EVERY:
-            return
-        if self.dropped:
+        if self.step % self.WATCH_EVERY or self.dropped:
             return
         if holding(self._gripper.gripped()):
             return
@@ -783,56 +892,6 @@ class PnPFSM:
         print(f"      이 단계의 목표 {vec(self.goal)}  "
               f"status {self._gripper.status()}")
 
-    # ── 재시도 ──────────────────────────────────────────
-    def _check_grip(self):
-        """붙었으면 True. 아니면 간격을 낮춰 DESCEND 로 되돌리고 False"""
-        gripped = self._gripper.gripped()
-        ok = holding(gripped)
-        tcp = get_tcp_pose(self._robot)
-        suction_z = tcp[2] + SUCTION_INSET      # 툴이 아래를 보므로 흡착점은 위쪽
-        gap = suction_z - self.obj_top
-
-        print(f"   ── 시도 {self.attempt + 1}/{len(GRIP_GAPS)}  "
-              f"목표간격 {GRIP_GAPS[self.attempt]*1000:+.0f} mm  "
-              f"실제 흡착점 {suction_z:.4f} (물체 윗면 {self.obj_top:.4f}, "
-              f"거리 {gap*1000:+.1f} mm / 한계 {MAX_GRIP_DISTANCE*1000:.0f} mm)")
-        print(f"      status {self._gripper.status()}   gripped {gripped}   "
-              f"-> {'붙었다' if ok else '안 붙었다'}")
-
-        if ok:
-            self.grip_ok = True
-            # 실제로 성공한 간격으로 놓는 높이를 다시 잡는다
-            self.place_gap = GRIP_GAPS[self.attempt]
-            self._rebuild()
-            print(f"      놓는 높이 재계산  release z {self.release_z:.4f} "
-                  f"(간격 {self.place_gap*1000:+.0f} mm 반영)")
-            return True
-
-        self.attempt += 1
-        if self.attempt >= len(GRIP_GAPS):
-            print()
-            print(f"   {'─' * 56}")
-            print(f"   흡착 실패 — 간격 {GRIP_GAPS[0]*1000:+.0f} ~ "
-                  f"{GRIP_GAPS[-1]*1000:+.0f} mm 를 다 해봤다")
-            print(f"   높이 문제가 아니다. 다음을 보자")
-            print(f"     - rigid body 경로가 위에 찍혔는지 (없으면 물리 물체가 아니다)")
-            print(f"     - COAXIAL_FORCE_LIMIT({COAXIAL_FORCE_LIMIT:.0f} N) 을 더 키워보기")
-            print(f"     - MAX_GRIP_DISTANCE({MAX_GRIP_DISTANCE*1000:.0f} mm) 를 더 키워보기")
-            print(f"   {'─' * 56}")
-            print()
-            self.done = True
-            return False
-
-        # 더 내려가서 다시
-        self._gripper.open()
-        self.gripper = "open"
-        self._rebuild()
-        self.state = 1                                 # DESCEND 로
-        self.step = 0
-        self.start = None
-        print(f"      -> {GRIP_GAPS[self.attempt]*1000:+.0f} mm 로 더 내려가서 재시도")
-        return False
-
     # ── 판정 ────────────────────────────────────────────
     def _judge_grasp(self):
         """물체가 실제로 딸려 올라왔는지 높이 차로 판정한다"""
@@ -843,7 +902,7 @@ class PnPFSM:
         print()
         print(f"   {'─' * 56}")
         print(f"   파지        {'성공' if ok else '실패'}   "
-              f"(간격 {GRIP_GAPS[self.attempt]*1000:+.0f} mm 에서 붙음)")
+              f"(간격 {self.caught_gap*1000:+.1f} mm 에서 붙음)")
         print(f"   물체 윗면   {self.z_at_grip:.4f} -> {now:.4f}  ({rise*1000:+.1f} mm)")
         print(f"   붙은 물체   {self._gripper.gripped()}")
         if not ok:
