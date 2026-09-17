@@ -57,6 +57,9 @@ WP_PICK 은 yaw 0 이므로 이 식이 12_pick_test.py 와 정확히 같은 값�
 
   BeltTop        translate z 0.72 + scale z 0.1/2  ->  상판 z = 0.770
                  x [4.05, 8.75]  y [-0.55, 0.55]   PhysicsCollisionAPI 있음
+                 kinematic RigidBody + physxSurfaceVelocity (0.2, 0, 0) — 물리
+                 컨베이어라 놓는 순간부터 +x 로 0.2 m/s 운반된다. 배치 판정은
+                 y/높이/기울기만 보고 x 이동은 "운반 시작" 신호로 쓴다
   ConveyorFrame  x [4.20, 8.60]  y [-0.675, 0.675]  z [0.225, 0.675]
                  -> 카터 차체는 x < 4.2 에 세워야 한다
   SideRail_A/B   y ±0.66,  z [0.72, 1.08]
@@ -66,8 +69,18 @@ WP_PICK 은 yaw 0 이므로 이 식이 12_pick_test.py 와 정확히 같은 값�
                  carter_navigation_params.yaml — 원점이 중심이 아니라 뒤로 0.607 m
   arm_mount_joint    카터 -> m0609 오프셋 (-0.20649, 0, 0.54920)
 
-  참고: 벨트 위 x 4.5 근처에 TestItem 이 보이는데 콜라이더가 없는(시각 전용)
-  애니메이션 프롭이다. 물리 간섭은 없지만 시야를 가리면 숨기고 보면 된다.
+  prim 경로     레이아웃이 /World/Robots/..., /World/Magazines/... 로 재편됐다
+                 (12_pick_test.py 와 같은 경로를 쓴다). 그룹 Xform 은 전부 (0,0,0)
+                 이라 월드 좌표는 그대로다. 경로가 틀리면 _wait_for_scene 이 즉시
+                 "레이아웃에 없는 prim 경로" 로 죽는다 — 12_ 와 맞추면 된다.
+  magazine       레이아웃은 magazine_1_orange_qr.usda(측면 QR 부착판)를 올린다.
+                 파지 지점 flange_plate 와 전체 높이는 같다.
+
+  같은 브랜치의 12_place_test.py(jooeun) 와의 차이: 그쪽은 TestItem 위치
+  (x 4.5, z 1.05)가 안 닿는다는 결론 뒤 PLACE 를 컨베이어 '앞 바닥'(4.0, 0.0)
+  으로 잡았다(카터 yaw 0, x 3.35). 이 스크립트는 벨트 '상판'(z 0.770)에 올린다
+  — 카터를 yaw -90 으로 돌려 팔이 벨트 열린 끝을 향하게 하고 x 3.85 까지 붙여
+  배치 지점 x 4.30 을 2링크 부하 81% 로 잡는다. 두 방식 다 Isaac 검증 전이다.
 
 
 ─── 왜 PLACE 는 12_ 가 포기했고, 여기서는 어떻게 풀었나 ──────────
@@ -141,8 +154,8 @@ DESCRIPTION_PATH = str(M0609_DIR / "descriptor/m0609_description.yaml")
 # ══════════════════════════════════════════════════════════════
 #  씬 prim 경로 — 12_pick_test.py 와 동일
 # ══════════════════════════════════════════════════════════════
-ROBOT_PRIM_PATH = "/World/nova_carter1/m0609"
-BASE_XFORM_PATH = "/World/nova_carter1"
+ROBOT_PRIM_PATH = "/World/Robots/nova_carter1/m0609"
+BASE_XFORM_PATH = "/World/Robots/nova_carter1"
 EE_LINK_NAME    = "link_6"
 EE_LINK_PATH    = f"{ROBOT_PRIM_PATH}/{EE_LINK_NAME}"
 BASE_LINK_PATH  = f"{ROBOT_PRIM_PATH}/base_link"
@@ -154,13 +167,24 @@ ARTICULATION_ROOT_CANDIDATES = [
     BASE_XFORM_PATH,
 ]
 
-MAGAZINE_XFORM_PATH = "/World/magazine_1_orange"
+MAGAZINE_XFORM_PATH = "/World/Magazines/shelf_1_magaines/top_magazines/magazine_1_orange"
 # payload 로 합성되면 magazine_1_orange.usda 의 defaultPrim("Magazine")이 이
 # 경로 자체에 별칭(alias)되므로, 그 자식(flange_plate 등)은 별도의 "Magazine"
 # 서브프림이 아니라 MAGAZINE_XFORM_PATH 바로 아래에 붙는다.
 MAGAZINE_PATH = MAGAZINE_XFORM_PATH
 FLANGE_NAME   = "flange_plate"                      # top-grasp 지점 (파지용 손잡이)
 FLANGE_PATH   = f"{MAGAZINE_PATH}/{FLANGE_NAME}"
+
+# 씬 합성이 끝났는지 판단할 prim 들 (라벨, 탐색 루트, prim 이름).
+# 셋 다 참조/페이로드 '안'에 있는 prim 이라, 이게 보이면 합성이 끝난 것이다.
+#   nova_carter1, short_gripper : S3 원격 payload — 첫 실행/캐시 비면 몇 초 걸린다
+#   magazine_1_orange           : 로컬 payload (../assets)
+REQUIRED_PRIMS = [
+    ("m0609 joint_6",           ROBOT_PRIM_PATH,     "joint_6"),
+    ("short_gripper 흡착 노드",  GRIPPER_PRIM,        "SurfaceGripper"),
+    ("magazine flange_plate",   MAGAZINE_XFORM_PATH, FLANGE_NAME),
+]
+SCENE_LOAD_TIMEOUT_S = 180.0   # 원격 payload 첫 다운로드까지 감안한 상한
 
 
 # ══════════════════════════════════════════════════════════════
@@ -294,8 +318,13 @@ LOG_INTERVAL = 60
 LIFT_OK_MIN_M = 0.005   # 5 mm 리프트 후 유지되면 파지 성공 (12_ 와 동일)
 TILT_MAX_DEG  = 5.0     # 파지/배치 중 기울기 허용치
 
-PLACE_XY_TOL_M = 0.05   # 벨트 위 목표 xy 로부터 이 안에 앉아야 한다
-PLACE_Z_TOL_M  = 0.02   # 매거진 바닥이 벨트 상판에서 이 안에 있어야 한다
+# 벨트는 물리 컨베이어(BeltTop: kinematic + physxSurfaceVelocity (0.2, 0, 0))라
+# 놓는 순간부터 +x 로 0.2 m/s 운반된다. 그래서 x 는 판정하지 않고, 벨트가 건드리지
+# 않는 y(가로 방향)·바닥 높이·기울기만 본다. x 이동량은 "운반이 시작됐다" 는 신호로
+# 찍는다 (안 움직이면 벨트에 안 앉았거나 걸린 것이다).
+BELT_SURFACE_SPEED = 0.2   # m/s, 레이아웃 실측 — 예상 이동량 계산용
+PLACE_Y_TOL_M  = 0.05      # 벨트 가로 방향 목표 y 로부터 이 안에 앉아야 한다
+PLACE_Z_TOL_M  = 0.02      # 매거진 바닥이 벨트 상판에서 이 안에 있어야 한다
 
 
 # ══════════════════════════════════════════════════════════════
@@ -674,9 +703,72 @@ class MagazinePnPTask(BaseTask):
         if not world_prim.IsValid():
             world_prim = UsdGeom.Xform.Define(stage, "/World").GetPrim()
         world_prim.GetReferences().AddReference(WORLD_USD)
-        for _ in range(15):
-            simulation_app.update()
         print(f"   USD          loaded  {WORLD_USD}")
+        self._wait_for_scene()
+
+    def _wait_for_scene(self):
+        """
+        참조/페이로드 합성이 실제로 끝날 때까지 기다린다.
+
+        12_pick_test.py 는 simulation_app.update() 를 15번(약 0.25 s) 돌리고
+        넘어갔다. nova_carter1 과 short_gripper 는 S3 원격 payload 라 Kit 이
+        비동기로 받아오는데, 그 안에 안 들어오면 Usd.PrimRange 의 기본 predicate
+        (IsLoaded 포함)가 미로드 서브트리를 통째로 건너뛰어
+            arm drives 0  /  SurfaceGripper node not found
+        로 죽는다. 캐시가 따뜻하면 15번 안에 들어와 되는 것처럼 보일 뿐이다.
+        그래서 고정 횟수가 아니라 필요한 prim 이 실제로 보일 때까지 기다린다.
+        """
+        stage = omni.usd.get_context().get_stage()
+
+        # 경로 자체가 레이아웃에 없으면 기다려 봐야 소용없다 — 바로 죽인다.
+        # (레이아웃 계층이 바뀌어 /World/nova_carter1 -> /World/Robots/nova_carter1
+        #  이 된 적이 있다. 그때 "arm drives 0" 만 찍히고 원인이 안 보였다.)
+        roots = (BASE_XFORM_PATH, ROBOT_PRIM_PATH, GRIPPER_PRIM, MAGAZINE_XFORM_PATH)
+        bad = [p for p in roots if not stage.GetPrimAtPath(p).IsValid()]
+        if bad:
+            world = stage.GetPrimAtPath("/World")
+            top = [c.GetName() for c in world.GetChildren()] if world.IsValid() else []
+            raise RuntimeError(
+                f"레이아웃에 없는 prim 경로: {bad}\n"
+                f"      /World 바로 아래: {top}\n"
+                f"      레이아웃 계층이 바뀌었으면 ROBOT_PRIM_PATH / BASE_XFORM_PATH / "
+                f"MAGAZINE_XFORM_PATH 를 12_pick_test.py 와 맞춘다")
+
+        # 스테이지 로드 규칙이 LoadAll 이 아니어도 되게 페이로드를 명시적으로 요청한다
+        for path in (BASE_XFORM_PATH, GRIPPER_PRIM, MAGAZINE_XFORM_PATH):
+            try:
+                prim = stage.GetPrimAtPath(path)
+                if prim.IsValid() and not prim.IsLoaded():
+                    stage.Load(path)
+            except Exception as exc:
+                print(f"   !! payload   {path} Load 요청 실패: {exc}")
+
+        t0 = time.time()
+        updates = 0
+        while True:
+            missing = [label for label, root, name in REQUIRED_PRIMS
+                       if find_prim_path(root, name) is None]
+            if not missing:
+                break
+            if time.time() - t0 > SCENE_LOAD_TIMEOUT_S:
+                lines = []
+                for path in (BASE_XFORM_PATH, ROBOT_PRIM_PATH, GRIPPER_PRIM, MAGAZINE_XFORM_PATH):
+                    prim = stage.GetPrimAtPath(path)
+                    state = ("없음" if not prim.IsValid() else
+                             f"loaded={prim.IsLoaded()} active={prim.IsActive()} "
+                             f"children={len(prim.GetChildren())}")
+                    lines.append(f"      {path}: {state}")
+                raise RuntimeError(
+                    f"씬 로드가 {SCENE_LOAD_TIMEOUT_S:.0f} s 안에 안 끝났다. 아직 없는 것: {missing}\n"
+                    + "\n".join(lines) + "\n"
+                    "      nova_carter1/short_gripper 는 S3 원격 payload 다 — 네트워크/에셋 캐시를 보고,\n"
+                    "      레이아웃의 file:/home/rokey/... 절대경로가 이 PC 에 있는지 확인한다")
+            simulation_app.update()
+            updates += 1
+            if updates % 120 == 0:
+                print(f"   loading      {time.time() - t0:5.1f} s  아직 없음: {missing}")
+
+        print(f"   scene prims  ready  ({updates} updates, {time.time() - t0:.1f} s)")
 
     def _setup_arm_drives(self):
         """nova_carter1/m0609 의 팔 6축에만 Drive 를 강화한다 (nova_carter2 는 건드리지 않는다)"""
@@ -692,6 +784,12 @@ class MagazinePnPTask(BaseTask):
                     drive.GetDampingAttr().Set(DRIVE_DAMPING)
                     drive.GetMaxForceAttr().Set(DRIVE_MAX_FORCE)
                     count += 1
+        if count == 0:
+            raise RuntimeError(
+                f"{ROBOT_PRIM_PATH} 아래에서 팔 관절 Drive 를 하나도 못 찾았다 — "
+                f"씬 합성이 안 끝났거나 경로가 다르다")
+        if count != len(ARM_JOINTS):
+            print(f"   !! arm drives  {count}개 (기대 {len(ARM_JOINTS)}) — 관절 구성을 확인한다")
         print(f"   arm drives   {count}")
 
     def _configure_gripper_limits(self):
@@ -974,9 +1072,11 @@ class PnPFSM:
 
         self.lift_rise_m = 0.0
         self.tilt_at_lift_deg = 0.0
-        self.place_xy_err_m = 0.0
+        self.place_y_err_m = 0.0
+        self.place_dx_m = 0.0            # 놓은 뒤 벨트가 +x 로 옮긴 거리
         self.place_dz_m = 0.0
         self.tilt_at_place_deg = 0.0
+        self.mag_xy_at_release = None
 
         # 실제로 붙은 간격. HOLD 끝에서 실측해 놓을 높이에 반영한다.
         # 그 전까지는 첫 시도 목표값을 쓴다 (사전 검증이 숫자를 필요로 한다).
@@ -1137,6 +1237,8 @@ class PnPFSM:
             self._gripper.open()
             self.gripper = "open"
             self.released = True
+            # 놓는 순간의 xy — 벨트가 운반한 거리를 재는 기준점
+            self.mag_xy_at_release = measure_prim(MAGAZINE_PATH)[0]
             self.n_steps, dist = RELEASE_WAIT, 0.0
         else:
             self.n_steps, dist = steps_for(self.start, self.goal)
@@ -1238,33 +1340,51 @@ class PnPFSM:
                   f" 당겨 관성을 줄인다")
 
     def _judge_place(self):
-        """벨트 위에 제대로 앉았는지 본다 (RETREAT 로 팔이 빠진 뒤라 안정돼 있다)"""
+        """
+        벨트 위에 제대로 앉았는지 본다 (RETREAT 로 팔이 빠진 뒤라 안정돼 있다).
+
+        벨트가 움직이므로 x 는 목표와 비교하지 않는다. 놓은 순간부터 지금까지
+        RELEASE_WAIT + RETREAT 만큼 시간이 흘렀으니 대략 그만큼 +x 로 가 있어야
+        정상이다. 안 움직였으면 벨트에 안 앉았거나 어딘가 걸린 것이다.
+        """
         center_xy, top_z, height = measure_prim(MAGAZINE_PATH)
         bottom_z = top_z - height
         _, quat = get_world_pose(MAGAZINE_PATH)
 
-        self.place_xy_err_m = float(np.linalg.norm(center_xy - PLACE_XY))
+        self.place_y_err_m = float(abs(center_xy[1] - PLACE_XY[1]))
         self.place_dz_m = float(bottom_z - BELT_TOP_Z)
         self.tilt_at_place_deg = tilt_deg_from_quat(quat)
+        if self.mag_xy_at_release is not None:
+            self.place_dx_m = float(center_xy[0] - self.mag_xy_at_release[0])
 
-        ok = (self.place_xy_err_m <= PLACE_XY_TOL_M
-              and abs(self.place_dz_m) <= PLACE_Z_TOL_M
-              and self.tilt_at_place_deg <= TILT_MAX_DEG)
+        seated = (self.place_y_err_m <= PLACE_Y_TOL_M
+                  and abs(self.place_dz_m) <= PLACE_Z_TOL_M
+                  and self.tilt_at_place_deg <= TILT_MAX_DEG)
+        conveyed = self.place_dx_m > 0.02          # 2 cm 이상 +x 로 갔으면 벨트가 물었다
+        ok = seated and conveyed
+
+        elapsed_s = (RELEASE_WAIT + self.n_steps) / 60.0       # RELEASE + RETREAT (60 Hz 가정)
+        expect_dx = BELT_SURFACE_SPEED * elapsed_s
 
         print()
         print(f"   {'─' * 56}")
-        print(f"   배치 판정  중심 ({center_xy[0]:+.3f}, {center_xy[1]:+.3f})  "
-              f"목표 ({PLACE_XY[0]:+.3f}, {PLACE_XY[1]:+.3f})  "
-              f"오차 {self.place_xy_err_m*1000:.1f} mm (<= {PLACE_XY_TOL_M*1000:.0f})")
+        print(f"   배치 판정  y {center_xy[1]:+.3f}  목표 {PLACE_XY[1]:+.3f}  "
+              f"오차 {self.place_y_err_m*1000:.1f} mm (<= {PLACE_Y_TOL_M*1000:.0f})")
         print(f"              바닥 z {bottom_z:.4f}  벨트 상판 {BELT_TOP_Z:.3f}  "
               f"차이 {self.place_dz_m*1000:+.1f} mm (<= {PLACE_Z_TOL_M*1000:.0f})")
-        print(f"              tilt {self.tilt_at_place_deg:.2f} deg "
-              f"(<= {TILT_MAX_DEG:.0f})  -> {'성공' if ok else '실패'}")
-        if not ok and self.place_dz_m > PLACE_Z_TOL_M:
-            print(f"      벨트에 안 닿고 떨어졌다. PLACE_DROP 을 줄이거나 "
+        print(f"              tilt {self.tilt_at_place_deg:.2f} deg (<= {TILT_MAX_DEG:.0f})")
+        print(f"              벨트 운반  +x {self.place_dx_m*1000:+.0f} mm  "
+              f"(예상 약 {expect_dx*1000:.0f} mm @ {BELT_SURFACE_SPEED} m/s)  "
+              f"-> {'운반 중' if conveyed else '!! 안 움직인다'}")
+        print(f"              -> {'성공' if ok else '실패'}")
+        if self.place_dz_m > PLACE_Z_TOL_M:
+            print(f"      벨트에 안 닿고 떠 있다. PLACE_DROP 을 줄이거나 "
                   f"BELT_TOP_Z({BELT_TOP_Z:.3f}) 를 확인한다")
-        elif not ok and self.place_dz_m < -PLACE_Z_TOL_M:
+        elif self.place_dz_m < -PLACE_Z_TOL_M:
             print("      벨트를 파고들었다. BELT_TOP_Z 나 파지 간격 실측을 확인한다")
+        if seated and not conveyed:
+            print("      앉긴 했는데 벨트가 안 옮긴다 — BeltTop 의 surfaceVelocity 가 켜져 "
+                  "있는지, 매거진이 사이드레일/프레임에 걸렸는지 본다")
         print(f"   {'─' * 56}")
         print()
         if not ok:
@@ -1281,7 +1401,8 @@ class TrialResult:
     cycle_time_s: float
     lift_rise_mm: float
     tilt_at_lift_deg: float
-    place_xy_err_mm: float
+    place_y_err_mm: float
+    place_dx_mm: float
     place_dz_mm: float
     tilt_at_place_deg: float
 
@@ -1410,7 +1531,8 @@ def run_trial(trial_idx, world, robot, lula, solver, gripper, teleporter, pick_b
         cycle_time_s=time.time() - t0,
         lift_rise_mm=fsm.lift_rise_m * 1000.0,
         tilt_at_lift_deg=fsm.tilt_at_lift_deg,
-        place_xy_err_mm=fsm.place_xy_err_m * 1000.0,
+        place_y_err_mm=fsm.place_y_err_m * 1000.0,
+        place_dx_mm=fsm.place_dx_m * 1000.0,
         place_dz_mm=fsm.place_dz_m * 1000.0,
         tilt_at_place_deg=fsm.tilt_at_place_deg,
     )
@@ -1486,9 +1608,10 @@ def main():
               f"  cycle_time={result.cycle_time_s:.2f}s")
         print(f"   파지         rise {result.lift_rise_mm:+.1f} mm  "
               f"tilt {result.tilt_at_lift_deg:.2f} deg")
-        print(f"   배치         xy {result.place_xy_err_mm:.1f} mm  "
+        print(f"   배치         y {result.place_y_err_mm:.1f} mm  "
               f"dz {result.place_dz_mm:+.1f} mm  "
-              f"tilt {result.tilt_at_place_deg:.2f} deg")
+              f"tilt {result.tilt_at_place_deg:.2f} deg  "
+              f"벨트 운반 +x {result.place_dx_mm:+.0f} mm")
         return result
 
     do_cycle(0)
