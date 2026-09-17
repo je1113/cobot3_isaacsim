@@ -412,17 +412,44 @@ def Xform "World"
                 uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:scale"]
             }
 
-            def Cube "BeltTop" (
-                prepend apiSchemas = ["PhysicsCollisionAPI"]
-            )
-            {
-                float3[] primvars:displayColor = [(0.08, 0.09, 0.1)]
-                uniform token primvars:displayColor:interpolation = "constant"
-                double size = 1
-                double3 xformOp:scale = (4.7, 1.1, 0.1)
-                double3 xformOp:translate = (6.4, 0, 0.72)
-                uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:scale"]
-            }
+        def Cube "BeltTop" (
+            prepend apiSchemas = [
+                "PhysicsCollisionAPI",
+                "PhysicsRigidBodyAPI",
+                "PhysxSurfaceVelocityAPI"
+            ]
+        )
+        {
+            float3[] primvars:displayColor = [(0.08, 0.09, 0.1)]
+            uniform token primvars:displayColor:interpolation = "constant"
+
+            double size = 1
+
+            # ==============================
+            # Conveyor Physics
+            # ==============================
+
+            # 컨베이어 몸체 자체는 움직이지 않음
+            bool physics:kinematicEnabled = true
+
+            # Surface Velocity 활성화
+            bool physxSurfaceVelocity:surfaceVelocityEnabled = true
+
+            # false = World 좌표 기준
+            bool physxSurfaceVelocity:surfaceVelocityLocalSpace = false
+
+            # +X 방향으로 0.2 m/s
+            vector3f physxSurfaceVelocity:surfaceVelocity = (0.2, 0, 0)
+
+            # 컨베이어 위치 / 크기
+            double3 xformOp:scale = (4.7, 1.1, 0.1)
+            double3 xformOp:translate = (6.4, 0, 0.72)
+
+            uniform token[] xformOpOrder = [
+                "xformOp:translate",
+                "xformOp:scale"
+            ]
+        }
 
             def Cube "SideRail_A" (
                 prepend apiSchemas = ["PhysicsCollisionAPI"]
@@ -448,25 +475,32 @@ def Xform "World"
                 uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:scale"]
             }
 
-            def Cube "TestItem"
-            {
-                float3[] primvars:displayColor = [(0.18, 0.62, 0.82)]
-                uniform token primvars:displayColor:interpolation = "constant"
-                double size = 1
-                token visibility = "inherited"
-                quatf xformOp:orient = (1, 0, 0, 0)
-                double3 xformOp:scale = (0.65, 0.65, 0.55)
-                double3 xformOp:translate.timeSamples = {
-                    0: (4.5, 0, 1.05),
-                    96: (7.9, 0, 1.05),
-                    120: (8.7, 0, 1.05),
-                    132: (9.15, 0, 0.95),
-                    150: (9.65, 0, 0.4),
-                    174: (10.2, 0, -0.8),
-                    480: (10.2, 0, -0.8),
-                }
-                uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
-            }
+        def Cube "TestItem" (
+            prepend apiSchemas = [
+                "PhysicsCollisionAPI",
+                "PhysicsRigidBodyAPI"
+            ]
+        )
+        {
+            float3[] primvars:displayColor = [(0.18, 0.62, 0.82)]
+            uniform token primvars:displayColor:interpolation = "constant"
+
+            double size = 1
+            token visibility = "inherited"
+
+            quatf xformOp:orient = (1, 0, 0, 0)
+
+            double3 xformOp:scale = (0.65, 0.65, 0.55)
+
+            # 시작 위치만 지정
+            double3 xformOp:translate = (4.5, 0, 1.05)
+
+            uniform token[] xformOpOrder = [
+                "xformOp:translate",
+                "xformOp:orient",
+                "xformOp:scale"
+            ]
+        }
 
             def Xform "PackagingTunnel"
             {
