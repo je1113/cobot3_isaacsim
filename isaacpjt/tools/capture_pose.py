@@ -1,8 +1,13 @@
 """
 티칭한 자세를 그대로 떠서 YAML 로 남긴다.
 
-    isaac_python isaacpjt/tools/capture_pose.py                 # shelf_1 앞
-    CAPTURE_BASE=shelf_2 isaac_python isaacpjt/tools/capture_pose.py
+    isaac_python isaacpjt/tools/capture_pose.py                         # shelf_1_a
+    CAPTURE_BASE=shelf_1_b isaac_python isaacpjt/tools/capture_pose.py
+    CAPTURE_BASE=shelf_2_a isaac_python isaacpjt/tools/capture_pose.py
+    CAPTURE_BASE=shelf_2_b isaac_python isaacpjt/tools/capture_pose.py
+
+  쓸 수 있는 정차 지점은 BASE_WAYPOINTS 에 있다. 시작하면 그 자리에서
+  사거리에 드는 QR 표적 목록을 찍어 준다.
 
 쓰는 법:
   1. 이 스크립트를 돌리면 뷰포트 창과 함께 "Teach Pose" 패널이 뜬다.
@@ -79,11 +84,34 @@ ARM_JOINTS  = ["joint_1", "joint_2", "joint_3", "joint_4", "joint_5", "joint_6"]
 ARTICULATION_ROOT_CANDIDATES = [CHASSIS, ROBOT]
 
 CARTER_Z = 0.07963398335074101
+
+# 스캔 정차 지점.
+#
+# QR 이 x 방향으로 1.825 m 에 퍼져 있는데 팔 도달거리가 0.9 m 라 한 자리에서
+# 다 못 본다. 그리고 디코드하려면 0.45 m 안쪽이어야 해서(qr_decode_range.py
+# 실측) 한 자세에 매거진 하나씩만 들어온다. 그래서 한 선반당 두 번 정차하고,
+# 각 정차에서 4 개씩(1층 2 + 2층 2 ... 실제로는 6 개가 사거리 안) 본다.
+#
+# 아래 x 값은 "표적거리 0.30 m 일 때 팔 베이스~카메라 직선거리가 0.75 m 이내"
+# 를 만족하는 최소 정차 조합을 훑어서 고른 것이다. shelf_2 가 shelf_1 보다
+# x 가 0.20 m 큰 이유는, 통로를 향한 QR 라벨이 매거진 반대쪽 면(qr_label_py)
+# 이라 x 오프셋 부호가 반대이기 때문이다.
+#
+# base_y 는 선반 전면에서 0.4167 m 떨어진 자리 (티칭으로 검증된 값).
 BASE_WAYPOINTS = {
-    "shelf_1": dict(xy=(-6.5,  1.4500), yaw_deg=0.0),
-    "shelf_2": dict(xy=(-6.5, -1.6425), yaw_deg=0.0),
-    "dock":    None,                      # 씬에 있는 자리 그대로 둔다
+    "shelf_1_a": dict(xy=(-5.75,  1.4500), yaw_deg=0.0),
+    "shelf_1_b": dict(xy=(-5.25,  1.4500), yaw_deg=0.0),
+    "shelf_2_a": dict(xy=(-5.55, -1.6425), yaw_deg=0.0),
+    "shelf_2_b": dict(xy=(-5.05, -1.6425), yaw_deg=0.0),
+    # 예전 값 — 12_place_test.py 의 WP_PICK 부근. 파지 테스트용으로 남겨 둔다.
+    "shelf_1":   dict(xy=(-6.5,   1.4500), yaw_deg=0.0),
+    "shelf_2":   dict(xy=(-6.5,  -1.6425), yaw_deg=0.0),
+    "dock":      None,                    # 씬에 있는 자리 그대로 둔다
 }
+
+# 이 정차에서 노려볼 만한 표적을 고르는 기준
+TARGET_STANDOFF_M = 0.30    # 디코드 실측 한계 0.456 m 에 여유
+ARM_WORK_RADIUS_M = 0.75    # 도달거리 0.9 m 의 83 %
 
 # 티칭 시작 자세 (12_place_test.py 의 READY_JOINTS_DEG 와 동일)
 READY_JOINTS_DEG = [0.0, 0.0, 90.0, 0.0, 90.0, 0.0]
@@ -245,6 +273,28 @@ class TeachPanel:
             self._status.text = text
 
 
+def targets_for_stop(meas, arm_pos, aisle_sign, shelf_prefix=None):
+    """이 정차 자리에서 사거리 안에 드는 QR 표적을 고른다.
+
+    판정은 '표적거리 TARGET_STANDOFF_M 에서 팔 베이스~카메라 직선거리가
+    ARM_WORK_RADIUS_M 이내' 다. 도달 가능하다는 뜻이지 충돌이 없다는 뜻은
+    아니다 — 실제로 티칭해 봐야 안다.
+    """
+    rows = []
+    for key, m in sorted(meas.get("magazines", {}).items()):
+        if shelf_prefix and not key.startswith(shelf_prefix + "/"):
+            continue                          # 다른 선반은 볼 일이 없다
+        for lab, q in m.get("qr", {}).items():
+            n = np.array(q["normal_world"])
+            if np.sign(n[1]) != aisle_sign:
+                continue                      # 통로 반대쪽 라벨
+            c = np.array(q["center_world"])
+            want = c + n * TARGET_STANDOFF_M  # 카메라가 있어야 할 자리
+            d = float(np.linalg.norm(want - arm_pos))
+            rows.append((d <= ARM_WORK_RADIUS_M, d, key, lab, c))
+    return sorted(rows, key=lambda r: (not r[0], r[1]))
+
+
 def read_jog_file():
     """/tmp/capture_jog 에서 관절값 6 개를 읽는다. 없거나 형식이 틀리면 None."""
     if not JOG.exists():
@@ -344,8 +394,11 @@ def main():
     for _ in range(30):
         world.step(render=not HEADLESS)
 
-    which = os.environ.get("CAPTURE_BASE", "shelf_1")
-    wp = BASE_WAYPOINTS.get(which)
+    which = os.environ.get("CAPTURE_BASE", "shelf_1_a")
+    if which not in BASE_WAYPOINTS:
+        sys.exit(f"CAPTURE_BASE='{which}' 를 모르겠다. "
+                 f"쓸 수 있는 값: {', '.join(BASE_WAYPOINTS)}")
+    wp = BASE_WAYPOINTS[which]
     if wp is not None:
         pos = np.array([wp["xy"][0], wp["xy"][1], CARTER_Z])
         robot.set_world_pose(position=pos, orientation=yaw_quat_wxyz(wp["yaw_deg"]))
@@ -445,6 +498,22 @@ def main():
     print(f"       echo \"shelf_1_top_scan\" > {TRIGGER}   # 캡처")
     print()
     print(f"   뜬 자세는 {OUT_YAML} 에 쌓인다.  Ctrl-C 로 종료.")
+
+    if wp is not None:
+        arm_now, _, _ = world_pose(ARM_BASE)
+        aisle = -1.0 if wp["xy"][1] > 0 else 1.0
+        # waypoint 이름 앞부분이 곧 선반 이름이다 ("shelf_1_a" -> "shelf_1")
+        shelf_prefix = "_".join(which.split("_")[:2]) if which.startswith("shelf_") else None
+        rows = targets_for_stop(meas, arm_now, aisle, shelf_prefix)
+        inr = [r for r in rows if r[0]]
+        print()
+        print(f"   이 자리에서 노릴 표적 ({len(inr)} / {len(rows)} 개가 사거리 안)")
+        for ok_, d, key, lab, c in rows:
+            mark = "O" if ok_ else "-"
+            print(f"      {mark} {key:36s} 팔베이스로부터 {d:5.2f} m"
+                  f"   QR {np.round(c, 3).tolist()}")
+        print(f"      (기준: 표적거리 {TARGET_STANDOFF_M*100:.0f} cm 에서 "
+              f"{ARM_WORK_RADIUS_M*100:.0f} cm 이내. 충돌은 안 본다)")
     print("=" * 72)
 
     # 지금 실제로 나가고 있는 목표각. 슬라이더를 확 움직여도 여기서 한 스텝에

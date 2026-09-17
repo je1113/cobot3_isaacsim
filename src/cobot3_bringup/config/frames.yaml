@@ -155,6 +155,190 @@ wrist_camera:
         0.0, 0.0, 1.0]
     frame_id: camera_color_optical_frame
 
+# ── QR 인식 한계 ─────────────────────────────────────────────────────
+# 추정값이 아니라 실제로 손목 카메라를 렌더해서 cv2.QRCodeDetector 로 디코드를
+# 시도한 결과다.  isaac_python isaacpjt/tools/qr_decode_range.py
+# 원본: isaacpjt/tools/out/qr_decode_range.yaml, 프레임: out/qr_frames/
+qr:
+  # qr_1.png / qr_2.png 는 464x464 = 29 박스 x 16 px.
+  # version 1 (21 모듈) + 여백 4 모듈 양쪽 = 29.
+  # 즉 라벨 50 mm 중 데이터 영역은 21/29 * 50 = 36.2 mm 뿐이다.
+  version: 1
+  modules: 21
+  quiet_zone_modules: 4
+  label_side_m: 0.050
+  data_side_m: 0.0362
+  # 화면상 라벨 크기 N px 일 때 모듈당 해상도 = N / 29 px
+  measured_1280x720:
+    decode_ok_max_dist_m: 0.456      # 라벨 70 px, 모듈당 2.40 px
+    decode_fail_from_m:   0.556      # 라벨 57 px, 모듈당 1.97 px
+    detect_ok_max_dist_m: 0.656      # 파인더 패턴은 잡히나 디코드는 안 됨
+    detect_fail_from_m:   0.806      # 라벨 39 px, 모듈당 1.36 px
+  # 경계가 모듈당 2 px 에 딱 걸린다. 교과서적인 하한과 일치한다.
+  thresholds_px:
+    detect_min: 60                   # 실측 검출 하한 48 px 에 여유
+    decode_min: 100                  # 실측 디코드 하한 70 px 에 여유
+  note: >
+    스캔 자세는 "검출만" 되는 거리라도 쓸 수 있지만, 그러면 파이프라인이
+    2 단계여야 한다 — 멀리서 찾고, 가까이 가서 디코드. 한 자세에서 디코드까지
+    끝내려면 0.45 m 안쪽으로 들어가야 하고, 그 거리에서는 화각이 좁아
+    매거진 하나밖에 안 들어온다.
+
+# ── 관측 자세 ────────────────────────────────────────────────────────
+# 층마다 자세 하나. 훑는 건 팔이 아니라 AMR 주행이 한다.
+# 2층 자세로 한 방향 훑고, 1층 자세로 바꿔 반대로 훑으면 왕복이 안 낭비된다.
+#
+# 관절값은 계산이 아니라 GUI 에서 직접 티칭한 것이다
+# (isaacpjt/tools/capture_pose.py). Lula IK 로 뽑은 해는 팔꿈치가 뒤집히거나
+# 선반을 관통해서 못 쓴다 — 실제로 시드 하나로 파생했더니 226도 차이 나는
+# 형상으로 빠졌다.
+#
+# 검증은 isaacpjt/tools/sweep_scan.py 다. 자세를 고정하고 베이스 x 를 훑으면서
+# 매 지점 손목 카메라를 렌더하고 cv2.detectAndDecodeMulti 로 디코드한 뒤,
+# 기대 QR 을 화면에 투영해 위치로 귀속한다. 원본: out/sweep_scan.yaml
+#
+# 티칭한 자세는 shelf_1 의 두 개뿐이다. shelf_2 는 같은 관절값에 베이스만
+# 180도 돌려서 쓰고, 그게 되는지 sweep_scan.py 로 확인했다 (4/4).
+observation_poses:
+  joint_order: [joint_1, joint_2, joint_3, joint_4, joint_5, joint_6]
+  units: deg
+
+  shelf_1_top:
+    joints_deg: [13.4869, 38.4021, 149.9981, 90.5006, 90.0, 86.0006]
+    base_y: 1.4500
+    base_yaw_deg: 0.0
+    # 이 자세일 때 카메라 광학 프레임이 서는 자리 (base_x -6.498 기준).
+    # 베이스보다 x 로 -0.033 m, 높이 0.685 m.
+    camera_offset_from_base: [-0.0332, 0.2085, 0.6854]
+    scan_x_range: [-6.75, -4.75]     # 이 구간을 지나면 4 개가 다 읽힌다
+    verified:
+      tool: isaacpjt/tools/sweep_scan.py
+      result: 4/4 디코드, 코드 일치
+      decode_windows_base_x:
+        magazine_1_orange:    [-6.70, -6.20]
+        magazine_2_blue:      [-6.10, -5.70]
+        magazine_1_orange_02: [-5.50, -5.00]
+        magazine_2_blue_02:   [-4.90, -4.80]
+
+  shelf_1_bottom:
+    joints_deg: [10.0024, 90.0302, 74.9956, 59.9862, 60.0, 119.9987]
+    base_y: 1.4500
+    base_yaw_deg: 0.0
+    # 카메라가 베이스보다 x 로 +0.233 m 앞선다 (2층은 -0.033). 그래서 스캔
+    # 구간이 2층보다 통째로 0.1 m 옮겨져 있다 — 주행 계획에서 놓치기 쉽다.
+    camera_offset_from_base: [0.2327, 0.2325, 0.2684]
+    scan_x_range: [-6.85, -4.85]
+    verified:
+      tool: isaacpjt/tools/sweep_scan.py
+      result: 4/4 디코드, 코드 일치
+      decode_windows_base_x:
+        magazine_2_blue:      [-6.80, -6.70]
+        magazine_1_orange:    [-6.20, -6.00]
+        magazine_2_blue_02:   [-5.60, -5.50]
+        magazine_1_orange_02: [-5.00, -4.90]
+
+  # shelf_2 는 통로가 +y 라 팔이 반대로 뻗어야 한다. 그런데 베이스를 180도
+  # 돌리면 팔 전체가 같이 돌아가므로 관절값은 shelf_1 과 똑같이 쓸 수 있다 —
+  # 회전은 강체 변환이라 관절 공간이 안 바뀐다. 따로 티칭하지 않았고,
+  # sweep_scan.py 로 검증만 했다 (4/4 디코드).
+  #
+  # 대신 카메라의 x 오프셋 부호가 뒤집힌다. 그래서 스캔 구간이 shelf_1 과
+  # 다르다. 그대로 복사하면 끝단을 놓친다.
+  shelf_2_top:
+    joints_deg: [13.4869, 38.4021, 149.9981, 90.5006, 90.0, 86.0006]   # shelf_1_top 과 동일
+    base_y: -1.6425
+    base_yaw_deg: 180.0
+    camera_offset_from_base: [0.0332, -0.2085, 0.6854]    # x 부호가 뒤집혔다
+    scan_x_range: [-6.50, -4.45]
+    verified:
+      tool: isaacpjt/tools/sweep_scan.py
+      result: 4/4 디코드, 코드 일치
+      decode_windows_base_x:
+        magazine_1_orange:    [-6.45, -6.30]
+        magazine_2_blue:      [-5.80, -5.75]
+        magazine_1_orange_02: [-5.10, -5.10]
+        magazine_2_blue_02:   [-4.50, -4.50]
+
+  shelf_2_bottom:
+    joints_deg: [10.0024, 90.0302, 74.9956, 59.9862, 60.0, 119.9987]   # shelf_1_bottom 과 동일
+    base_y: -1.6425
+    base_yaw_deg: 180.0
+    camera_offset_from_base: [-0.2327, -0.2325, 0.2684]
+    scan_x_range: [-6.25, -4.45]
+    verified:
+      tool: isaacpjt/tools/sweep_scan.py
+      result: 4/4 디코드, 코드 일치
+      decode_windows_base_x:
+        magazine_2_blue:      [-6.20, -6.20]
+        magazine_1_orange:    [-5.70, -5.70]
+        magazine_2_blue_02:   [-5.10, -5.00]
+        magazine_1_orange_02: [-4.50, -4.50]
+
+  # 주행 계획에 쓸 값
+  sweep:
+    # 디코드 구간 폭 (실측, 4 개 조합 전부):
+    #   shelf_1/top     0.20 ~ 0.60 m
+    #   shelf_1/bottom  0.20 ~ 0.30 m
+    #   shelf_2/top     0.10 ~ 0.20 m
+    #   shelf_2/bottom  0.10 ~ 0.20 m
+    # shelf_2 가 좁은 건 샘플링 때문이 아니다 — 0.05 m 간격으로 다시 훑어도
+    # 같은 폭이 나왔고, 디코드되는 지점들이 연속이었다.
+    # 가장 좁은 0.10 m 기준으로 잡는다.
+    narrowest_window_m: 0.10
+    max_sample_spacing_m: 0.02       # 0.10 m 구간에서 5 회 이상 시도
+    # 30 fps 로 연속 촬영한다면 주행속도 상한:
+    #   v <= 0.02 m * 30 = 0.6 m/s (5 회), 여유 있게 10 회면 0.3 m/s
+    max_drive_speed_mps: 0.3
+    # 구간 안에서도 간헐적으로 실패한다. 정지 상태 렌더인데도 그렇다
+    # (예: 128 px 인데 디코드 X). 한 번 읽히면 끝이 아니라 연속 프레임에서
+    # 여러 번 시도하는 구조여야 한다.
+    retry: 연속 프레임 다중 시도 필요
+    # 한 프레임에 QR 이 여러 개 잡힐 수 있다. detectAndDecode 는 하나만
+    # 돌려줘서 엉뚱한 매거진에 귀속된다(실제로 파랑 자리에서 주황 코드가
+    # 잡혔다). detectAndDecodeMulti 로 전부 받아 투영 위치로 짝지어야 한다.
+    decoder: cv2.QRCodeDetector.detectAndDecodeMulti + 투영 매칭
+
+# ── 스캔 정차 지점 ───────────────────────────────────────────────────
+# QR 이 x 방향 1.825 m 에 퍼져 있는데 팔 도달거리가 0.9 m 다. 게다가 디코드는
+# 0.456 m 안쪽에서만 되고(qr 섹션 참고) 그 거리의 가로 화각 커버가 0.50 m 인데
+# 매거진 간격이 0.58~0.62 m 라, 한 자세에 매거진 하나씩만 들어온다.
+# 그래서 한 선반당 두 번 정차한다.
+#
+# 아래 x 는 "표적거리 0.30 m 에서 팔 베이스~카메라 직선거리 0.75 m 이내" 를
+# 만족하는 최소 정차 조합을 훑어서 고른 값이다. 각 정차에서 8 개 중 6 개가
+# 사거리에 들고, 두 정차의 합집합이 8 개 전부를 덮는다.
+#
+# shelf_2 가 shelf_1 보다 x 가 0.20 m 큰 이유: 통로를 향한 QR 라벨이 매거진
+# 반대쪽 면(qr_label_py)이라 x 오프셋 부호가 반대다.
+#
+# y 는 선반 전면에서 0.4167 m. 티칭으로 검증된 값이다.
+#
+# 주의 — 이건 '팔이 닿는다'는 계산이지 '충돌이 없다'는 보장이 아니다.
+# 실제 관절값은 capture_pose.py 로 티칭해서 확인해야 한다.
+# [폐기] 아래 정차 지점 계획은 쓰지 않는다.
+# 팔로 x 를 커버하려던 접근인데, 베이스가 움직이면 도달거리가 x 를 제한하지
+# 않으므로 애초에 불필요했다. 게다가 실측해보니 정차당 2 개밖에 안 된다 —
+# 팔에 최소 반경도 있어서 0.17 m 짜리 표적은 IK 가 실패했고(최대만 보고
+# 최소를 안 봤다), 되는 것도 팔꿈치가 뒤집힌 해였다.
+# 위 observation_poses + 주행 스캔을 쓴다. 기록용으로만 남긴다.
+scan_stops:
+  status: superseded_by_observation_poses
+  criteria:
+    target_standoff_m: 0.30
+    arm_work_radius_m: 0.75      # 도달거리 0.9 m 의 83 %
+  shelf_1:
+    aisle_side: "-y"
+    base_y: 1.4500
+    stops:
+      a: {x: -5.75, yaw_deg: 0.0}
+      b: {x: -5.25, yaw_deg: 0.0}
+  shelf_2:
+    aisle_side: "+y"
+    base_y: -1.6425
+    stops:
+      a: {x: -5.55, yaw_deg: 0.0}
+      b: {x: -5.05, yaw_deg: 0.0}
+
 # ── 흡착 그리퍼 ──────────────────────────────────────────────────────
 suction_gripper:
   prim: /World/Robots/nova_carter1/m0609/short_gripper
@@ -225,6 +409,33 @@ open_issues:
       Isaac 의 SurfaceGripper 는 forward axis 레이캐스트가 maxGripDistance 안에서
       뭐든 맞으면 붙으므로, 시뮬에서는 컵이 플랜지 밖으로 나가도 성공할 수 있다.
       즉 시뮬만 보면 이 문제가 안 드러난다. 실물 이관을 전제로 한 기준이다.
+  - id: bottom-magazines-float-168mm
+    what: >
+      Level_1 을 z 0.1 로 낮추면서 1층 매거진 8 개의 z 는 그대로 0.29311 로
+      남았다. 상판 윗면이 0.125 이니 168.1 mm 떠 있고, 물리를 시작하면 그만큼
+      떨어진다.
+    fix: >
+      USD 에서 bottom_magazines 아래 4 개 x 2 선반의 xformOp:translate z 를
+      0.29311178287374434 -> 0.125 로 바꾼다.
+      (Shelf_01/Shelf_02 양쪽, magazine_1_orange / magazine_2_blue /
+       magazine_1_orange_02 / magazine_2_blue_02)
+    impact: >
+      고치고 나면 1층 QR 높이가 바뀐다. 주황 z 0.368 -> 0.200,
+      파랑 z 0.328 -> 0.160. 1층 관측 자세는 이 값 기준으로 티칭해야 한다.
+      (팔 베이스 0.629 기준으로 429~469 mm 아래)
+
+  - id: usd-comments-lost-on-gui-save
+    what: >
+      Isaac Sim GUI 에서 씬을 저장하면 .usda 의 주석이 전부 사라진다.
+      2026-09-17 저장에서 rsd455 의 리지드바디/IMU 비활성화 이유를 적어 둔
+      주석 블록(양쪽 카터, 19 줄 x 2)이 날아갔다.
+    status: >
+      기능적인 부분(over "RSD455" 의 delete apiSchemas, Imu_Sensor active=false)은
+      살아남아서 동작에는 문제 없다. 다만 왜 그렇게 해 뒀는지가 씬에서 사라졌다.
+    fix: >
+      씬에 적어야 할 설명은 이 파일이나 tools/README.md 처럼 GUI 가 건드리지
+      않는 곳에 둔다. USD 주석에 의존하지 않는다.
+
   - id: magazines-float-above-shelf
     what: >
       매거진 8개가 전부 상판 위 4.6 mm (상단) / 5.6 mm (하단) 떠 있다.
@@ -249,13 +460,18 @@ open_issues:
 # 동선 계획에 자주 쓰는 것만 옮겨 적은 것이다.
 layout:
   shelf:
-    level_1_top_z: 0.2875
+    # 2026-09-17 변경: Level_1 을 z 0.2624 -> 0.1 로 낮췄다 (translate 기준).
+    # 이유는 개구 높이다. 이전 개구 257.9 mm 에서 매거진 142 mm 를 빼면 위로
+    # 115.9 mm 밖에 안 남는데, 흡착 그리퍼는 tool0 에서 흡착면까지만 161 mm 다.
+    # 손목이 선반 안으로 못 들어가서 1층 파지가 불가능했다.
+    # 지금 개구 420.4 mm, 매거진 위 여유 278.4 mm -> 그리퍼가 들어간다.
+    level_1_top_z: 0.1250
     level_2_top_z: 0.5954
     plate_thickness: 0.050
     plate_width_x: 2.500
     plate_depth_y: 1.000
     usable_depth_between_posts_y: 0.875
-    level_1_clear_height: 0.2579       # Level_1 윗면 ~ Level_2 아랫면
+    level_1_clear_height: 0.4204       # Level_1 윗면 ~ Level_2 아랫면
     level_2_clear_height: null         # 위가 트여 있음
     post_top_z: 0.6246
     shelf_01:

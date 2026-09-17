@@ -1,0 +1,92 @@
+shelf_1_a/top:
+  seed: shelf_1_top_close_centered
+  stop: shelf_1_a
+  level: top
+  standoff_m: 0.3
+  poses:
+    magazine_1_orange:
+      solved: true
+      joints_deg:
+      - -1.6821
+      - -59.3158
+      - -76.0362
+      - 79.4344
+      - 79.5699
+      - 50.5511
+      max_drift_from_seed_deg: 226.034
+      camera_world:
+      - -6.58879
+      - 1.62667
+      - 0.67347
+      qr: shelf_1/top/magazine_1_orange:qr_label_ny
+      distance_m: 0.3028
+      qr_px: 104.7
+      decoded: '1'
+    magazine_1_orange_02:
+      solved: true
+      joints_deg:
+      - 1.7652
+      - 57.1497
+      - 81.1972
+      - 81.4629
+      - 97.3956
+      - 135.4078
+      max_drift_from_seed_deg: 68.801
+      camera_world:
+      - -5.38764
+      - 1.63105
+      - 0.67523
+      qr: shelf_1/top/magazine_1_orange_02:qr_label_ny
+      distance_m: 0.2985
+      qr_px: 106.2
+      decoded: '1'
+    magazine_2_blue:
+      solved: false
+    magazine_2_blue_02:
+      solved: false
+shelf_1_b/top:
+  seed: shelf_1_top_close_centered
+  stop: shelf_1_b
+  level: top
+  standoff_m: 0.3
+  poses:
+    magazine_1_orange:
+      solved: false
+    magazine_1_orange_02:
+      solved: false
+    magazine_2_blue:
+      solved: true
+      joints_deg:
+      - 1.2285
+      - -58.9976
+      - -86.635
+      - 80.2248
+      - 83.2352
+      - 60.4886
+      max_drift_from_seed_deg: 236.633
+      camera_world:
+      - -6.0369
+      - 1.59687
+      - 0.63374
+      qr: shelf_1/top/magazine_2_blue:qr_label_ny
+      distance_m: 0.3026
+      qr_px: 104.8
+      decoded: '2'
+    magazine_2_blue_02:
+      solved: true
+      joints_deg:
+      - -1.0158
+      - 69.0073
+      - 61.5606
+      - 80.6547
+      - 100.6468
+      - 142.9158
+      max_drift_from_seed_deg: 88.438
+      camera_world:
+      - -4.81379
+      - 1.60119
+      - 0.63507
+      qr: shelf_1/top/magazine_2_blue_02:qr_label_ny
+      distance_m: 0.2983
+      qr_px: 106.3
+      decoded: '2'

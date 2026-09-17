@@ -10,8 +10,8 @@ shelves:
     - 0.0
     levels:
       Level_1:
-        top_z: 0.2875
-        bottom_z: 0.2375
+        top_z: 0.125
+        bottom_z: 0.075
         thickness: 0.05
         x_range:
         - -6.8522
@@ -92,7 +92,7 @@ shelves:
     post_bottom_gap_to_floor: 0.02
     opening:
       Level_1:
-        clear_height: 0.2579
+        clear_height: 0.4204
         limited_by: Level_2
       Level_2:
         clear_height: null
@@ -106,8 +106,8 @@ shelves:
     - 0.0
     levels:
       Level_1:
-        top_z: 0.2875
-        bottom_z: 0.2375
+        top_z: 0.125
+        bottom_z: 0.075
         thickness: 0.05
         x_range:
         - -6.8522
@@ -188,7 +188,7 @@ shelves:
     post_bottom_gap_to_floor: 0.02
     opening:
       Level_1:
-        clear_height: 0.2579
+        clear_height: 0.4204
         limited_by: Level_2
       Level_2:
         clear_height: null
@@ -504,7 +504,7 @@ magazines:
     origin_world:
     - -5.9233
     - 2.0
-    - 0.2931
+    - 0.125
     orient_wxyz:
     - 1.0
     - 0.0
@@ -513,20 +513,20 @@ magazines:
     aabb_min:
     - -6.0483
     - 1.9295
-    - 0.2931
+    - 0.125
     aabb_max:
     - -5.7983
     - 2.0705
-    - 0.4351
+    - 0.267
     size:
     - 0.25
     - 0.141
     - 0.142
-    flange_top_z: 0.4351
+    flange_top_z: 0.267
     flange_center:
     - -5.9233
     - 2.0
-    - 0.4321
+    - 0.264
     flange_size:
     - 0.08
     - 0.08
@@ -534,14 +534,14 @@ magazines:
     suction_point:
     - -5.9233
     - 2.0
-    - 0.4351
-    bottom_z: 0.2931
+    - 0.267
+    bottom_z: 0.125
     qr:
       qr_label_ny:
         center_world:
         - -6.0133
         - 1.9295
-        - 0.3681
+        - 0.2
         normal_world:
         - 0.0
         - -1.0
@@ -551,13 +551,13 @@ magazines:
         center_world:
         - -5.8333
         - 2.0705
-        - 0.3681
+        - 0.2
         normal_world:
         - 0.0
         - 1.0
         - -0.0
         side_m: 0.05
-    drop_to_level: 0.0056
+    drop_to_level: 0.0
     front_post_setback: 0.0018
     post_interference:
       Post_FL:
@@ -580,7 +580,7 @@ magazines:
     origin_world:
     - -6.5
     - 2.0
-    - 0.2931
+    - 0.125
     orient_wxyz:
     - 1.0
     - 0.0
@@ -589,20 +589,20 @@ magazines:
     aabb_min:
     - -6.65
     - 1.8995
-    - 0.2931
+    - 0.125
     aabb_max:
     - -6.35
     - 2.1005
-    - 0.3991
+    - 0.231
     size:
     - 0.3
     - 0.201
     - 0.106
-    flange_top_z: 0.3991
+    flange_top_z: 0.231
     flange_center:
     - -6.5
     - 2.0
-    - 0.3941
+    - 0.226
     flange_size:
     - 0.1
     - 0.06
@@ -610,14 +610,14 @@ magazines:
     suction_point:
     - -6.5
     - 2.0
-    - 0.3991
-    bottom_z: 0.2931
+    - 0.231
+    bottom_z: 0.125
     qr:
       qr_label_ny:
         center_world:
         - -6.615
         - 1.8995
-        - 0.3281
+        - 0.16
         normal_world:
         - 0.0
         - -1.0
@@ -627,13 +627,13 @@ magazines:
         center_world:
         - -6.385
         - 2.1005
-        - 0.3281
+        - 0.16
         normal_world:
         - 0.0
         - 1.0
         - -0.0
         side_m: 0.05
-    drop_to_level: 0.0056
+    drop_to_level: 0.0
     front_post_setback: -0.0282
     post_interference:
       Post_FL:
@@ -656,7 +656,7 @@ magazines:
     origin_world:
     - -4.7
     - 2.0
-    - 0.2931
+    - 0.125
     orient_wxyz:
     - 1.0
     - 0.0
@@ -665,20 +665,20 @@ magazines:
     aabb_min:
     - -4.825
     - 1.9295
-    - 0.2931
+    - 0.125
     aabb_max:
     - -4.575
     - 2.0705
-    - 0.4351
+    - 0.267
     size:
     - 0.25
     - 0.141
     - 0.142
-    flange_top_z: 0.4351
+    flange_top_z: 0.267
     flange_center:
     - -4.7
     - 2.0
-    - 0.4321
+    - 0.264
     flange_size:
     - 0.08
     - 0.08
@@ -686,14 +686,14 @@ magazines:
     suction_point:
     - -4.7
     - 2.0
-    - 0.4351
-    bottom_z: 0.2931
+    - 0.267
+    bottom_z: 0.125
     qr:
       qr_label_ny:
         center_world:
         - -4.79
         - 1.9295
-        - 0.3681
+        - 0.2
         normal_world:
         - 0.0
         - -1.0
@@ -703,13 +703,13 @@ magazines:
         center_world:
         - -4.61
         - 2.0705
-        - 0.3681
+        - 0.2
         normal_world:
         - 0.0
         - 1.0
         - -0.0
         side_m: 0.05
-    drop_to_level: 0.0056
+    drop_to_level: 0.0
     front_post_setback: 0.0018
     post_interference:
       Post_FL:
@@ -732,7 +732,7 @@ magazines:
     origin_world:
     - -5.2988
     - 2.0
-    - 0.2931
+    - 0.125
     orient_wxyz:
     - 1.0
     - 0.0
@@ -741,20 +741,20 @@ magazines:
     aabb_min:
     - -5.4488
     - 1.8995
-    - 0.2931
+    - 0.125
     aabb_max:
     - -5.1488
     - 2.1005
-    - 0.3991
+    - 0.231
     size:
     - 0.3
     - 0.201
     - 0.106
-    flange_top_z: 0.3991
+    flange_top_z: 0.231
     flange_center:
     - -5.2988
     - 2.0
-    - 0.3941
+    - 0.226
     flange_size:
     - 0.1
     - 0.06
@@ -762,14 +762,14 @@ magazines:
     suction_point:
     - -5.2988
     - 2.0
-    - 0.3991
-    bottom_z: 0.2931
+    - 0.231
+    bottom_z: 0.125
     qr:
       qr_label_ny:
         center_world:
         - -5.4138
         - 1.8995
-        - 0.3281
+        - 0.16
         normal_world:
         - 0.0
         - -1.0
@@ -779,13 +779,13 @@ magazines:
         center_world:
         - -5.1838
         - 2.1005
-        - 0.3281
+        - 0.16
         normal_world:
         - 0.0
         - 1.0
         - -0.0
         side_m: 0.05
-    drop_to_level: 0.0056
+    drop_to_level: 0.0
     front_post_setback: -0.0282
     post_interference:
       Post_FL:
@@ -1112,7 +1112,7 @@ magazines:
     origin_world:
     - -5.9233
     - -2.2
-    - 0.2931
+    - 0.125
     orient_wxyz:
     - 1.0
     - 0.0
@@ -1121,20 +1121,20 @@ magazines:
     aabb_min:
     - -6.0483
     - -2.2705
-    - 0.2931
+    - 0.125
     aabb_max:
     - -5.7983
     - -2.1295
-    - 0.4351
+    - 0.267
     size:
     - 0.25
     - 0.141
     - 0.142
-    flange_top_z: 0.4351
+    flange_top_z: 0.267
     flange_center:
     - -5.9233
     - -2.2
-    - 0.4321
+    - 0.264
     flange_size:
     - 0.08
     - 0.08
@@ -1142,14 +1142,14 @@ magazines:
     suction_point:
     - -5.9233
     - -2.2
-    - 0.4351
-    bottom_z: 0.2931
+    - 0.267
+    bottom_z: 0.125
     qr:
       qr_label_ny:
         center_world:
         - -6.0133
         - -2.2705
-        - 0.3681
+        - 0.2
         normal_world:
         - 0.0
         - -1.0
@@ -1159,13 +1159,13 @@ magazines:
         center_world:
         - -5.8333
         - -2.1295
-        - 0.3681
+        - 0.2
         normal_world:
         - 0.0
         - 1.0
         - -0.0
         side_m: 0.05
-    drop_to_level: 0.0056
+    drop_to_level: 0.0
     front_post_setback: 0.0063
     post_interference:
       Post_FL:
@@ -1188,7 +1188,7 @@ magazines:
     origin_world:
     - -6.5
     - -2.2
-    - 0.2931
+    - 0.125
     orient_wxyz:
     - 1.0
     - 0.0
@@ -1197,20 +1197,20 @@ magazines:
     aabb_min:
     - -6.65
     - -2.3005
-    - 0.2931
+    - 0.125
     aabb_max:
     - -6.35
     - -2.0995
-    - 0.3991
+    - 0.231
     size:
     - 0.3
     - 0.201
     - 0.106
-    flange_top_z: 0.3991
+    flange_top_z: 0.231
     flange_center:
     - -6.5
     - -2.2
-    - 0.3941
+    - 0.226
     flange_size:
     - 0.1
     - 0.06
@@ -1218,14 +1218,14 @@ magazines:
     suction_point:
     - -6.5
     - -2.2
-    - 0.3991
-    bottom_z: 0.2931
+    - 0.231
+    bottom_z: 0.125
     qr:
       qr_label_ny:
         center_world:
         - -6.615
         - -2.3005
-        - 0.3281
+        - 0.16
         normal_world:
         - 0.0
         - -1.0
@@ -1235,13 +1235,13 @@ magazines:
         center_world:
         - -6.385
         - -2.0995
-        - 0.3281
+        - 0.16
         normal_world:
         - 0.0
         - 1.0
         - -0.0
         side_m: 0.05
-    drop_to_level: 0.0056
+    drop_to_level: 0.0
     front_post_setback: -0.0237
     post_interference:
       Post_FL:
@@ -1264,7 +1264,7 @@ magazines:
     origin_world:
     - -4.7
     - -2.2
-    - 0.2931
+    - 0.125
     orient_wxyz:
     - 1.0
     - 0.0
@@ -1273,20 +1273,20 @@ magazines:
     aabb_min:
     - -4.825
     - -2.2705
-    - 0.2931
+    - 0.125
     aabb_max:
     - -4.575
     - -2.1295
-    - 0.4351
+    - 0.267
     size:
     - 0.25
     - 0.141
     - 0.142
-    flange_top_z: 0.4351
+    flange_top_z: 0.267
     flange_center:
     - -4.7
     - -2.2
-    - 0.4321
+    - 0.264
     flange_size:
     - 0.08
     - 0.08
@@ -1294,14 +1294,14 @@ magazines:
     suction_point:
     - -4.7
     - -2.2
-    - 0.4351
-    bottom_z: 0.2931
+    - 0.267
+    bottom_z: 0.125
     qr:
       qr_label_ny:
         center_world:
         - -4.79
         - -2.2705
-        - 0.3681
+        - 0.2
         normal_world:
         - 0.0
         - -1.0
@@ -1311,13 +1311,13 @@ magazines:
         center_world:
         - -4.61
         - -2.1295
-        - 0.3681
+        - 0.2
         normal_world:
         - 0.0
         - 1.0
         - -0.0
         side_m: 0.05
-    drop_to_level: 0.0056
+    drop_to_level: 0.0
     front_post_setback: 0.0063
     post_interference:
       Post_FL:
@@ -1340,7 +1340,7 @@ magazines:
     origin_world:
     - -5.2988
     - -2.2
-    - 0.2931
+    - 0.125
     orient_wxyz:
     - 1.0
     - 0.0
@@ -1349,20 +1349,20 @@ magazines:
     aabb_min:
     - -5.4488
     - -2.3005
-    - 0.2931
+    - 0.125
     aabb_max:
     - -5.1488
     - -2.0995
-    - 0.3991
+    - 0.231
     size:
     - 0.3
     - 0.201
     - 0.106
-    flange_top_z: 0.3991
+    flange_top_z: 0.231
     flange_center:
     - -5.2988
     - -2.2
-    - 0.3941
+    - 0.226
     flange_size:
     - 0.1
     - 0.06
@@ -1370,14 +1370,14 @@ magazines:
     suction_point:
     - -5.2988
     - -2.2
-    - 0.3991
-    bottom_z: 0.2931
+    - 0.231
+    bottom_z: 0.125
     qr:
       qr_label_ny:
         center_world:
         - -5.4138
         - -2.3005
-        - 0.3281
+        - 0.16
         normal_world:
         - 0.0
         - -1.0
@@ -1387,13 +1387,13 @@ magazines:
         center_world:
         - -5.1838
         - -2.0995
-        - 0.3281
+        - 0.16
         normal_world:
         - 0.0
         - 1.0
         - -0.0
         side_m: 0.05
-    drop_to_level: 0.0056
+    drop_to_level: 0.0
     front_post_setback: -0.0237
     post_interference:
       Post_FL:
@@ -1684,13 +1684,13 @@ tf:
       -1.570796 --pitch 0.000000 --yaw -1.570796
     note: REP-103 고정 규약. 어느 씬에서나 같다.
 verdicts:
-- 'Shelf_01/Level_1: 상판 윗면이 팔 베이스보다  -341.3 mm (음수=아래)'
+- 'Shelf_01/Level_1: 상판 윗면이 팔 베이스보다  -503.8 mm (음수=아래)'
 - 'Shelf_01/Level_2: 상판 윗면이 팔 베이스보다   -33.4 mm (음수=아래)'
-- 'Shelf_02/Level_1: 상판 윗면이 팔 베이스보다  -341.3 mm (음수=아래)'
+- 'Shelf_02/Level_1: 상판 윗면이 팔 베이스보다  -503.8 mm (음수=아래)'
 - 'Shelf_02/Level_2: 상판 윗면이 팔 베이스보다   -33.4 mm (음수=아래)'
-- 'Shelf_01/Level_1: 개구 257.9 mm - 매거진 142.0 mm = 여유 +115.9 mm OK'
+- 'Shelf_01/Level_1: 개구 420.4 mm - 매거진 142.0 mm = 여유 +278.4 mm OK'
 - 'Shelf_01/Level_2: 위가 트여 있음 — 높이 제약 없음'
-- 'Shelf_02/Level_1: 개구 257.9 mm - 매거진 142.0 mm = 여유 +115.9 mm OK'
+- 'Shelf_02/Level_1: 개구 420.4 mm - 매거진 142.0 mm = 여유 +278.4 mm OK'
 - 'Shelf_02/Level_2: 위가 트여 있음 — 높이 제약 없음'
 - 'shelf_1/top/magazine_2_blue: 기둥 안쪽면보다 28.2 mm 통로쪽으로 나옴 (x 가 안 겹쳐 간섭은 없음 — 위 최소
   간격 참고)'
@@ -1708,18 +1708,6 @@ verdicts:
   최소 간격 참고)'
 - 'shelf_2/bottom/magazine_2_blue_02: 기둥 안쪽면보다 23.7 mm 통로쪽으로 나옴 (x 가 안 겹쳐 간섭은 없음 —
   위 최소 간격 참고)'
-- 'shelf_1/bottom/magazine_1_orange: 물리 시작 시 +5.6 mm 낙하 — GT pose 는 안정화 후 다시 읽어야 한다'
-- 'shelf_1/bottom/magazine_2_blue: 물리 시작 시 +5.6 mm 낙하 — GT pose 는 안정화 후 다시 읽어야 한다'
-- 'shelf_1/bottom/magazine_1_orange_02: 물리 시작 시 +5.6 mm 낙하 — GT pose 는 안정화 후 다시 읽어야
-  한다'
-- 'shelf_1/bottom/magazine_2_blue_02: 물리 시작 시 +5.6 mm 낙하 — GT pose 는 안정화 후 다시 읽어야
-  한다'
-- 'shelf_2/bottom/magazine_1_orange: 물리 시작 시 +5.6 mm 낙하 — GT pose 는 안정화 후 다시 읽어야 한다'
-- 'shelf_2/bottom/magazine_2_blue: 물리 시작 시 +5.6 mm 낙하 — GT pose 는 안정화 후 다시 읽어야 한다'
-- 'shelf_2/bottom/magazine_1_orange_02: 물리 시작 시 +5.6 mm 낙하 — GT pose 는 안정화 후 다시 읽어야
-  한다'
-- 'shelf_2/bottom/magazine_2_blue_02: 물리 시작 시 +5.6 mm 낙하 — GT pose 는 안정화 후 다시 읽어야
-  한다'
 - 'shelf_1/top/magazine_1_orange: 물리 시작 시 +4.6 mm 낙하 — GT pose 는 안정화 후 다시 읽어야 한다'
 - 'shelf_1/top/magazine_2_blue: 물리 시작 시 +4.6 mm 낙하 — GT pose 는 안정화 후 다시 읽어야 한다'
 - 'shelf_1/top/magazine_1_orange_02: 물리 시작 시 +4.6 mm 낙하 — GT pose 는 안정화 후 다시 읽어야 한다'

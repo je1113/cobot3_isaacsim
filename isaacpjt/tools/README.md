@@ -27,9 +27,19 @@ isaac_python isaacpjt/tools/wrist_camera_ros.py
 isaac_python isaacpjt/tools/find_scan_poses.py
 #    -> out/scan_poses.yaml
 
+# 4b. QR 이 실제로 몇 미터까지 디코드되는지 렌더해서 확인
+QR_POSE=shelf_1_top_scan isaac_python isaacpjt/tools/qr_decode_range.py
+#    -> out/qr_decode_range.yaml, out/qr_frames/*.png
+#    실측: 0.456 m(라벨 70 px, 모듈당 2.40) 까지 디코드,
+#          0.556 m(57 px, 1.97) 부터 실패. 검출은 0.656 m 까지.
+
 # 5. 자세 티칭 캡처 — 실제로 쓸 관절값은 여기서 뜬다
-isaac_python isaacpjt/tools/capture_pose.py                 # shelf_1 앞
-CAPTURE_BASE=shelf_2 isaac_python isaacpjt/tools/capture_pose.py
+#    한 선반당 정차 2회(a, b). 각 정차에서 8 개 중 6 개가 사거리에 들고
+#    두 정차의 합집합이 8 개 전부를 덮는다. 시작할 때 표적 목록을 찍어 준다.
+CAPTURE_BASE=shelf_1_a isaac_python isaacpjt/tools/capture_pose.py   # 기본값
+CAPTURE_BASE=shelf_1_b isaac_python isaacpjt/tools/capture_pose.py
+CAPTURE_BASE=shelf_2_a isaac_python isaacpjt/tools/capture_pose.py
+CAPTURE_BASE=shelf_2_b isaac_python isaacpjt/tools/capture_pose.py
 #    뷰포트 옆 "Teach Pose" 패널의 슬라이더로 자세를 만들고 Capture
 #    터미널로도 된다:
 #        echo "0 -30 90 0 60 0"  > /tmp/capture_jog

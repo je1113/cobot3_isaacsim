@@ -54,8 +54,12 @@ MEASURED_YAML    = THIS_DIR / "out/layout_measured.yaml"
 
 EE_FRAME = "link_6"          # ROS 이름으로는 m0609_tool0
 
-# QR 이 화면에서 이만큼은 돼야 한다는 기준
-SCAN_MIN_PX  = 60.0          # 검출만
+# QR 이 화면에서 이만큼은 돼야 한다는 기준.
+# 추정이 아니라 qr_decode_range.py 로 렌더해서 재 본 값이다:
+#   디코드 성공 하한  라벨 70 px (모듈당 2.40)  / 실패 시작 57 px (1.97)
+#   검출  성공 하한  라벨 48 px (모듈당 1.67)  / 실패 시작 39 px (1.36)
+# 아래 값은 거기에 여유를 둔 것이다.
+SCAN_MIN_PX  = 60.0          # 검출만 (디코드는 안 된다 — 가까이 가야 한다)
 CLOSE_MIN_PX = 120.0         # 디코드 + 자세추정
 
 # 베이스 waypoint — 12_place_test.py 가 IK 스윕으로 검증한 WP_PICK 을 그대로 쓴다.
