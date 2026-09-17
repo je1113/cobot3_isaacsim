@@ -144,6 +144,10 @@ TARGET_NAME  = TARGET_PATH.rsplit("/", 1)[-1]
 EE_LINK_NAME = "link_6"
 EE_LINK_PATH = f"{ROBOT_PRIM_PATH}/{EE_LINK_NAME}"
 
+# Lula 가 말하는 "로봇 베이스"는 URDF 루트인 base_link 다.
+# 이 링크의 월드 pose 를 물리에서 직접 읽어 IK 솔버에 넣는다.
+ARM_BASE_LINK_PATH = f"{ROBOT_PRIM_PATH}/base_link"
+
 ARM_JOINTS = ["joint_1", "joint_2", "joint_3",
               "joint_4", "joint_5", "joint_6"]
 
@@ -153,9 +157,14 @@ DRIVE_MAX_FORCE = 1e8
 
 READY_JOINTS_DEG = [0.0, 0.0, 90.0, 0.0, 90.0, 0.0]
 
-# 팔은 카터 섀시에 arm_mount_joint 로 고정돼 있다. 이 오프셋은 USD 에서
-# 실측해 채운다 (기본값은 레이아웃에 적힌 값). 순간이동 뒤 IK 베이스를
-# 다시 잡을 때 쓴다.
+# 팔은 카터 섀시에 arm_mount_joint 로 고정돼 있다.
+#
+# 주의: 이 값은 '카터 prim -> m0609 prim' 오프셋이다. 그런데 조인트가
+# 말하는 건 'chassis_link -> base_link' 다. 둘은 chassis_link 가 카터 prim
+# 원점에 있을 때만 같고, 그 보장이 없다. 게다가 시뮬 중에는 물리가
+# chassis_link / base_link 를 움직이는 반면 m0609 Xform prim 은 제자리다.
+# 그래서 이 값은 시작 전 REACH/CLEARANCE 어림 계산에만 쓰고,
+# IK 베이스는 base_link 를 직접 읽어서 넣는다 (sync_ik_base 참고).
 ARM_LOCAL_OFFSET = np.array([-0.20649390288330727, 0.0, 0.5492008321030571])
 
 # link_6 로컬 +Z 방향으로 흡착면까지의 거리
@@ -528,11 +537,8 @@ def teleport(movables, lula, from_pos, from_quat, to_pos, to_quat):
         except Exception as exc:
             print(f"   !! {mv._path} 이동 실패: {exc}")
 
-    # IK 솔버는 팔 베이스 기준이다. 카터가 옮겨졌으니 다시 알려 준다
-    lula.set_robot_base_pose(
-        robot_position=to_pos + R_to @ ARM_LOCAL_OFFSET,
-        robot_orientation=to_quat,
-    )
+    # IK 베이스는 메인 루프가 매 프레임 base_link 에서 직접 읽어 갱신한다.
+    # 여기서 추정값으로 덮어쓰면 오히려 한 프레임 어긋난다.
 
     # 카터가 진짜 갔는지 확인한다.
     #   아티큘레이션의 world pose 는 루트 '링크'(섀시) 기준이라 카터 prim
@@ -605,11 +611,12 @@ class PnPFSM:
     WATCH_STATES = (S_HOLD, S_LIFT, S_CARRY, S_TELEPORT, S_APPROACH2, S_LOWER)
     WATCH_EVERY = 10
 
-    def __init__(self, robot, gripper, lula, movables):
+    def __init__(self, robot, gripper, lula, movables, arm_base):
         self._robot = robot
         self._gripper = gripper
         self._lula = lula
         self._movables = movables
+        self._arm_base = arm_base
         self.reset()
 
     # ── 초기화 ──────────────────────────────────────────
@@ -630,8 +637,32 @@ class PnPFSM:
 
         self.pick_quat  = yaw_quat(PICK_CARTER_YAW)
         self.place_quat = yaw_quat(PLACE_CARTER_YAW)
-        self.pick_base  = arm_base_of(PICK_CARTER_POS, PICK_CARTER_YAW)
-        self.place_base = arm_base_of(PLACE_CARTER_POS, PLACE_CARTER_YAW)
+
+        # 팔 베이스는 추정하지 않고 base_link 에서 실측한다.
+        # 못 읽으면 어쩔 수 없이 추정값으로 떨어진다.
+        nominal = arm_base_of(PICK_CARTER_POS, PICK_CARTER_YAW)
+        live = None
+        if self._arm_base is not None and self._arm_base.ok:
+            try:
+                live = self._arm_base.get_world_pose()[0]
+            except Exception:
+                live = None
+
+        if live is None:
+            print(f"   !! 팔 베이스   base_link 를 못 읽었다. 추정값을 쓴다")
+            self.pick_base = nominal
+        else:
+            self.pick_base = np.array(live, dtype=float)
+            gap = float(np.linalg.norm(self.pick_base - nominal))
+            mark = "ok" if gap < 0.02 else "!! 추정이 틀렸다 (이게 빗나감의 원인)"
+            print(f"   팔 베이스     실측 {vec(self.pick_base)}  "
+                  f"추정 {vec(nominal)}  차이 {gap*1000:.1f} mm  {mark}")
+
+        # 배치쪽은 순간이동 변환을 그대로 적용하면 정확하다 (강체 이동이므로)
+        R_from = quat_to_matrix(self.pick_quat)
+        R_to   = quat_to_matrix(self.place_quat)
+        self.place_base = (PLACE_CARTER_POS
+                           + R_to @ (R_from.T @ (self.pick_base - PICK_CARTER_POS)))
 
         cx, cy = center_xy
         px, py = PLACE_XY
@@ -1181,6 +1212,27 @@ class PnPTask(BaseTask):
         return self._robot
 
 
+def sync_ik_base(lula, arm_base):
+    """
+    base_link 의 실제 월드 pose 를 읽어 IK 솔버에 넣는다.
+
+    카터 prim 위치에서 오프셋을 더해 추정하면, chassis_link 가 카터 prim
+    원점에 있다는 검증 안 된 가정이 들어간다. 그 가정이 틀리면 IK 는
+    '어긋난 좌표계' 안에서 멀쩡히 해를 찾고, 팔은 그럴듯한 자세로 가는데
+    흡착컵만 그 오프셋만큼 빗나간다. 겉보기엔 좌표를 못 잡는 걸로 보인다.
+
+    매 프레임 불러도 싸다. 순간이동이 조금 어긋나도 IK 는 항상 맞는다.
+    """
+    if not arm_base.ok:
+        return None
+    try:
+        pos, quat = arm_base.get_world_pose()
+    except Exception:
+        return None
+    lula.set_robot_base_pose(robot_position=pos, robot_orientation=quat)
+    return pos, quat
+
+
 def set_ready_pose(robot):
     """
     카터와 팔이 한 아티큘레이션이라 DOF 에 바퀴 관절이 섞여 있다.
@@ -1208,15 +1260,12 @@ def set_ready_pose(robot):
 def create_ik_solver(robot):
     """
     lula 객체도 같이 돌려준다.
-    순간이동 뒤에 set_robot_base_pose 로 팔 베이스를 다시 알려 줘야 하기 때문이다.
+    메인 루프가 매 프레임 sync_ik_base() 로 베이스를 다시 잡아야 하기 때문이다.
+    베이스는 여기서 안 넣는다. base_link 를 실측해 넣는 쪽이 유일한 진실이다.
     """
     lula = LulaKinematicsSolver(
         robot_description_path=DESCRIPTION_PATH,
         urdf_path=URDF_PATH,
-    )
-    lula.set_robot_base_pose(
-        robot_position=arm_base_of(PICK_CARTER_POS, PICK_CARTER_YAW),
-        robot_orientation=yaw_quat(PICK_CARTER_YAW),
     )
     print(f"   controlled   {', '.join(lula.get_joint_names())}")
     solver = ArticulationKinematicsSolver(
@@ -1414,6 +1463,10 @@ def main():
     for mv in movables:
         mv.initialize()
 
+    # IK 베이스용. 순간이동 대상은 아니다 (카터와 한 몸이라 따라온다)
+    arm_base = Movable(ARM_BASE_LINK_PATH, "rigid")
+    arm_base.initialize()
+
     # 씬이 안정될 시간을 준다. 실측은 이 뒤에 해야 맞다
     for _ in range(SETTLE_STEPS):
         world.step(render=True)
@@ -1429,7 +1482,7 @@ def main():
     gripper = SurfaceGripperCtl(GRIPPER_NODE)
 
     section("PLAN")
-    fsm = PnPFSM(robot, gripper, lula, movables)
+    fsm = PnPFSM(robot, gripper, lula, movables, arm_base)
 
     section("CLEARANCE")
     check_clearance()
@@ -1464,12 +1517,10 @@ def main():
                 movables[0].zero_velocity()
             except Exception:
                 pass
-            lula.set_robot_base_pose(
-                robot_position=arm_base_of(PICK_CARTER_POS, PICK_CARTER_YAW),
-                robot_orientation=pick_quat,
-            )
             set_ready_pose(robot)
             movables[1].initialize()
+            arm_base.initialize()
+            sync_ik_base(lula, arm_base)
             gripper.reinit()
             gripper.open()
             for _ in range(SETTLE_STEPS):
@@ -1479,6 +1530,10 @@ def main():
             ik_bad = 0
 
         if is_playing:
+            # IK 베이스를 실제 base_link 에서 매 프레임 다시 잡는다.
+            # 추정해 두면 그 오차만큼 팔 전체가 통째로 밀린다
+            sync_ik_base(lula, arm_base)
+
             target_tcp = fsm.current_target()
             target_quat = fsm.tool_quat()          # 정거장마다 베이스를 따라간다
             flange_target = tcp_to_flange(target_tcp, target_quat)
