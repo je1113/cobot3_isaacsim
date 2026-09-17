@@ -1,44 +1,38 @@
-# ─────────────────────────────────────────────────────────────────────
-#  Dock — 도킹
-#  task_manager  →  docking_server      액션 /docking/dock
+# task_manager  →  docking_server        액션 /docking/dock
 #
-#  목적: 충전 패드 접안 또는 로드포트 접안. 둘이 같은 동작(마커 기준 정밀
-#        접근 → 접점)이라 한 액션에 dock_kind 로 가른다. (06 §6)
+# 기능: 마커 기준으로 베이스를 정밀 접안. 충전 패드(CHARGER)와
+#       로드포트(LOAD_PORT)가 같은 동작이라 dock_kind 로 가른다.
 #
-#  누가 부르나: task_manager 만. docking_server 가 스스로 nav_server 를
-#  부르지 않는다 — 언제 끊을지는 미션 상태를 아는 쪽이 정한다. (07 §5)
-#  docking_server 는 /battery_state 로 needs_charge 를 올리기만 한다.
+# 부르는 쪽은 task_manager 만. docking_server 는 배터리를 세지 않는다 —
+# 경과 시간 타이머와 soft/hard 임계는 task_manager 의 것이다. 충전 시작은
+# 이 액션의 success 로 알고, 끝은 task_manager 가 시간으로 정한다.
+# 나중에 실물 배터리가 붙으면 그 드라이버가 sensor_msgs/BatteryState 를 낸다.
 #
-#  contact_ok: CHARGER 면 충전 접점 성립, LOAD_PORT 면 포트 정지 위치 성립.
-#  CHARGER 접점이 붙으면 docking_server 가 BatteryState.charging=true 로
-#  바꾸고 elapsed_s 를 리셋한다.
-# ─────────────────────────────────────────────────────────────────────
+# approach_pose 는 "이 마커가 여기쯤 있다" — task_manager 가 frames.yaml 로.
+# 접안 노드는 "pkg_loader" 같은 이름을 모른다.
 
 # ── goal ──
 uint8 CHARGER=0
 uint8 LOAD_PORT=1
 
-uint8   dock_kind
-string  target_id               # "dock_pad_1" | "pkg_loader"
-float32 approach_dist_m         # 마커 정면 이 거리에서 접안 시퀀스 시작
+uint8 dock_kind
+geometry_msgs/PoseStamped approach_pose # 접안 시퀀스 시작점. frame_id = map
+int32 marker_id                         # 정렬 기준 fiducial ID
 ---
 # ── result ──
 uint8 NONE=0
-uint8 NO_MARKER=1               # 접안 마커 미검출
+uint8 NO_MARKER=1
 uint8 MISALIGN=2                # 접근했지만 yaw 오차 초과
 uint8 TIMEOUT=3
 uint8 CANCELED=4
 
-bool    success
-bool    contact_ok
-float32 final_yaw_err_rad
-uint8   fail_reason
+bool  success                   # CHARGER: 접점 성립 / LOAD_PORT: 정지 위치 성립
+uint8 fail_reason
 ---
 # ── feedback ──
-uint8 SEARCH=0                  # 마커 탐색
-uint8 APPROACH=1                # 마커 기준 접근
-uint8 BERTH=2                   # 최종 정렬
-uint8 LATCH=3                   # 접점 확인
+uint8 SEARCH=0
+uint8 APPROACH=1
+uint8 BERTH=2
+uint8 LATCH=3
 
-uint8   phase
-float32 marker_err_m
+uint8 phase
