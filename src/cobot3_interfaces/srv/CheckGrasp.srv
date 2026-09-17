@@ -1,1 +1,40 @@
+# ─────────────────────────────────────────────────────────────────────
+#  CheckGrasp — 흡착 직후 검증
+#  pick_place_server  →  grasp_checker      서비스 /perception/check_grasp
+#
+#  목적: 그리퍼가 모르는 세 가지를 perception 이 답한다.
+#
+#  그리퍼는 SurfaceGripper.gripped() 로 "뭔가 붙었다" 까지만 안다.
+#  Isaac 의 SurfaceGripper 는 forward 레이캐스트가 maxGripDistance 안에서
+#  뭐든 맞으면 붙으므로, 컵이 플랜지를 벗어나 몸체에 붙어도 gripped=true 다.
+#  (frames.yaml open_issues: blue-magazine-flange-too-narrow)
+#  그래서 gripped 는 요청에 실어 보내고, 응답은 그리퍼가 모르는 것만 담는다.
+#
+#    lifted       — 실제로 딸려 올라왔나 (높이 차)     11_suction_magazine_debug._judge()
+#    on_flange    — 컵이 플랜지 판 위인가              레이캐스트 함정 검출
+#    offset_m     — 판 중심에서 얼마나 벗어났나         횡오차 상한과 대조
+#    variant_matched — 실측 높이·폭이 기대 변형과 맞나  품종 혼입 감지
+#
+#  offset_limit_m 을 요청에 넣어 보내는 이유:
+#    상한 = (플랜지 짧은 변 − 컵 지름) / 2 인데, 플랜지 치수는 카탈로그에서
+#    task_manager → PickCarrier.goal 로 이미 내려와 있다. 호출자가 계산해
+#    넘기면 perception 은 카탈로그를 안 봐도 된다. 응답에 그대로 되돌려
+#    "offset 4.8 / limit 5.0" 처럼 한 줄로 남긴다 — 시뮬이 감춰 주는
+#    파랑 매거진 문제가 로그에서는 숫자로 드러나게.
+#
+#  출처: docs/06_System_Architecture.html §6.  gripper_width_m 은 흡착과
+#        무관하므로 뺐고, grasped 는 그리퍼가 아는 값이라 요청 쪽으로 옮겼다.
+# ─────────────────────────────────────────────────────────────────────
+
+string  carrier_id
+string  expected_variant        # frames.yaml 키   예: "magazine_1_orange"
+bool    gripped                 # SurfaceGripper.gripped() — 그리퍼가 준 값
+float32 offset_limit_m          # (플랜지 짧은 변 − 컵 지름) / 2. 호출자가 계산.
 ---
+bool    lifted                  # 흡착 후 캐리어 윗면 z 가 LIFT_OK_MIN 이상 올라갔나
+bool    on_flange               # 컵 접촉점이 플랜지 판 안에 있고 offset_m ≤ limit
+float32 offset_m                # 컵 중심 ↔ 플랜지 판 중심 횡거리
+float32 offset_limit_m          # 요청값 에코 — 로그 한 줄에 둘이 같이 남게
+bool    variant_matched         # 실측 body_width / stack_height 가 기대 변형과 일치
+float32 measured_height_m       # 실측 전체 높이 (스택 변형 구분축)
+float32 confidence

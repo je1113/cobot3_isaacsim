@@ -1,0 +1,41 @@
+# ─────────────────────────────────────────────────────────────────────
+#  NavigateTo — 주행
+#  task_manager  →  nav_server      액션 /navigation/navigate_to
+#  nav_server 는 Nav2 의 NavigateToPose 를 감싼다.
+#
+#  목적: 순회 웨이포인트 · 포트 앞 · 도킹 패드로 이동. 충돌 회피는 Nav2 가.
+#
+#  왜 서비스가 아니라 액션인가 (07 §4·§5):
+#    순회 중 CarrierScan 이 오면 task_manager 가 cancel_goal() 로 세운다.
+#    도킹 선점도 같은 cancel_goal() 이다. 서비스에는 취소가 없다.
+#
+#  정밀도가 두 단계다:
+#    순회    xy_tolerance_m ≈ 0.25  — Nav2 기본
+#    포트 앞 xy_tolerance_m ≈ 0.02  + final_align=true
+#      흡착 횡오차 상한이 파랑 매거진에서 5 mm 라, 베이스 정렬이 거칠면
+#      팔이 보정할 여유가 없다. 포트 앞에서는 최종 정렬 단계를 따로 돈다.
+#
+#  출처: 06 §6 의 NavigateToRack 을 목적지 일반화(target_id)로 개명.
+# ─────────────────────────────────────────────────────────────────────
+
+# ── goal ──
+string  target_id               # "shelf_1_s3" | "pkg_loader" | "test_loader" | "dock_pad_1"
+geometry_msgs/PoseStamped pose  # 비어 있으면(frame_id=="") target_id 로 조회
+float32 xy_tolerance_m
+float32 yaw_tolerance_rad
+bool    final_align             # 도착 후 포트 마커 기준 정밀 정렬 수행
+---
+# ── result ──
+uint8 NONE=0
+uint8 PLAN_FAIL=1               # 전역 경로 없음
+uint8 BLOCKED=2                 # 지역 회피 실패 — 사람·낙하물
+uint8 CANCELED=3                # task_manager 가 세웠다 (QR 발견 · 도킹 선점)
+uint8 TOLERANCE_NOT_MET=4       # 도착했지만 허용 오차 밖 — final_align 실패 포함
+
+bool    success
+uint8   fail_reason
+float32 final_xy_err_m          # 실제 도착 오차. 포트 앞에서는 이 값이 흡착 성패를 가른다
+---
+# ── feedback ──
+float32 distance_remaining_m
+float32 eta_s

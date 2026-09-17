@@ -1,0 +1,35 @@
+# ─────────────────────────────────────────────────────────────────────
+#  VerifyCarrier — 파지 · 배치 직전 인터록   ★ 오배송 방지의 핵심
+#  pick_place_server  →  task_manager      서비스 /orchestrator/verify_carrier
+#
+#  목적: "팔을 뻗기 직전, 앞에 있는 게 명령받은 바로 그 캐리어인가" 확인.
+#        ok=false 면 파지하지도 배치하지도 않는다.
+#
+#  왜 호출자가 pick_place_server 인가:
+#    task_manager 가 미리 확인해 두면 그 사이 캐리어가 바뀌어도 모른다.
+#    손을 대는 쪽이 대기 직전에 묻는 것이 인터록이다. (07 §4 규칙 ②)
+#
+#  왜 서버가 task_manager 인가:
+#    "명령이 무엇이었나"(expected) 를 아는 것은 orchestrator 뿐이다.
+#    실제 판독(actual)은 task_manager 가 가장 최근 CarrierScan 에서 가져온다.
+#
+#  scan_point 는 05 §2-7 의 스캔 4지점:
+#    S1 스토커 슬롯 앞, 매거진 파지 직전     S2 패키징 로더, 매거진 배치 직전
+#    S3 패키징 언로더, 스택 파지 직전        S4 테스트 로더, 스택 배치 직전
+#
+#  출처: docs/05_QR_Traceability.md §2-6 그대로.
+# ─────────────────────────────────────────────────────────────────────
+
+string  expected_carrier_id     # 명령이 지정한 캐리어   예: "MAG-A17"
+string  scan_point              # S1 | S2 | S3 | S4
+float32 timeout_sec             # 이 시간 안에 새 판독이 없으면 TIMEOUT
+---
+uint8 MATCH=0
+uint8 MISMATCH=1                # 읽긴 했는데 다른 ID → 절대 손대지 않는다
+uint8 NO_READ=2                 # 못 읽음 → 안전. 재관측 후 재시도 (05: 미판독 ≠ 오판독)
+uint8 TIMEOUT=3
+
+bool    ok                      # result == MATCH 일 때만 true
+uint8   result
+string  actual_carrier_id       # 실제로 읽힌 ID. 사후 재검증용으로 event 에 남긴다
+string  message
