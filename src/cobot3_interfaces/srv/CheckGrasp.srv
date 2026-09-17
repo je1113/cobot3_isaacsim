@@ -7,7 +7,8 @@
 #  그리퍼는 SurfaceGripper.gripped() 로 "뭔가 붙었다" 까지만 안다.
 #  Isaac 의 SurfaceGripper 는 forward 레이캐스트가 maxGripDistance 안에서
 #  뭐든 맞으면 붙으므로, 컵이 플랜지를 벗어나 몸체에 붙어도 gripped=true 다.
-#  (frames.yaml open_issues: blue-magazine-flange-too-narrow)
+#  (frames.yaml open_issues 의 blue-magazine-flange-too-narrow 가 이 함정을
+#   지적했다. 플랜지는 450216f 로 80×80 통일 — 함정 자체는 남는다.)
 #  그래서 gripped 는 요청에 실어 보내고, 응답은 그리퍼가 모르는 것만 담는다.
 #
 #    lifted       — 실제로 딸려 올라왔나 (높이 차)     11_suction_magazine_debug._judge()
@@ -19,8 +20,8 @@
 #    상한 = (플랜지 짧은 변 − 컵 지름) / 2 인데, 플랜지 치수는 카탈로그에서
 #    task_manager → PickCarrier.goal 로 이미 내려와 있다. 호출자가 계산해
 #    넘기면 perception 은 카탈로그를 안 봐도 된다. 응답에 그대로 되돌려
-#    "offset 4.8 / limit 5.0" 처럼 한 줄로 남긴다 — 시뮬이 감춰 주는
-#    파랑 매거진 문제가 로그에서는 숫자로 드러나게.
+#    "offset 13.8 / limit 15.0" 처럼 한 줄로 남긴다 — 시뮬에서는 컵이
+#    판을 벗어나도 붙으므로, 실물이면 실패했을 건을 로그에서 잡아내려고.
 #
 #  출처: docs/06_System_Architecture.html §6.  gripper_width_m 은 흡착과
 #        무관하므로 뺐고, grasped 는 그리퍼가 아는 값이라 요청 쪽으로 옮겼다.
