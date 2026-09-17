@@ -102,7 +102,12 @@ PLACE_SURFACE_Z  = 0.770                          # 벨트 상판 높이
 #   M0609 도달반경은 약 0.9 m. 시작할 때 REACH 표로 전 구간 확인한다.
 PICK_APPROACH_CLEAR  = 0.20   # 매거진 윗면 위 이만큼에서 접근 대기
 PICK_LIFT_CLEAR      = 0.20   # 집고 매거진 윗면 기준 이만큼 들어올린다
-PLACE_APPROACH_CLEAR = 0.15   # 벨트 위 이만큼에서 대기
+#   벨트 위 대기 높이. 150 mm 는 IK 해가 없다 — 거리는 0.740 m 로 반경(0.9)
+#   안이지만, 툴을 수직 하향으로 유지한 채 위로 뻗는 게 손목 한계에 걸린다.
+#   URDF 로 직접 풀어 본 경계: 80 mm 불가 / 60 mm 가능. 여유를 두고 50 mm.
+#   레일(y ±0.660)은 매거진(y ±0.125)이 y=0 으로 사이를 지나므로 높이가
+#   낮아도 안 걸린다. 이 높이에서 매거진 바닥은 벨트 상판 위 45 mm.
+PLACE_APPROACH_CLEAR = 0.05   # 벨트 위 이만큼에서 대기
 PLACE_DROP           = 0.005  # 놓을 때 이만큼 높게 두어 튀지 않게 한다
 
 #   운반 자세. 팔 베이스 기준 상대 좌표다. 로컬 -Y 로 둔 이유는 두 정거장
@@ -132,6 +137,14 @@ OBSTACLES = {
 COAXIAL_FORCE_LIMIT = 500.0   # N, 흡착면 수직
 SHEAR_FORCE_LIMIT   = 250.0   # N, 흡착면 평행
 MAX_GRIP_DISTANCE   = 0.03    # m, 이 안에 들어오면 붙는다
+
+#   그리퍼와 물체의 충돌을 끌 것인가.
+#   끄면 컵이 물체를 그냥 통과한다. 화면상 뚫고 들어가고, 접촉이 없으니
+#   추종오차 기반 접촉 감지도 영영 안 걸린다.
+#   원래 이 필터는 '붙은 뒤' 흡착 조인트(당김)와 콜라이더(밀어냄)가 싸우는
+#   것을 막으려는 것인데, 붙기 전에는 접촉이 있어야 한다. 그래서 기본은 끈다.
+#   붙은 뒤 튕겨나가면 그때 True 로 바꿔 본다.
+FILTER_GRIPPER_COLLISION = False
 
 # ══════════════════════════════════════════════════════════════
 #   설정 끝 — 아래는 보통 건드리지 않는다
@@ -185,13 +198,20 @@ TCP_OFFSET = np.array([0.0, 0.0, SUCTION_FACE_Z])
 #   "닿았다" 신호다. 내려가는 내내 포착 범위가 쓸리며 지나가기 때문에
 #   높이를 몰라도 걸린다.
 PROBE_START_ABOVE = 0.10    # 예상 윗면보다 이만큼 위에서 시작
-PROBE_MAX_BELOW   = 0.03    # 예상 윗면보다 이만큼 아래까지만. 그 아래는 누르는 것
+PROBE_MAX_BELOW   = 0.005   # 예상 윗면보다 이만큼 아래까지만.
+                            #   충돌이 살아 있으면 컵이 물체에 닿아서 멈춘다.
+                            #   깊게 잡으면 물체를 밀고 내려가 버린다
 PROBE_SPEED       = 0.0005  # m/step. 60 Hz 기준 약 30 mm/s
 
 #   안 붙었는데 못 따라가면 뭔가에 눌린 것이다. 힘 센서 없이 접촉을 아는 법.
 PROBE_CONTACT_ERR = 0.004   # 명령 TCP 와 실제 TCP 가 이만큼 벌어지면 접촉
 PROBE_CONTACT_N   = 5       # 연속 이만큼 넘어야 인정 (순간 튐 걸러내기)
 PROBE_SETTLE      = 30      # 시작 직후 이 스텝 동안은 추종 오차를 안 본다
+
+#   추종오차만으로는 부족하다. 관절 드라이브가 maxForce 1e8 이라 팔이
+#   1 kg 짜리를 그냥 밀고 내려간다. 그래서 물체가 밀렸는지도 같이 본다.
+PROBE_PUSH_TOL    = 0.003   # 물체 윗면이 이만큼 내려가면 누르고 있는 것
+PROBE_LOG_EVERY   = 30      # 프로브 중 이 스텝마다 간격을 찍는다
 
 HOLD_WAIT       = 120   # 들기 전에 제자리에서 버티는 스텝
 RELEASE_WAIT    = 90
@@ -831,10 +851,24 @@ class PnPFSM:
         return float(np.linalg.norm(self.current_target() - get_tcp_pose(self._robot)))
 
     def _pressed(self):
-        """추종 오차가 연속으로 임계를 넘으면 뭔가에 눌린 것으로 본다"""
+        """
+        뭔가에 눌렸는지 본다. 신호가 둘이다.
+
+          1) 추종 오차 — 명령한 TCP 를 실제가 못 따라온다
+          2) 물체가 내려갔다 — 팔이 물체를 밀고 있다
+
+        1) 만으로는 부족하다. 관절 드라이브 maxForce 가 1e8 이라 팔이
+        1 kg 짜리쯤은 저항 없이 밀고 내려간다. 그때는 오차가 안 생기고
+        물체만 내려간다. 그래서 2) 를 같이 본다.
+        """
         if self.step <= PROBE_SETTLE:
             return False
-        if self._tracking_error() > PROBE_CONTACT_ERR:
+
+        lagging = self._tracking_error() > PROBE_CONTACT_ERR
+        pushed = (self.state == self.S_PROBE
+                  and top_z() < self.obj_top - PROBE_PUSH_TOL)
+
+        if lagging or pushed:
             self.contact_hits += 1
         else:
             self.contact_hits = 0
@@ -843,6 +877,20 @@ class PnPFSM:
     def _probe_stop(self):
         """멈춰야 하면 처리하고 True. 계속 내려가도 되면 False"""
         tcp = get_tcp_pose(self._robot)
+
+        # 내려가는 동안 컵과 물체 사이 간격을 계속 남긴다.
+        # 간격이 maxGripDistance 안으로 들어왔는데도 안 붙으면
+        # 높이 문제가 아니라 그리퍼 쪽 문제라는 뜻이다.
+        if self.step % PROBE_LOG_EVERY == 0:
+            suction_z = tcp[2] + SUCTION_INSET
+            now_top = top_z()
+            print(f"      probe {self.step:4d}/{self.n_steps}  "
+                  f"컵 {suction_z:.4f}  물체윗면 {now_top:.4f}  "
+                  f"간격 {(suction_z - now_top)*1000:+7.1f}mm "
+                  f"(한계 {MAX_GRIP_DISTANCE*1000:.0f})  "
+                  f"밀림 {(now_top - self.obj_top)*1000:+5.1f}mm  "
+                  f"추종오차 {self._tracking_error()*1000:5.1f}mm  "
+                  f"status {self._gripper.status()}")
 
         if self.state == self.S_PROBE:
             if holding(self._gripper.gripped()):
@@ -894,6 +942,8 @@ class PnPFSM:
         print(f"   높이 문제가 아니다. 다음을 보자")
         print(f"     - rigid body 경로가 위에 찍혔는지 (없으면 물리 물체가 아니다)")
         print(f"     - 흡착면 xy 가 플랜지(80x80 mm) 위에 오는지")
+        print(f"     - FILTER_GRIPPER_COLLISION({FILTER_GRIPPER_COLLISION}) — True 면 "
+              f"컵이 물체를 통과해 접촉 자체가 없다")
         print(f"     - MAX_GRIP_DISTANCE({MAX_GRIP_DISTANCE*1000:.0f} mm) 를 키워보기")
         print(f"   {'─' * 56}")
         print()
@@ -1117,8 +1167,11 @@ class PnPTask(BaseTask):
         self._park_carter()
         self._setup_gripper_limits()
 
-        filter_collision(GRIPPER_PRIM, TARGET_PATH)
-        print(f"   collision    {GRIPPER_PRIM} <-> {TARGET_PATH} 필터링")
+        if FILTER_GRIPPER_COLLISION:
+            filter_collision(GRIPPER_PRIM, TARGET_PATH)
+            print(f"   collision    {GRIPPER_PRIM} <-> {TARGET_PATH} 필터링")
+        else:
+            print(f"   collision    필터링 안 함 (컵이 물체에 실제로 닿아야 한다)")
 
         self._setup_arm_drives()
         self._register_robot(scene)
