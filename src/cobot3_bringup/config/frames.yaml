@@ -397,6 +397,40 @@ tolerances:
 
 # ── 남은 문제 ────────────────────────────────────────────────────────
 open_issues:
+  - id: qr-pose-3-2-depth-plane
+    status: 해결 (2026-09-17)
+    what: >
+      체크리스트 3-2(근거리 QR 자세추정) 완료 기준은 위치 3 mm / yaw 1도.
+      순수 PnP(solvePnP IPPE_SQUARE) 는 위치는 되지만(평균 1.6 mm) yaw 는
+      1σ 2.3도, 최대 4.6도로 미달 — qr-yaw-unobservable 항목과 같은 원인
+      (라벨이 옆벽이라 yaw 가 원근 신호로만 보인다).
+    fix: >
+      isaacpjt/tools/eval_qr_pose_depth.py + cobot3_perception/qr_pose.py.
+      깊이로 QR 벽면(wall_n, 250x110 mm)에 평면을 맞춰 roll/pitch(사실상
+      yaw 까지 — 매거진이 항상 upright 라는 전제)를 얻고, 위치는 QR 중심을
+      그 평면에 광선-평면 교차시켜 얻는다. PnP 는 교차검증용으로만 남겼다.
+      실측: 위치 최대 0.43 mm, yaw 최대 0.25도 (깊이 노이즈 2 mm 를 얹어도
+      위치 0.38 mm, yaw 0.45도) — 기준을 여유 있게 통과.
+    caveat: >
+      magazine_2_blue 는 같은 정확도를 내지만(성공 표본 기준) 근거리 자세가
+      주황 전용으로 티칭돼 있어 검출률이 낮다(6/15) — 파랑 전용 자세를
+      derive_scan_poses.py 로 새로 떠야 한다.
+  - id: carrier-scan-dedup-3-1
+    status: 로직 구현 + 단위테스트 완료, Isaac 주행 검증 남음
+    what: >
+      체크리스트 3-1(주행 중 검출) 의 "동일 매거진 중복 검출 방지" —
+      cobot3_perception/carrier_scan.py 의 CarrierScanMerger. ID 가 다르면
+      위치가 가까워도 절대 안 합치고, 위치 기반으로 병합한다.
+    verified: >
+      isaacpjt/tools/test_carrier_scan.py (Isaac 불필요, 합성 주행 스트림).
+      실측 매거진 피치(0.55~0.62 m) 기준 4 개 전부 정확히 분리(위치 오차
+      11 mm 이내). 병합 반경(기본 0.15 m)과 같은 간격에서도 이 케이스는
+      분리됐지만, 일반적으로 보장되는 건 아니다 — carrier_scan.py 의
+      "한계" 절 참고.
+    remaining: >
+      실제 주행(연속 이동)에서 presence 검출(decode 안 돼도 detect() 만으로
+      대략 위치를 내는 경로)을 Isaac 으로 렌더 검증하지 않았다.
+      sweep_scan.py 가 이산 샘플로 근접한 인프라를 갖고 있어 확장하면 된다.
   - id: qr-yaw-unobservable
     status: 해결 (2026-09-17) — 파지 목표는 플랜지 상방 관측으로 정한다
     what: >

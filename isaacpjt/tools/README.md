@@ -61,6 +61,16 @@ PICK_VISION=1 PICK_TRIALS=10 PICK_HEADLESS=1 \
 #    PICK_DEPTH_NOISE_MM=2 로 깊이 노이즈를 얹어 볼 수 있다.
 #    프레임: isaacpjt/M0609/lula_ik/out/vision_frames/*.png
 
+# 8. 근거리 QR 자세추정 (깊이 평면 기반) — 3-2 완료 기준 검증
+isaac_python isaacpjt/tools/eval_qr_pose_depth.py
+EVAL_TARGET=shelf_1/top/magazine_2_blue isaac_python isaacpjt/tools/eval_qr_pose_depth.py
+EVAL_DEPTH_NOISE_MM=2 isaac_python isaacpjt/tools/eval_qr_pose_depth.py   # 센서 노이즈 흉내
+#    -> out/qr_pose_depth_eval.yaml, 프레임 out/qr_pose_depth_frames/*.png
+#    실측(2026-09-17): 위치 최대 0.43 mm, yaw 최대 0.25 도 (기준 3 mm / 1 도) 통과
+
+# 9. 주행 중 검출 중복제거 로직 단위테스트 (Isaac 불필요, 합성 스트림)
+python3 isaacpjt/tools/test_carrier_scan.py
+
 # Isaac Sim 메뉴(Tools > Robotics > ...)는 찾아도 없다. isaac_python 이 띄우는
 # isaacsim.exp.base.python.kit 에는 메뉴 확장이 아예 안 올라온다.
 # 그래서 조작 UI 를 capture_pose.py 안에 직접 넣었다.
@@ -104,3 +114,55 @@ yaw 가 화면 안의 회전이 되고, 컵이 닿을 면을 직접 재므로 QR
 물리 전 값이라, 그걸 정답으로 쓰면 QR 이 4.58 mm 아래에 있는 걸 오차로 센다.
 이전 `eval_qr_pose.py` 의 "횡오차 4.4 mm" 는 전부 이것이었다
 (이미지 v 로 10.2 px, GT 를 고치자 0.55 mm). 카메라 pose · TF · K 는 맞았다.
+
+## 3-2 근거리 QR 자세추정: PnP 대신 깊이 평면
+
+체크리스트 3-2("depth로 선반 평면 피팅, roll/pitch는 평면에서 취하고 PnP에서는
+위치+yaw만 사용")를 구현한 것. 위에서 본 대로 순수 PnP 는 yaw 1σ 2.3도라
+완료 기준(1도)을 못 맞춘다.
+
+`cobot3_perception/qr_pose.py` 는 매거진이 항상 똑바로 서 있다는 전제로
+(선반에 얹혀 있으니 타당하다) 깊이로 QR 이 붙은 벽면(wall_n, 250x110 mm —
+QR 라벨 50x50 보다 훨씬 넓다)에 평면을 맞춘다. 벽의 법선 방향이 곧 매거진의
+yaw 다 — 원근 왜곡과 무관한 진짜 3D 방향이라 flange_topview.py 와 같은
+원리로 훨씬 정확하다. 위치는 검출된 QR 중심을 그 평면에 광선-평면 교차시켜
+얻는다(PnP 로 다시 풀 필요 없음. PnP 는 교차검증용으로만 남겨 뒀다).
+
+```bash
+isaac_python isaacpjt/tools/eval_qr_pose_depth.py
+EVAL_TARGET=shelf_1/top/magazine_2_blue isaac_python isaacpjt/tools/eval_qr_pose_depth.py
+EVAL_DEPTH_NOISE_MM=2 isaac_python isaacpjt/tools/eval_qr_pose_depth.py   # 센서 노이즈 흉내
+```
+
+실측(2026-09-17, magazine_1_orange):
+
+| | 위치 오차 | yaw 오차 |
+|---|---|---|
+| 순수 PnP (이전) | 평균 1.6 mm, 최대 3.5 mm | 최대 4.6°, 1σ 2.3° |
+| 깊이 평면 (이번) | 평균 0.35 mm, 최대 0.43 mm | 평균 0.17°, 최대 0.25° |
+| + 깊이 노이즈 2 mm | 평균 0.32 mm, 최대 0.38 mm | 최대 0.45°, 1σ 0.18° |
+
+완료 기준(위치 3 mm, yaw 1도) 통과. magazine_2_blue 도 성공한 표본에서는
+같은 정확도(위치 0.35 mm, yaw 0.23°)를 냈으나 `shelf_1_top_close_centered`
+자세가 원래 주황 전용으로 티칭된 자세라 파랑에서는 검출률이 낮다(6/15) —
+파랑 전용 근거리 자세를 새로 티칭해야 한다(`derive_scan_poses.py` 참고).
+
+한계: 레일(벽보다 4 mm 튀어나옴)이 QR 영역 자체를 가리면(현재 에셋에서는
+안 그렇다 — `out/qr_pose_depth_frames/*.png` 로 확인) 평면 피팅이 오염될 수
+있다. `estimate_qr_pose()` 는 QR 자체의 좁은 패치로 먼저 대략 평면을 잡고
+그걸로 넓은 탐색창을 거르는 2 단계 방식으로 이를 방어한다.
+
+## 3-1 주행 중 검출: 존재 검출 + 중복제거
+
+`cobot3_perception/carrier_scan.py` 의 `CarrierScanMerger` 가 프레임마다의
+"대략 위치 + (있으면) decode ID"를 받아 위치 기반으로 병합한다. ID 가 다르면
+위치가 가까워도 절대 안 합친다.
+
+```bash
+python3 isaacpjt/tools/test_carrier_scan.py   # Isaac 불필요, 합성 스트림
+```
+
+실측 매거진 피치(0.55~0.62 m) 기준 4 개 전부 정확히 분리됨을 확인했다.
+아직 안 한 것: 실제 주행(연속 이동 + 모션블러)에서 presence 검출(decode 안
+돼도 detect() 만으로 위치를 내는 경로)을 Isaac 으로 렌더 검증하는 것 —
+`sweep_scan.py` 가 이산 샘플로 근접한 인프라를 갖고 있어 확장하면 된다.

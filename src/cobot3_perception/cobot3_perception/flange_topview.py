@@ -90,13 +90,40 @@ def project_points(K, dist, R_wo, p_wo, pts_world):
     return uv.reshape(-1, 2), pc[:, 2]
 
 
-def pixels_to_plane(K, dist, R_wo, p_wo, px, plane_z):
-    """픽셀 -> world 광선 -> z = plane_z 평면과의 교점 (N x 3)"""
+def pixel_rays(K, dist, R_wo, p_wo, px):
+    """픽셀 -> world 광선 방향 (N x 3, 정규화 안 됨. z 성분이 대략 광학축 성분)"""
     px = np.asarray(px, dtype=np.float64).reshape(-1, 1, 2)
     norm = cv2.undistortPoints(px, K, dist).reshape(-1, 2)
-    rays = np.column_stack([norm, np.ones(len(norm))]) @ R_wo.T   # world 방향
-    t = (plane_z - p_wo[2]) / rays[:, 2]
+    return np.column_stack([norm, np.ones(len(norm))]) @ R_wo.T
+
+
+def ray_plane_intersect(K, dist, R_wo, p_wo, px, plane_point, plane_normal):
+    """픽셀 -> world 광선 -> 임의 평면(점 + 법선)과의 교점 (N x 3).
+
+    QR 이 붙은 벽처럼 수직 평면(법선이 수평)에도 쓸 수 있게 pixels_to_plane 을
+    일반화한 것. 카메라가 평면과 거의 나란히 보고 있으면(광선이 평면과 스칠 듯
+    거의 평행하면) t 분모가 0 에 가까워져 수치가 불안정해진다 — 근거리 정면
+    관측(QR/플랜지 상방)에서는 문제되지 않는다.
+    """
+    rays = pixel_rays(K, dist, R_wo, p_wo, px)
+    plane_point = np.asarray(plane_point, dtype=float)
+    plane_normal = np.asarray(plane_normal, dtype=float)
+    plane_normal = plane_normal / np.linalg.norm(plane_normal)
+    denom = rays @ plane_normal
+    t = ((plane_point - p_wo) @ plane_normal) / denom
     return p_wo + rays * t[:, None]
+
+
+def pixels_to_plane(K, dist, R_wo, p_wo, px, plane_z):
+    """픽셀 -> world 광선 -> z = plane_z 수평 평면과의 교점 (N x 3)"""
+    return ray_plane_intersect(K, dist, R_wo, p_wo, px,
+                               plane_point=[0.0, 0.0, plane_z], plane_normal=[0.0, 0.0, 1.0])
+
+
+def backproject_depth(K, dist, R_wo, p_wo, px, depth_vals):
+    """픽셀 + '광학 z 거리'(distance_to_image_plane, 카메라 프레임 z 좌표와 같다) -> world 점 (N x 3)"""
+    rays = pixel_rays(K, dist, R_wo, p_wo, px)
+    return p_wo + rays * np.asarray(depth_vals, dtype=float).reshape(-1, 1)
 
 
 def _wrap_pi(a):
