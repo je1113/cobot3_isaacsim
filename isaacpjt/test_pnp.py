@@ -428,18 +428,29 @@ class Movable:
                                      orientation=np.array(quat, dtype=float))
 
     def zero_velocity(self):
-        """순간이동 직후 남은 속도가 조인트 한계를 넘기지 않게 눌러 준다"""
-        for attempt in (
-            lambda: self._obj.set_velocities(np.zeros((1, 6))),
-            lambda: (self._obj.set_linear_velocity(np.zeros(3)),
-                     self._obj.set_angular_velocity(np.zeros(3))),
-            lambda: self._obj.set_joint_velocities(
-                np.zeros(self._obj.num_dof)),
-        ):
+        """
+        순간이동 직후 남은 속도가 조인트 한계를 넘기지 않게 눌러 준다.
+
+        단일 prim 에 배치 API 를 부르면 shape 이 안 맞는다. 예외로 걸러지면
+        다행이지만 조용히 먹어 버리면 엉뚱한 값이 들어가므로 갈라서 부른다.
+        """
+        obj = self._obj
+        if self._batch:
             try:
-                attempt()
+                obj.set_velocities(np.zeros((1, 6)))
             except Exception:
-                continue
+                pass
+        else:
+            for fn in ("set_linear_velocity", "set_angular_velocity"):
+                try:
+                    getattr(obj, fn)(np.zeros(3))
+                except Exception:
+                    pass
+        # 아티큘레이션이면 관절 속도도 함께 눌러 준다
+        try:
+            obj.set_joint_velocities(np.zeros(obj.num_dof))
+        except Exception:
+            pass
 
 
 # ══════════════════════════════════════════════════════════════
@@ -902,12 +913,17 @@ def find_articulation_root():
              if prim.HasAPI(UsdPhysics.ArticulationRootAPI)]
     print(f"   articulation ArticulationRootAPI 후보 {roots if roots else '없음'}")
 
-    if CARTER_PRIM_PATH in roots or not roots:
-        # 카터가 루트다. 후보가 아예 안 잡히면 (페이로드 합성 타이밍) 여기로 간다
+    # 팔 단독 경로는 절대 고르지 않는다. 런타임에 아티큘레이션이 아니라는 게
+    # 이미 확인됐다 (여기서 한 번 터졌다). 문자열 길이로 고르면 m0609 쪽이
+    # chassis_link 보다 짧아서 하필 그걸 집는다.
+    usable = [r for r in roots if r != ROBOT_PRIM_PATH]
+
+    if CARTER_PRIM_PATH in usable or not usable:
+        # 정상 경로. 후보가 아예 안 잡히는 경우(페이로드 합성 타이밍)도 여기로 온다
         ARTICULATION_PATH = CARTER_PRIM_PATH
     else:
-        # 바깥쪽(경로가 짧은) 루트가 전체를 덮는다
-        ARTICULATION_PATH = min(roots, key=len)
+        # 경로 깊이가 가장 얕은 것이 바깥쪽 루트다 (문자열 길이가 아니다)
+        ARTICULATION_PATH = min(usable, key=lambda r: r.count("/"))
 
     print(f"   articulation {ARTICULATION_PATH}  <- 여기에 건다")
     return ARTICULATION_PATH
@@ -1166,7 +1182,7 @@ def main():
     # 카터를 옮기면 팔이 관절 각도를 유지한 채 그대로 따라온다.
     # 따로 옮기려 들면 같은 몸을 두 번 건드려 오히려 터진다.
     movables = [
-        Movable(ARTICULATION_PATH, "articulation", obj=robot),
+        Movable(find_articulation_root(), "articulation", obj=robot),
         Movable(TARGET_PATH, "rigid"),
     ]
     for mv in movables:
