@@ -1,0 +1,283 @@
+# ═══════════════════════════════════════════════════════════════════════
+#  좌표계 단일 출처 (single source of truth)
+#
+#  여기 있는 값은 손으로 재지 않았다. 전부
+#      isaacpjt/worlds/simple_factory_layout.usda
+#  에서 뽑은 것이고, 뽑는 도구는
+#      isaac_python isaacpjt/tools/measure_layout.py
+#  다. 결과 원본은 isaacpjt/tools/out/layout_measured.yaml 에 남는다.
+#
+#  값을 고칠 일이 생기면 USD 를 고치고 measure_layout.py 를 다시 돌린 뒤
+#  그 결과를 여기로 옮긴다. 이 파일을 직접 손으로 고치지 않는다.
+#
+#  검증:  isaac_python isaacpjt/tools/verify_frames.py
+#         (이 YAML 로 재구성한 체인이 USD 의 ground truth 와 몇 mm 차이인지 찍는다)
+#
+#  마지막 갱신: 2026-09-17  / Isaac Sim 5.1.0
+# ═══════════════════════════════════════════════════════════════════════
+
+meta:
+  source_usd: isaacpjt/worlds/simple_factory_layout.usda
+  measured_by: isaacpjt/tools/measure_layout.py
+  measured_raw: isaacpjt/tools/out/layout_measured.yaml
+  units: m, rad
+  # rpy 는 고정축 XYZ (R = Rz(yaw) * Ry(pitch) * Rx(roll)).
+  # static_transform_publisher 의 --roll/--pitch/--yaw 와 같은 규약이다.
+
+# ── TF 트리 ──────────────────────────────────────────────────────────
+#
+#   map
+#    └─ odom                        (Nav2 / Isaac odometry)
+#        └─ base_link               (Nova Carter chassis_link)
+#            └─ m0609_base_link     (팔 베이스. USD arm_mount_joint 오프셋)
+#                └─ m0609_link_1..6 (robot_state_publisher 가 관절값으로 발행)
+#                    └─ m0609_tool0 (link_6 와 완전히 동일 — URDF joint_6-tool0 가 0 오프셋)
+#                        ├─ tcp_suction          (흡착면. TCP)
+#                        └─ camera_link          (손목 RealSense D455 바디 프레임)
+#                            └─ camera_color_optical_frame   (camera_info 의 K 가 사는 곳)
+#
+#   여기서 정적으로 발행하는 건 아래 static_transforms 네 개뿐이다.
+#   map->odom 은 AMCL/Nav2, odom->base_link 는 Isaac 의 odometry 퍼블리셔,
+#   m0609_base_link->m0609_tool0 은 robot_state_publisher 가 담당한다.
+#
+#   이름이 checklist 초안(m0609_base / tool0)과 다른 이유:
+#   m0609 URDF 의 루트 링크 이름이 'base_link' 라 Carter 의 base_link 와 그대로
+#   부딪힌다. URDF 를 고치는 대신 robot_state_publisher 의 frame_prefix 를
+#   'm0609_' 로 줘서 팔 쪽 프레임 전체에 접두사를 붙였다. URDF 는 손대지 않는다.
+#
+tf_tree:
+  root: map
+  provided_by:
+    map->odom:              nav2 (amcl)
+    odom->base_link:        isaac sim ros2 odometry publisher
+    base_link->m0609_base_link:     cobot3_bringup/tf_static.launch.py   # 이 파일
+    m0609_base_link->m0609_link_6:  robot_state_publisher (m0609_isaac_sim.urdf)
+    m0609_link_6->m0609_tool0:      robot_state_publisher (고정 조인트, 0 오프셋)
+    m0609_tool0->tcp_suction:       cobot3_bringup/tf_static.launch.py
+    m0609_tool0->camera_link:       cobot3_bringup/tf_static.launch.py
+    camera_link->camera_color_optical_frame: cobot3_bringup/tf_static.launch.py
+
+# ── 정적 변환 ────────────────────────────────────────────────────────
+# rotation 은 quat(xyzw) 를 정본으로 쓴다. rpy 는 사람이 읽으라고 같이 적어 둔
+# 것이고, tool0->camera_link 는 pitch 가 -90도 근처라 rpy 로 쓰면 수치가 불안정하다.
+static_transforms:
+
+  base_link__m0609_base_link:
+    parent: base_link
+    child: m0609_base_link
+    xyz: [-0.206494, 0.0, 0.549201]
+    quat_xyzw: [0.0, 0.0, 0.0, 1.0]
+    rpy: [0.0, 0.0, 0.0]
+    source: >
+      /World/Robots/nova_carter1/arm_mount_joint (PhysicsFixedJoint) 의 localPos0.
+      실측이 아니라 씬 정의값이다 — checklist 대로 USD fixed joint 의 로컬 변환을 쓴다.
+      chassis_link 와 m0609/base_link 의 world 변환 차이로 교차 확인했고 일치한다.
+
+  m0609_tool0__tcp_suction:
+    parent: m0609_tool0
+    child: tcp_suction
+    xyz: [0.0, 0.0, 0.161]
+    quat_xyzw: [0.0, 0.0, 0.0, 1.0]
+    rpy: [0.0, 0.0, 0.0]
+    source: >
+      short_gripper/gripper_tip 의 바깥면(흡착면)을 link_6 로컬로 변환한 z.
+      실측 0.16102 m 를 0.161 로 반올림했다. lula_ik 스크립트들의
+      SUCTION_FACE_Z 와 같은 값이다.
+
+  m0609_tool0__camera_link:
+    parent: m0609_tool0
+    child: camera_link
+    xyz: [0.011507, -0.044997, 0.035008]
+    quat_xyzw: [0.5, -0.5, 0.500345, 0.499655]
+    rpy: [1.571487, -1.570106, 0.0]     # 참고용. pitch 가 -90도 근처라 quat 를 써라.
+    source: >
+      /World/.../short_gripper/rsd455/RSD455/Camera_OmniVision_OV9782_Color 를
+      link_6 기준으로 변환한 값. m0609_tool0 == m0609_link_6.
+      회전의 0.04도 짜리 어긋남은 short_gripper FixedJoint 의 localRot0 가
+      정확한 90도가 아니라서 생긴 것이고, 씬에 실제로 있는 값이라 그대로 쓴다.
+
+  camera_link__camera_color_optical_frame:
+    parent: camera_link
+    child: camera_color_optical_frame
+    xyz: [0.0, 0.0, 0.0]
+    quat_xyzw: [-0.5, 0.5, -0.5, 0.5]
+    rpy: [-1.570796, 0.0, -1.570796]
+    source: >
+      REP-103 고정 규약 (camera_link: +X 앞/+Y 왼쪽/+Z 위,
+      optical: +X 오른쪽/+Y 아래/+Z 앞). 씬과 무관하게 항상 같다.
+
+# ── 로봇 기술 (robot_state_publisher) ──────────────────────────────
+description:
+  m0609_urdf: isaacpjt/M0609/doosan-robot2/urdf/m0609_isaac_sim.urdf
+  frame_prefix: "m0609_"
+  # URDF 의 메시 경로가 절대경로(/home/rokey/cobot3_ws/...)라 다른 머신에서는
+  # 그대로 안 돈다. RViz 로 볼 때만 문제이고 TF 자체에는 영향 없다.
+  joints: [joint_1, joint_2, joint_3, joint_4, joint_5, joint_6]
+  # 실제 관절값은 Isaac 의 ROS2 publisher 가 /joint_states 로 보낸다.
+  # 시뮬 없이 TF 트리만 확인할 때는 joint_state_publisher 를 대신 띄운다
+  # (tf.launch.py 의 use_fake_joints:=true).
+
+# ── 손목 카메라 ──────────────────────────────────────────────────────
+wrist_camera:
+  prim: /World/Robots/nova_carter1/m0609/short_gripper/rsd455/RSD455/Camera_OmniVision_OV9782_Color
+  model: Intel RealSense D455 (Isaac 에셋)
+  optical_frame: camera_color_optical_frame
+  # USD 카메라 파라미터. K 는 해상도가 정해져야 나온다:
+  #   fx = focal_length * width  / horizontal_aperture
+  #   fy = focal_length * height / vertical_aperture
+  #   cx = width / 2,  cy = height / 2
+  usd_intrinsics:
+    focal_length_mm: 1.93
+    horizontal_aperture_mm: 3.896
+    vertical_aperture_mm: 2.453
+  # 에셋 aperture 비(3.896:2.453 = 1.588)와 16:9(1.778)가 다르다. 위 식대로면
+  # 1280x720 에서 fx=634.09, fy=566.49 로 픽셀이 정사각이 아니다. 그런데 Isaac 의
+  # camera_info 퍼블리셔는 렌더러가 정사각 픽셀을 가정한다며 fy 를 fx 로 덮어쓴다.
+  #     [isaacsim.ros2.bridge.impl.camera_info_utils] Forcing fy to fx
+  #     (566.4899809770554 != 634.0862399675711) ...
+  # 즉 vertical aperture 는 실질적으로 무시된다. 계산식으로 fy 를 넣지 마라.
+  topics:
+    image: /wrist_camera/color/image_raw
+    camera_info: /wrist_camera/color/camera_info
+    depth: /wrist_camera/depth/image_rect_raw
+  # 이 토픽들은 씬에 없다. isaacpjt/tools/wrist_camera_ros.py 가 런타임에 만든다.
+  #     ros_set && isaac_ros && isaac_python isaacpjt/tools/wrist_camera_ros.py
+  #
+  # 아래는 실제로 camera_info 토픽에서 받아 적어 둔 값이다 (1280x720 기준).
+  # 참고용이고, 파이프라인은 반드시 토픽에서 읽어야 한다 — 해상도를 바꾸면 달라진다.
+  camera_info_observed:
+    width: 1280
+    height: 720
+    distortion_model: plumb_bob
+    d: [0.0, 0.0, 0.0, 0.0, 0.0]
+    k: [634.0862399675711, 0.0, 640.0,
+        0.0, 634.0862399675711, 360.0,
+        0.0, 0.0, 1.0]
+    frame_id: camera_color_optical_frame
+
+# ── 흡착 그리퍼 ──────────────────────────────────────────────────────
+suction_gripper:
+  prim: /World/Robots/nova_carter1/m0609/short_gripper
+  surface_gripper_prim: /World/Robots/nova_carter1/m0609/short_gripper/SurfaceGripper
+  cup_diameter_m: 0.050          # gripper_tip 실측 (0.05004)
+  cup_depth_m: 0.005
+  face_z_from_tool0_m: 0.161
+  # 에셋에 들어 있는 기본값 — coaxial/shear 가 0 이라 그대로 두면 아무것도 못 든다
+  asset_defaults:
+    isaac:maxGripDistance: 0.02
+    isaac:coaxialForceLimit: 0.0
+    isaac:shearForceLimit: 0.0
+  # 런타임에 덮어쓰는 값. 1 kg 급 매거진 기준으로 10_suction_magazine.py 에서
+  # 튜닝했고 12_/14_ 가 그대로 쓴다. coaxial 200 N = 자중(9.81 N)의 20배.
+  runtime:
+    isaac:maxGripDistance: 0.03
+    isaac:coaxialForceLimit: 200.0
+    isaac:shearForceLimit: 100.0
+  # 흡착 시도 시 흡착면을 대상 윗면보다 이만큼 위에 둔다 (음수 = 살짝 누름).
+  # 앞에서부터 순서대로 재시도한다.
+  grip_gaps_m: [0.005, 0.002, 0.000, -0.003]
+
+# ── 허용 오차 ────────────────────────────────────────────────────────
+# 값의 근거는 python3 isaacpjt/tools/grasp_tolerance.py 가 출력한다.
+# 핵심: 흡착 컵 Ø50 mm 가 매거진 플랜지 위에 온전히 얹혀야 하므로
+#       허용 횡오차 = (플랜지 짧은 변 - 50) / 2  이 절대 상한이다.
+tolerances:
+  # 캘리브레이션 완료 기준 (checklist 원안 그대로)
+  calibration_pos_m: 0.005
+
+  # 파지 목표 자세의 허용 오차 — 주황 매거진(플랜지 80x80) 기준
+  grasp_pos_m: 0.003
+  grasp_yaw_rad: 0.0244          # 1.4 deg
+  # z 는 흡착 성공 조건이 따로 있다 (maxGripDistance). grip_gaps_m 참고.
+  grasp_z_m: 0.005
+
+  # 배치 판정 (12_place_test.py / 14_place_test_pse.py 가 이미 쓰는 값)
+  place_pos_m: 0.002
+  place_orient_rad: 0.0175       # 1.0 deg
+  lift_ok_min_m: 0.005
+  tilt_max_rad: 0.0873           # 5.0 deg
+
+  # 예산 배분 (grasp_tolerance.py 의 가정)
+  budget:
+    control_err_m: 0.003
+    safety_factor: 0.80
+
+  notes: >
+    최초 제안값(위치 20 mm, yaw 5도)은 쓸 수 없다. 주황 매거진 상한이 15 mm 인데
+    위치 항 하나로 20 mm 를 쓰고, 거기에 yaw 5도가 QR->플랜지 레버암 114 mm 를
+    타고 10 mm 를 더 만들어 합계 38 mm 가 된다.
+    파란 매거진(플랜지 100x60)은 상한이 5 mm 뿐이라 캘리브 오차 5 mm 만으로도
+    예산이 없다. 아래 open_issues 참고.
+
+# ── 남은 문제 ────────────────────────────────────────────────────────
+open_issues:
+  - id: blue-magazine-flange-too-narrow
+    what: >
+      magazine_2_blue 의 flange_plate 가 100 x 60 x 10 mm 라 Ø50 컵의 횡여유가
+      (60-50)/2 = 5 mm 뿐이다. 캘리브 허용오차 5 mm 를 다 쓰면 남는 게 없다.
+      본체 윗면(bridge)도 40 mm 폭이라 대안이 안 된다.
+    options:
+      - 파란 매거진 플랜지를 주황과 같은 80x80 으로 수정
+        (isaacpjt/assets/gen_carrier_assets.py 고치고 에셋 재생성)
+      - 흡착 컵을 Ø30~40 으로 교체 (short_gripper 대신 다른 흡착 에셋)
+      - 파란 매거진만 흡착이 아닌 다른 파지 방식 적용
+    note: >
+      Isaac 의 SurfaceGripper 는 forward axis 레이캐스트가 maxGripDistance 안에서
+      뭐든 맞으면 붙으므로, 시뮬에서는 컵이 플랜지 밖으로 나가도 성공할 수 있다.
+      즉 시뮬만 보면 이 문제가 안 드러난다. 실물 이관을 전제로 한 기준이다.
+  - id: magazines-float-above-shelf
+    what: >
+      매거진 8개가 전부 상판 위 4.6 mm (상단) / 5.6 mm (하단) 떠 있다.
+      물리 시작하면 그만큼 떨어진다.
+    impact: >
+      GT pose 를 USD xform 에서 그냥 읽으면 그 오차가 그대로 들어온다.
+      완료 기준이 5 mm 라 무시할 수 없는 크기다.
+    workaround: 물리 안정화(SETTLE_STEPS) 뒤에 리지드바디 pose 로 읽는다.
+  - id: wrist-camera-graph-is-runtime-only
+    what: >
+      씬의 ROS2 카메라 그래프는 Carter 의 hawk 카메라에만 있고, 그마저도
+      simple_factory_layout.usda 가 over 로 연결을 끊어 놨다. 손목 rsd455 는
+      아예 그래프가 없다.
+    status: >
+      isaacpjt/tools/wrist_camera_ros.py 로 런타임에 그래프를 만들어 해결했고,
+      camera_info 수신까지 확인했다 (wrist_camera.camera_info_observed 참고).
+      다만 런타임 부착이라 이 스크립트를 거치지 않는 실행 경로에서는 토픽이 안 뜬다.
+      씬에 영구히 넣을지는 결정 필요.
+
+# ── 선반/매거진 실측 요약 ────────────────────────────────────────────
+# 전체 값은 isaacpjt/tools/out/layout_measured.yaml 에 있다. 여기 있는 건
+# 동선 계획에 자주 쓰는 것만 옮겨 적은 것이다.
+layout:
+  shelf:
+    level_1_top_z: 0.2875
+    level_2_top_z: 0.5954
+    plate_thickness: 0.050
+    plate_width_x: 2.500
+    plate_depth_y: 1.000
+    usable_depth_between_posts_y: 0.875
+    level_1_clear_height: 0.2579       # Level_1 윗면 ~ Level_2 아랫면
+    level_2_clear_height: null         # 위가 트여 있음
+    post_top_z: 0.6246
+    shelf_01:
+      aisle_side: "-y"
+      plate_front_y: 1.8667
+      front_post_inner_y: 1.9277
+    shelf_02:
+      aisle_side: "+y"
+      plate_front_y: -2.0592
+      front_post_inner_y: -2.1232
+  magazine_1_orange:
+    size: [0.250, 0.141, 0.142]
+    flange_plate: [0.080, 0.080, 0.006]
+    flange_top_z_local: 0.142
+    qr_side_m: 0.050
+    qr_center_local: [-0.090, -0.0705, 0.075]    # -Y 면. +Y 면에도 같은 라벨이 있다
+    qr_to_flange_lever_m: 0.1143
+  magazine_2_blue:
+    size: [0.300, 0.201, 0.106]
+    flange_plate: [0.100, 0.060, 0.010]
+    flange_top_z_local: 0.106
+    qr_side_m: 0.050
+    qr_center_local: [-0.115, -0.1005, 0.035]
+    qr_to_flange_lever_m: 0.1527
+  arm_base_world_z: 0.6288             # nova_carter1 기준. 팔 베이스가 Level_2 보다 33.4 mm 위

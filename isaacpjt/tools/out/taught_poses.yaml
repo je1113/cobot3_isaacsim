@@ -1,0 +1,116 @@
+shelf_1_top_scan:
+  base_waypoint: shelf_1
+  base_link_world:
+  - -6.49811
+  - 1.45
+  - 0.0
+  base_link_quat_wxyz:
+  - 0.999999
+  - -1.0e-06
+  - -0.00079
+  - -0.000739
+  m0609_base_world:
+  - -6.70547
+  - 1.45031
+  - 0.54887
+  joints:
+    joint_1: 24.9813
+    joint_2: 30.0098
+    joint_3: 149.9959
+    joint_4: 90.4649
+    joint_5: 90.0002
+    joint_6: 85.9764
+  joints_deg:
+  - 24.9813
+  - 30.0098
+  - 149.9959
+  - 90.4649
+  - 90.0002
+  - 85.9764
+  joints_rad:
+  - 0.436007
+  - 0.523769
+  - 2.617923
+  - 1.57891
+  - 1.570799
+  - 1.500572
+  tool0_world:
+  - -6.57193
+  - 1.65255
+  - 0.67144
+  tool0_quat_wxyz:
+  - 0.695635
+  - -0.685648
+  - -0.174407
+  - 0.124742
+  camera_optical_world:
+  - -6.57891
+  - 1.68789
+  - 0.71711
+  qr_in_view:
+  - name: shelf_1/top/magazine_1_orange:qr_label_ny
+    dist_m: 0.2455
+    px: 129.1
+    uv:
+    - 885.2
+    - 495.9
+  captured_at: '2026-09-17 14:37:32'
+shelf_1_top_close_centered:
+  base_waypoint: shelf_1
+  base_link_world:
+  - -6.49803
+  - 1.45
+  - -0.0
+  base_link_quat_wxyz:
+  - 0.999999
+  - -2.0e-06
+  - -0.000788
+  - -0.00095
+  m0609_base_world:
+  - -6.70539
+  - 1.4504
+  - 0.54887
+  joints:
+    joint_1: 13.4869
+    joint_2: 38.4021
+    joint_3: 149.9981
+    joint_4: 90.5006
+    joint_5: 90.0
+    joint_6: 86.0006
+  joints_deg:
+  - 13.4869
+  - 38.4021
+  - 149.9981
+  - 90.5006
+  - 90.0
+  - 86.0006
+  joints_rad:
+  - 0.235391
+  - 0.670242
+  - 2.617961
+  - 1.579533
+  - 1.570796
+  - 1.500994
+  tool0_world:
+  - -6.53791
+  - 1.62096
+  - 0.64148
+  tool0_quat_wxyz:
+  - -0.698457
+  - 0.705837
+  - 0.052902
+  - -0.105609
+  camera_optical_world:
+  - -6.53126
+  - 1.65848
+  - 0.68542
+  qr_in_view:
+  - name: shelf_1/top/magazine_1_orange:qr_label_ny
+    dist_m: 0.2775
+    px: 114.2
+    uv:
+    - 649.4
+    - 381.9
+  captured_at: '2026-09-17 14:38:39'
+  note: shelf_1_top_scan 을 화면 중앙으로 맞춘 변형. joint_1/joint_2 만 건드렸다. QR 이 uv [649, 382]
+    로 중앙(640, 360) 근처에 온다.
