@@ -7,8 +7,8 @@
                 double radius = 5
             }
             dictionary Perspective = {
-                double3 position = (-1.8560061335399471, 0.762648213565386, 0.41796158208247547)
-                double3 target = (0.8488291617235244, 0.9723631520138369, 0.7320252628250694)
+                double3 position = (-1.9799112671870942, -2.074545020692027, 2.4390088230170277)
+                double3 target = (1.6346262783506393, -1.740900784701576, 1.1079331653664661)
             }
             dictionary Right = {
                 double3 position = (0, -5, 0)
@@ -751,6 +751,11 @@ def Xform "World"
             prepend payload = @https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/5.1/Isaac/Samples/ROS2/Robots/Nova_Carter_ROS.usd@
         )
         {
+            custom string isaac:namespace = "robot1" (
+                displayName = "Namespace"
+                doc = "Namespace of the prim in Isaac Sim"
+            )
+            token visibility = "inherited"
             quatd xformOp:orient = (1, 0, 0, 0)
             double3 xformOp:scale = (1, 1, 1)
             double3 xformOp:translate = (3.490373703049795, -4.243819003153972, 0.07963398335074101)
@@ -1094,26 +1099,6 @@ def Xform "World"
                         double3 xformOp:translate = (0.035, -0.0450011848228975, 0)
                         uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:rotateZYX", "xformOp:scale"]
 
-                        # rsd455 에셋은 원래 단독 배치용이라 RSD455 프림이 리지드 바디이고
-                        # IMU 센서까지 달려 있다. 이걸 리지드 바디인 short_gripper 밑에 달면
-                        # 두 가지가 깨진다.
-                        #
-                        # 1) 중첩 리지드 바디 — PhysX 는 이 바디를 만들지 않는다.
-                        #    [omni.physicsschema.plugin] Rigid Body of (.../rsd455/RSD455)
-                        #        missing xformstack reset when child of another enabled rigid body
-                        #    카메라는 그리퍼에 고정된 센서일 뿐이고 에셋에 콜라이더도 없으므로
-                        #    (PhysicsCollisionAPI 없음) 리지드 바디에서 빼는 게 맞다.
-                        #
-                        # 2) IsaacImuSensor 는 부모 프림을 리지드 바디로 보고 매 스텝 속도를
-                        #    읽는다. 부모인 RSD455 가 바디가 아니니 physx 텐서 뷰에 잡히지 않고,
-                        #    뷰의 바디 수가 어긋나 매 스텝 아래 에러가 쏟아진다.
-                        #    [omni.physx.tensors.plugin] Failed to find rigid body at '.../RSD455'
-                        #    [omni.physx.tensors.plugin] Incompatible size of velocity tensor in
-                        #        function getVelocities: expected total size 12,
-                        #        received total size 24 with shape (4, 6)
-                        #    (뷰 4개 = 카터 2대의 IMU 부모 chassis_link 2개 + RSD455 2개,
-                        #     이 중 유효한 바디는 chassis_link 2개뿐이라 12 vs 24 가 된다)
-                        #    이 프로젝트는 손목 카메라의 영상만 쓰므로 IMU 는 끈다.
                         over "RSD455" (
                             delete apiSchemas = ["PhysicsRigidBodyAPI", "PhysxRigidBodyAPI"]
                         )
@@ -1254,6 +1239,10 @@ def Xform "World"
             prepend payload = @https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/5.1/Isaac/Samples/ROS2/Robots/Nova_Carter_ROS.usd@
         )
         {
+            custom string isaac:namespace = "robot2" (
+                displayName = "Namespace"
+                doc = "Namespace of the prim in Isaac Sim"
+            )
             quatd xformOp:orient = (1, 0, 0, 0)
             double3 xformOp:scale = (1, 1, 1)
             double3 xformOp:translate = (3.490373703049795, -5.227116321664516, 0.07963398335074101)
@@ -1597,26 +1586,6 @@ def Xform "World"
                         double3 xformOp:translate = (0.035, -0.0450011848228975, 0)
                         uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:rotateZYX", "xformOp:scale"]
 
-                        # rsd455 에셋은 원래 단독 배치용이라 RSD455 프림이 리지드 바디이고
-                        # IMU 센서까지 달려 있다. 이걸 리지드 바디인 short_gripper 밑에 달면
-                        # 두 가지가 깨진다.
-                        #
-                        # 1) 중첩 리지드 바디 — PhysX 는 이 바디를 만들지 않는다.
-                        #    [omni.physicsschema.plugin] Rigid Body of (.../rsd455/RSD455)
-                        #        missing xformstack reset when child of another enabled rigid body
-                        #    카메라는 그리퍼에 고정된 센서일 뿐이고 에셋에 콜라이더도 없으므로
-                        #    (PhysicsCollisionAPI 없음) 리지드 바디에서 빼는 게 맞다.
-                        #
-                        # 2) IsaacImuSensor 는 부모 프림을 리지드 바디로 보고 매 스텝 속도를
-                        #    읽는다. 부모인 RSD455 가 바디가 아니니 physx 텐서 뷰에 잡히지 않고,
-                        #    뷰의 바디 수가 어긋나 매 스텝 아래 에러가 쏟아진다.
-                        #    [omni.physx.tensors.plugin] Failed to find rigid body at '.../RSD455'
-                        #    [omni.physx.tensors.plugin] Incompatible size of velocity tensor in
-                        #        function getVelocities: expected total size 12,
-                        #        received total size 24 with shape (4, 6)
-                        #    (뷰 4개 = 카터 2대의 IMU 부모 chassis_link 2개 + RSD455 2개,
-                        #     이 중 유효한 바디는 chassis_link 2개뿐이라 12 vs 24 가 된다)
-                        #    이 프로젝트는 손목 카메라의 영상만 쓰므로 IMU 는 끈다.
                         over "RSD455" (
                             delete apiSchemas = ["PhysicsRigidBodyAPI", "PhysxRigidBodyAPI"]
                         )
@@ -2087,6 +2056,36 @@ def "Render" (
                 custom bool overrideClipRange = 0
                 uniform int2 resolution = (1280, 720)
             }
+
+            def RenderProduct "Replicator_17" (
+                prepend apiSchemas = ["OmniRtxSettingsCommonAdvancedAPI_1", "OmniRtxSettingsRtAdvancedAPI_1", "OmniRtxSettingsPtAdvancedAPI_1", "OmniRtxPostColorGradingAPI_1", "OmniRtxPostChromaticAberrationAPI_1", "OmniRtxPostBloomPhysicalAPI_1", "OmniRtxPostMatteObjectAPI_1", "OmniRtxPostCompositingAPI_1", "OmniRtxPostDofAPI_1", "OmniRtxPostMotionBlurAPI_1", "OmniRtxPostTvNoiseAPI_1", "OmniRtxPostTonemapIrayReinhardAPI_1", "OmniRtxPostDebugSettingsAPI_1", "OmniRtxDebugSettingsAPI_1"]
+                hide_in_stage_window = true
+                no_delete = true
+            )
+            {
+                rel camera = </World/Robots/nova_carter1/chassis_link/sensors/XT_32/PandarXT_32_10hz>
+                bool omni:rtx:material:db:syncLoads = 1
+                bool omni:rtx:rt:ecoMode:enabled = 0
+                bool omni:rtx:scene:hydra:materialSyncLoads = 1
+                rel orderedVars = </Render/Vars/LdrColor>
+                custom bool overrideClipRange = 0
+                uniform int2 resolution = (1280, 720)
+            }
+
+            def RenderProduct "Replicator_18" (
+                prepend apiSchemas = ["OmniRtxSettingsCommonAdvancedAPI_1", "OmniRtxSettingsRtAdvancedAPI_1", "OmniRtxSettingsPtAdvancedAPI_1", "OmniRtxPostColorGradingAPI_1", "OmniRtxPostChromaticAberrationAPI_1", "OmniRtxPostBloomPhysicalAPI_1", "OmniRtxPostMatteObjectAPI_1", "OmniRtxPostCompositingAPI_1", "OmniRtxPostDofAPI_1", "OmniRtxPostMotionBlurAPI_1", "OmniRtxPostTvNoiseAPI_1", "OmniRtxPostTonemapIrayReinhardAPI_1", "OmniRtxPostDebugSettingsAPI_1", "OmniRtxDebugSettingsAPI_1"]
+                hide_in_stage_window = true
+                no_delete = true
+            )
+            {
+                rel camera = </World/Robots/nova_carter2/chassis_link/sensors/XT_32/PandarXT_32_10hz>
+                bool omni:rtx:material:db:syncLoads = 1
+                bool omni:rtx:rt:ecoMode:enabled = 0
+                bool omni:rtx:scene:hydra:materialSyncLoads = 1
+                rel orderedVars = </Render/Vars/LdrColor>
+                custom bool overrideClipRange = 0
+                uniform int2 resolution = (1280, 720)
+            }
         }
     }
 
@@ -2114,6 +2113,8 @@ def "Render" (
             </Render/OmniverseKit/HydraTextures/Replicator_14>,
             </Render/OmniverseKit/HydraTextures/Replicator_15>,
             </Render/OmniverseKit/HydraTextures/Replicator_16>,
+            </Render/OmniverseKit/HydraTextures/Replicator_17>,
+            </Render/OmniverseKit/HydraTextures/Replicator_18>,
         ]
     }
 
