@@ -600,18 +600,17 @@
       <figcaption>
         <b>정지를 시키는 건 orchestrator 다.</b> 스캔이 들어오면 orchestrator 가 ① 진행 중인 goal 을 거둬 로봇을 세우고
         ② 상태를 <span class="mono">SCAN</span> 으로 바꾸며 QR 원문을 보관하고 ③ 픽 좌표를 계산해 다시 보낸다.
-        <span class="mono">navigation</span> 은 "정지" 라는 개념을 모른다 — 받은 좌표로 가다가 취소되면 설 뿐이다.
-        사람이 누르는 정지는 이것과 별개로 <span class="mono">/orchestrator/stop_robot</span> 서비스로 들어온다.
+        <span class="mono">navigation</span> 도 <span class="mono">perception</span> 도 "정지" 라는 개념을 모른다 —
+        하나는 받은 좌표로 가다가 취소되면 설 뿐이고, 하나는 QR 원문과 위치를 알릴 뿐이다.
       </figcaption>
     </figure>
 
-    <h3>노드 그래프 — 노드는 그대로, 서비스가 하나 생긴다</h3>
+    <h3>노드 그래프 — 박스도 화살표도 그대로다</h3>
     <p>
-      노드 다섯 개, 토픽 둘, 액션 셋. <strong>노드도 기존 인터페이스도 늘거나 줄지 않는다.</strong>
-      큐를 없애는 변경 자체는 <span class="mono">task_manager</span> 박스 <em>안쪽</em>만 건드린다.
-      바깥으로 드러나는 유일한 추가가 <strong>정지 서비스 하나</strong>다 —
-      지금까지 서비스가 0개였으니 이게 이 시스템의 첫 서비스가 된다.
-      사람이 누르는 정지는 goal 을 들고 있지 않아 취소를 할 수 없고, 그래서 입구가 따로 있어야 한다.
+      노드 다섯 개, 토픽 둘, 액션 셋. <strong>하나도 늘거나 줄지 않고, 서비스는 여전히 0개다.</strong>
+      바뀌는 것은 <span class="mono">task_manager</span> 박스 <em>안쪽</em>의 목록뿐이다.
+      화살표에 붙은 역할도 그대로다 — <span class="mono">CarrierScan</span> 은 어제도 오늘도
+      <b>QR 원문과 위치를 알리는 것</b>이 전부이고, 그걸 받아 세울지 갈지는 받는 쪽 사정이다.
     </p>
 
     <figure>
@@ -620,7 +619,6 @@
           <defs>
             <marker id="p-t" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="currentColor"/></marker>
             <marker id="p-a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--accent)"/></marker>
-            <marker id="p-s" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--danger)"/></marker>
           </defs>
 
           <rect x="24" y="96" width="150" height="268" rx="3" fill="var(--surface-2)" stroke="currentColor" stroke-width="1.4"/>
@@ -692,12 +690,6 @@
           <text x="1208" y="349" font-size="11" class="m" font-weight="500" text-anchor="middle" fill="var(--ink)">Nav2 스택</text>
           <text x="1208" y="365" font-size="8.5" text-anchor="middle" fill="var(--ink-3)">전역 · 지역 플래너 · 회피</text>
 
-          <rect x="368" y="244" width="160" height="56" rx="3" fill="none" stroke="var(--danger)" stroke-width="1.2" stroke-dasharray="4 3"/>
-          <text x="448" y="262" font-size="9" text-anchor="middle" fill="var(--danger)">웹 — 안전 정지 버튼</text>
-          <text x="448" y="276" font-size="7.5" class="m" text-anchor="middle" fill="var(--danger)">/orchestrator/stop_robot</text>
-          <text x="448" y="290" font-size="7.5" text-anchor="middle" fill="var(--danger)">서비스 · 아직 호출자 없음</text>
-          <line x1="528" y1="272" x2="548" y2="272" stroke="var(--danger)" stroke-width="1.4" stroke-dasharray="4 3" fill="none" marker-end="url(#p-s)"/>
-
           <g stroke="currentColor" stroke-width="1.3" fill="none">
             <line x1="174" y1="161" x2="250" y2="161" marker-end="url(#p-t)"/>
             <line x1="418" y1="161" x2="546" y2="161" marker-end="url(#p-t)"/>
@@ -709,7 +701,7 @@
             <text x="212" y="147" font-size="7.5" fill="var(--ink-3)">역할: 카메라 영상 입력</text>
             <text x="479" y="124" font-size="8.5" fill="var(--ink)" font-weight="500">/perception/carrier_scan</text>
             <text x="479" y="134" font-size="8" fill="var(--ink-3)">CarrierScan · 토픽</text>
-            <text x="479" y="145" font-size="8" fill="var(--danger)">역할: 인식 → 즉시 출발</text>
+            <text x="479" y="145" font-size="8" fill="var(--ink-3)">역할: QR 원문 + 위치 전달</text>
           </g>
           <g class="m" text-anchor="start">
             <text x="612" y="322" font-size="8.5" fill="var(--ink)" font-weight="500">/trace/event</text>
@@ -760,14 +752,11 @@
       <ul class="legend">
         <li><svg width="30" height="10" aria-hidden="true"><line x1="0" y1="5" x2="24" y2="5" stroke="currentColor" stroke-width="1.3"/><path d="M24,1 L30,5 L24,9 z" fill="currentColor"/></svg> 토픽 2개 — 그대로</li>
         <li><svg width="30" height="10" aria-hidden="true"><line x1="0" y1="5" x2="24" y2="5" stroke="var(--accent)" stroke-width="1.5"/><path d="M24,1 L30,5 L24,9 z" fill="var(--accent)"/></svg> 액션 3개 — 그대로</li>
-        <li><svg width="30" height="10" aria-hidden="true"><line x1="0" y1="5" x2="24" y2="5" stroke="var(--danger)" stroke-width="1.4" stroke-dasharray="4 3"/><path d="M24,1 L30,5 L24,9 z" fill="var(--danger)"/></svg> 서비스 1개 — 새로 생김</li>
         <li><i style="background:var(--danger-wash);border:1px solid var(--danger)"></i> 빨간 글씨 = 제안으로 바뀌는 곳</li>
       </ul>
       <figcaption>
-        <b>기존 선은 하나도 안 바뀌고, 들어오는 선이 하나 는다.</b> 큐 삭제는 <span class="mono">task_manager</span> 내부라 노드 경계를 넘지 않는다.
-        새로 생기는 <span class="mono">/orchestrator/stop_robot</span> 은 <b>바깥에서 들어오는</b> 서비스다 —
-        사람이 누르는 정지는 액션 goal 을 들고 있지 않아 취소를 할 수 없기 때문이다.
-        QR 을 보고 서는 것은 이 서비스를 거치지 않는다. <span class="mono">task_manager</span> 가 같은 정지 로직을 내부에서 직접 부른다.
+        <b>선이 하나도 안 바뀐다.</b> 큐 삭제는 <span class="mono">task_manager</span> 내부 변경이라 노드 경계를 넘지 않는다.
+        정지도 마찬가지다 — <span class="mono">task_manager</span> 가 자기가 보낸 goal 을 거두는 것이라 새 인터페이스가 생기지 않는다.
         언로더에서 집는 스택도 같은 <span class="mono">PickCarrier</span> 를 쓴다 —
         <span class="mono">variant</span> 가 스택이면 <span class="mono">PlaceCarrier</span> 가 <span class="mono">place.yaml</span> 에서
         테스트 로더를 찾으므로, "어디서 봤는지" 를 인터페이스가 알 필요가 없다.
@@ -786,53 +775,29 @@
     </ul>
 
     <div class="diffwrap">
-      <h4><span>msg/CarrierScan.msg</span><em>머리글 주석만</em></h4>
-<pre class="diff">  #  보내는 노드 : cobot3_perception / carrier_code_reader
-  #  받는 노드   : cobot3_orchestrator / task_manager
-  #  종류        : 토픽  /perception/carrier_scan   (Reliable, depth 5)
-  #  역할        : 카메라로 QR 을 읽어 "무엇이 어디에 있다" 를 알린다.
-<span class="del">− #                orchestrator 는 이걸 받으면 명령 큐에 한 건 넣는다.</span>
-<span class="add">+ #                orchestrator 는 이걸 받고 PATROL 이면 그 자리에서 곧바로</span>
-<span class="add">+ #                미션을 시작한다. PATROL 이 아니면 버린다 — 캐리어는 사라지지</span>
-<span class="add">+ #                않으므로 다음 순찰에 다시 보인다. 환경이 대기열이다.</span>
-  #                perception 은 해석하지 않는다.
+      <h4><span>msg/CarrierScan.msg &nbsp;·&nbsp; NavigateTo &nbsp;·&nbsp; PickCarrier &nbsp;·&nbsp; PlaceCarrier</span><em>필드 변화 없음</em></h4>
+<pre class="diff">  CarrierScan    header · payload · qr_pose          <span class="dim">필드 그대로</span>
+  NavigateTo     goal: pose                          <span class="dim">한 글자도 안 바뀐다</span>
+  PickCarrier    goal: variant · qr_pose(prior)      <span class="dim">한 글자도 안 바뀐다</span>
+  PlaceCarrier   goal: variant                       <span class="dim">한 글자도 안 바뀐다</span>
 
-  std_msgs/Header header          <span class="dim">그대로</span>
-  string payload                  <span class="dim">그대로</span>
-  geometry_msgs/Pose qr_pose      <span class="dim">그대로</span>
+  <span class="dim"># CarrierScan 의 머리글에 한 줄만 손댄다 — "명령 큐" 가 없어지기 때문이다.</span>
+  #  역할 : 카메라로 QR 을 읽어 "무엇이 어디에 있다" 를 알린다.
+<span class="del">− #         orchestrator 는 이걸 받으면 명령 큐에 한 건 넣는다.</span>
+<span class="add">+ #         그게 전부다. 받은 쪽이 그걸로 세울지 갈지 버릴지는 orchestrator 의</span>
+<span class="add">+ #         일이라 여기 적지 않는다.</span>
+  #         perception 은 해석하지 않는다.
+
+  <span class="dim"># NavigateTo 도 같은 이유로 안 바뀐다. nav_server 는 "정지" 를 모른다 —</span>
+  <span class="dim"># 받은 좌표로 가다가 취소되면 설 뿐이고, CANCELED(3) 은 이미 정의돼 있다.</span>
+  <span class="dim"># 세울지 말지 정하는 건 언제나 orchestrator 다.</span>
+
+  <span class="dim"># 언로더의 스택도 같은 PickCarrier 로 집는다. variant 가 스택이면 PlaceCarrier</span>
+  <span class="dim"># 가 place.yaml 에서 테스트 로더를 찾으므로, "어디서 봤는지" 를 인터페이스가</span>
+  <span class="dim"># 알 필요가 없다 — 목적지를 정하는 건 장소가 아니라 종류다.</span>
 
   ★ carrier_code_reader 파라미터 6개   <span class="dim">이름은 그대로. 값 하나만 바뀐다 —</span>
 <span class="add">+   vote_required  3 → 5      "5프레임 이상 보이면" 이므로. 아래 파라미터 블록 참조</span></pre>
-    </div>
-
-    <div class="diffwrap">
-      <h4><span>action/NavigateTo.action</span><em>머리글 주석만</em></h4>
-<pre class="diff">  #  역할 : "이 좌표로 가라". 픽하러 갈 자리와 목적지 로더 앞, 충전 패드까지
-  #         전부 이 액션이다. 취소 가능해야 해서 서비스가 아니다.
-<span class="add">+ #         ↳ nav_server 는 "정지" 라는 개념을 모른다. 받은 좌표로 가다가</span>
-<span class="add">+ #           취소되면 설 뿐이고, 세우기로 결정하는 건 언제나 orchestrator 다.</span>
-<span class="add">+ #           취소된 result 는 fail_reason = CANCELED(3) 으로 돌아오는데</span>
-<span class="add">+ #           실패가 아니라 의도된 중단이므로 task_manager 가 정상 흐름으로</span>
-<span class="add">+ #           다룬다 — TraceEvent 에 실패로 적지 않는다.</span>
-
-  goal    geometry_msgs/PoseStamped pose              <span class="dim">그대로</span>
-  result  success · fail_reason                       <span class="dim">그대로</span>
-          (NONE / PLAN_FAIL / BLOCKED / CANCELED / TOLERANCE_NOT_MET)
-  fb      distance_remaining_m                        <span class="dim">그대로</span>
-
-  ★ nav_server 파라미터 (xy · yaw tolerance)          <span class="dim">그대로</span>
-  ★ task_manager 배터리 타이머 3개                     <span class="dim">그대로 — 큐와 무관</span></pre>
-    </div>
-
-    <div class="diffwrap">
-      <h4><span>action/PickCarrier.action &nbsp;·&nbsp; action/PlaceCarrier.action</span><em>변화 없음</em></h4>
-<pre class="diff">  PickCarrier   goal: variant · qr_pose(prior)   <span class="dim">한 글자도 안 바뀐다</span>
-  PlaceCarrier  goal: variant                    <span class="dim">한 글자도 안 바뀐다</span>
-
-  <span class="dim"># 언로더의 스택도 같은 PickCarrier 로 집는다. variant 가 스택이면</span>
-  <span class="dim"># PlaceCarrier 가 place.yaml 에서 테스트 로더 좌표를 찾는다.</span>
-  <span class="dim"># "스토커에서 봤는지 언로더에서 봤는지" 를 인터페이스가 알 필요가 없는 이유 —</span>
-  <span class="dim"># 목적지를 정하는 건 장소가 아니라 종류다.</span></pre>
     </div>
 
     <div class="diffwrap">
@@ -850,33 +815,6 @@
 
   <span class="dim"># stage · port 가 자유 문자열이라 값이 늘어도 .msg 구조는 그대로다.</span>
   <span class="dim"># 바뀌는 건 주석 두 줄뿐이고, SQL 은 GROUP BY stage 로 그대로 돈다.</span></pre>
-    </div>
-
-    <div class="diffwrap">
-      <h4><span>srv/StopRobot.srv</span><em class="r">새 파일 — 이 시스템의 첫 서비스</em></h4>
-<pre class="diff"><span class="add">+ #  보내는 노드 : (웹 / 운영자)  — 지금은 호출자가 없다. 자리만 만든다</span>
-<span class="add">+ #  받는 노드   : cobot3_orchestrator / task_manager</span>
-<span class="add">+ #  종류        : 서비스  /orchestrator/stop_robot</span>
-<span class="add">+ #  역할        : 사람이 로봇을 세운다. 진행 중인 NavigateTo · PickCarrier ·</span>
-<span class="add">+ #                PlaceCarrier goal 을 전부 취소하고 상태를 STOPPED 로 래치한다.</span>
-<span class="add">+ #                풀기 전까지 새 미션을 시작하지 않는다. 해제도 같은 서비스다.</span>
-<span class="add">+ #  왜 서비스인가 : 사람은 액션 goal 을 들고 있지 않아 취소를 할 수 없다.</span>
-<span class="add">+ #                바깥에서 들어오는 입구가 따로 있어야 한다. 그리고 "섰다 /</span>
-<span class="add">+ #                풀렸다" 를 즉시 돌려받아야 하므로 토픽이 아니다.</span>
-<span class="add">+ #  왜 orchestrator 가 서버인가 : 주행과 팔을 한 번에 멈출 수 있는 유일한</span>
-<span class="add">+ #                지점이고, orchestrator 가 모르는 정지가 생기면 상태기계가</span>
-<span class="add">+ #                깨진다. nav_server 를 직접 부르면 팔은 계속 움직인다.</span>
-<span class="add">+</span>
-<span class="add">+ bool stop              # true = 정지, false = 해제</span>
-<span class="add">+ ---</span>
-<span class="add">+ bool   ok</span>
-<span class="add">+ string state           # 처리 뒤 상태. "STOPPED" / "PATROL" / …</span>
-<span class="add">+</span>
-<span class="add">+ CMakeLists.txt   "srv/StopRobot.srv"   한 줄 추가</span>
-
-  <span class="dim"># QR 을 보고 서는 것은 이 서비스를 거치지 않는다. task_manager 가 같은 정지</span>
-  <span class="dim"># 로직을 내부에서 부르고, 래치 없이 곧바로 HOLD 로 간다. 그래야 QR 을 볼 때마다</span>
-  <span class="dim"># 비상정지 상태를 들락거리지 않는다 — 둘은 멈추는 범위도 푸는 방법도 다르다.</span></pre>
     </div>
 
     <div class="diffwrap">
@@ -927,12 +865,11 @@
     <div class="note">
       <span class="lbl">정리</span>
       <p>
-        <strong>기존 5개는 필드가 하나도 안 바뀌고, 서비스가 하나 새로 생긴다.</strong>
-        큐를 없애는 변경 자체는 통신 구조를 안 건드린다 — 확정한 인터페이스 5개가 이 설계 변경을 그대로 버틴다.
-        새로 생기는 <span class="mono">StopRobot.srv</span> 는 큐 제거와 무관하게 필요한 것이다:
-        사람이 누르는 정지는 밖에서 들어오는 입구가 있어야 하고, 지금까지 그 자리가 없었다.
-        <span class="mono">TaskOrder</span> · <span class="mono">RegisterTask</span> 가 빠지고 이게 들어오므로 서비스 수는 0 → 1,
-        파일 수는 8 → 7 이 된다.
+        <strong>확정한 인터페이스 5개 중 4개는 한 글자도 안 바뀐다.</strong>
+        <span class="mono">TraceEvent</span> 의 주석 두 줄과 <span class="mono">CarrierScan</span> 의 머리글 한 줄이 전부다.
+        큐를 없애는 게 통신 구조를 안 건드린다는 뜻이고, 뒤집어 말하면 확정안이 이 설계 변경을 그대로 버틴다는 뜻이다.
+        <strong>서비스는 여전히 0개다.</strong> 정지도 새 인터페이스를 부르지 않는다 —
+        <span class="mono">task_manager</span> 가 자기가 보낸 goal 을 거두면 로봇이 선다.
         실제 작업량은 <span class="mono">task_manager</span> 의 상태기계를 새로 쓰는 것과,
         <span class="mono">frames.yaml</span> 에 언로더 관측점 · 로더 포트 좌표를 넣는 것 두 가지다.
       </p>
@@ -1024,9 +961,14 @@
         <span class="mono">measure_layout.py</span> 로 생성되므로 USD 쪽이 먼저다.
       </p>
       <p>
-        <strong>④ 정지를 풀면 어디로 돌아가나.</strong> 매거진을 들고 가던 중에 세웠다면, 해제했을 때
-        하던 미션을 이어서 하는 게 맞는지 처음부터 다시 하는 게 맞는지 정해야 한다.
-        팔에 흡착된 채로 멈춰 있을 수 있어서 그냥 <span class="mono">PATROL</span> 로 보내면 물건을 든 채 순찰한다.
+        <strong>④ 웹 안전 정지 버튼은 나중에, 새 <span class="mono">.srv</span> 없이.</strong>
+        미션 중의 정지는 <span class="mono">task_manager</span> 가 자기 goal 을 거두면 되지만,
+        사람이 누르는 정지는 goal 을 들고 있지 않아 밖에서 들어오는 입구가 필요하다.
+        그때도 인터페이스를 새로 정의할 일은 없다 — <span class="mono">std_srvs/SetBool</span>
+        (<span class="mono">bool data → bool success, string message</span>) 이 그대로 맞고,
+        이 레포는 이미 <span class="mono">std_srvs/Trigger</span> 를 두 군데서 쓰고 있다.
+        그때 정해야 할 건 타입이 아니라 <b>풀면 어디로 돌아가나</b> 다 — 매거진을 흡착한 채 세웠다면
+        하던 미션을 이어갈지 처음부터 할지, 그냥 <span class="mono">PATROL</span> 로 보내면 물건을 든 채 순찰한다.
       </p>
       <p>
         <strong>⑤ 판독 기준을 5중 5 로 둘지.</strong> "5프레임 이상" 을 그대로 옮기면
