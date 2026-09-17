@@ -602,7 +602,14 @@ class MagazinePayload:
         return self._prim is not None
 
     def initialize(self):
-        """물리 뷰가 준비된 뒤(world.reset 이후) 한 번 불러야 텔레포트가 먹는다"""
+        """
+        물리 뷰가 준비된 뒤(world.reset 이후) 한 번 불러야 텔레포트가 먹는다.
+
+        Isaac 소스(isaacsim.core.prims RigidPrim.initialize) 기준: 핸들이 이미
+        유효하면 아무것도 안 하고, Stop 으로 핸들이 무효화됐으면 다시 만든다.
+        Play 시에는 PHYSICS_READY 이벤트로 자동 재생성되기도 하므로, 여기서
+        다시 부르는 것은 그 자동 경로가 늦거나 빠졌을 때의 안전장치다.
+        """
         if self._prim is None:
             return
         try:
