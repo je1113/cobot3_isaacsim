@@ -1,0 +1,398 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<robot name="cobot3">
+  <!-- Auto-generated: combines src/cobot3_navigation/urdf/carter/carter.urdf (Nova Carter base) and isaacpjt/M0609/doosan-robot2/urdf/m0609_isaac_sim.urdf (M0609 arm). Arm links/joints are prefixed with 'm0609_' to match the frame_prefix convention documented in src/cobot3_bringup/config/frames.yaml, and are mounted on chassis_link via the fixed joint below using the offset measured from the USD arm_mount_joint (see frames.yaml static_transforms.base_link__m0609_base_link). See isaacpjt/cobot3/urdf/cobot3.urdf. -->
+  <link name="chassis_link">
+    <visual>
+      <origin rpy="0 0 0" xyz="0 0 0" />
+      <geometry>
+        <mesh filename="/home/rokey/cobot3_ws/isaacpjt/cobot3/meshes/carter/chassis.obj" />
+      </geometry>
+      <material name="gray" />
+    </visual>
+    <collision>
+      <origin rpy="0 0 0" xyz="-0.07764248 -0.000000 0.14683718" />
+      <geometry>
+        <box size=".55 .40 .54" />
+      </geometry>
+    </collision>
+    <inertial>
+      <origin rpy="0 0 0" xyz="-0.07764248 -0.000000 0.14683718" />
+      <mass value="45.88" />
+      <inertia ixx="1.182744" ixy="0.017957" ixz="-0.077476" iyx="0.017957" iyy="0.538664" iyz="0.000018" izx="-0.077476" izy="0.000018" izz="1.240229" />
+    </inertial>
+  </link>
+  <link name="left_wheel_link">
+    <visual>
+      <origin rpy="1.57057 -1.57057 0" xyz="0 0 0" />
+      <geometry>
+        <mesh filename="/home/rokey/cobot3_ws/isaacpjt/cobot3/meshes/carter/side_wheel.obj" />
+      </geometry>
+      <material name="black" />
+    </visual>
+    <collision>
+      <origin rpy="1.57057 -1.57057 0" xyz="0 -0.05 0" />
+      <geometry>
+        <cylinder length="0.1" radius="0.240" />
+      </geometry>
+    </collision>
+    <inertial>
+      <origin rpy="0 0 0" xyz="0 -0.05 0" />
+      <mass value="4.195729" />
+      <inertia ixx="0.063680" ixy="0.000000" ixz="0.000000" iyx="0.000000" iyy="0.121410" iyz="0.000000" izx="0.000000" izy="0.000000" izz="0.063680" />
+    </inertial>
+  </link>
+  <link name="right_wheel_link">
+    <visual>
+      <origin rpy="-1.57057 -1.57057 0" xyz="0 0 0" />
+      <geometry>
+        <mesh filename="/home/rokey/cobot3_ws/isaacpjt/cobot3/meshes/carter/side_wheel.obj" />
+      </geometry>
+      <material name="black" />
+    </visual>
+    <collision>
+      <origin rpy="-1.57057 -1.57057 0" xyz="0 .05 0" />
+      <geometry>
+        <cylinder length="0.1" radius="0.240" />
+      </geometry>
+    </collision>
+    <inertial>
+      <origin rpy="0 0 0" xyz="0 .05 0" />
+      <mass value="4.195729" />
+      <inertia ixx="0.063680" ixy="0.000000" ixz="0.000000" iyx="0.000000" iyy="0.121410" iyz="0.000000" izx="0.000000" izy="0.000000" izz="0.063680" />
+    </inertial>
+  </link>
+  <link name="rear_pivot_link">
+    <visual>
+      <origin rpy="-1.57057 0 0" xyz="-.03809695 0 -.088" />
+      <geometry>
+        <mesh filename="/home/rokey/cobot3_ws/isaacpjt/cobot3/meshes/carter/pivot.obj" />
+      </geometry>
+      <material name="black" />
+    </visual>
+    <collision>
+      <origin rpy="0 0 0" xyz="-.01 0 -.03" />
+      <geometry>
+        <box size=".09 .08 .12" />
+      </geometry>
+    </collision>
+    <inertial>
+      <origin rpy="0 0 0" xyz="-.01 0 -.03" />
+      <mass value="0.579519" />
+      <inertia ixx="0.001361" ixy="-0.000003" ixz="0.000347" iyx="-0.000003" iyy="0.001287" iyz="-0.000010" izx="0.000347" izy="-0.000010" izz="0.000632" />
+    </inertial>
+  </link>
+  <link name="rear_wheel_link">
+    <visual>
+      <origin rpy="1.57057 0 0" xyz="0 0 0" />
+      <geometry>
+        <mesh filename="/home/rokey/cobot3_ws/isaacpjt/cobot3/meshes/carter/caster_wheel.obj" />
+      </geometry>
+    </visual>
+    <collision>
+      <origin rpy="1.57057 0 0" xyz="0 0 0" />
+      <geometry>
+        <cylinder length="0.04" radius="0.076" />
+      </geometry>
+    </collision>
+    <inertial>
+      <origin rpy="1.57057 0 0" xyz="0.000000 0.000000 0.000000" />
+      <mass value="1.25" />
+      <inertia ixx="0.02888" ixy="0.000000" ixz="0.000000" iyx="0.000000" iyy="0.02888" iyz="0.000000" izx="0.000000" izy="0.000000" izz="0.02888" />
+    </inertial>
+  </link>
+  <link name="com_offset">
+    <collision>
+      <origin rpy="0 0 0" xyz="0 0 0" />
+      <geometry>
+        <box size=".25 .25 .1" />
+      </geometry>
+    </collision>
+    <inertial>
+      <origin rpy="0 0 0" xyz="0 0 0" />
+      <mass value="20.0" />
+      <inertia ixx="1.208" ixy="0" ixz="0" iyy="1.208" iyz="0" izz="2.08" />
+    </inertial>
+  </link>
+  <link name="imu">
+    <collision>
+      <origin rpy="0 0 0" xyz="0 0 0" />
+      <geometry>
+        <box size=".1 .1 .1" />
+      </geometry>
+    </collision>
+    <inertial>
+      <origin rpy="0 0 0" xyz="0 0 0" />
+      <mass value=".1" />
+    </inertial>
+  </link>
+  <joint name="com_joint" type="fixed">
+    <origin rpy="0 0 0" xyz="-.3 0 0" />
+    <axis xyz="0 1 0" />
+    <parent link="chassis_link" />
+    <child link="com_offset" />
+  </joint>
+  <joint name="imu_joint" type="fixed">
+    <origin rpy="0 0 0" xyz="0 0 0" />
+    <axis xyz="0 1 0" />
+    <parent link="chassis_link" />
+    <child link="imu" />
+  </joint>
+  <joint name="left_wheel" type="continuous">
+    <origin rpy="0 0 0" xyz="0 0.31420517 0" />
+    <axis xyz="0 1 0" />
+    <parent link="chassis_link" />
+    <child link="left_wheel_link" />
+  </joint>
+  <joint name="right_wheel" type="continuous">
+    <origin rpy="0 0 0" xyz="0 -0.31420517 0" />
+    <axis xyz="0 1 0" />
+    <parent link="chassis_link" />
+    <child link="right_wheel_link" />
+  </joint>
+  <joint name="rear_pivot" type="continuous">
+    <origin rpy="0 0 0" xyz="-0.31613607 0 -.0758" />
+    <axis xyz="0 0 1" />
+    <parent link="chassis_link" />
+    <child link="rear_pivot_link" />
+  </joint>
+  <joint name="rear_axle" type="continuous">
+    <origin rpy="0 0 0" xyz="-.03809695 0 -.08961022" />
+    <axis xyz="0 1 0" />
+    <parent link="rear_pivot_link" />
+    <child link="rear_wheel_link" />
+  </joint>
+  <joint name="chassis_link-m0609_base_link" type="fixed">
+    <origin rpy="0 0 0" xyz="-0.206494 0.0 0.549201" />
+    <parent link="chassis_link" />
+    <child link="m0609_base_link" />
+  </joint>
+  <link name="m0609_base_link">
+    <inertial>
+      <mass value="3.18" />
+      <origin xyz="-2.8e-05   -0.006045    0.038403" />
+      <inertia ixx="0.017789" ixy="-7.4356e-06" ixz="3.0378e-06" iyy="0.011135" iyz="-0.00029038" izz="0.020054" />
+    </inertial>
+    <collision>
+      <origin rpy="0 0 0" xyz="0 0 0" />
+      <geometry>
+        <mesh filename="/home/rokey/cobot3_ws/isaacpjt/cobot3/meshes/m0609/m0609_collision/MF0609_0_0.dae" scale="0.001 0.001 0.001" />
+      </geometry>
+    </collision>
+    <visual>
+      <origin rpy="0 0 0" xyz="0 0 0" />
+      <geometry>
+        <mesh filename="/home/rokey/cobot3_ws/isaacpjt/cobot3/meshes/m0609/m0609_white/MF0609_0_0.dae" scale="0.001 0.001 0.001" />
+      </geometry>
+    </visual>
+  </link>
+  <link name="m0609_base" />
+  <joint name="m0609_base_link-base" type="fixed">
+    <origin rpy="0 0 0" xyz="0 0 0.450" />
+    <parent link="m0609_base_link" />
+    <child link="m0609_base" />
+  </joint>
+  <joint name="m0609_joint_1" type="revolute">
+    <parent link="m0609_base_link" />
+    <child link="m0609_link_1" />
+    <origin rpy="0 0 0" xyz="0 0 0.1345" />
+    <axis xyz="0 0 1" />
+    <limit effort="9600" lower="-6.2832" upper="6.2832" velocity="2.618" />
+    <dynamics friction="0" damping="26.6667" stiffness="266.6667" />
+  </joint>
+  <link name="m0609_link_1">
+    <inertial>
+      <mass value="5.02" />
+      <origin xyz="7.2e-05    0.036227   -0.003417" />
+      <inertia ixx="0.026195" ixy="2.3904e-05" ixz="-1.3319e-05" iyy="0.016899" iyz="-0.00071987" izz="0.022944" />
+    </inertial>
+    <collision>
+      <origin rpy="0 0 0" xyz="0 0 0" />
+      <geometry>
+        <mesh filename="/home/rokey/cobot3_ws/isaacpjt/cobot3/meshes/m0609/m0609_collision/MF0609_1_0.dae" scale="0.001 0.001 0.001" />
+      </geometry>
+    </collision>
+    <visual>
+      <origin rpy="0 0 0" xyz="0 0 0" />
+      <geometry>
+        <mesh filename="/home/rokey/cobot3_ws/isaacpjt/cobot3/meshes/m0609/m0609_white/MF0609_1_0.dae" scale="0.001 0.001 0.001" />
+      </geometry>
+    </visual>
+  </link>
+  <joint name="m0609_joint_2" type="revolute">
+    <parent link="m0609_link_1" />
+    <child link="m0609_link_2" />
+    <origin rpy="0 -1.571 -1.571" xyz="0 0.0062 0" />
+    <axis xyz="0 0 1" />
+    <limit effort="9600" lower="-6.2832" upper="6.2832" velocity="2.618" />
+    <dynamics friction="0" damping="26.6667" stiffness="266.6667" />
+  </joint>
+  <link name="m0609_link_2">
+    <inertial>
+      <mass value="8.04" />
+      <origin xyz="0.20447     2.6e-05     0.16005" />
+      <inertia ixx="0.026743" ixy="-0.00019461" ixz="-0.00058734" iyy="0.30084" iyz="-6.7892e-06" izz="0.29898" />
+    </inertial>
+    <collision>
+      <origin rpy="0 0 0" xyz="0 0 0" />
+      <geometry>
+        <mesh filename="/home/rokey/cobot3_ws/isaacpjt/cobot3/meshes/m0609/m0609_collision/MF0609_2_0.dae" scale="0.001 0.001 0.001" />
+      </geometry>
+    </collision>
+    <visual>
+      <origin rpy="0 0 0" xyz="0 0 0" />
+      <geometry>
+        <mesh filename="/home/rokey/cobot3_ws/isaacpjt/cobot3/meshes/m0609/m0609_white/MF0609_2_0.dae" scale="0.001 0.001 0.001" />
+      </geometry>
+    </visual>
+    <collision>
+      <origin rpy="0 0 0" xyz="0 0 0" />
+      <geometry>
+        <mesh filename="/home/rokey/cobot3_ws/isaacpjt/cobot3/meshes/m0609/m0609_collision/MF0609_2_1.dae" scale="0.001 0.001 0.001" />
+      </geometry>
+    </collision>
+    <visual>
+      <origin rpy="0 0 0" xyz="0 0 0" />
+      <geometry>
+        <mesh filename="/home/rokey/cobot3_ws/isaacpjt/cobot3/meshes/m0609/m0609_white/MF0609_2_1.dae" scale="0.001 0.001 0.001" />
+      </geometry>
+    </visual>
+    <collision>
+      <origin rpy="0 0 0" xyz="0 0 0" />
+      <geometry>
+        <mesh filename="/home/rokey/cobot3_ws/isaacpjt/cobot3/meshes/m0609/m0609_collision/MF0609_2_2.dae" scale="0.001 0.001 0.001" />
+      </geometry>
+    </collision>
+    <visual>
+      <origin rpy="0 0 0" xyz="0 0 0" />
+      <geometry>
+        <mesh filename="/home/rokey/cobot3_ws/isaacpjt/cobot3/meshes/m0609/m0609_white/MF0609_2_2.dae" scale="0.001 0.001 0.001" />
+      </geometry>
+    </visual>
+  </link>
+  <joint name="m0609_joint_3" type="revolute">
+    <parent link="m0609_link_2" />
+    <child link="m0609_link_3" />
+    <origin rpy="0 0 1.571" xyz="0.411 0 0" />
+    <axis xyz="0 0 1" />
+    <limit effort="5400" lower="-2.618" upper="2.618" velocity="3.1416" />
+    <dynamics friction="0" damping="15" stiffness="150" />
+  </joint>
+  <link name="m0609_link_3">
+    <inertial>
+      <mass value="3.6" />
+      <origin xyz="-2.2e-05   -0.006867    0.043445" />
+      <inertia ixx="0.018342" ixy="1.1302e-05" ixz="-4.5308e-06" iyy="0.018239" iyz="-0.00099247" izz="0.01326" />
+    </inertial>
+    <collision>
+      <origin rpy="0 0 0" xyz="0 0 0" />
+      <geometry>
+        <mesh filename="/home/rokey/cobot3_ws/isaacpjt/cobot3/meshes/m0609/m0609_collision/MF0609_3_0.dae" scale="0.001 0.001 0.001" />
+      </geometry>
+    </collision>
+    <visual>
+      <origin rpy="0 0 0" xyz="0 0 0" />
+      <geometry>
+        <mesh filename="/home/rokey/cobot3_ws/isaacpjt/cobot3/meshes/m0609/m0609_white/MF0609_3_0.dae" scale="0.001 0.001 0.001" />
+      </geometry>
+    </visual>
+  </link>
+  <joint name="m0609_joint_4" type="revolute">
+    <parent link="m0609_link_3" />
+    <child link="m0609_link_4" />
+    <origin rpy="1.571 0 0" xyz="0 -0.368 0" />
+    <axis xyz="0 0 1" />
+    <limit effort="2700" lower="-6.2832" upper="6.2832" velocity="3.927" />
+    <dynamics friction="0" damping="7.5" stiffness="750" />
+  </joint>
+  <link name="m0609_link_4">
+    <inertial>
+      <mass value="3.57" />
+      <origin xyz="4e-05    0.097079    -0.10981" />
+      <inertia ixx="0.08035" ixy="-4.6119e-06" ixz="-8.1798e-06" iyy="0.066005" iyz="-0.028996" izz="0.029763" />
+    </inertial>
+    <collision>
+      <origin rpy="0 0 0" xyz="0 0 0" />
+      <geometry>
+        <mesh filename="/home/rokey/cobot3_ws/isaacpjt/cobot3/meshes/m0609/m0609_collision/MF0609_4_0.dae" scale="0.001 0.001 0.001" />
+      </geometry>
+    </collision>
+    <visual>
+      <origin rpy="0 0 0" xyz="0 0 0" />
+      <geometry>
+        <mesh filename="/home/rokey/cobot3_ws/isaacpjt/cobot3/meshes/m0609/m0609_white/MF0609_4_0.dae" scale="0.001 0.001 0.001" />
+      </geometry>
+    </visual>
+    <collision>
+      <origin rpy="0 0 0" xyz="0 0 0" />
+      <geometry>
+        <mesh filename="/home/rokey/cobot3_ws/isaacpjt/cobot3/meshes/m0609/m0609_collision/MF0609_4_1.dae" scale="0.001 0.001 0.001" />
+      </geometry>
+    </collision>
+    <visual>
+      <origin rpy="0 0 0" xyz="0 0 0" />
+      <geometry>
+        <mesh filename="/home/rokey/cobot3_ws/isaacpjt/cobot3/meshes/m0609/m0609_white/MF0609_4_1.dae" scale="0.001 0.001 0.001" />
+      </geometry>
+    </visual>
+  </link>
+  <joint name="m0609_joint_5" type="revolute">
+    <parent link="m0609_link_4" />
+    <child link="m0609_link_5" />
+    <origin rpy="-1.571 0 0" xyz="0 0 0" />
+    <axis xyz="0 0 1" />
+    <limit effort="2700" lower="-6.2832" upper="6.2832" velocity="3.927" />
+    <dynamics friction="0" damping="7.5" stiffness="750" />
+  </joint>
+  <link name="m0609_link_5">
+    <inertial>
+      <mass value="2.83" />
+      <origin xyz="-6.8e-05    0.003827    0.031969" />
+      <inertia ixx="0.014275" ixy="2.2026e-05" ixz="3.3017e-06" iyy="0.012569" iyz="0.00045077" izz="0.0085318" />
+    </inertial>
+    <collision>
+      <origin rpy="0 0 0" xyz="0 0 0" />
+      <geometry>
+        <mesh filename="/home/rokey/cobot3_ws/isaacpjt/cobot3/meshes/m0609/m0609_collision/MF0609_5_0.dae" scale="0.001 0.001 0.001" />
+      </geometry>
+    </collision>
+    <visual>
+      <origin rpy="0 0 0" xyz="0 0 0" />
+      <geometry>
+        <mesh filename="/home/rokey/cobot3_ws/isaacpjt/cobot3/meshes/m0609/m0609_white/MF0609_5_0.dae" scale="0.001 0.001 0.001" />
+      </geometry>
+    </visual>
+  </link>
+  <joint name="m0609_joint_6" type="revolute">
+    <parent link="m0609_link_5" />
+    <child link="m0609_link_6" />
+    <origin rpy="1.571 0 0" xyz="0 -0.121 0" />
+    <axis xyz="0 0 1" />
+    <limit effort="2700" lower="-6.2832" upper="6.2832" velocity="3.927" />
+    <dynamics friction="0" damping="7.5" stiffness="750" />
+  </joint>
+  <link name="m0609_link_6">
+    <inertial>
+      <mass value="1.16" />
+      <origin xyz="-3e-05    -4.5e-05     -0.0539" />
+      <inertia ixx="0.0080226" ixy="1.371e-06" ixz="6.3578e-06" iyy="0.0053992" iyz="7.4676e-06" izz="0.0053912" />
+    </inertial>
+    <collision>
+      <origin rpy="0 0 0" xyz="0 0 0" />
+      <geometry>
+        <mesh filename="/home/rokey/cobot3_ws/isaacpjt/cobot3/meshes/m0609/m0609_collision/MF0609_6_0.dae" scale="0.001 0.001 0.001" />
+      </geometry>
+    </collision>
+    <visual>
+      <origin rpy="0 0 0" xyz="0 0 0" />
+      <geometry>
+        <mesh filename="/home/rokey/cobot3_ws/isaacpjt/cobot3/meshes/m0609/m0609_white/MF0609_6_0.dae" scale="0.001 0.001 0.001" />
+      </geometry>
+    </visual>
+  </link>
+  <link name="m0609_tool0" />
+  <joint name="m0609_joint_6-tool0" type="fixed">
+    <origin rpy="0 0 0" xyz="0 0 0" />
+    <parent link="m0609_link_6" />
+    <child link="m0609_tool0" />
+  </joint>
+</robot>
