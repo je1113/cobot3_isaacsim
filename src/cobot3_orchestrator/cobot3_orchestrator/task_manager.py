@@ -148,14 +148,13 @@ class QueuedCommand:
     """명령 큐 한 건. carrier_scan 응답에서 만든다."""
 
     kind: str             # QR 원문. 이 씬에서는 "1" 또는 "2" — 물체의 종류다
-    variant: str          # kind 를 grasp.yaml/place.yaml 키로 푼 것
-    carrier_id: str       # carriers.yaml 조회 결과. 로그·표시용
+    variant: str          # kind 를 grasp.yaml(어떻게집나)/place(어디에놓나).yaml 키로 푼 것
+    carrier_id: str       # carriers.yaml(어느개체가어느종류인가) 조회 결과. 로그·표시용
     qr_pose: PoseStamped  # PickCarrier 가 플랜지를 찾을 탐색 창 prior
 
 
 class MissionError(Exception):
-    """단계 하나가 실패했다. stage 가 어느 단계인지, reason 이 왜인지."""
-
+    #단계 하나가 실패했다. stage 가 어느 단계인지, reason 이 왜인지.
     def __init__(self, stage, reason):
         super().__init__(f"{stage} 단계 실패: {reason}")
         self.stage = stage
@@ -163,7 +162,7 @@ class MissionError(Exception):
 
 
 def _reason_name(result_cls, code):
-    """액션 result 의 fail_reason 코드를 .action 에 적힌 상수명으로 바꾼다."""
+    #액션 result 의 fail_reason 코드를 .action 에 적힌 상수명(사람이 이해할 수 있는 버전)으로 바꾼다.
     for name in dir(result_cls):
         if not name.isupper():
             continue
@@ -174,7 +173,7 @@ def _reason_name(result_cls, code):
 
 
 def _to_pose(xy_yaw_deg):
-    """(x, y, yaw_deg) -> NavigateTo goal 의 PoseStamped(map)."""
+    #입력해준 목적지 (x, y, yaw_deg) -변환-> NavigateTo goal 의 PoseStamped(map)
     x, y, yaw_deg = xy_yaw_deg
     yaw = math.radians(yaw_deg)
     ps = PoseStamped()
@@ -192,11 +191,11 @@ class TaskManager(Node):
         super().__init__("task_manager")
         self.carriers = yaml.safe_load(CARRIERS_YAML.read_text(encoding="utf-8"))
 
-        # ── 기본 기능 1) 로봇의 상태 저장 ──
+        # ── 기본 기능 1) 로봇 상태 저장 (기본값: patrol) ──
         self._state = PATROL
         self._state_lock = threading.Lock()
 
-        # ── 기본 기능 2) 명령 큐 ──
+        # ── 기본 기능 2) 명령 큐에서 하나씩 뽑아오는거 ──
         self._queue = deque()
 
         # 실패 기록 — 어느 단계에서 왜 멈췄나
@@ -205,13 +204,13 @@ class TaskManager(Node):
         self._fail_reason = ""
 
         # 지금 붙들고 있는 것
-        self._current = None       # 처리 중인 QueuedCommand
+        self._current = None       # 지금 처리 중인 QueuedCommand (지금 잡고 있는 것)
         self._active_goal = None   # 진행 중인 액션 goal handle (정지·실패 시 취소용)
-        self._detected = threading.Event()
-        self._shutdown = threading.Event()
-        self._patrol_idx = 0
-
-        cb = ReentrantCallbackGroup()
+        self._detected = threading.Event() # 스레드끼리 주고받는 신호등 1
+        self._shutdown = threading.Event() # 스레드끼리 주고받는 신호등 2
+        self._patrol_idx = 0 # patrol할 때 지정 좌표 계속 순찰하게 하기 위함
+        
+        cb = ReentrantCallbackGroup() #동시 실행 가능하게 하는..
         self._carrier_scan = self.create_client(
             CarrierScan, "/perception/carrier_scan", callback_group=cb)
         self._nav = ActionClient(
@@ -220,7 +219,6 @@ class TaskManager(Node):
             self, PickCarrier, "/manipulation/pick_carrier", callback_group=cb)
         self._place = ActionClient(
             self, PlaceCarrier, "/manipulation/place_carrier", callback_group=cb)
-
         self.create_subscription(
             Bool, "/perception/carrier_detected", self._on_carrier_detected, 10,
             callback_group=cb)
@@ -241,12 +239,14 @@ class TaskManager(Node):
                 "task_manager.py 상단에 좌표를 넣어라.")
 
     # ── 상태 ──────────────────────────────────────────────────────────────
-    @property
+    # 목적: 상태"라는 한 글자를 여러 스레드가 안전하게 읽고 쓰게 만드는 관문
+    @property   
     def state(self):
         with self._state_lock:
             return self._state
 
     def _set_state(self, new_state):
+        #상태 변경
         with self._state_lock:
             old, self._state = self._state, new_state
         if old != new_state:
@@ -254,6 +254,7 @@ class TaskManager(Node):
         self._publish_state()
 
     def _publish_state(self):
+        # 상황을 한 줄 문자열로 만들어 /orchestrator/state 에 발행
         msg = String()
         parts = [f"state={self.state}", f"queue={len(self._queue)}"]
         if self._current is not None:
@@ -267,7 +268,7 @@ class TaskManager(Node):
         self._state_pub.publish(msg)
 
     def _fail(self, stage, reason):
-        """실패 — 로봇을 멈추고 그 상태 그대로 정지한다. 자동 복귀 없음."""
+        # 실패 시 로봇은 멈추고, 어느 단계에서 실패했는지 확인할 수 있게"
         self._fail_stage = stage
         self._fail_reason = reason
         self._failed.set()
@@ -284,8 +285,7 @@ class TaskManager(Node):
         if self._failed.is_set():
             return
         if self.state != PATROL:
-            # 작업 중에 들어온 신호는 버린다. 물건은 그 자리에 그대로 있으므로
-            # 다음 순찰에 다시 보인다.
+            # 작업 중에 들어온 신호는 버리고, patrol 상태일 때만 인식함
             self.get_logger().debug(f"carrier_detected 무시 (상태 {self.state})")
             return
         if not self._detected.is_set():
@@ -293,7 +293,8 @@ class TaskManager(Node):
             self._detected.set()
 
     # ── 메인 루프 ─────────────────────────────────────────────────────────
-    def _run(self):
+    # 고장나면 멈춰있고, 물건 봤으면 처리하고, 아니면 순찰한다. 셋 다 상태가 아니면 time.sleep(0.1)
+    def _run(self): 
         while rclpy.ok() and not self._shutdown.is_set():
             if self._failed.is_set():
                 time.sleep(0.2)
@@ -308,45 +309,32 @@ class TaskManager(Node):
                 time.sleep(0.1)
 
     def _patrol_step(self):
-        """patrol — 돌아다니면서 QR 을 찾는다. 순찰 정차점을 순서대로 돈다."""
+        #patrol — 돌아다니면서 QR 을 찾는다. 순찰 정차점을 순서대로 돈다.
         if not PATROL_ROUTE:
-            time.sleep(0.2)   # 경로가 없으면 제자리에서 carrier_detected 만 기다린다
+            time.sleep(0.2)   # 경로가 없으면 제자리 대기 - carrier_detected 만 기다림
             return
 
-        target = PATROL_ROUTE[self._patrol_idx % len(PATROL_ROUTE)]
+        target = PATROL_ROUTE[self._patrol_idx % len(PATROL_ROUTE)] # 앞에 있던 _patrol_idx 나머지로 왕복 구현
         self._patrol_idx += 1
         self.get_logger().info(f"patrol -> 정차점 {target}")
+
         try:
             gh = self._send_goal(
                 self._nav, "/navigation/navigate_to",
-                NavigateTo.Goal(pose=_to_pose(target)), PATROL)
+                NavigateTo.Goal(pose=_to_pose(target)), PATROL) #  nav로 좌표 변환 후 보냄
+            result = self._await(gh, NAV_TIMEOUT_S, PATROL)   # 도착까지 대기
         except MissionError as e:
             self._fail(e.stage, e.reason)
             return
-        self._active_goal = gh
 
-        # 도착할 때까지 기다리되, 그 사이 QR 이 보이면 즉시 빠져나온다.
-        # 실제 정지(goal 취소)는 _run_mission 의 hold 단계에서 한다.
-        fut = gh.get_result_async()
-        deadline = time.monotonic() + NAV_TIMEOUT_S
-        while not fut.done():
-            if self._detected.is_set() or self._shutdown.is_set():
+        if not result.success: 
+            # CANCELED = 의도된 중단이라 이거 아니면 실패 이유 출력해줌
+            if result.fail_reason == NavigateTo.Result.CANCELED:
                 return
-            if time.monotonic() > deadline:
-                self._fail(PATROL, f"TIMEOUT({NAV_TIMEOUT_S:.0f}s)")
-                return
-            time.sleep(0.05)
-
-        self._active_goal = None
-        result = fut.result().result
-        if not result.success:
-            reason = _reason_name(NavigateTo.Result, result.fail_reason)
-            if reason.startswith("CANCELED"):
-                return      # 우리가 세운 것이다 — 실패가 아니다
-            self._fail(PATROL, reason)
+            self._fail(PATROL, _reason_name(NavigateTo.Result, result.fail_reason))
 
     def _run_mission(self):
-        """hold -> scan -> pick -> nav -> place -> patrol."""
+        #hold -> scan -> pick -> nav -> place -> patrol 순서로 진행
         try:
             self._step_hold()
             self._step_scan()
@@ -357,33 +345,34 @@ class TaskManager(Node):
             self._fail(e.stage, e.reason)
             return
 
-        self._current = None
+        self._current = None # place했으니까 손이 비었다고 확정
         self._set_state(PATROL)
         self.get_logger().info("사이클 완료 — patrol 로 복귀")
 
     def _step_hold(self):
-        """로봇을 멈춘다. 진행 중인 NavigateTo goal 을 취소하는 것이 정지 명령이다."""
+        # 로봇을 멈춘다. 진행 중인 NavigateTo goal 을 취소하는 것이 정지 명령이다.
         self._set_state(HOLD)
         self._cancel_active_goal()
 
     def _step_scan(self):
-        """멈춘 뒤 carrier_scan 서비스로 QR 정보를 받아 명령 큐에 넣는다."""
-        self._set_state(SCAN)
+        # 멈춘 뒤 carrier_scan 서비스로 QR 정보를 받아 명령 큐에 넣는다.
+        self._set_state(SCAN) #SCAN으로 상태 변경
         if not self._carrier_scan.wait_for_service(timeout_sec=SERVER_WAIT_S):
             raise MissionError(SCAN, "SERVICE_UNAVAILABLE(/perception/carrier_scan)")
 
-        fut = self._carrier_scan.call_async(CarrierScan.Request())
+        fut = self._carrier_scan.call_async(CarrierScan.Request()) #서비스 호출하고 응답 기다리기
         res = self._wait(fut, SCAN_TIMEOUT_S, SCAN)
         if not res.found:
+            # QR 못 읽으면 발행
             raise MissionError(SCAN, "NOT_FOUND(found=false)")
 
-        variant = NUMERIC_TO_VARIANT.get(res.payload)
+        variant = NUMERIC_TO_VARIANT.get(res.payload) # 종류 해석 
         if variant is None:
             raise MissionError(SCAN, f"UNKNOWN_PAYLOAD({res.payload!r})")
 
         qr_pose = PoseStamped()
-        qr_pose.header = res.header
-        qr_pose.pose = res.qr_pose
+        qr_pose.header = res.header # header 정보 
+        qr_pose.pose = res.qr_pose # 위치 및 방향 정보
         cmd = QueuedCommand(
             kind=res.payload,
             variant=variant,
@@ -396,7 +385,7 @@ class TaskManager(Node):
             f"carrier={cmd.carrier_id} / 명령 큐에 넣음 (큐 {len(self._queue)}건)")
 
     def _step_pick(self):
-        """멈춘 그 자리에서 집는다. 픽하러 가는 주행 단계는 없다."""
+        # 멈춘 그 자리에서 집는다. 픽하러 가는 주행 단계는 없다.
         if not self._queue:
             raise MissionError(PICK, "EMPTY_QUEUE")
         self._current = self._queue.popleft()
