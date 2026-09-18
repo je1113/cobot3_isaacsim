@@ -1,23 +1,26 @@
 """
-carrier_code_reader — QR 판독 노드. CarrierScan 을 낸다.
+carrier_code_reader — QR 판독 노드. CarrierScan 서비스를 서빙한다.
 
     ros2 run cobot3_perception carrier_code_reader
 
 qr_pose 계산은 cobot3_perception.qr_pose(깊이 평면 기반, docs/08 §5 검증:
 위치 0.43mm, yaw 0.25도)를 그대로 쓴다 — sim_backend.scan_qr() 가 이미
-그 모듈을 불러 쓰고 있어서, 이 노드는 결과를 CarrierScan 메시지 형태로
+그 모듈을 불러 쓰고 있어서, 이 노드는 결과를 CarrierScan 응답 형태로
 옮겨 담기만 한다.
 
-실제로는 "매 프레임이 아니라 다수결 통과한 판독만" 이지만(CarrierScan.msg
-주석), 지금은 scan_now 서비스로 트리거된 한 번의 관측을 다중 프레임
+실제로는 "매 프레임이 아니라 다수결 통과한 판독만" 이지만(CarrierScan.srv
+주석), 지금은 서비스 요청으로 트리거된 한 번의 관측을 다중 프레임
 평균(qr_pose.aggregate_qr_poses)으로 대신한다 — 판정 방식은 다르지만
 "단발성 오판독을 거른다"는 목적은 같다.
 
-★ /perception/scan_now (std_srvs/Trigger) 는 cobot3_interfaces 에 없는
-  로컬 트리거다. CarrierScan 은 원래 상시/이벤트성이라 별도 트리거가
-  필요 없지만, 지금은 주행 스캔(3-1)이 아직 이 노드에 안 물려 있어서
-  task_manager 가 "관측 자세 도착 후 지금 한 번 읽어라"를 시킬 방법이
-  필요하다. 3-1 이 붙으면 이 서비스는 빼고 상시 퍼블리시로 바뀔 것이다.
+★ 7ea79bf 리팩터(CarrierScan: 토픽 메시지 → 서비스) 반영: 이전에는
+/perception/carrier_scan 토픽에 CarrierScan.msg 를 발행하고, 그걸 읽을
+타이밍은 별도의 로컬 /perception/scan_now (std_srvs/Trigger) 로 맞췄다.
+지금은 CarrierScan.srv 요청 자체가 "지금 읽어라" 트리거이고 응답에
+found·header·payload·qr_pose 가 그대로 실려 나가므로, scan_now 트리거가
+따로 필요 없다 — 그 자리를 CarrierScan 서비스 하나가 대신한다.
+/perception/carrier_detected (std_msgs/Bool, 주행 중 감지 신호)는 3-1
+주행 스캔이 이 노드에 아직 안 물려 있어 미구현이다.
 
 CarrierScan.msg 리팩터 이후: raw_payload · symbology · frame_votes ·
 decode_latency_ms · range_m · reader_id · payload_valid 필드가 메시지에서
@@ -43,9 +46,8 @@ from pathlib import Path
 
 import rclpy
 from rclpy.node import Node
-from std_srvs.srv import Trigger
 
-from cobot3_interfaces.msg import CarrierScan
+from cobot3_interfaces.srv import CarrierScan
 from geometry_msgs.msg import Pose
 
 def _add_ros_bridge_to_syspath():
@@ -79,31 +81,29 @@ class CarrierCodeReader(Node):
         self.declare_parameter("output_frame", "base_link")
         self.declare_parameter("publish_debug", False)
         self.sim = SimClient()
-        self._pub = self.create_publisher(CarrierScan, "/perception/carrier_scan", 5)
-        self._srv = self.create_service(Trigger, "/perception/scan_now", self._on_scan_now)
+        self._srv = self.create_service(CarrierScan, "/perception/carrier_scan", self._on_carrier_scan)
         self.get_logger().info("carrier_code_reader ready")
 
-    def _on_scan_now(self, request, response):
+    def _on_carrier_scan(self, request, response):
         try:
             self.sim.call("observe_pose")
             r = self.sim.call("scan_qr", expected_id=None, n_frames=3)
         except SimClientError as e:
-            response.success = False
-            response.message = str(e)
+            response.found = False
+            self.get_logger().warn(f"carrier_scan: {e}")
             return response
 
         if not r["ok"]:
-            response.success = False
-            response.message = r.get("reason", "검출 실패")
-            self.get_logger().warn(f"scan_now: {response.message}")
+            response.found = False
+            self.get_logger().warn(f"carrier_scan: {r.get('reason', '검출 실패')}")
             return response
 
-        msg = CarrierScan()
-        msg.header.stamp = self.get_clock().now().to_msg()
-        msg.header.frame_id = self.get_parameter("output_frame").value
-        msg.payload = r["decoded"]     # gen_carrier_assets.py 의 숫자 ID ("1"/"2")
-                                        # 를 그대로 실었다 — 실물 페이로드
-                                        # (C3.MAG.A17.9) 파싱은 아직 안 붙었다
+        response.found = True
+        response.header.stamp = self.get_clock().now().to_msg()
+        response.header.frame_id = self.get_parameter("output_frame").value
+        response.payload = r["decoded"]    # gen_carrier_assets.py 의 숫자 ID ("1"/"2")
+                                            # 를 그대로 실었다 — 실물 페이로드
+                                            # (C3.MAG.A17.9) 파싱은 아직 안 붙었다
         p = r["qr_pose_base_link"]
         pose = Pose()
         pose.position.x, pose.position.y, pose.position.z = p["position"]
@@ -117,12 +117,10 @@ class CarrierCodeReader(Node):
         pose.orientation.x = w
         pose.orientation.y = z
         pose.orientation.z = -y
-        msg.qr_pose = pose
+        response.qr_pose = pose
 
-        self._pub.publish(msg)
-        response.success = True
-        response.message = f"payload={msg.payload} n_used={r['n_used']}/{r['n_total']}"
-        self.get_logger().info(f"CarrierScan 발행: {response.message}")
+        self.get_logger().info(
+            f"CarrierScan 응답: payload={response.payload} n_used={r['n_used']}/{r['n_total']}")
         return response
 
 

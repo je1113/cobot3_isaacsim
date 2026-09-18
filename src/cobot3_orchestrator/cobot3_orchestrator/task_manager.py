@@ -14,7 +14,8 @@ SCAN·PICK·TRANSIT·PLACE 구간을 구현했다 (PATROL·RETURN 은 다음 범
      의미 있는 주행을 안 하는 순간이동일 뿐이었다 — 어차피 붙들고 있으면
      한 스텝만에 흡착이 깨지는 걸 GUI 로 실측했다). pick_place_server 와
      같은 방식으로 이 노드가 SimClient 로 sim_backend 를 직접 부른다.
-  2. /perception/scan_now 트리거 -> CarrierScan 수신 대기
+  2. CarrierScan 서비스 호출 -> found·payload·qr_pose 수신 (7ea79bf 이후
+     토픽 구독 + 별도 scan_now 트리거가 아니라 서비스 요청 하나로 합쳐졌다)
   3. carriers.yaml 로 payload 를 variant 로 해석 (파지점 계산은 안 한다 —
      a2caf63 이후 pick_place_server 책임. qr_pose 는 prior 로 그대로 넘긴다)
   4. PickCarrier(variant, qr_pose) 전송
@@ -64,7 +65,7 @@ from std_srvs.srv import Trigger
 from geometry_msgs.msg import PoseStamped
 
 from cobot3_interfaces.action import PickCarrier, PlaceCarrier
-from cobot3_interfaces.msg import CarrierScan
+from cobot3_interfaces.srv import CarrierScan
 
 def _find_ws_root():
     p = Path(__file__).resolve()
@@ -118,11 +119,8 @@ class TaskManager(Node):
         self.sim = SimClient()
 
         cb = ReentrantCallbackGroup()
-        self._latest_scan = None
-        self._scan_event = threading.Event()
-        self.create_subscription(CarrierScan, "/perception/carrier_scan",
-                                 self._on_scan, 5, callback_group=cb)
-        self._scan_now = self.create_client(Trigger, "/perception/scan_now", callback_group=cb)
+        self._carrier_scan = self.create_client(CarrierScan, "/perception/carrier_scan",
+                                                 callback_group=cb)
         self._pick = ActionClient(self, PickCarrier, "/manipulation/pick_carrier",
                                   callback_group=cb)
         self._place = ActionClient(self, PlaceCarrier, "/manipulation/place_carrier",
@@ -131,10 +129,6 @@ class TaskManager(Node):
         self.create_service(Trigger, "/orchestrator/run_demo_pick",
                             self._on_run_demo_pick, callback_group=cb)
         self.get_logger().info("task_manager ready — /orchestrator/run_demo_pick 로 트리거")
-
-    def _on_scan(self, msg):
-        self._latest_scan = msg
-        self._scan_event.set()
 
     def _resolve_carrier(self, numeric_id):
         """QR 숫자 -> (carrier_id, variant). 이 씬의 QR 은 '1'/'2' 뿐이라
@@ -157,8 +151,8 @@ class TaskManager(Node):
     def _run_demo_pick_impl(self, response):
         try:
             self._step1_navigate("shelf_1_s3")
-            self._step2_scan()
-            carrier_id, variant, qr_pose = self._step3_identify_carrier()
+            scan = self._step2_scan()
+            carrier_id, variant, qr_pose = self._step3_identify_carrier(scan)
             pick_result = self._step4_pick(variant, qr_pose)
             pick_msg = (f"carrier={carrier_id} variant={variant} "
                        f"pick_success={pick_result.success} pick_fail_reason={pick_result.fail_reason}")
@@ -189,24 +183,21 @@ class TaskManager(Node):
             f"  dropped_at_step={r.get('dropped_at_step')}  carried_ok={r.get('carried_ok')}")
 
     def _step2_scan(self):
-        self.get_logger().info("[2] 관측 자세 이동 + 재촬영 트리거")
-        self._scan_event.clear()
-        if not self._scan_now.wait_for_service(timeout_sec=5.0):
+        self.get_logger().info("[2] 관측 자세 이동 + CarrierScan 요청")
+        if not self._carrier_scan.wait_for_service(timeout_sec=5.0):
             raise RuntimeError("carrier_code_reader 없음")
-        fut = self._scan_now.call_async(Trigger.Request())
-        r = self._wait(fut)
-        if not r.success:
-            raise RuntimeError(f"scan_now 실패: {r.message}")
-        if not self._scan_event.wait(timeout=5.0):
-            raise RuntimeError("CarrierScan 을 못 받았다")
+        fut = self._carrier_scan.call_async(CarrierScan.Request())
+        scan = self._wait(fut)
+        if not scan.found:
+            raise RuntimeError("CarrierScan: 판독 실패(found=false)")
+        return scan
 
-    def _step3_identify_carrier(self):
+    def _step3_identify_carrier(self, scan):
         """QR payload 를 variant 로 해석한다. 파지점(flange_pose) 계산은
         더 이상 여기서 안 한다 — a2caf63 이후 pick_place_server 가
         variant + qr_pose(prior)로 직접 한다. qr_pose 는 CarrierScan 의
         것을 그대로 PoseStamped 로 감싸서 넘긴다(PickCarrier.action 주석
         "CarrierScan 의 것을 그대로 넘긴다")."""
-        scan = self._latest_scan
         carrier_id, variant = self._resolve_carrier(scan.payload)
         if variant is None:
             raise RuntimeError(f"모르는 payload: {scan.payload}")
