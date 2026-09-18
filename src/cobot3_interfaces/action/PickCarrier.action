@@ -14,6 +14,8 @@
 #   variant   grasp.yaml 의 어느 레시피를 쓸지. 캐리어가 누구 건지가 아니라
 #             "어느 파지법" 이라는 뜻이다 — manipulation 자기 설정의 키.
 #   qr_pose   플랜지를 어디쯤에서 찾을지 알려주는 대략값(prior).
+#             로봇이 HOLD 로 선 뒤 CarrierScan 서비스로 받아 온 값이다 —
+#             정지 상태에서 근접 판독한 것이라 주행 중 값보다 정확하다.
 #             주차 오차가 flange_topview 탐색 반경(search_radius_m 0.05)보다 크므로
 #             prior 없이는 탐색 창을 못 잡는다.
 #
@@ -40,7 +42,8 @@
 
 # ── goal ──
 string variant                          # grasp.yaml 키. 예: "magazine_1_orange"
-geometry_msgs/PoseStamped qr_pose       # 대략값(prior). CarrierScan 의 것을 그대로 넘긴다
+geometry_msgs/PoseStamped qr_pose       # 대략값(prior). CarrierScan 서비스 응답의
+                                        # qr_pose 를 그대로 넘긴다
 ---
 # ── result ──
 uint8 NONE=0
