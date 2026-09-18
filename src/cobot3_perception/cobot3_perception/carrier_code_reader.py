@@ -28,6 +28,14 @@ decode_latency_ms · range_m · reader_id · payload_valid 필드가 메시지�
 낸다(qr_pose.aggregate_qr_poses). output_frame 은 실제로 쓴다: qr_pose
 값이 base_link 기준 상대좌표라 그게 맞는 기본값이다("wrist_camera" 라고
 적혀 있던 이전 버전은 명칭과 실제 좌표계가 어긋나 있었다).
+
+★ a2caf63 리팩터(carrier_id · carrier_kind → payload) 반영: carrier_id ·
+carrier_kind 필드와 MAGAZINE 상수가 메시지에서 사라졌다. 이 씬의 QR 은
+숫자("1"/"2")만 담고 있어 <kind>-<serial> 파싱은 아직 필요 없으므로,
+그 숫자 문자열을 payload 에 그대로 싣는다 — 실물 페이로드
+(carriers.yaml 의 "C3.MAG.A17.9" 형식) 파싱이 붙으면 여기서 그 문자열을
+만들어야 한다. qr_pose 도 759212e 이후 PoseStamped 가 아니라
+geometry_msgs/Pose 다 — 좌표계는 header.frame_id 하나로 말한다.
 """
 
 import sys
@@ -38,7 +46,7 @@ from rclpy.node import Node
 from std_srvs.srv import Trigger
 
 from cobot3_interfaces.msg import CarrierScan
-from geometry_msgs.msg import PoseStamped
+from geometry_msgs.msg import Pose
 
 def _add_ros_bridge_to_syspath():
     # colcon 빌드가 src/<pkg>/<pkg>/file.py 를 build/ 밑으로 복사하거나
@@ -93,29 +101,27 @@ class CarrierCodeReader(Node):
         msg = CarrierScan()
         msg.header.stamp = self.get_clock().now().to_msg()
         msg.header.frame_id = self.get_parameter("output_frame").value
-        msg.carrier_id = r["decoded"]   # gen_carrier_assets.py 의 숫자 ID ("1"/"2")
+        msg.payload = r["decoded"]     # gen_carrier_assets.py 의 숫자 ID ("1"/"2")
                                         # 를 그대로 실었다 — 실물 페이로드
                                         # (C3.MAG.A17.9) 파싱은 아직 안 붙었다
-        msg.carrier_kind = CarrierScan.MAGAZINE
         p = r["qr_pose_base_link"]
-        pose = PoseStamped()
-        pose.header = msg.header
-        pose.pose.position.x, pose.pose.position.y, pose.pose.position.z = p["position"]
+        pose = Pose()
+        pose.position.x, pose.position.y, pose.position.z = p["position"]
         # CarrierScan.qr_pose 규약: +Z = 라벨 법선(바깥). qr_pose.py 내부 규약은
         # z = 안쪽(-법선) 이라 부호가 반대다. x(가로)는 그대로 두고 로컬 x축
         # 기준 180도 회전(new_x=old_x, new_y=-old_y, new_z=-old_z)을 곱하면
         # z 가 뒤집히면서 오른손 좌표계가 유지된다.
         # q_new = q_old ⊗ (w=0,x=1,y=0,z=0) = (-x, w, z, -y)  (직접 전개해 확인)
         w, x, y, z = p["quat_wxyz"]
-        pose.pose.orientation.w = -x
-        pose.pose.orientation.x = w
-        pose.pose.orientation.y = z
-        pose.pose.orientation.z = -y
+        pose.orientation.w = -x
+        pose.orientation.x = w
+        pose.orientation.y = z
+        pose.orientation.z = -y
         msg.qr_pose = pose
 
         self._pub.publish(msg)
         response.success = True
-        response.message = f"carrier_id={msg.carrier_id} n_used={r['n_used']}/{r['n_total']}"
+        response.message = f"payload={msg.payload} n_used={r['n_used']}/{r['n_total']}"
         self.get_logger().info(f"CarrierScan 발행: {response.message}")
         return response
 

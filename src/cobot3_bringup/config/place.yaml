@@ -1,0 +1,24 @@
+# ══════════════════════════════════════════════════════════════════════
+#  PlaceCarrier.action ★ 블록의 place_yaml. variant → base_link 기준
+#  배치 자세(슬롯 바닥) 표. pick_place_server 가 goal.variant 로 찾는다.
+#
+#  ★ 알려진 갭: 로더 슬롯 지오메트리가 아직 씬에 없다(PlaceCarrier.action
+#  주석 참고). 두 매거진 variant 모두 지금은 isaacpjt/M0609/lula_ik/
+#  12_place_test.py 가 검증한 pkg_loader 앞 바닥 스테이징 지점 하나
+#  (PLACE_TARGET_XY/FLOOR_Z, NAV_WAYPOINTS["pkg_loader"] 도착 시점 기준)를
+#  그대로 쓴다 — cobot3_orchestrator/task_manager.py 에 하드코딩돼 있던
+#  PLACE_SLOT_POSE_BASE_LINK 를 그대로 옮긴 값이다. 로더 실물이 정해지면
+#  variant 별로 갈라야 한다("스택 → 테스트 로더"는 아직 씬에 tray QR 이
+#  없어 해당 없음 — carriers.yaml 참고).
+# ══════════════════════════════════════════════════════════════════════
+meta:
+  units: m
+  source: cobot3_orchestrator/task_manager.py PLACE_SLOT_POSE_BASE_LINK (12_place_test.py 검증값)
+
+magazines:
+  magazine_1_orange:
+    position: [0.0, 0.0, -0.07963398335074101]
+    quat_wxyz: [1.0, 0.0, 0.0, 0.0]
+  magazine_2_blue:
+    position: [0.0, 0.0, -0.07963398335074101]
+    quat_wxyz: [1.0, 0.0, 0.0, 0.0]

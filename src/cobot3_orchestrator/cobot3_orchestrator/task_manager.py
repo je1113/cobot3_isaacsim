@@ -8,17 +8,18 @@ SCAN·PICK·TRANSIT·PLACE 구간을 구현했다 (PATROL·RETURN 은 다음 범
 에 "미션 시작" 인터페이스가 아직 없어서(RegisterTask.srv 가 보류 상태)
 로컬 트리거를 하나 뒀다. RegisterTask.srv 필드가 정해지면 이걸로 옮긴다.
 
-★ 인터페이스 리팩터(2f25b0b "노드 역할 위반 제거 — goal 은 pose 하나")
-이후 흐름:
+★ 인터페이스 리팩터(a2caf63 "패키지 역할 정의에 맞춰 5종 재정의") 이후
+흐름:
   1. teleport_base(shelf_1_s3)  — 이동. nav_server_stub 을 지웠다(아무
      의미 있는 주행을 안 하는 순간이동일 뿐이었다 — 어차피 붙들고 있으면
      한 스텝만에 흡착이 깨지는 걸 GUI 로 실측했다). pick_place_server 와
      같은 방식으로 이 노드가 SimClient 로 sim_backend 를 직접 부른다.
   2. /perception/scan_now 트리거 -> CarrierScan 수신 대기
-  3. carriers.yaml 로 carrier_id 해석, frames.yaml/grasp.yaml 로 flange_pose 계산
-  4. PickCarrier(flange_pose) 전송
+  3. carriers.yaml 로 payload 를 variant 로 해석 (파지점 계산은 안 한다 —
+     a2caf63 이후 pick_place_server 책임. qr_pose 는 prior 로 그대로 넘긴다)
+  4. PickCarrier(variant, qr_pose) 전송
   5. teleport_base(pkg_loader)  — 이송(TRANSIT)
-  6. PlaceCarrier(slot_pose) 전송
+  6. PlaceCarrier(variant) 전송
 
 NavigateTo.action/nav_server 는 더 안 쓴다 — "이동"을 리스트에서 빼자는
 게 아니라, 진짜 주행(Nav2/SLAM, cobot3_navigation 패키지, 팀원이 다른
@@ -35,15 +36,13 @@ VerifyCarrier 서비스는 인터페이스에서 통째로 삭제됐다 — "잡
 알려진 갭 · 단순화 (보고용, 코드 안에도 표시):
   - 이 씬의 QR 은 숫자 하나("1"/"2")만 담아서 "몇 번째 개체"까지는 구분 못
     한다. carriers.yaml 에서 그 variant 의 첫 항목을 쓴다.
-  - flange_pose 의 orientation 은 로봇이 항상 수평(pitch·roll=0)이라는
-    전제로, base_link 프레임에서 바로 yaw 만 뽑아 만든다.
-  - pkg_loader 슬롯 지오메트리(포트)는 아직 씬에 없다 — PLACE_SLOT_POSE_BASE_LINK
-    는 isaacpjt/M0609/lula_ik/12_place_test.py 가 검증한 바닥 스테이징
-    지점(world x=4.0,y=0.0,z=0)을 NAV_WAYPOINTS["pkg_loader"] 도착 시점의
-    base_link 프레임으로 환산한 고정값이다 — teleport_base 가 실제 도착
-    pose 를 돌려주긴 하지만(base_x/base_y), 그 값을 이 슬롯 계산에 아직
-    안 먹인다(계산이 아니라 가정). NAV_WAYPOINTS 가 바뀌면 이 값도 다시
-    맞춰야 한다.
+  - flange_pose(파지점) · slot_pose(배치점) 계산은 이제 이 노드가 안 한다
+    — a2caf63 이후 pick_place_server 가 variant + qr_pose(prior)로 직접
+    계산한다(grasp.yaml/place.yaml). PLACE_SLOT_POSE_BASE_LINK 하드코딩도
+    같이 옮겨서 cobot3_bringup/config/place.yaml 이 됐다. NAV_WAYPOINTS
+    ["pkg_loader"] 가 바뀌면 place.yaml 값도 다시 맞춰야 한다 — teleport_base
+    가 실제 도착 pose 를 돌려주지만(base_x/base_y), place.yaml 계산에는
+    아직 안 먹인다(계산이 아니라 가정).
   - 흡착 중 이송(teleport_base)이 흡착을 깨는 시뮬 한계는 sim_backend.py
     의 _carry_gripped_object_through_teleport 로 흡수한다 — 실측(GUI,
     점진적 이동 142 스텝 중 24 스텝째 이탈)으로 "거리와 무관하게 깨진다"
@@ -55,7 +54,6 @@ import threading
 import sys
 from pathlib import Path
 
-import numpy as np
 import rclpy
 import yaml
 from rclpy.action import ActionClient
@@ -81,7 +79,6 @@ def _find_ws_root():
 
 WS_ROOT = _find_ws_root()
 FRAMES_YAML = WS_ROOT / "src/cobot3_bringup/config/frames.yaml"
-GRASP_YAML = WS_ROOT / "src/cobot3_bringup/config/grasp.yaml"
 CARRIERS_YAML = WS_ROOT / "src/cobot3_bringup/config/carriers.yaml"
 
 def _add_ros_bridge_to_syspath():
@@ -112,25 +109,11 @@ NAV_WAYPOINTS = {
     "pkg_loader": (4.0, 0.0, 0.0),
 }
 
-# NAV_WAYPOINTS["pkg_loader"] 도착 시점의 base_link(=섀시) 프레임 기준,
-# 12_place_test.py PLACE_TARGET_XY/FLOOR_Z 를 그대로 옮긴 값 — 위 모듈
-# 독스트링의 "알려진 갭" 참고.
-PLACE_SLOT_POSE_BASE_LINK = {"position": [0.0, 0.0, -0.07963398335074101],
-                            "quat_wxyz": [1.0, 0.0, 0.0, 0.0]}
-
-
-def quat_wxyz_to_mat(w, x, y, z):
-    return np.array([
-        [1-2*(y*y+z*z), 2*(x*y-z*w), 2*(x*z+y*w)],
-        [2*(x*y+z*w), 1-2*(x*x+z*z), 2*(y*z-x*w)],
-        [2*(x*z-y*w), 2*(y*z+x*w), 1-2*(x*x+y*y)]])
-
 
 class TaskManager(Node):
     def __init__(self):
         super().__init__("task_manager")
         self.frames = yaml.safe_load(FRAMES_YAML.read_text(encoding="utf-8"))
-        self.grasp = yaml.safe_load(GRASP_YAML.read_text(encoding="utf-8"))
         self.carriers = yaml.safe_load(CARRIERS_YAML.read_text(encoding="utf-8"))
         self.sim = SimClient()
 
@@ -175,8 +158,8 @@ class TaskManager(Node):
         try:
             self._step1_navigate("shelf_1_s3")
             self._step2_scan()
-            flange_pose, variant, carrier_id = self._step3_compute_flange_pose()
-            pick_result = self._step4_pick(flange_pose, variant)
+            carrier_id, variant, qr_pose = self._step3_identify_carrier()
+            pick_result = self._step4_pick(variant, qr_pose)
             pick_msg = (f"carrier={carrier_id} variant={variant} "
                        f"pick_success={pick_result.success} pick_fail_reason={pick_result.fail_reason}")
             if not pick_result.success:
@@ -185,7 +168,7 @@ class TaskManager(Node):
                 return
 
             self._step5_navigate("pkg_loader")
-            place_result = self._step6_place()
+            place_result = self._step6_place(variant)
             response.success = bool(place_result.success)
             response.message = (f"{pick_msg} | place_success={place_result.success} "
                                 f"place_fail_reason={place_result.fail_reason}")
@@ -217,42 +200,28 @@ class TaskManager(Node):
         if not self._scan_event.wait(timeout=5.0):
             raise RuntimeError("CarrierScan 을 못 받았다")
 
-    def _step3_compute_flange_pose(self):
+    def _step3_identify_carrier(self):
+        """QR payload 를 variant 로 해석한다. 파지점(flange_pose) 계산은
+        더 이상 여기서 안 한다 — a2caf63 이후 pick_place_server 가
+        variant + qr_pose(prior)로 직접 한다. qr_pose 는 CarrierScan 의
+        것을 그대로 PoseStamped 로 감싸서 넘긴다(PickCarrier.action 주석
+        "CarrierScan 의 것을 그대로 넘긴다")."""
         scan = self._latest_scan
-        carrier_id, variant = self._resolve_carrier(scan.carrier_id)
+        carrier_id, variant = self._resolve_carrier(scan.payload)
         if variant is None:
-            raise RuntimeError(f"모르는 carrier_id: {scan.carrier_id}")
+            raise RuntimeError(f"모르는 payload: {scan.payload}")
         self.get_logger().info(f"[3] carrier_id={carrier_id} variant={variant}")
 
-        p = scan.qr_pose.pose
-        q_iface = np.array([p.orientation.w, p.orientation.x, p.orientation.y, p.orientation.z])
-        # CarrierScan 규약(+Z=바깥) -> qr_pose.py/grasp.yaml 내부 규약(+Z=안쪽)
-        # 으로 되돌린다. carrier_code_reader.py 와 같은 x축-180도 변환의 역이며,
-        # 이 변환은 자기 자신의 역이다(두 번 적용하면 원래로 돌아온다).
-        w, x, y, z = q_iface
-        q_internal = np.array([-x, w, z, -y])
-        R = quat_wxyz_to_mat(*q_internal)
-        p_qr = np.array([p.position.x, p.position.y, p.position.z])
+        qr_pose = PoseStamped()
+        qr_pose.header = scan.header
+        qr_pose.pose = scan.qr_pose
+        return carrier_id, variant, qr_pose
 
-        T = np.array(self.grasp["magazines"][variant]["T_QR_grasp_xyz"])
-        flange_pos = p_qr + R @ T
-
-        # 로봇은 항상 수평(pitch=roll=0)이라는 전제로, base_link 프레임에서
-        # 곧장 yaw 만 뽑아 flange_pose 의 orientation(+Z=위)을 만든다.
-        yaw = float(np.arctan2(R[1, 0], R[0, 0]))
-        half = yaw / 2.0
-        flange_pose = PoseStamped()
-        flange_pose.header.frame_id = "base_link"
-        flange_pose.pose.position.x, flange_pose.pose.position.y, flange_pose.pose.position.z = flange_pos
-        flange_pose.pose.orientation.w = float(np.cos(half))
-        flange_pose.pose.orientation.z = float(np.sin(half))
-        return flange_pose, variant, carrier_id
-
-    def _step4_pick(self, flange_pose, variant):
+    def _step4_pick(self, variant, qr_pose):
         self.get_logger().info(f"[4] PickCarrier variant={variant}")
         if not self._pick.wait_for_server(timeout_sec=5.0):
             raise RuntimeError("pick_place_server 없음")
-        goal = PickCarrier.Goal(flange_pose=flange_pose)
+        goal = PickCarrier.Goal(variant=variant, qr_pose=qr_pose)
         fut = self._pick.send_goal_async(
             goal, feedback_callback=lambda fb: self.get_logger().info(
                 f"  PICK phase={fb.feedback.phase}"))
@@ -265,18 +234,11 @@ class TaskManager(Node):
         self.get_logger().info(f"[5] teleport_base {name} (이송)")
         self._step1_navigate(name)   # teleport_base 호출부는 동일 로직 재사용
 
-    def _step6_place(self):
-        self.get_logger().info("[6] PlaceCarrier pkg_loader")
+    def _step6_place(self, variant):
+        self.get_logger().info(f"[6] PlaceCarrier variant={variant}")
         if not self._place.wait_for_server(timeout_sec=5.0):
             raise RuntimeError("pick_place_server 없음(place_carrier)")
-        slot_pose = PoseStamped()
-        slot_pose.header.frame_id = "base_link"
-        slot_pose.pose.position.x, slot_pose.pose.position.y, slot_pose.pose.position.z = \
-            PLACE_SLOT_POSE_BASE_LINK["position"]
-        (slot_pose.pose.orientation.w, slot_pose.pose.orientation.x,
-         slot_pose.pose.orientation.y, slot_pose.pose.orientation.z) = \
-            PLACE_SLOT_POSE_BASE_LINK["quat_wxyz"]
-        goal = PlaceCarrier.Goal(slot_pose=slot_pose)
+        goal = PlaceCarrier.Goal(variant=variant)
         fut = self._place.send_goal_async(
             goal, feedback_callback=lambda fb: self.get_logger().info(
                 f"  PLACE phase={fb.feedback.phase}"))

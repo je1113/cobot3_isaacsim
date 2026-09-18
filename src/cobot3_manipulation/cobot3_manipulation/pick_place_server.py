@@ -10,15 +10,31 @@ pick_place_server — PickCarrier · PlaceCarrier 액션 서버.
     ros2 run cobot3_manipulation pick_place_server      # 터미널 2
 
 동작:
-  PickCarrier:  APPROACH -> DESCEND -> SUCTION -> LIFT -> STOW
-  PlaceCarrier: APPROACH -> DESCEND -> RELEASE -> RETRACT
-  둘 다 goal 은 pose 하나뿐이다(PickCarrier/PlaceCarrier.action 리팩터
-  이후). "잡아도/놓아도 되는 캐리어인가" 는 task_manager 가 goal 을
-  보내기 전에 끝낸다 — 이 노드는 캐리어의 ID·kind·variant 를 모른다.
-  VerifyCarrier 서비스는 그 인터록과 함께 인터페이스에서 삭제됐다.
+  PickCarrier:  OBSERVE -> APPROACH -> DESCEND -> SUCTION -> LIFT -> STOW
+  PlaceCarrier: MOVE -> LOWER -> RELEASE -> RETREAT
+  goal 은 각각 (variant, qr_pose) · variant 뿐이다(a2caf63 리팩터 이후).
+  "잡아도/놓아도 되는 캐리어인가" 는 task_manager 가 goal 을 보내기 전에
+  끝낸다 — 이 노드는 캐리어의 ID 를 모른다. 다만 variant 는 안다(자기
+  설정 인덱스 — grasp.yaml/place.yaml 키). 파지점 · 배치점 계산은 여기
+  안에서 한다: OBSERVE 단계가 qr_pose(prior) + grasp.yaml 의
+  T_QR_grasp_xyz 로 flange_pose 를 만들고, PlaceCarrier 는 variant 로
+  place.yaml 에서 슬롯 자세를 찾는다. VerifyCarrier 서비스는 그
+  인터록과 함께 인터페이스에서 삭제됐다.
+
+  ★ 알려진 갭: OBSERVE 는 아직 "QR prior + T_QR_grasp 계산값"까지만 하고,
+  액션 설계가 요구하는 손목캠 재관측(flange_topview.detect_flange())은
+  붙지 않았다 — sim_backend 가 임의 자세에서 카메라 프레임을 돌려주는
+  RPC 를 아직 노출하지 않는다(observe_pose/scan_qr 은 QR 관측 자세 전용).
+  이 계산은 task_manager 가 하던 것을 그대로 옮긴 것뿐이다(구 CarrierScan
+  기준 flange_pose 계산과 동일 수식).
 
 이 노드가 declare_parameter 로 정의하는 것 (PickCarrier/PlaceCarrier.action
 ★ 블록 그대로):
+  grasp_yaml           cobot3_bringup/config/grasp.yaml 경로. T_QR_grasp_xyz
+                       를 여기서 찾는다(OBSERVE 단계, variant 키).
+  place_yaml           cobot3_bringup/config/place.yaml 경로. variant → 배치
+                       자세(base_link). 좌표는 아직 로더 실물 미정 — place.yaml
+                       주석 참고.
   approach_dist_m      플랜지/슬롯 위 이 높이에서 수직 하강 시작
   grip_gaps_m          흡착 재시도 갭 시퀀스
   cup_diameter_m       참고용 (offset_limit_m 을 직접 declare 해서 실제로는 안 씀)
@@ -29,7 +45,12 @@ pick_place_server — PickCarrier · PlaceCarrier 액션 서버.
                        COAXIAL_FORCE_LIMIT 등). 런타임에 바꿔야 할 일이 생기면
                        그때 sim_backend 에 setter RPC 를 추가한다.
   lift_height_m        흡착 후 들어 올리는 높이
-  release_height_m     PlaceCarrier — 슬롯 바닥 위 이 높이에서 흡착 OFF
+  place_drop_m         PlaceCarrier — 슬롯 바닥 위 이 높이에서 흡착 OFF
+                       (구 release_height_m — PlaceCarrier.action ★ 블록 이름으로 맞춤)
+  place_pos_tol_m, place_yaw_tol_rad
+                       ★ 알려진 갭: 선언만 하고 아직 검증하지 않는다 —
+                       비교할 배치 목표 실측(포트 마커)이 씬에 없다
+                       (PlaceCarrier.action "남은 것" 참고).
 
   기본값은 action 파일의 "제안"값이 아니라 grasp.yaml/12_pick_test.py 가
   실측으로 검증한 값을 쓴다(approach_dist_m=0.15, lift_height_m=0.10) —
@@ -43,13 +64,38 @@ import threading
 import time
 from pathlib import Path
 
+import numpy as np
 import rclpy
+import yaml
 from rclpy.action import ActionServer, CancelResponse, GoalResponse
 from rclpy.callback_groups import ReentrantCallbackGroup
 from rclpy.executors import MultiThreadedExecutor
 from rclpy.node import Node
 
 from cobot3_interfaces.action import PickCarrier, PlaceCarrier
+
+def _find_ws_root():
+    p = Path(__file__).resolve()
+    for _ in range(10):
+        if (p / "isaacpjt").is_dir():
+            return p
+        if p.parent == p:
+            break
+        p = p.parent
+    raise RuntimeError("cobot3_ws 를 못 찾았다")
+
+
+WS_ROOT = _find_ws_root()
+GRASP_YAML = WS_ROOT / "src/cobot3_bringup/config/grasp.yaml"
+PLACE_YAML = WS_ROOT / "src/cobot3_bringup/config/place.yaml"
+
+
+def quat_wxyz_to_mat(w, x, y, z):
+    return np.array([
+        [1-2*(y*y+z*z), 2*(x*y-z*w), 2*(x*z+y*w)],
+        [2*(x*y+z*w), 1-2*(x*x+z*z), 2*(y*z-x*w)],
+        [2*(x*z-y*w), 2*(y*z+x*w), 1-2*(x*x+y*y)]])
+
 
 def _add_ros_bridge_to_syspath():
     # colcon 빌드가 src/<pkg>/<pkg>/file.py 를 build/ 밑으로 복사하거나
@@ -71,20 +117,28 @@ def _add_ros_bridge_to_syspath():
 _add_ros_bridge_to_syspath()
 from sim_client import SimClient, SimClientError  # noqa: E402
 
+# sim_backend.get_status()["phase"] 문자열 -> PickCarrier.Feedback 상수.
+# OBSERVE 는 sim_backend 가 내는 phase 가 아니라 이 노드가 goal 을 받자마자
+# 직접 publish_feedback 으로 알린다(아래 _execute).
 _PHASE = {"APPROACH": PickCarrier.Feedback.APPROACH, "DESCEND": PickCarrier.Feedback.DESCEND,
          "SUCTION": PickCarrier.Feedback.SUCTION, "LIFT": PickCarrier.Feedback.LIFT,
          "STOW": PickCarrier.Feedback.STOW}
 _FAIL = {"NONE": PickCarrier.Result.NONE, "NO_IK": PickCarrier.Result.NO_IK,
-        "COLLISION": PickCarrier.Result.COLLISION,
+        "COLLISION": PickCarrier.Result.COLLISION, "NO_FLANGE": PickCarrier.Result.NO_FLANGE,
         "NO_ATTACH": PickCarrier.Result.NO_ATTACH, "SLIP": PickCarrier.Result.SLIP,
         "OFF_FLANGE": PickCarrier.Result.OFF_FLANGE, "CANCELED": PickCarrier.Result.CANCELED}
 
-_PLACE_PHASE = {"APPROACH": PlaceCarrier.Feedback.APPROACH, "DESCEND": PlaceCarrier.Feedback.DESCEND,
-               "RELEASE": PlaceCarrier.Feedback.RELEASE, "RETRACT": PlaceCarrier.Feedback.RETRACT}
+# sim_backend 의 place_phase*() 는 내부적으로 phase 를 여전히
+# APPROACH/DESCEND/RELEASE/RETRACT 로 부른다(이건 sim_backend 자체
+# 표기이지 PlaceCarrier.action 의 MOVE/LOWER/RELEASE/RETREAT 와는 별개 이름
+# 공간이다) — 그래서 딕셔너리 키는 그대로 두고 값만 현재 액션 상수로 맞춘다.
+_PLACE_PHASE = {"APPROACH": PlaceCarrier.Feedback.MOVE, "DESCEND": PlaceCarrier.Feedback.LOWER,
+               "RELEASE": PlaceCarrier.Feedback.RELEASE, "RETRACT": PlaceCarrier.Feedback.RETREAT}
 _PLACE_FAIL = {"NONE": PlaceCarrier.Result.NONE, "NO_IK": PlaceCarrier.Result.NO_IK,
               "COLLISION": PlaceCarrier.Result.COLLISION,
               "PORT_OCCUPIED": PlaceCarrier.Result.PORT_OCCUPIED,
               "NOT_GRIPPED": PlaceCarrier.Result.NOT_GRIPPED,
+              "UNKNOWN_VARIANT": PlaceCarrier.Result.UNKNOWN_VARIANT,
               "CANCELED": PlaceCarrier.Result.CANCELED}
 
 
@@ -92,6 +146,8 @@ class PickPlaceServer(Node):
     def __init__(self):
         super().__init__("pick_place_server")
         # ── PickCarrier/PlaceCarrier.action ★ 블록 — 값 출처는 모듈 독스트링 ──
+        self.declare_parameter("grasp_yaml", str(GRASP_YAML))
+        self.declare_parameter("place_yaml", str(PLACE_YAML))
         self.declare_parameter("approach_dist_m", 0.15)          # grasp.yaml pre_grasp_m
         self.declare_parameter("grip_gaps_m", [0.005, 0.002, 0.0, -0.003])
         self.declare_parameter("cup_diameter_m", 0.050)
@@ -100,7 +156,14 @@ class PickPlaceServer(Node):
         self.declare_parameter("shear_force_limit", 100.0)
         self.declare_parameter("max_grip_distance", 0.03)
         self.declare_parameter("lift_height_m", 0.10)            # 12_pick_test.py 검증값
-        self.declare_parameter("release_height_m", 0.005)
+        self.declare_parameter("place_drop_m", 0.005)
+        self.declare_parameter("place_pos_tol_m", 0.002)         # ★ 알려진 갭: 미검증
+        self.declare_parameter("place_yaw_tol_rad", 0.017)       # ★ 알려진 갭: 미검증
+
+        grasp_path = Path(self.get_parameter("grasp_yaml").value)
+        place_path = Path(self.get_parameter("place_yaml").value)
+        self.grasp = yaml.safe_load(grasp_path.read_text(encoding="utf-8"))["magazines"]
+        self.place = yaml.safe_load(place_path.read_text(encoding="utf-8"))["magazines"]
 
         self.sim = SimClient()
         cb = ReentrantCallbackGroup()
@@ -133,6 +196,32 @@ class PickPlaceServer(Node):
                 self.get_logger().warn(f"status 폴링 실패: {e}")
             time.sleep(0.15)
 
+    def _flange_pose_from_qr(self, variant, qr_pose_stamped):
+        """variant + qr_pose(prior, CarrierScan 규약 +Z=바깥) -> flange_pose_base_link.
+
+        task_manager._step3_compute_flange_pose 에 있던 수식을 그대로 옮긴
+        것이다(a2caf63 리팩터로 파지점 계산 책임이 여기로 넘어왔다).
+        """
+        entry = self.grasp[variant]         # variant 가 없으면 KeyError -> NO_FLANGE
+        p = qr_pose_stamped.pose
+        w, x, y, z = p.orientation.w, p.orientation.x, p.orientation.y, p.orientation.z
+        # CarrierScan 규약(+Z=바깥) -> grasp.yaml 내부 규약(+Z=안쪽)으로 되돌린다.
+        # carrier_code_reader.py 와 같은 x축-180도 변환의 역이며, 자기 자신의
+        # 역이다(두 번 적용하면 원래로 돌아온다).
+        q_internal = np.array([-x, w, z, -y])
+        R = quat_wxyz_to_mat(*q_internal)
+        p_qr = np.array([p.position.x, p.position.y, p.position.z])
+
+        T = np.array(entry["T_QR_grasp_xyz"])
+        flange_pos = p_qr + R @ T
+
+        # 로봇은 항상 수평(pitch=roll=0)이라는 전제로, base_link 프레임에서
+        # 곧장 yaw 만 뽑아 flange_pose 의 orientation(+Z=위)을 만든다.
+        yaw = float(np.arctan2(R[1, 0], R[0, 0]))
+        half = yaw / 2.0
+        return {"position": flange_pos.tolist(),
+               "quat_wxyz": [float(np.cos(half)), 0.0, 0.0, float(np.sin(half))]}
+
     # ── PickCarrier ──
     def _execute(self, goal_handle):
         goal = goal_handle.request
@@ -143,16 +232,23 @@ class PickPlaceServer(Node):
         offset_limit_m = float(self.get_parameter("offset_limit_m").value)
         lift_height_m = float(self.get_parameter("lift_height_m").value)
 
+        # ── OBSERVE: qr_pose(prior) + grasp.yaml 로 flange_pose 계산 ──
+        # ★ 알려진 갭: 액션 설계가 요구하는 손목캠 재관측(flange_topview)은
+        # 아직 없다 — 모듈 독스트링 참고.
+        feedback.phase = PickCarrier.Feedback.OBSERVE
+        goal_handle.publish_feedback(feedback)
+        try:
+            flange_pose_base_link = self._flange_pose_from_qr(goal.variant, goal.qr_pose)
+        except KeyError:
+            self.get_logger().warn(f"grasp.yaml 에 없는 variant: {goal.variant}")
+            return self._abort(goal_handle, result, "NO_FLANGE")
+
         # ── APPROACH ──
         feedback.phase = PickCarrier.Feedback.APPROACH
         goal_handle.publish_feedback(feedback)
         holder = {}
-        flange = goal.flange_pose.pose
         params = dict(
-            flange_pose_base_link={
-                "position": [flange.position.x, flange.position.y, flange.position.z],
-                "quat_wxyz": [flange.orientation.w, flange.orientation.x,
-                             flange.orientation.y, flange.orientation.z]},
+            flange_pose_base_link=flange_pose_base_link,
             approach_dist_m=approach_dist_m)
         t = threading.Thread(target=lambda: holder.__setitem__(
             "r", self._safe_call("pick_phase1_approach", **params)))
@@ -196,18 +292,18 @@ class PickPlaceServer(Node):
         result = PlaceCarrier.Result()
         feedback = PlaceCarrier.Feedback()
         approach_dist_m = float(self.get_parameter("approach_dist_m").value)
-        release_height_m = float(self.get_parameter("release_height_m").value)
+        place_drop_m = float(self.get_parameter("place_drop_m").value)
 
-        # ── APPROACH ──
-        feedback.phase = PlaceCarrier.Feedback.APPROACH
+        slot_pose_base_link = self.place.get(goal.variant)
+        if slot_pose_base_link is None:
+            self.get_logger().warn(f"place.yaml 에 없는 variant: {goal.variant}")
+            return self._abort_place(goal_handle, result, "UNKNOWN_VARIANT")
+
+        # ── MOVE ──
+        feedback.phase = PlaceCarrier.Feedback.MOVE
         goal_handle.publish_feedback(feedback)
         holder = {}
-        slot = goal.slot_pose.pose
-        params = dict(slot_pose_base_link={
-            "position": [slot.position.x, slot.position.y, slot.position.z],
-            "quat_wxyz": [slot.orientation.w, slot.orientation.x,
-                         slot.orientation.y, slot.orientation.z]},
-            approach_dist_m=approach_dist_m)
+        params = dict(slot_pose_base_link=slot_pose_base_link, approach_dist_m=approach_dist_m)
         t = threading.Thread(target=lambda: holder.__setitem__(
             "r", self._safe_call_place("place_phase1_approach", **params)))
         t.start()
@@ -217,10 +313,10 @@ class PickPlaceServer(Node):
             return self._abort_place(goal_handle, result,
                                      (r1 or {}).get("fail_reason", "NO_IK"))
 
-        # ── DESCEND -> RELEASE -> RETRACT ──
+        # ── LOWER -> RELEASE -> RETREAT ──
         holder2 = {}
         t2 = threading.Thread(target=lambda: holder2.__setitem__(
-            "r", self._safe_call_place("place_phase2_finish", release_height_m=release_height_m)))
+            "r", self._safe_call_place("place_phase2_finish", release_height_m=place_drop_m)))
         t2.start()
         self._poll_until(t2, goal_handle, feedback, phase_map=_PLACE_PHASE)
         r2 = holder2.get("r")
