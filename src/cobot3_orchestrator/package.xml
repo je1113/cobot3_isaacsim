@@ -8,6 +8,7 @@
   <license>Apache-2.0</license>
 
   <depend>rclpy</depend>
+  <depend>py_trees</depend>
   <depend>cobot3_interfaces</depend>
   <depend>std_srvs</depend>
   <depend>geometry_msgs</depend>
