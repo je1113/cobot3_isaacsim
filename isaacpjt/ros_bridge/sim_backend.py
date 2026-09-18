@@ -38,6 +38,16 @@ from isaacsim import SimulationApp
 HEADLESS = os.environ.get("SIM_HEADLESS", "1") == "1"
 simulation_app = SimulationApp({"headless": HEADLESS})
 
+# 씬(simple_factory_layout.usda)에 이미 OmniGraph 로 박혀 있는 ROS2 브릿지
+# 노드들(ROS2PublishClock, nova_carter1/2 의 odom·lidar 퍼블리셔)은 이 확장이
+# 꺼져 있으면 그냥 안 돈다 — SimulationApp 기본 구성에는 안 들어 있다. 이
+# 백엔드는 원래 JSON-RPC(팔·그리퍼·카메라)만 썼어서 필요 없었는데, Nav2 가
+# /clock·/robot1/chassis/odom·/robot1/front_3d_lidar/lidar_points 를 그
+# 노드들에서 받아야 해서 필요해졌다. LD_LIBRARY_PATH(isaac_ros 함수)는
+# 라이브러리를 "찾을 수 있게" 만들 뿐, 확장을 "켜는" 건 아니다 — 둘 다 필요하다.
+from isaacsim.core.utils.extensions import enable_extension  # noqa: E402
+enable_extension("isaacsim.ros2.bridge")
+
 import numpy as np
 import omni.usd
 import yaml
