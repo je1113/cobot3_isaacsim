@@ -1,0 +1,718 @@
+shelf_1/top:
+  seed: shelf_1_top_close_centered
+  base_y: 1.45
+  joints_deg:
+  - 13.4869
+  - 38.4021
+  - 149.9981
+  - 90.5006
+  - 90.0
+  - 86.0006
+  rows:
+  - base_x: -7.0
+    camera_x: -7.0333
+    nearest: magazine_1_orange
+    dist_m: 0.5198
+    qr_px: 61.0
+    decoded: {}
+  - base_x: -6.9
+    camera_x: -6.9335
+    nearest: magazine_1_orange
+    dist_m: 0.4377
+    qr_px: 72.4
+    decoded: {}
+  - base_x: -6.8
+    camera_x: -6.8333
+    nearest: magazine_1_orange
+    dist_m: 0.3644
+    qr_px: 87.0
+    decoded: {}
+  - base_x: -6.7
+    camera_x: -6.7333
+    nearest: magazine_1_orange
+    dist_m: 0.3068
+    qr_px: 103.3
+    decoded:
+      magazine_1_orange: '1'
+  - base_x: -6.6
+    camera_x: -6.6337
+    nearest: magazine_1_orange
+    dist_m: 0.2749
+    qr_px: 115.3
+    decoded:
+      magazine_1_orange: '1'
+  - base_x: -6.5
+    camera_x: -6.5334
+    nearest: magazine_1_orange
+    dist_m: 0.2772
+    qr_px: 114.4
+    decoded: {}
+  - base_x: -6.4
+    camera_x: -6.4335
+    nearest: magazine_1_orange
+    dist_m: 0.3132
+    qr_px: 101.2
+    decoded: {}
+  - base_x: -6.3
+    camera_x: -6.3334
+    nearest: magazine_1_orange
+    dist_m: 0.3735
+    qr_px: 84.9
+    decoded: {}
+  - base_x: -6.2
+    camera_x: -6.2333
+    nearest: magazine_2_blue
+    dist_m: 0.3142
+    qr_px: 100.9
+    decoded:
+      magazine_1_orange: '1'
+  - base_x: -6.1
+    camera_x: -6.1334
+    nearest: magazine_2_blue
+    dist_m: 0.2641
+    qr_px: 120.1
+    decoded:
+      magazine_2_blue: '2'
+  - base_x: -6.0
+    camera_x: -6.0338
+    nearest: magazine_2_blue
+    dist_m: 0.2464
+    qr_px: 128.7
+    decoded: {}
+  - base_x: -5.9
+    camera_x: -5.9334
+    nearest: magazine_2_blue
+    dist_m: 0.2677
+    qr_px: 118.4
+    decoded: {}
+  - base_x: -5.8
+    camera_x: -5.8335
+    nearest: magazine_2_blue
+    dist_m: 0.3204
+    qr_px: 99.0
+    decoded: {}
+  - base_x: -5.7
+    camera_x: -5.7333
+    nearest: magazine_2_blue
+    dist_m: 0.392
+    qr_px: 80.9
+    decoded:
+      magazine_2_blue: '2'
+  - base_x: -5.6
+    camera_x: -5.6335
+    nearest: magazine_1_orange_02
+    dist_m: 0.3654
+    qr_px: 86.8
+    decoded: {}
+  - base_x: -5.5
+    camera_x: -5.5333
+    nearest: magazine_1_orange_02
+    dist_m: 0.3074
+    qr_px: 103.1
+    decoded:
+      magazine_1_orange_02: '1'
+  - base_x: -5.4
+    camera_x: -5.4333
+    nearest: magazine_1_orange_02
+    dist_m: 0.2749
+    qr_px: 115.3
+    decoded:
+      magazine_1_orange_02: '1'
+  - base_x: -5.3
+    camera_x: -5.3334
+    nearest: magazine_1_orange_02
+    dist_m: 0.2769
+    qr_px: 114.5
+    decoded: {}
+  - base_x: -5.2
+    camera_x: -5.2333
+    nearest: magazine_1_orange_02
+    dist_m: 0.3127
+    qr_px: 101.4
+    decoded: {}
+  - base_x: -5.1
+    camera_x: -5.1336
+    nearest: magazine_1_orange_02
+    dist_m: 0.3725
+    qr_px: 85.1
+    decoded: {}
+  - base_x: -5.0
+    camera_x: -5.0333
+    nearest: magazine_2_blue_02
+    dist_m: 0.3292
+    qr_px: 96.3
+    decoded:
+      magazine_1_orange_02: '1'
+  - base_x: -4.9
+    camera_x: -4.9334
+    nearest: magazine_2_blue_02
+    dist_m: 0.2733
+    qr_px: 116.0
+    decoded:
+      magazine_2_blue_02: '2'
+  - base_x: -4.8
+    camera_x: -4.8334
+    nearest: magazine_2_blue_02
+    dist_m: 0.247
+    qr_px: 128.4
+    decoded:
+      magazine_2_blue_02: '2'
+  - base_x: -4.7
+    camera_x: -4.7336
+    nearest: magazine_2_blue_02
+    dist_m: 0.2595
+    qr_px: 122.2
+    decoded: {}
+  - base_x: -4.6
+    camera_x: -4.6333
+    nearest: magazine_2_blue_02
+    dist_m: 0.3061
+    qr_px: 103.6
+    decoded: {}
+  - base_x: -4.5
+    camera_x: -4.5335
+    nearest: magazine_2_blue_02
+    dist_m: 0.3741
+    qr_px: 84.8
+    decoded: {}
+  - base_x: -4.4
+    camera_x: -4.4333
+    nearest: magazine_2_blue_02
+    dist_m: 0.4543
+    qr_px: 69.8
+    decoded: {}
+  - base_x: -4.3
+    camera_x: -4.3334
+    nearest: magazine_2_blue_02
+    dist_m: 0.541
+    qr_px: 58.6
+    decoded: {}
+shelf_1/bottom:
+  seed: s1_bottom_scan
+  base_y: 1.44999
+  joints_deg:
+  - 10.0024
+  - 90.0302
+  - 74.9956
+  - 59.9862
+  - 60.0
+  - 119.9987
+  rows:
+  - base_x: -7.0
+    camera_x: -6.7689
+    nearest: magazine_2_blue
+    dist_m: 0.2864
+    qr_px: 110.7
+    decoded: {}
+  - base_x: -6.9
+    camera_x: -6.6686
+    nearest: magazine_2_blue
+    dist_m: 0.2475
+    qr_px: 128.1
+    decoded: {}
+  - base_x: -6.8
+    camera_x: -6.5684
+    nearest: magazine_2_blue
+    dist_m: 0.2462
+    qr_px: 128.8
+    decoded:
+      magazine_2_blue: '2'
+  - base_x: -6.7
+    camera_x: -6.4687
+    nearest: magazine_2_blue
+    dist_m: 0.2824
+    qr_px: 112.3
+    decoded:
+      magazine_2_blue: '2'
+  - base_x: -6.6
+    camera_x: -6.3688
+    nearest: magazine_2_blue
+    dist_m: 0.3449
+    qr_px: 91.9
+    decoded: {}
+  - base_x: -6.5
+    camera_x: -6.2688
+    nearest: magazine_1_orange
+    dist_m: 0.3613
+    qr_px: 87.7
+    decoded: {}
+  - base_x: -6.4
+    camera_x: -6.1687
+    nearest: magazine_1_orange
+    dist_m: 0.2989
+    qr_px: 106.1
+    decoded: {}
+  - base_x: -6.3
+    camera_x: -6.0691
+    nearest: magazine_1_orange
+    dist_m: 0.2611
+    qr_px: 121.4
+    decoded: {}
+  - base_x: -6.2
+    camera_x: -5.9687
+    nearest: magazine_1_orange
+    dist_m: 0.2592
+    qr_px: 122.3
+    decoded:
+      magazine_1_orange: '1'
+  - base_x: -6.1
+    camera_x: -5.8689
+    nearest: magazine_1_orange
+    dist_m: 0.2932
+    qr_px: 108.1
+    decoded:
+      magazine_1_orange: '1'
+  - base_x: -6.0
+    camera_x: -5.7686
+    nearest: magazine_1_orange
+    dist_m: 0.3537
+    qr_px: 89.6
+    decoded:
+      magazine_1_orange: '1'
+  - base_x: -5.9
+    camera_x: -5.6684
+    nearest: magazine_2_blue_02
+    dist_m: 0.3511
+    qr_px: 90.3
+    decoded: {}
+  - base_x: -5.8
+    camera_x: -5.5689
+    nearest: magazine_2_blue_02
+    dist_m: 0.2869
+    qr_px: 110.5
+    decoded: {}
+  - base_x: -5.7
+    camera_x: -5.4687
+    nearest: magazine_2_blue_02
+    dist_m: 0.2477
+    qr_px: 128.0
+    decoded: {}
+  - base_x: -5.6
+    camera_x: -5.3689
+    nearest: magazine_2_blue_02
+    dist_m: 0.2457
+    qr_px: 129.0
+    decoded:
+      magazine_2_blue_02: '2'
+  - base_x: -5.5
+    camera_x: -5.2685
+    nearest: magazine_2_blue_02
+    dist_m: 0.2819
+    qr_px: 112.5
+    decoded:
+      magazine_2_blue_02: '2'
+  - base_x: -5.4
+    camera_x: -5.1686
+    nearest: magazine_2_blue_02
+    dist_m: 0.3443
+    qr_px: 92.1
+    decoded: {}
+  - base_x: -5.3
+    camera_x: -5.0686
+    nearest: magazine_1_orange_02
+    dist_m: 0.378
+    qr_px: 83.9
+    decoded: {}
+  - base_x: -5.2
+    camera_x: -4.9685
+    nearest: magazine_1_orange_02
+    dist_m: 0.3115
+    qr_px: 101.8
+    decoded: {}
+  - base_x: -5.1
+    camera_x: -4.8686
+    nearest: magazine_1_orange_02
+    dist_m: 0.2671
+    qr_px: 118.7
+    decoded: {}
+  - base_x: -5.0
+    camera_x: -4.7684
+    nearest: magazine_1_orange_02
+    dist_m: 0.2564
+    qr_px: 123.7
+    decoded:
+      magazine_1_orange_02: '1'
+  - base_x: -4.9
+    camera_x: -4.6684
+    nearest: magazine_1_orange_02
+    dist_m: 0.2829
+    qr_px: 112.1
+    decoded:
+      magazine_1_orange_02: '1'
+  - base_x: -4.8
+    camera_x: -4.5684
+    nearest: magazine_1_orange_02
+    dist_m: 0.3381
+    qr_px: 93.8
+    decoded: {}
+  - base_x: -4.7
+    camera_x: -4.4686
+    nearest: magazine_1_orange_02
+    dist_m: 0.4104
+    qr_px: 77.2
+    decoded: {}
+  - base_x: -4.6
+    camera_x: -4.3687
+    nearest: magazine_1_orange_02
+    dist_m: 0.4925
+    qr_px: 64.4
+    decoded: {}
+  - base_x: -4.5
+    camera_x: -4.2686
+    nearest: magazine_1_orange_02
+    dist_m: 0.5806
+    qr_px: 54.6
+    decoded: {}
+  - base_x: -4.4
+    camera_x: -4.1687
+    nearest: magazine_1_orange_02
+    dist_m: 0.6717
+    qr_px: 47.2
+    decoded: {}
+  - base_x: -4.3
+    camera_x: -4.0683
+    nearest: magazine_1_orange_02
+    dist_m: 0.7655
+    qr_px: 41.4
+    decoded: {}
+shelf_2/top:
+  seed: shelf_1_top_close_centered
+  base_y: -1.6425
+  base_yaw_deg: 180.0
+  joints_deg:
+  - 13.4869
+  - 38.4021
+  - 149.9981
+  - 90.5006
+  - 90.0
+  - 86.0006
+  rows:
+  - base_x: -6.6
+    camera_x: -6.5665
+    nearest: magazine_1_orange
+    dist_m: 0.3197
+    qr_px: 99.2
+    decoded: {}
+  - base_x: -6.55
+    camera_x: -6.5164
+    nearest: magazine_1_orange
+    dist_m: 0.2984
+    qr_px: 106.2
+    decoded: {}
+  - base_x: -6.5
+    camera_x: -6.4664
+    nearest: magazine_1_orange
+    dist_m: 0.2845
+    qr_px: 111.4
+    decoded: {}
+  - base_x: -6.45
+    camera_x: -6.4165
+    nearest: magazine_1_orange
+    dist_m: 0.2789
+    qr_px: 113.7
+    decoded:
+      magazine_1_orange: '1'
+  - base_x: -6.4
+    camera_x: -6.3663
+    nearest: magazine_1_orange
+    dist_m: 0.2822
+    qr_px: 112.3
+    decoded:
+      magazine_1_orange: '1'
+  - base_x: -6.35
+    camera_x: -6.3163
+    nearest: magazine_1_orange
+    dist_m: 0.2942
+    qr_px: 107.8
+    decoded:
+      magazine_1_orange: '1'
+  - base_x: -6.3
+    camera_x: -6.2662
+    nearest: magazine_1_orange
+    dist_m: 0.3137
+    qr_px: 101.1
+    decoded:
+      magazine_1_orange: '1'
+  - base_x: -6.25
+    camera_x: -6.2161
+    nearest: magazine_1_orange
+    dist_m: 0.3396
+    qr_px: 93.4
+    decoded: {}
+  - base_x: -6.2
+    camera_x: -6.1661
+    nearest: magazine_1_orange
+    dist_m: 0.3704
+    qr_px: 85.6
+    decoded: {}
+  - base_x: -6.15
+    camera_x: -6.1162
+    nearest: magazine_2_blue
+    dist_m: 0.3989
+    qr_px: 79.5
+    decoded: {}
+  - base_x: -6.1
+    camera_x: -6.0664
+    nearest: magazine_2_blue
+    dist_m: 0.3619
+    qr_px: 87.6
+    decoded: {}
+  - base_x: -6.05
+    camera_x: -6.0165
+    nearest: magazine_2_blue
+    dist_m: 0.3282
+    qr_px: 96.6
+    decoded: {}
+  - base_x: -6.0
+    camera_x: -5.9664
+    nearest: magazine_2_blue
+    dist_m: 0.2989
+    qr_px: 106.1
+    decoded: {}
+  - base_x: -5.95
+    camera_x: -5.9164
+    nearest: magazine_2_blue
+    dist_m: 0.2758
+    qr_px: 115.0
+    decoded: {}
+  - base_x: -5.9
+    camera_x: -5.8664
+    nearest: magazine_2_blue
+    dist_m: 0.2603
+    qr_px: 121.8
+    decoded: {}
+  - base_x: -5.85
+    camera_x: -5.8164
+    nearest: magazine_2_blue
+    dist_m: 0.2538
+    qr_px: 124.9
+    decoded: {}
+  - base_x: -5.8
+    camera_x: -5.7664
+    nearest: magazine_2_blue
+    dist_m: 0.2571
+    qr_px: 123.3
+    decoded:
+      magazine_2_blue: '2'
+  - base_x: -5.75
+    camera_x: -5.7164
+    nearest: magazine_2_blue
+    dist_m: 0.2698
+    qr_px: 117.5
+    decoded:
+      magazine_2_blue: '2'
+  - base_x: -5.7
+    camera_x: -5.6664
+    nearest: magazine_2_blue
+    dist_m: 0.2907
+    qr_px: 109.1
+    decoded: {}
+  - base_x: -5.65
+    camera_x: -5.6164
+    nearest: magazine_2_blue
+    dist_m: 0.3181
+    qr_px: 99.7
+    decoded: {}
+  - base_x: -5.6
+    camera_x: -5.5664
+    nearest: magazine_2_blue
+    dist_m: 0.3505
+    qr_px: 90.4
+    decoded: {}
+  - base_x: -5.55
+    camera_x: -5.5164
+    nearest: magazine_2_blue
+    dist_m: 0.3867
+    qr_px: 82.0
+    decoded: {}
+  - base_x: -5.5
+    camera_x: -5.4664
+    nearest: magazine_1_orange_02
+    dist_m: 0.3796
+    qr_px: 83.5
+    decoded: {}
+shelf_2/bottom:
+  seed: s1_bottom_scan
+  base_y: -1.6425
+  base_yaw_deg: 180.0
+  joints_deg:
+  - 10.0024
+  - 90.0302
+  - 74.9956
+  - 59.9862
+  - 60.0
+  - 119.9987
+  rows:
+  - base_x: -7.1
+    camera_x: -7.3314
+    nearest: magazine_2_blue
+    dist_m: 0.9784
+    qr_px: 32.4
+    decoded: {}
+  - base_x: -7.0
+    camera_x: -7.2314
+    nearest: magazine_2_blue
+    dist_m: 0.8821
+    qr_px: 35.9
+    decoded: {}
+  - base_x: -6.9
+    camera_x: -7.1314
+    nearest: magazine_2_blue
+    dist_m: 0.7866
+    qr_px: 40.3
+    decoded: {}
+  - base_x: -6.8
+    camera_x: -7.0314
+    nearest: magazine_2_blue
+    dist_m: 0.6925
+    qr_px: 45.8
+    decoded: {}
+  - base_x: -6.7
+    camera_x: -6.9314
+    nearest: magazine_2_blue
+    dist_m: 0.6002
+    qr_px: 52.8
+    decoded: {}
+  - base_x: -6.6
+    camera_x: -6.8314
+    nearest: magazine_2_blue
+    dist_m: 0.5108
+    qr_px: 62.1
+    decoded: {}
+  - base_x: -6.5
+    camera_x: -6.7314
+    nearest: magazine_2_blue
+    dist_m: 0.4263
+    qr_px: 74.4
+    decoded: {}
+  - base_x: -6.4
+    camera_x: -6.6314
+    nearest: magazine_2_blue
+    dist_m: 0.3499
+    qr_px: 90.6
+    decoded: {}
+  - base_x: -6.3
+    camera_x: -6.5314
+    nearest: magazine_2_blue
+    dist_m: 0.2883
+    qr_px: 110.0
+    decoded: {}
+  - base_x: -6.2
+    camera_x: -6.4314
+    nearest: magazine_2_blue
+    dist_m: 0.2527
+    qr_px: 125.5
+    decoded:
+      magazine_2_blue: '2'
+  - base_x: -6.1
+    camera_x: -6.3314
+    nearest: magazine_2_blue
+    dist_m: 0.2541
+    qr_px: 124.8
+    decoded: {}
+  - base_x: -6.0
+    camera_x: -6.2314
+    nearest: magazine_2_blue
+    dist_m: 0.292
+    qr_px: 108.6
+    decoded: {}
+  - base_x: -5.9
+    camera_x: -6.1314
+    nearest: magazine_2_blue
+    dist_m: 0.3549
+    qr_px: 89.3
+    decoded: {}
+  - base_x: -5.8
+    camera_x: -6.0314
+    nearest: magazine_1_orange
+    dist_m: 0.3289
+    qr_px: 96.4
+    decoded: {}
+  - base_x: -5.7
+    camera_x: -5.9314
+    nearest: magazine_1_orange
+    dist_m: 0.2803
+    qr_px: 113.1
+    decoded:
+      magazine_1_orange: '1'
+  - base_x: -5.6
+    camera_x: -5.8314
+    nearest: magazine_1_orange
+    dist_m: 0.2625
+    qr_px: 120.8
+    decoded: {}
+  - base_x: -5.5
+    camera_x: -5.7314
+    nearest: magazine_1_orange
+    dist_m: 0.2816
+    qr_px: 112.6
+    decoded: {}
+  - base_x: -5.4
+    camera_x: -5.6314
+    nearest: magazine_1_orange
+    dist_m: 0.3312
+    qr_px: 95.7
+    decoded: {}
+  - base_x: -5.3
+    camera_x: -5.5314
+    nearest: magazine_1_orange
+    dist_m: 0.4001
+    qr_px: 79.2
+    decoded: {}
+  - base_x: -5.2
+    camera_x: -5.4314
+    nearest: magazine_2_blue_02
+    dist_m: 0.3507
+    qr_px: 90.4
+    decoded: {}
+  - base_x: -5.1
+    camera_x: -5.3314
+    nearest: magazine_2_blue_02
+    dist_m: 0.2889
+    qr_px: 109.7
+    decoded:
+      magazine_2_blue_02: '2'
+  - base_x: -5.0
+    camera_x: -5.2314
+    nearest: magazine_2_blue_02
+    dist_m: 0.2529
+    qr_px: 125.4
+    decoded:
+      magazine_2_blue_02: '2'
+  - base_x: -4.9
+    camera_x: -5.1314
+    nearest: magazine_2_blue_02
+    dist_m: 0.2538
+    qr_px: 124.9
+    decoded: {}
+  - base_x: -4.8
+    camera_x: -5.0315
+    nearest: magazine_2_blue_02
+    dist_m: 0.2914
+    qr_px: 108.8
+    decoded: {}
+  - base_x: -4.7
+    camera_x: -4.9314
+    nearest: magazine_2_blue_02
+    dist_m: 0.3541
+    qr_px: 89.5
+    decoded: {}
+  - base_x: -4.6
+    camera_x: -4.8314
+    nearest: magazine_1_orange_02
+    dist_m: 0.3435
+    qr_px: 92.3
+    decoded: {}
+  - base_x: -4.5
+    camera_x: -4.7314
+    nearest: magazine_1_orange_02
+    dist_m: 0.2893
+    qr_px: 109.6
+    decoded:
+      magazine_1_orange_02: '1'
+  - base_x: -4.4
+    camera_x: -4.6314
+    nearest: magazine_1_orange_02
+    dist_m: 0.2634
+    qr_px: 120.4
+    decoded: {}

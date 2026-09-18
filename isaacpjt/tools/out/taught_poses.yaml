@@ -1,0 +1,173 @@
+shelf_1_top_scan:
+  base_waypoint: shelf_1
+  base_link_world:
+  - -6.49668
+  - 0.5849
+  - 0.0
+  base_link_quat_wxyz:
+  - 0.999997
+  - -2.0e-06
+  - -0.000789
+  - -0.002312
+  m0609_base_world:
+  - -6.70403
+  - 0.58586
+  - 0.54887
+  joints:
+    joint_1: 24.9823
+    joint_2: 35.0063
+    joint_3: 149.9983
+    joint_4: 89.9996
+    joint_5: 89.9997
+    joint_6: 90.0006
+  joints_deg:
+  - 24.9823
+  - 35.0063
+  - 149.9983
+  - 89.9996
+  - 89.9997
+  - 90.0006
+  joints_rad:
+  - 0.436023
+  - 0.610975
+  - 2.617965
+  - 1.57079
+  - 1.570791
+  - 1.570807
+  tool0_world:
+  - -6.5724
+  - 0.78651
+  - 0.65359
+  tool0_quat_wxyz:
+  - -0.683219
+  - 0.696952
+  - 0.121608
+  - -0.180781
+  camera_optical_world:
+  - -6.57314
+  - 0.82476
+  - 0.69739
+  qr_in_view:
+  - name: shelf_1/top/magazine_1_orange:qr_label_ny
+    dist_m: 1.1051
+    px: 28.7
+    uv:
+    - 920.9
+    - 349.1
+  - name: shelf_1/bottom/magazine_2_blue:qr_label_ny
+    dist_m: 1.1372
+    px: 27.9
+    uv:
+    - 922.2
+    - 571.4
+  captured_at: '2026-09-17 14:46:52'
+shelf_1_top_close_centered:
+  base_waypoint: shelf_1
+  base_link_world:
+  - -6.49803
+  - 1.45
+  - -0.0
+  base_link_quat_wxyz:
+  - 0.999999
+  - -2.0e-06
+  - -0.000788
+  - -0.00095
+  m0609_base_world:
+  - -6.70539
+  - 1.4504
+  - 0.54887
+  joints:
+    joint_1: 13.4869
+    joint_2: 38.4021
+    joint_3: 149.9981
+    joint_4: 90.5006
+    joint_5: 90.0
+    joint_6: 86.0006
+  joints_deg:
+  - 13.4869
+  - 38.4021
+  - 149.9981
+  - 90.5006
+  - 90.0
+  - 86.0006
+  joints_rad:
+  - 0.235391
+  - 0.670242
+  - 2.617961
+  - 1.579533
+  - 1.570796
+  - 1.500994
+  tool0_world:
+  - -6.53791
+  - 1.62096
+  - 0.64148
+  tool0_quat_wxyz:
+  - -0.698457
+  - 0.705837
+  - 0.052902
+  - -0.105609
+  camera_optical_world:
+  - -6.53126
+  - 1.65848
+  - 0.68542
+  qr_in_view:
+  - name: shelf_1/top/magazine_1_orange:qr_label_ny
+    dist_m: 0.2775
+    px: 114.2
+    uv:
+    - 649.4
+    - 381.9
+  captured_at: '2026-09-17 14:38:39'
+  note: shelf_1_top_scan 을 화면 중앙으로 맞춘 변형. joint_1/joint_2 만 건드렸다. QR 이 uv [649, 382]
+    로 중앙(640, 360) 근처에 온다.
+s1_bottom_scan:
+  base_waypoint: shelf_1
+  base_link_world:
+  - -6.49601
+  - 1.44999
+  - -0.0
+  base_link_quat_wxyz:
+  - 0.999998
+  - -1.0e-06
+  - -0.00079
+  - -0.001938
+  m0609_base_world:
+  - -6.70337
+  - 1.45079
+  - 0.54887
+  joints:
+    joint_1: 10.0024
+    joint_2: 90.0302
+    joint_3: 74.9956
+    joint_4: 59.9862
+    joint_5: 60.0
+    joint_6: 119.9987
+  joints_deg:
+  - 10.0024
+  - 90.0302
+  - 74.9956
+  - 59.9862
+  - 60.0
+  - 119.9987
+  joints_rad:
+  - 0.174575
+  - 1.571323
+  - 1.308921
+  - 1.046956
+  - 1.047198
+  - 2.094373
+  tool0_world:
+  - -6.25516
+  - 1.62615
+  - 0.25633
+  tool0_quat_wxyz:
+  - -0.415924
+  - 0.883383
+  - 0.132551
+  - -0.170508
+  camera_optical_world:
+  - -6.26329
+  - 1.68246
+  - 0.26837
+  qr_in_view: []
+  captured_at: '2026-09-17 15:24:21'

@@ -1,0 +1,1719 @@
+world_usd: /home/rokey/cobot3_ws/isaacpjt/worlds/simple_factory_layout.usda
+meters_per_unit: 1.0
+up_axis: Z
+shelves:
+  Shelf_01:
+    prim: /World/Environment/PickupZone/Shelf_01
+    origin_world:
+    - -5.6022
+    - 2.3667
+    - 0.0
+    levels:
+      Level_1:
+        top_z: 0.125
+        bottom_z: 0.075
+        thickness: 0.05
+        x_range:
+        - -6.8522
+        - -4.3522
+        y_range:
+        - 1.8667
+        - 2.8667
+        width_x: 2.5
+        depth_y: 1.0
+      Level_2:
+        top_z: 0.5954
+        bottom_z: 0.5454
+        thickness: 0.05
+        x_range:
+        - -6.8522
+        - -4.3522
+        y_range:
+        - 1.8667
+        - 2.8667
+        width_x: 2.5
+        depth_y: 1.0
+    posts:
+      Post_FL:
+        x_range:
+        - -6.8429
+        - -6.7929
+        y_range:
+        - 1.8777
+        - 1.9277
+        z_range:
+        - 0.0246
+        - 0.6246
+      Post_FR:
+        x_range:
+        - -4.4064
+        - -4.3564
+        y_range:
+        - 1.8777
+        - 1.9277
+        z_range:
+        - 0.0246
+        - 0.6246
+      Post_BL:
+        x_range:
+        - -6.8364
+        - -6.7864
+        y_range:
+        - 2.8028
+        - 2.8528
+        z_range:
+        - 0.02
+        - 0.62
+      Post_BR:
+        x_range:
+        - -4.4272
+        - -4.3772
+        y_range:
+        - 2.8028
+        - 2.8528
+        z_range:
+        - 0.02
+        - 0.62
+    aisle_side: -y
+    plate_front_y: 1.8667
+    plate_back_y: 2.8667
+    front_posts:
+    - Post_FL
+    - Post_FR
+    front_post_inner_y: 1.9277
+    back_posts:
+    - Post_BL
+    - Post_BR
+    back_post_inner_y: 2.8028
+    usable_depth_between_posts: 0.8751
+    post_z_range:
+    - 0.02
+    - 0.6246
+    post_bottom_gap_to_floor: 0.02
+    opening:
+      Level_1:
+        clear_height: 0.4204
+        limited_by: Level_2
+      Level_2:
+        clear_height: null
+        limited_by: open (no upper level)
+        post_top_above_level: 0.0292
+  Shelf_02:
+    prim: /World/Environment/PickupZone/Shelf_02
+    origin_world:
+    - -5.6022
+    - -2.5592
+    - 0.0
+    levels:
+      Level_1:
+        top_z: 0.125
+        bottom_z: 0.075
+        thickness: 0.05
+        x_range:
+        - -6.8522
+        - -4.3522
+        y_range:
+        - -3.0592
+        - -2.0592
+        width_x: 2.5
+        depth_y: 1.0
+      Level_2:
+        top_z: 0.5954
+        bottom_z: 0.5454
+        thickness: 0.05
+        x_range:
+        - -6.8522
+        - -4.3522
+        y_range:
+        - -3.0592
+        - -2.0592
+        width_x: 2.5
+        depth_y: 1.0
+    posts:
+      Post_FL:
+        x_range:
+        - -6.8429
+        - -6.7929
+        y_range:
+        - -3.0482
+        - -2.9982
+        z_range:
+        - 0.0246
+        - 0.6246
+      Post_FR:
+        x_range:
+        - -4.4064
+        - -4.3564
+        y_range:
+        - -3.0482
+        - -2.9982
+        z_range:
+        - 0.0246
+        - 0.6246
+      Post_BL:
+        x_range:
+        - -6.8364
+        - -6.7864
+        y_range:
+        - -2.1232
+        - -2.0732
+        z_range:
+        - 0.02
+        - 0.62
+      Post_BR:
+        x_range:
+        - -4.4272
+        - -4.3772
+        y_range:
+        - -2.1232
+        - -2.0732
+        z_range:
+        - 0.02
+        - 0.62
+    aisle_side: +y
+    plate_front_y: -2.0592
+    plate_back_y: -3.0592
+    front_posts:
+    - Post_BL
+    - Post_BR
+    front_post_inner_y: -2.1232
+    back_posts:
+    - Post_FL
+    - Post_FR
+    back_post_inner_y: -2.9982
+    usable_depth_between_posts: 0.875
+    post_z_range:
+    - 0.02
+    - 0.6246
+    post_bottom_gap_to_floor: 0.02
+    opening:
+      Level_1:
+        clear_height: 0.4204
+        limited_by: Level_2
+      Level_2:
+        clear_height: null
+        limited_by: open (no upper level)
+        post_top_above_level: 0.0292
+magazines:
+  shelf_1/top/magazine_1_orange:
+    prim: /World/Magazines/shelf_1_magaines/top_magazines/magazine_1_orange
+    origin_world:
+    - -6.5
+    - 2.0
+    - 0.6
+    orient_wxyz:
+    - 1.0
+    - 0.0
+    - 0.0
+    - 0.0
+    aabb_min:
+    - -6.625
+    - 1.9295
+    - 0.6
+    aabb_max:
+    - -6.375
+    - 2.0705
+    - 0.742
+    size:
+    - 0.25
+    - 0.141
+    - 0.142
+    flange_top_z: 0.742
+    flange_center:
+    - -6.5
+    - 2.0
+    - 0.739
+    flange_size:
+    - 0.08
+    - 0.08
+    - 0.006
+    suction_point:
+    - -6.5
+    - 2.0
+    - 0.742
+    bottom_z: 0.6
+    qr:
+      qr_label_ny:
+        center_world:
+        - -6.59
+        - 1.9295
+        - 0.675
+        normal_world:
+        - 0.0
+        - -1.0
+        - 0.0
+        side_m: 0.05
+      qr_label_py:
+        center_world:
+        - -6.41
+        - 2.0705
+        - 0.675
+        normal_world:
+        - 0.0
+        - 1.0
+        - -0.0
+        side_m: 0.05
+    drop_to_level: 0.0046
+    front_post_setback: 0.0018
+    post_interference:
+      Post_FL:
+        gap_axis: x
+        gap: 0.1679
+      Post_FR:
+        gap_axis: x
+        gap: 1.9686
+      Post_BL:
+        gap_axis: y
+        gap: 0.7323
+      Post_BR:
+        gap_axis: x
+        gap: 1.9478
+    min_post_gap: 0.1679
+    post_collision: []
+    height: 0.142
+  shelf_1/top/magazine_2_blue:
+    prim: /World/Magazines/shelf_1_magaines/top_magazines/magazine_2_blue
+    origin_world:
+    - -5.9233
+    - 2.0
+    - 0.6
+    orient_wxyz:
+    - 1.0
+    - 0.0
+    - 0.0
+    - 0.0
+    aabb_min:
+    - -6.0733
+    - 1.8995
+    - 0.6
+    aabb_max:
+    - -5.7733
+    - 2.1005
+    - 0.706
+    size:
+    - 0.3
+    - 0.201
+    - 0.106
+    flange_top_z: 0.706
+    flange_center:
+    - -5.9233
+    - 2.0
+    - 0.701
+    flange_size:
+    - 0.08
+    - 0.08
+    - 0.01
+    suction_point:
+    - -5.9233
+    - 2.0
+    - 0.706
+    bottom_z: 0.6
+    qr:
+      qr_label_ny:
+        center_world:
+        - -6.0383
+        - 1.8995
+        - 0.635
+        normal_world:
+        - 0.0
+        - -1.0
+        - 0.0
+        side_m: 0.05
+      qr_label_py:
+        center_world:
+        - -5.8083
+        - 2.1005
+        - 0.635
+        normal_world:
+        - 0.0
+        - 1.0
+        - -0.0
+        side_m: 0.05
+    drop_to_level: 0.0046
+    front_post_setback: -0.0282
+    post_interference:
+      Post_FL:
+        gap_axis: x
+        gap: 0.7196
+      Post_FR:
+        gap_axis: x
+        gap: 1.3669
+      Post_BL:
+        gap_axis: x
+        gap: 0.7131
+      Post_BR:
+        gap_axis: x
+        gap: 1.3461
+    min_post_gap: 0.7131
+    post_collision: []
+    height: 0.106
+  shelf_1/top/magazine_1_orange_02:
+    prim: /World/Magazines/shelf_1_magaines/top_magazines/magazine_1_orange_02
+    origin_world:
+    - -5.2988
+    - 2.0
+    - 0.6
+    orient_wxyz:
+    - 1.0
+    - 0.0
+    - 0.0
+    - 0.0
+    aabb_min:
+    - -5.4238
+    - 1.9295
+    - 0.6
+    aabb_max:
+    - -5.1738
+    - 2.0705
+    - 0.742
+    size:
+    - 0.25
+    - 0.141
+    - 0.142
+    flange_top_z: 0.742
+    flange_center:
+    - -5.2988
+    - 2.0
+    - 0.739
+    flange_size:
+    - 0.08
+    - 0.08
+    - 0.006
+    suction_point:
+    - -5.2988
+    - 2.0
+    - 0.742
+    bottom_z: 0.6
+    qr:
+      qr_label_ny:
+        center_world:
+        - -5.3888
+        - 1.9295
+        - 0.675
+        normal_world:
+        - 0.0
+        - -1.0
+        - 0.0
+        side_m: 0.05
+      qr_label_py:
+        center_world:
+        - -5.2088
+        - 2.0705
+        - 0.675
+        normal_world:
+        - 0.0
+        - 1.0
+        - -0.0
+        side_m: 0.05
+    drop_to_level: 0.0046
+    front_post_setback: 0.0018
+    post_interference:
+      Post_FL:
+        gap_axis: x
+        gap: 1.3691
+      Post_FR:
+        gap_axis: x
+        gap: 0.7674
+      Post_BL:
+        gap_axis: x
+        gap: 1.3626
+      Post_BR:
+        gap_axis: x
+        gap: 0.7466
+    min_post_gap: 0.7466
+    post_collision: []
+    height: 0.142
+  shelf_1/top/magazine_2_blue_02:
+    prim: /World/Magazines/shelf_1_magaines/top_magazines/magazine_2_blue_02
+    origin_world:
+    - -4.7
+    - 2.0
+    - 0.6
+    orient_wxyz:
+    - 1.0
+    - 0.0
+    - 0.0
+    - 0.0
+    aabb_min:
+    - -4.85
+    - 1.8995
+    - 0.6
+    aabb_max:
+    - -4.55
+    - 2.1005
+    - 0.706
+    size:
+    - 0.3
+    - 0.201
+    - 0.106
+    flange_top_z: 0.706
+    flange_center:
+    - -4.7
+    - 2.0
+    - 0.701
+    flange_size:
+    - 0.08
+    - 0.08
+    - 0.01
+    suction_point:
+    - -4.7
+    - 2.0
+    - 0.706
+    bottom_z: 0.6
+    qr:
+      qr_label_ny:
+        center_world:
+        - -4.815
+        - 1.8995
+        - 0.635
+        normal_world:
+        - 0.0
+        - -1.0
+        - 0.0
+        side_m: 0.05
+      qr_label_py:
+        center_world:
+        - -4.585
+        - 2.1005
+        - 0.635
+        normal_world:
+        - 0.0
+        - 1.0
+        - -0.0
+        side_m: 0.05
+    drop_to_level: 0.0046
+    front_post_setback: -0.0282
+    post_interference:
+      Post_FL:
+        gap_axis: x
+        gap: 1.9429
+      Post_FR:
+        gap_axis: x
+        gap: 0.1436
+      Post_BL:
+        gap_axis: x
+        gap: 1.9364
+      Post_BR:
+        gap_axis: y
+        gap: 0.7023
+    min_post_gap: 0.1436
+    post_collision: []
+    height: 0.106
+  shelf_1/bottom/magazine_1_orange:
+    prim: /World/Magazines/shelf_1_magaines/bottom_magazines/magazine_1_orange
+    origin_world:
+    - -5.9233
+    - 2.0
+    - 0.125
+    orient_wxyz:
+    - 1.0
+    - 0.0
+    - 0.0
+    - 0.0
+    aabb_min:
+    - -6.0483
+    - 1.9295
+    - 0.125
+    aabb_max:
+    - -5.7983
+    - 2.0705
+    - 0.267
+    size:
+    - 0.25
+    - 0.141
+    - 0.142
+    flange_top_z: 0.267
+    flange_center:
+    - -5.9233
+    - 2.0
+    - 0.264
+    flange_size:
+    - 0.08
+    - 0.08
+    - 0.006
+    suction_point:
+    - -5.9233
+    - 2.0
+    - 0.267
+    bottom_z: 0.125
+    qr:
+      qr_label_ny:
+        center_world:
+        - -6.0133
+        - 1.9295
+        - 0.2
+        normal_world:
+        - 0.0
+        - -1.0
+        - 0.0
+        side_m: 0.05
+      qr_label_py:
+        center_world:
+        - -5.8333
+        - 2.0705
+        - 0.2
+        normal_world:
+        - 0.0
+        - 1.0
+        - -0.0
+        side_m: 0.05
+    drop_to_level: 0.0
+    front_post_setback: 0.0018
+    post_interference:
+      Post_FL:
+        gap_axis: x
+        gap: 0.7446
+      Post_FR:
+        gap_axis: x
+        gap: 1.3919
+      Post_BL:
+        gap_axis: x
+        gap: 0.7381
+      Post_BR:
+        gap_axis: x
+        gap: 1.3711
+    min_post_gap: 0.7381
+    post_collision: []
+    height: 0.142
+  shelf_1/bottom/magazine_2_blue:
+    prim: /World/Magazines/shelf_1_magaines/bottom_magazines/magazine_2_blue
+    origin_world:
+    - -6.5
+    - 2.0
+    - 0.125
+    orient_wxyz:
+    - 1.0
+    - 0.0
+    - 0.0
+    - 0.0
+    aabb_min:
+    - -6.65
+    - 1.8995
+    - 0.125
+    aabb_max:
+    - -6.35
+    - 2.1005
+    - 0.231
+    size:
+    - 0.3
+    - 0.201
+    - 0.106
+    flange_top_z: 0.231
+    flange_center:
+    - -6.5
+    - 2.0
+    - 0.226
+    flange_size:
+    - 0.08
+    - 0.08
+    - 0.01
+    suction_point:
+    - -6.5
+    - 2.0
+    - 0.231
+    bottom_z: 0.125
+    qr:
+      qr_label_ny:
+        center_world:
+        - -6.615
+        - 1.8995
+        - 0.16
+        normal_world:
+        - 0.0
+        - -1.0
+        - 0.0
+        side_m: 0.05
+      qr_label_py:
+        center_world:
+        - -6.385
+        - 2.1005
+        - 0.16
+        normal_world:
+        - 0.0
+        - 1.0
+        - -0.0
+        side_m: 0.05
+    drop_to_level: 0.0
+    front_post_setback: -0.0282
+    post_interference:
+      Post_FL:
+        gap_axis: x
+        gap: 0.1429
+      Post_FR:
+        gap_axis: x
+        gap: 1.9436
+      Post_BL:
+        gap_axis: y
+        gap: 0.7023
+      Post_BR:
+        gap_axis: x
+        gap: 1.9228
+    min_post_gap: 0.1429
+    post_collision: []
+    height: 0.106
+  shelf_1/bottom/magazine_1_orange_02:
+    prim: /World/Magazines/shelf_1_magaines/bottom_magazines/magazine_1_orange_02
+    origin_world:
+    - -4.7
+    - 2.0
+    - 0.125
+    orient_wxyz:
+    - 1.0
+    - 0.0
+    - 0.0
+    - 0.0
+    aabb_min:
+    - -4.825
+    - 1.9295
+    - 0.125
+    aabb_max:
+    - -4.575
+    - 2.0705
+    - 0.267
+    size:
+    - 0.25
+    - 0.141
+    - 0.142
+    flange_top_z: 0.267
+    flange_center:
+    - -4.7
+    - 2.0
+    - 0.264
+    flange_size:
+    - 0.08
+    - 0.08
+    - 0.006
+    suction_point:
+    - -4.7
+    - 2.0
+    - 0.267
+    bottom_z: 0.125
+    qr:
+      qr_label_ny:
+        center_world:
+        - -4.79
+        - 1.9295
+        - 0.2
+        normal_world:
+        - 0.0
+        - -1.0
+        - 0.0
+        side_m: 0.05
+      qr_label_py:
+        center_world:
+        - -4.61
+        - 2.0705
+        - 0.2
+        normal_world:
+        - 0.0
+        - 1.0
+        - -0.0
+        side_m: 0.05
+    drop_to_level: 0.0
+    front_post_setback: 0.0018
+    post_interference:
+      Post_FL:
+        gap_axis: x
+        gap: 1.9679
+      Post_FR:
+        gap_axis: x
+        gap: 0.1686
+      Post_BL:
+        gap_axis: x
+        gap: 1.9614
+      Post_BR:
+        gap_axis: y
+        gap: 0.7323
+    min_post_gap: 0.1686
+    post_collision: []
+    height: 0.142
+  shelf_1/bottom/magazine_2_blue_02:
+    prim: /World/Magazines/shelf_1_magaines/bottom_magazines/magazine_2_blue_02
+    origin_world:
+    - -5.2988
+    - 2.0
+    - 0.125
+    orient_wxyz:
+    - 1.0
+    - 0.0
+    - 0.0
+    - 0.0
+    aabb_min:
+    - -5.4488
+    - 1.8995
+    - 0.125
+    aabb_max:
+    - -5.1488
+    - 2.1005
+    - 0.231
+    size:
+    - 0.3
+    - 0.201
+    - 0.106
+    flange_top_z: 0.231
+    flange_center:
+    - -5.2988
+    - 2.0
+    - 0.226
+    flange_size:
+    - 0.08
+    - 0.08
+    - 0.01
+    suction_point:
+    - -5.2988
+    - 2.0
+    - 0.231
+    bottom_z: 0.125
+    qr:
+      qr_label_ny:
+        center_world:
+        - -5.4138
+        - 1.8995
+        - 0.16
+        normal_world:
+        - 0.0
+        - -1.0
+        - 0.0
+        side_m: 0.05
+      qr_label_py:
+        center_world:
+        - -5.1838
+        - 2.1005
+        - 0.16
+        normal_world:
+        - 0.0
+        - 1.0
+        - -0.0
+        side_m: 0.05
+    drop_to_level: 0.0
+    front_post_setback: -0.0282
+    post_interference:
+      Post_FL:
+        gap_axis: x
+        gap: 1.3441
+      Post_FR:
+        gap_axis: x
+        gap: 0.7424
+      Post_BL:
+        gap_axis: x
+        gap: 1.3376
+      Post_BR:
+        gap_axis: x
+        gap: 0.7216
+    min_post_gap: 0.7216
+    post_collision: []
+    height: 0.106
+  shelf_2/top/magazine_1_orange:
+    prim: /World/Magazines/shelf_2_magaines/top_magazines/magazine_1_orange
+    origin_world:
+    - -6.5
+    - -2.2
+    - 0.6
+    orient_wxyz:
+    - 1.0
+    - 0.0
+    - 0.0
+    - 0.0
+    aabb_min:
+    - -6.625
+    - -2.2705
+    - 0.6
+    aabb_max:
+    - -6.375
+    - -2.1295
+    - 0.742
+    size:
+    - 0.25
+    - 0.141
+    - 0.142
+    flange_top_z: 0.742
+    flange_center:
+    - -6.5
+    - -2.2
+    - 0.739
+    flange_size:
+    - 0.08
+    - 0.08
+    - 0.006
+    suction_point:
+    - -6.5
+    - -2.2
+    - 0.742
+    bottom_z: 0.6
+    qr:
+      qr_label_ny:
+        center_world:
+        - -6.59
+        - -2.2705
+        - 0.675
+        normal_world:
+        - 0.0
+        - -1.0
+        - 0.0
+        side_m: 0.05
+      qr_label_py:
+        center_world:
+        - -6.41
+        - -2.1295
+        - 0.675
+        normal_world:
+        - 0.0
+        - 1.0
+        - -0.0
+        side_m: 0.05
+    drop_to_level: 0.0046
+    front_post_setback: 0.0063
+    post_interference:
+      Post_FL:
+        gap_axis: y
+        gap: 0.7277
+      Post_FR:
+        gap_axis: x
+        gap: 1.9686
+      Post_BL:
+        gap_axis: x
+        gap: 0.1614
+      Post_BR:
+        gap_axis: x
+        gap: 1.9478
+    min_post_gap: 0.1614
+    post_collision: []
+    height: 0.142
+  shelf_2/top/magazine_2_blue:
+    prim: /World/Magazines/shelf_2_magaines/top_magazines/magazine_2_blue
+    origin_world:
+    - -5.9233
+    - -2.2
+    - 0.6
+    orient_wxyz:
+    - 1.0
+    - 0.0
+    - 0.0
+    - 0.0
+    aabb_min:
+    - -6.0733
+    - -2.3005
+    - 0.6
+    aabb_max:
+    - -5.7733
+    - -2.0995
+    - 0.706
+    size:
+    - 0.3
+    - 0.201
+    - 0.106
+    flange_top_z: 0.706
+    flange_center:
+    - -5.9233
+    - -2.2
+    - 0.701
+    flange_size:
+    - 0.08
+    - 0.08
+    - 0.01
+    suction_point:
+    - -5.9233
+    - -2.2
+    - 0.706
+    bottom_z: 0.6
+    qr:
+      qr_label_ny:
+        center_world:
+        - -6.0383
+        - -2.3005
+        - 0.635
+        normal_world:
+        - 0.0
+        - -1.0
+        - 0.0
+        side_m: 0.05
+      qr_label_py:
+        center_world:
+        - -5.8083
+        - -2.0995
+        - 0.635
+        normal_world:
+        - 0.0
+        - 1.0
+        - -0.0
+        side_m: 0.05
+    drop_to_level: 0.0046
+    front_post_setback: -0.0237
+    post_interference:
+      Post_FL:
+        gap_axis: x
+        gap: 0.7196
+      Post_FR:
+        gap_axis: x
+        gap: 1.3669
+      Post_BL:
+        gap_axis: x
+        gap: 0.7131
+      Post_BR:
+        gap_axis: x
+        gap: 1.3461
+    min_post_gap: 0.7131
+    post_collision: []
+    height: 0.106
+  shelf_2/top/magazine_1_orange_02:
+    prim: /World/Magazines/shelf_2_magaines/top_magazines/magazine_1_orange_02
+    origin_world:
+    - -5.2988
+    - -2.2
+    - 0.6
+    orient_wxyz:
+    - 1.0
+    - 0.0
+    - 0.0
+    - 0.0
+    aabb_min:
+    - -5.4238
+    - -2.2705
+    - 0.6
+    aabb_max:
+    - -5.1738
+    - -2.1295
+    - 0.742
+    size:
+    - 0.25
+    - 0.141
+    - 0.142
+    flange_top_z: 0.742
+    flange_center:
+    - -5.2988
+    - -2.2
+    - 0.739
+    flange_size:
+    - 0.08
+    - 0.08
+    - 0.006
+    suction_point:
+    - -5.2988
+    - -2.2
+    - 0.742
+    bottom_z: 0.6
+    qr:
+      qr_label_ny:
+        center_world:
+        - -5.3888
+        - -2.2705
+        - 0.675
+        normal_world:
+        - 0.0
+        - -1.0
+        - 0.0
+        side_m: 0.05
+      qr_label_py:
+        center_world:
+        - -5.2088
+        - -2.1295
+        - 0.675
+        normal_world:
+        - 0.0
+        - 1.0
+        - -0.0
+        side_m: 0.05
+    drop_to_level: 0.0046
+    front_post_setback: 0.0063
+    post_interference:
+      Post_FL:
+        gap_axis: x
+        gap: 1.3691
+      Post_FR:
+        gap_axis: x
+        gap: 0.7674
+      Post_BL:
+        gap_axis: x
+        gap: 1.3626
+      Post_BR:
+        gap_axis: x
+        gap: 0.7466
+    min_post_gap: 0.7466
+    post_collision: []
+    height: 0.142
+  shelf_2/top/magazine_2_blue_02:
+    prim: /World/Magazines/shelf_2_magaines/top_magazines/magazine_2_blue_02
+    origin_world:
+    - -4.7
+    - -2.2
+    - 0.6
+    orient_wxyz:
+    - 1.0
+    - 0.0
+    - 0.0
+    - 0.0
+    aabb_min:
+    - -4.85
+    - -2.3005
+    - 0.6
+    aabb_max:
+    - -4.55
+    - -2.0995
+    - 0.706
+    size:
+    - 0.3
+    - 0.201
+    - 0.106
+    flange_top_z: 0.706
+    flange_center:
+    - -4.7
+    - -2.2
+    - 0.701
+    flange_size:
+    - 0.08
+    - 0.08
+    - 0.01
+    suction_point:
+    - -4.7
+    - -2.2
+    - 0.706
+    bottom_z: 0.6
+    qr:
+      qr_label_ny:
+        center_world:
+        - -4.815
+        - -2.3005
+        - 0.635
+        normal_world:
+        - 0.0
+        - -1.0
+        - 0.0
+        side_m: 0.05
+      qr_label_py:
+        center_world:
+        - -4.585
+        - -2.0995
+        - 0.635
+        normal_world:
+        - 0.0
+        - 1.0
+        - -0.0
+        side_m: 0.05
+    drop_to_level: 0.0046
+    front_post_setback: -0.0237
+    post_interference:
+      Post_FL:
+        gap_axis: x
+        gap: 1.9429
+      Post_FR:
+        gap_axis: y
+        gap: 0.6977
+      Post_BL:
+        gap_axis: x
+        gap: 1.9364
+      Post_BR:
+        gap_axis: x
+        gap: 0.1228
+    min_post_gap: 0.1228
+    post_collision: []
+    height: 0.106
+  shelf_2/bottom/magazine_1_orange:
+    prim: /World/Magazines/shelf_2_magaines/bottom_magazines/magazine_1_orange
+    origin_world:
+    - -5.9233
+    - -2.2
+    - 0.125
+    orient_wxyz:
+    - 1.0
+    - 0.0
+    - 0.0
+    - 0.0
+    aabb_min:
+    - -6.0483
+    - -2.2705
+    - 0.125
+    aabb_max:
+    - -5.7983
+    - -2.1295
+    - 0.267
+    size:
+    - 0.25
+    - 0.141
+    - 0.142
+    flange_top_z: 0.267
+    flange_center:
+    - -5.9233
+    - -2.2
+    - 0.264
+    flange_size:
+    - 0.08
+    - 0.08
+    - 0.006
+    suction_point:
+    - -5.9233
+    - -2.2
+    - 0.267
+    bottom_z: 0.125
+    qr:
+      qr_label_ny:
+        center_world:
+        - -6.0133
+        - -2.2705
+        - 0.2
+        normal_world:
+        - 0.0
+        - -1.0
+        - 0.0
+        side_m: 0.05
+      qr_label_py:
+        center_world:
+        - -5.8333
+        - -2.1295
+        - 0.2
+        normal_world:
+        - 0.0
+        - 1.0
+        - -0.0
+        side_m: 0.05
+    drop_to_level: 0.0
+    front_post_setback: 0.0063
+    post_interference:
+      Post_FL:
+        gap_axis: x
+        gap: 0.7446
+      Post_FR:
+        gap_axis: x
+        gap: 1.3919
+      Post_BL:
+        gap_axis: x
+        gap: 0.7381
+      Post_BR:
+        gap_axis: x
+        gap: 1.3711
+    min_post_gap: 0.7381
+    post_collision: []
+    height: 0.142
+  shelf_2/bottom/magazine_2_blue:
+    prim: /World/Magazines/shelf_2_magaines/bottom_magazines/magazine_2_blue
+    origin_world:
+    - -6.5
+    - -2.2
+    - 0.125
+    orient_wxyz:
+    - 1.0
+    - 0.0
+    - 0.0
+    - 0.0
+    aabb_min:
+    - -6.65
+    - -2.3005
+    - 0.125
+    aabb_max:
+    - -6.35
+    - -2.0995
+    - 0.231
+    size:
+    - 0.3
+    - 0.201
+    - 0.106
+    flange_top_z: 0.231
+    flange_center:
+    - -6.5
+    - -2.2
+    - 0.226
+    flange_size:
+    - 0.08
+    - 0.08
+    - 0.01
+    suction_point:
+    - -6.5
+    - -2.2
+    - 0.231
+    bottom_z: 0.125
+    qr:
+      qr_label_ny:
+        center_world:
+        - -6.615
+        - -2.3005
+        - 0.16
+        normal_world:
+        - 0.0
+        - -1.0
+        - 0.0
+        side_m: 0.05
+      qr_label_py:
+        center_world:
+        - -6.385
+        - -2.0995
+        - 0.16
+        normal_world:
+        - 0.0
+        - 1.0
+        - -0.0
+        side_m: 0.05
+    drop_to_level: 0.0
+    front_post_setback: -0.0237
+    post_interference:
+      Post_FL:
+        gap_axis: y
+        gap: 0.6977
+      Post_FR:
+        gap_axis: x
+        gap: 1.9436
+      Post_BL:
+        gap_axis: x
+        gap: 0.1364
+      Post_BR:
+        gap_axis: x
+        gap: 1.9228
+    min_post_gap: 0.1364
+    post_collision: []
+    height: 0.106
+  shelf_2/bottom/magazine_1_orange_02:
+    prim: /World/Magazines/shelf_2_magaines/bottom_magazines/magazine_1_orange_02
+    origin_world:
+    - -4.7
+    - -2.2
+    - 0.125
+    orient_wxyz:
+    - 1.0
+    - 0.0
+    - 0.0
+    - 0.0
+    aabb_min:
+    - -4.825
+    - -2.2705
+    - 0.125
+    aabb_max:
+    - -4.575
+    - -2.1295
+    - 0.267
+    size:
+    - 0.25
+    - 0.141
+    - 0.142
+    flange_top_z: 0.267
+    flange_center:
+    - -4.7
+    - -2.2
+    - 0.264
+    flange_size:
+    - 0.08
+    - 0.08
+    - 0.006
+    suction_point:
+    - -4.7
+    - -2.2
+    - 0.267
+    bottom_z: 0.125
+    qr:
+      qr_label_ny:
+        center_world:
+        - -4.79
+        - -2.2705
+        - 0.2
+        normal_world:
+        - 0.0
+        - -1.0
+        - 0.0
+        side_m: 0.05
+      qr_label_py:
+        center_world:
+        - -4.61
+        - -2.1295
+        - 0.2
+        normal_world:
+        - 0.0
+        - 1.0
+        - -0.0
+        side_m: 0.05
+    drop_to_level: 0.0
+    front_post_setback: 0.0063
+    post_interference:
+      Post_FL:
+        gap_axis: x
+        gap: 1.9679
+      Post_FR:
+        gap_axis: y
+        gap: 0.7277
+      Post_BL:
+        gap_axis: x
+        gap: 1.9614
+      Post_BR:
+        gap_axis: x
+        gap: 0.1478
+    min_post_gap: 0.1478
+    post_collision: []
+    height: 0.142
+  shelf_2/bottom/magazine_2_blue_02:
+    prim: /World/Magazines/shelf_2_magaines/bottom_magazines/magazine_2_blue_02
+    origin_world:
+    - -5.2988
+    - -2.2
+    - 0.125
+    orient_wxyz:
+    - 1.0
+    - 0.0
+    - 0.0
+    - 0.0
+    aabb_min:
+    - -5.4488
+    - -2.3005
+    - 0.125
+    aabb_max:
+    - -5.1488
+    - -2.0995
+    - 0.231
+    size:
+    - 0.3
+    - 0.201
+    - 0.106
+    flange_top_z: 0.231
+    flange_center:
+    - -5.2988
+    - -2.2
+    - 0.226
+    flange_size:
+    - 0.08
+    - 0.08
+    - 0.01
+    suction_point:
+    - -5.2988
+    - -2.2
+    - 0.231
+    bottom_z: 0.125
+    qr:
+      qr_label_ny:
+        center_world:
+        - -5.4138
+        - -2.3005
+        - 0.16
+        normal_world:
+        - 0.0
+        - -1.0
+        - 0.0
+        side_m: 0.05
+      qr_label_py:
+        center_world:
+        - -5.1838
+        - -2.0995
+        - 0.16
+        normal_world:
+        - 0.0
+        - 1.0
+        - -0.0
+        side_m: 0.05
+    drop_to_level: 0.0
+    front_post_setback: -0.0237
+    post_interference:
+      Post_FL:
+        gap_axis: x
+        gap: 1.3441
+      Post_FR:
+        gap_axis: x
+        gap: 0.7424
+      Post_BL:
+        gap_axis: x
+        gap: 1.3376
+      Post_BR:
+        gap_axis: x
+        gap: 0.7216
+    min_post_gap: 0.7216
+    post_collision: []
+    height: 0.106
+robot:
+  base_link->m0609_base:
+    xyz:
+    - -0.206494
+    - 0.0
+    - 0.549201
+    quat_wxyz:
+    - 1.0
+    - 0.0
+    - 0.0
+    - 0.0
+    rpy_deg:
+    - 0.0
+    - -0.0
+    - 0.0
+  m0609_base->link_6:
+    xyz:
+    - 0.0001
+    - 0.006383
+    - 1.0345
+    quat_wxyz:
+    - 1.0
+    - 0.0
+    - 0.000345
+    - -0.000345
+    rpy_deg:
+    - -0.0
+    - 0.0396
+    - -0.0396
+  link_6->short_gripper:
+    xyz:
+    - 0.0
+    - -3.0e-06
+    - 0.0
+    quat_wxyz:
+    - -0.706863
+    - -0.000244
+    - 0.707351
+    - -0.000244
+    rpy_deg:
+    - -179.9802
+    - -89.9604
+    - -179.9802
+  link_6->gripper_tip:
+    xyz:
+    - -0.000109
+    - -3.0e-06
+    - 0.1585
+    quat_wxyz:
+    - -1.0e-06
+    - -0.0
+    - 0.0
+    - 1.0
+    rpy_deg:
+    - 0.0
+    - 0.0
+    - -179.9999
+  link_6->camera:
+    xyz:
+    - 7.0e-06
+    - -0.045005
+    - 0.035
+    quat_wxyz:
+    - 0.499655
+    - 0.5
+    - -0.5
+    - 0.500345
+    rpy_deg:
+    - -89.9802
+    - -89.9604
+    - -179.9802
+  short_gripper->camera:
+    xyz:
+    - 0.035
+    - -0.045001
+    - 0.0
+    quat_wxyz:
+    - 0.707107
+    - 0.707107
+    - 0.0
+    - 0.0
+    rpy_deg:
+    - 90.0
+    - -0.0
+    - 0.0
+  world_pose:
+    chassis_link:
+    - 3.49037
+    - -4.24382
+    - 0.07963
+    m0609/base_link:
+    - 3.28388
+    - -4.24382
+    - 0.62883
+    link_6:
+    - 3.28398
+    - -4.23744
+    - 1.66333
+    gripper_tip:
+    - 3.28398
+    - -4.23744
+    - 1.82183
+    rsd455:
+    - 3.28398
+    - -4.28244
+    - 1.69833
+  cameras:
+    /World/Robots/nova_carter1/m0609/short_gripper/rsd455/RSD455/Camera_Pseudo_Depth:
+      focal_length_mm: 1.9299999475479126
+      horiz_aperture_mm: 3.8959999084472656
+      vert_aperture_mm: 2.453000068664551
+      link_6_to_camera:
+        xyz:
+        - 7.0e-06
+        - -0.045005
+        - 0.035
+        rpy_deg:
+        - 180.0
+        - -0.0396
+        - 0.0396
+    /World/Robots/nova_carter1/m0609/short_gripper/rsd455/RSD455/Camera_OmniVision_OV9782_Color:
+      focal_length_mm: 1.9299999475479126
+      horiz_aperture_mm: 3.8959999084472656
+      vert_aperture_mm: 2.453000068664551
+      link_6_to_camera:
+        xyz:
+        - 0.011507
+        - -0.044997
+        - 0.035008
+        rpy_deg:
+        - 180.0
+        - -0.0396
+        - 0.0396
+    /World/Robots/nova_carter1/m0609/short_gripper/rsd455/RSD455/Camera_OmniVision_OV9782_Left:
+      focal_length_mm: 1.9299999475479126
+      horiz_aperture_mm: 3.8959999084472656
+      vert_aperture_mm: 2.453000068664551
+      link_6_to_camera:
+        xyz:
+        - -0.047493
+        - -0.045037
+        - 0.034967
+        rpy_deg:
+        - 180.0
+        - -0.0396
+        - 0.0396
+    /World/Robots/nova_carter1/m0609/short_gripper/rsd455/RSD455/Camera_OmniVision_OV9782_Right:
+      focal_length_mm: 1.9299999475479126
+      horiz_aperture_mm: 3.8959999084472656
+      vert_aperture_mm: 2.453000068664551
+      link_6_to_camera:
+        xyz:
+        - 0.047507
+        - -0.044972
+        - 0.035033
+        rpy_deg:
+        - 180.0
+        - -0.0396
+        - 0.0396
+gripper:
+  gripper_tip:
+    prim: /World/Robots/nova_carter1/m0609/short_gripper/gripper_tip
+    world_size:
+    - 0.05
+    - 0.05
+    - 0.005
+    link6_local_min:
+    - -0.02513
+    - -0.02502
+    - 0.15598
+    link6_local_max:
+    - 0.02491
+    - 0.02501
+    - 0.16102
+    cup_diameter_m: 0.05004
+    suction_face_z_from_link6: 0.16102
+    cup_depth_m: 0.00503
+  surface_gripper_prims:
+    /World/Robots/nova_carter1/m0609/short_gripper/SurfaceGripper:
+      type: IsaacSurfaceGripper
+      attrs:
+        isaac:coaxialForceLimit: 0.0
+        isaac:gripDistance: 0.0
+        isaac:maxGripDistance: 0.019999999552965164
+        isaac:retryInterval: null
+        isaac:shearForceLimit: 0.0
+        isaac:status: null
+tf:
+  base_link__m0609_base:
+    xyz:
+    - -0.206494
+    - 0.0
+    - 0.549201
+    quat_xyzw:
+    - 0.0
+    - 0.0
+    - 0.0
+    - 1.0
+    rpy_rad:
+    - 0.0
+    - -0.0
+    - 0.0
+    rpy_deg:
+    - 0.0
+    - -0.0
+    - 0.0
+    static_transform_publisher_args: --x -0.206494 --y 0.000000 --z 0.549201 --roll
+      0.000000 --pitch -0.000000 --yaw 0.000000
+    note: USD arm_mount_joint(FixedJoint)의 로컬 변환. 실측이 아니라 씬 정의값.
+  tool0__camera_link:
+    xyz:
+    - 0.011507
+    - -0.044997
+    - 0.035008
+    quat_xyzw:
+    - 0.5
+    - -0.5
+    - 0.500345
+    - 0.499655
+    rpy_rad:
+    - 1.571487
+    - -1.570106
+    - 0.0
+    rpy_deg:
+    - 90.0396
+    - -89.9604
+    - 0.0
+    static_transform_publisher_args: --x 0.011507 --y -0.044997 --z 0.035008 --roll
+      1.571487 --pitch -1.570106 --yaw 0.000000
+    note: tool0 == link_6 (URDF joint_6-tool0 가 0 오프셋). 출처 /World/Robots/nova_carter1/m0609/short_gripper/rsd455/RSD455/Camera_OmniVision_OV9782_Color
+  tool0__camera_color_optical_frame:
+    xyz:
+    - 0.011507
+    - -0.044997
+    - 0.035008
+    quat_xyzw:
+    - 0.0
+    - -0.000345
+    - 0.000345
+    - 1.0
+    rpy_rad:
+    - -0.0
+    - -0.000691
+    - 0.00069
+    rpy_deg:
+    - -0.0
+    - -0.0396
+    - 0.0396
+    static_transform_publisher_args: --x 0.011507 --y -0.044997 --z 0.035008 --roll
+      -0.000000 --pitch -0.000691 --yaw 0.000690
+    note: REP-103 광학 프레임(+Z 앞, +X 오른쪽, +Y 아래). camera_info 의 K 가 가리키는 프레임이 이것이다.
+  camera_link__camera_color_optical_frame:
+    xyz:
+    - 0.0
+    - 0.0
+    - 0.0
+    quat_xyzw:
+    - -0.5
+    - 0.5
+    - -0.5
+    - 0.5
+    rpy_rad:
+    - -1.570796
+    - 0.0
+    - -1.570796
+    rpy_deg:
+    - -90.0
+    - 0.0
+    - -90.0
+    static_transform_publisher_args: --x 0.000000 --y 0.000000 --z 0.000000 --roll
+      -1.570796 --pitch 0.000000 --yaw -1.570796
+    note: REP-103 고정 규약. 어느 씬에서나 같다.
+verdicts:
+- 'Shelf_01/Level_1: 상판 윗면이 팔 베이스보다  -503.8 mm (음수=아래)'
+- 'Shelf_01/Level_2: 상판 윗면이 팔 베이스보다   -33.4 mm (음수=아래)'
+- 'Shelf_02/Level_1: 상판 윗면이 팔 베이스보다  -503.8 mm (음수=아래)'
+- 'Shelf_02/Level_2: 상판 윗면이 팔 베이스보다   -33.4 mm (음수=아래)'
+- 'Shelf_01/Level_1: 개구 420.4 mm - 매거진 142.0 mm = 여유 +278.4 mm OK'
+- 'Shelf_01/Level_2: 위가 트여 있음 — 높이 제약 없음'
+- 'Shelf_02/Level_1: 개구 420.4 mm - 매거진 142.0 mm = 여유 +278.4 mm OK'
+- 'Shelf_02/Level_2: 위가 트여 있음 — 높이 제약 없음'
+- 'shelf_1/top/magazine_2_blue: 기둥 안쪽면보다 28.2 mm 통로쪽으로 나옴 (x 가 안 겹쳐 간섭은 없음 — 위 최소
+  간격 참고)'
+- 'shelf_1/top/magazine_2_blue_02: 기둥 안쪽면보다 28.2 mm 통로쪽으로 나옴 (x 가 안 겹쳐 간섭은 없음 — 위
+  최소 간격 참고)'
+- 'shelf_1/bottom/magazine_2_blue: 기둥 안쪽면보다 28.2 mm 통로쪽으로 나옴 (x 가 안 겹쳐 간섭은 없음 — 위
+  최소 간격 참고)'
+- 'shelf_1/bottom/magazine_2_blue_02: 기둥 안쪽면보다 28.2 mm 통로쪽으로 나옴 (x 가 안 겹쳐 간섭은 없음 —
+  위 최소 간격 참고)'
+- 'shelf_2/top/magazine_2_blue: 기둥 안쪽면보다 23.7 mm 통로쪽으로 나옴 (x 가 안 겹쳐 간섭은 없음 — 위 최소
+  간격 참고)'
+- 'shelf_2/top/magazine_2_blue_02: 기둥 안쪽면보다 23.7 mm 통로쪽으로 나옴 (x 가 안 겹쳐 간섭은 없음 — 위
+  최소 간격 참고)'
+- 'shelf_2/bottom/magazine_2_blue: 기둥 안쪽면보다 23.7 mm 통로쪽으로 나옴 (x 가 안 겹쳐 간섭은 없음 — 위
+  최소 간격 참고)'
+- 'shelf_2/bottom/magazine_2_blue_02: 기둥 안쪽면보다 23.7 mm 통로쪽으로 나옴 (x 가 안 겹쳐 간섭은 없음 —
+  위 최소 간격 참고)'
+- 'shelf_1/top/magazine_1_orange: 물리 시작 시 +4.6 mm 낙하 — GT pose 는 안정화 후 다시 읽어야 한다'
+- 'shelf_1/top/magazine_2_blue: 물리 시작 시 +4.6 mm 낙하 — GT pose 는 안정화 후 다시 읽어야 한다'
+- 'shelf_1/top/magazine_1_orange_02: 물리 시작 시 +4.6 mm 낙하 — GT pose 는 안정화 후 다시 읽어야 한다'
+- 'shelf_1/top/magazine_2_blue_02: 물리 시작 시 +4.6 mm 낙하 — GT pose 는 안정화 후 다시 읽어야 한다'
+- 'shelf_2/top/magazine_1_orange: 물리 시작 시 +4.6 mm 낙하 — GT pose 는 안정화 후 다시 읽어야 한다'
+- 'shelf_2/top/magazine_2_blue: 물리 시작 시 +4.6 mm 낙하 — GT pose 는 안정화 후 다시 읽어야 한다'
+- 'shelf_2/top/magazine_1_orange_02: 물리 시작 시 +4.6 mm 낙하 — GT pose 는 안정화 후 다시 읽어야 한다'
+- 'shelf_2/top/magazine_2_blue_02: 물리 시작 시 +4.6 mm 낙하 — GT pose 는 안정화 후 다시 읽어야 한다'
+- M0609 카탈로그 도달거리 900 mm (실측 아님 — 제조사 스펙)

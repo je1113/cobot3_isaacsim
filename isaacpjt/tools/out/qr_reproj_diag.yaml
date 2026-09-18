@@ -1,0 +1,892 @@
+pose: shelf_1_top_close_centered
+target: shelf_1/top/magazine_1_orange:qr_label_ny
+k_info:
+- - 634.0862
+  - 0.0
+  - 640.0
+- - 0.0
+  - 634.0862
+  - 360.0
+- - 0.0
+  - 0.0
+  - 1.0
+k_usd:
+- - 634.0862
+  - 0.0
+  - 640.0
+- - 0.0
+  - 634.0862
+  - 360.0
+- - 0.0
+  - 0.0
+  - 1.0
+usd_camera:
+  focal_mm: 1.9299999475479126
+  h_ap_mm: 3.8959999084472656
+  v_ap_mm: 2.453000068664551
+  h_off_mm: 0.0
+  v_off_mm: 0.0
+  fx: 634.0862399675711
+  fy_from_vap: 566.4899809770554
+summary_rms_px:
+  static/prim/info: 10.34
+  static/prim/usd: 10.34
+  static/tf/info: 10.339
+  static/tf/usd: 10.339
+  live/prim/info: 2.097
+  live/prim/usd: 2.097
+  live/tf/info: 2.097
+  live/tf/usd: 2.097
+records:
+- settle: 110
+  frame: 0
+  magazine_live_pos:
+  - -6.5
+  - 2.0
+  - 0.59542
+  gt_live_minus_static_mm:
+  - 0.0
+  - -0.0
+  - -4.583
+  gt_live_minus_usd_mm:
+  - -0.0
+  - -0.0
+  - -0.0
+  cam_prim_minus_tf_mm:
+  - 0.0
+  - 0.0
+  - -0.0
+  cam_rot_prim_vs_tf_deg: 0.0
+  detected_px:
+  - - 741.89
+    - 342.45
+  - - 830.64
+    - 336.26
+  - - 837.25
+    - 424.27
+  - - 748.03
+    - 428.42
+  subpix_shift_px: 2.198
+  combos:
+    static/prim/info:
+      mean_du: 0.194
+      mean_dv: 10.25
+      rms_px: 10.413
+      max_px: 11.575
+      per_corner:
+      - - 1.446
+        - 11.459
+      - - -0.373
+        - 11.569
+      - - -1.648
+        - 8.61
+      - - 1.352
+        - 9.363
+    static/prim/usd:
+      mean_du: 0.194
+      mean_dv: 10.25
+      rms_px: 10.413
+      max_px: 11.575
+      per_corner:
+      - - 1.446
+        - 11.459
+      - - -0.373
+        - 11.569
+      - - -1.648
+        - 8.61
+      - - 1.352
+        - 9.363
+    static/tf/info:
+      mean_du: 0.194
+      mean_dv: 10.249
+      rms_px: 10.412
+      max_px: 11.574
+      per_corner:
+      - - 1.446
+        - 11.458
+      - - -0.373
+        - 11.568
+      - - -1.647
+        - 8.609
+      - - 1.352
+        - 9.362
+    static/tf/usd:
+      mean_du: 0.194
+      mean_dv: 10.249
+      rms_px: 10.412
+      max_px: 11.574
+      per_corner:
+      - - 1.446
+        - 11.458
+      - - -0.373
+        - 11.568
+      - - -1.647
+        - 8.609
+      - - 1.352
+        - 9.362
+    live/prim/info:
+      mean_du: -0.637
+      mean_dv: -0.721
+      rms_px: 2.087
+      max_px: 3.549
+      per_corner:
+      - - 0.626
+        - 0.654
+      - - -1.216
+        - 0.425
+      - - -2.49
+        - -2.528
+      - - 0.532
+        - -1.436
+    live/prim/usd:
+      mean_du: -0.637
+      mean_dv: -0.721
+      rms_px: 2.087
+      max_px: 3.549
+      per_corner:
+      - - 0.626
+        - 0.654
+      - - -1.216
+        - 0.425
+      - - -2.49
+        - -2.528
+      - - 0.532
+        - -1.436
+    live/tf/info:
+      mean_du: -0.637
+      mean_dv: -0.722
+      rms_px: 2.087
+      max_px: 3.549
+      per_corner:
+      - - 0.626
+        - 0.653
+      - - -1.216
+        - 0.424
+      - - -2.49
+        - -2.529
+      - - 0.532
+        - -1.437
+    live/tf/usd:
+      mean_du: -0.637
+      mean_dv: -0.722
+      rms_px: 2.087
+      max_px: 3.549
+      per_corner:
+      - - 0.626
+        - 0.653
+      - - -1.216
+        - 0.424
+      - - -2.49
+        - -2.529
+      - - 0.532
+        - -1.437
+- settle: 110
+  frame: 1
+  magazine_live_pos:
+  - -6.5
+  - 2.0
+  - 0.59542
+  gt_live_minus_static_mm:
+  - 0.0
+  - 0.0
+  - -4.583
+  gt_live_minus_usd_mm:
+  - -0.0
+  - 0.0
+  - -0.0
+  cam_prim_minus_tf_mm:
+  - 0.0
+  - 0.0
+  - -0.0
+  cam_rot_prim_vs_tf_deg: 0.0
+  detected_px:
+  - - 741.77
+    - 342.14
+  - - 830.35
+    - 336.6
+  - - 837.07
+    - 423.85
+  - - 749.0
+    - 427.0
+  subpix_shift_px: 2.135
+  combos:
+    static/prim/info:
+      mean_du: 0.177
+      mean_dv: 10.24
+      rms_px: 10.404
+      max_px: 11.591
+      per_corner:
+      - - 1.471
+        - 11.481
+      - - -0.467
+        - 11.581
+      - - -1.594
+        - 8.557
+      - - 1.296
+        - 9.339
+    static/prim/usd:
+      mean_du: 0.177
+      mean_dv: 10.24
+      rms_px: 10.404
+      max_px: 11.591
+      per_corner:
+      - - 1.471
+        - 11.481
+      - - -0.467
+        - 11.581
+      - - -1.594
+        - 8.557
+      - - 1.296
+        - 9.339
+    static/tf/info:
+      mean_du: 0.177
+      mean_dv: 10.239
+      rms_px: 10.403
+      max_px: 11.59
+      per_corner:
+      - - 1.47
+        - 11.48
+      - - -0.467
+        - 11.58
+      - - -1.594
+        - 8.556
+      - - 1.296
+        - 9.339
+    static/tf/usd:
+      mean_du: 0.177
+      mean_dv: 10.239
+      rms_px: 10.403
+      max_px: 11.59
+      per_corner:
+      - - 1.47
+        - 11.48
+      - - -0.467
+        - 11.58
+      - - -1.594
+        - 8.556
+      - - 1.296
+        - 9.339
+    live/prim/info:
+      mean_du: -0.655
+      mean_dv: -0.732
+      rms_px: 2.106
+      max_px: 3.549
+      per_corner:
+      - - 0.65
+        - 0.677
+      - - -1.31
+        - 0.437
+      - - -2.437
+        - -2.581
+      - - 0.476
+        - -1.46
+    live/prim/usd:
+      mean_du: -0.655
+      mean_dv: -0.732
+      rms_px: 2.106
+      max_px: 3.549
+      per_corner:
+      - - 0.65
+        - 0.677
+      - - -1.31
+        - 0.437
+      - - -2.437
+        - -2.581
+      - - 0.476
+        - -1.46
+    live/tf/info:
+      mean_du: -0.655
+      mean_dv: -0.733
+      rms_px: 2.106
+      max_px: 3.55
+      per_corner:
+      - - 0.65
+        - 0.676
+      - - -1.31
+        - 0.436
+      - - -2.437
+        - -2.582
+      - - 0.476
+        - -1.46
+    live/tf/usd:
+      mean_du: -0.655
+      mean_dv: -0.733
+      rms_px: 2.106
+      max_px: 3.55
+      per_corner:
+      - - 0.65
+        - 0.676
+      - - -1.31
+        - 0.436
+      - - -2.437
+        - -2.582
+      - - 0.476
+        - -1.46
+- settle: 110
+  frame: 2
+  magazine_live_pos:
+  - -6.5
+  - 2.0
+  - 0.59542
+  gt_live_minus_static_mm:
+  - 0.0
+  - -0.0
+  - -4.583
+  gt_live_minus_usd_mm:
+  - -0.0
+  - 0.0
+  - -0.0
+  cam_prim_minus_tf_mm:
+  - 0.0
+  - 0.0
+  - -0.0
+  cam_rot_prim_vs_tf_deg: 0.0
+  detected_px:
+  - - 741.77
+    - 342.14
+  - - 830.35
+    - 336.6
+  - - 837.07
+    - 423.85
+  - - 749.0
+    - 427.0
+  subpix_shift_px: 2.057
+  combos:
+    static/prim/info:
+      mean_du: 0.134
+      mean_dv: 10.257
+      rms_px: 10.405
+      max_px: 11.62
+      per_corner:
+      - - 1.351
+        - 11.406
+      - - -0.439
+        - 11.612
+      - - -1.527
+        - 8.618
+      - - 1.151
+        - 9.392
+    static/prim/usd:
+      mean_du: 0.134
+      mean_dv: 10.257
+      rms_px: 10.405
+      max_px: 11.62
+      per_corner:
+      - - 1.351
+        - 11.406
+      - - -0.439
+        - 11.612
+      - - -1.527
+        - 8.618
+      - - 1.151
+        - 9.392
+    static/tf/info:
+      mean_du: 0.134
+      mean_dv: 10.256
+      rms_px: 10.405
+      max_px: 11.619
+      per_corner:
+      - - 1.351
+        - 11.405
+      - - -0.439
+        - 11.611
+      - - -1.527
+        - 8.618
+      - - 1.151
+        - 9.391
+    static/tf/usd:
+      mean_du: 0.134
+      mean_dv: 10.256
+      rms_px: 10.405
+      max_px: 11.619
+      per_corner:
+      - - 1.351
+        - 11.405
+      - - -0.439
+        - 11.611
+      - - -1.527
+        - 8.618
+      - - 1.151
+        - 9.391
+    live/prim/info:
+      mean_du: -0.698
+      mean_dv: -0.715
+      rms_px: 2.035
+      max_px: 3.459
+      per_corner:
+      - - 0.53
+        - 0.601
+      - - -1.282
+        - 0.468
+      - - -2.37
+        - -2.52
+      - - 0.331
+        - -1.407
+    live/prim/usd:
+      mean_du: -0.698
+      mean_dv: -0.715
+      rms_px: 2.035
+      max_px: 3.459
+      per_corner:
+      - - 0.53
+        - 0.601
+      - - -1.282
+        - 0.468
+      - - -2.37
+        - -2.52
+      - - 0.331
+        - -1.407
+    live/tf/info:
+      mean_du: -0.698
+      mean_dv: -0.715
+      rms_px: 2.035
+      max_px: 3.46
+      per_corner:
+      - - 0.53
+        - 0.6
+      - - -1.282
+        - 0.467
+      - - -2.37
+        - -2.521
+      - - 0.331
+        - -1.408
+    live/tf/usd:
+      mean_du: -0.698
+      mean_dv: -0.715
+      rms_px: 2.035
+      max_px: 3.46
+      per_corner:
+      - - 0.53
+        - 0.6
+      - - -1.282
+        - 0.467
+      - - -2.37
+        - -2.521
+      - - 0.331
+        - -1.408
+- settle: 400
+  frame: 0
+  magazine_live_pos:
+  - -6.5
+  - 2.0
+  - 0.59542
+  gt_live_minus_static_mm:
+  - 0.0
+  - -0.0
+  - -4.583
+  gt_live_minus_usd_mm:
+  - -0.0
+  - -0.0
+  - -0.0
+  cam_prim_minus_tf_mm:
+  - 0.0
+  - 0.0
+  - -0.0
+  cam_rot_prim_vs_tf_deg: 0.0
+  detected_px:
+  - - 737.77
+    - 342.75
+  - - 826.27
+    - 336.85
+  - - 832.49
+    - 423.93
+  - - 743.88
+    - 428.36
+  subpix_shift_px: 1.826
+  combos:
+    static/prim/info:
+      mean_du: 0.221
+      mean_dv: 10.119
+      rms_px: 10.29
+      max_px: 11.501
+      per_corner:
+      - - 1.521
+        - 11.201
+      - - -0.315
+        - 11.496
+      - - -1.748
+        - 8.495
+      - - 1.426
+        - 9.285
+    static/prim/usd:
+      mean_du: 0.221
+      mean_dv: 10.119
+      rms_px: 10.29
+      max_px: 11.501
+      per_corner:
+      - - 1.521
+        - 11.201
+      - - -0.315
+        - 11.496
+      - - -1.748
+        - 8.495
+      - - 1.426
+        - 9.285
+    static/tf/info:
+      mean_du: 0.221
+      mean_dv: 10.118
+      rms_px: 10.289
+      max_px: 11.499
+      per_corner:
+      - - 1.521
+        - 11.2
+      - - -0.315
+        - 11.495
+      - - -1.748
+        - 8.494
+      - - 1.426
+        - 9.284
+    static/tf/usd:
+      mean_du: 0.221
+      mean_dv: 10.118
+      rms_px: 10.289
+      max_px: 11.499
+      per_corner:
+      - - 1.521
+        - 11.2
+      - - -0.315
+        - 11.495
+      - - -1.748
+        - 8.494
+      - - 1.426
+        - 9.284
+    live/prim/info:
+      mean_du: -0.61
+      mean_dv: -0.837
+      rms_px: 2.143
+      max_px: 3.689
+      per_corner:
+      - - 0.702
+        - 0.41
+      - - -1.157
+        - 0.368
+      - - -2.59
+        - -2.628
+      - - 0.607
+        - -1.5
+    live/prim/usd:
+      mean_du: -0.61
+      mean_dv: -0.837
+      rms_px: 2.143
+      max_px: 3.689
+      per_corner:
+      - - 0.702
+        - 0.41
+      - - -1.157
+        - 0.368
+      - - -2.59
+        - -2.628
+      - - 0.607
+        - -1.5
+    live/tf/info:
+      mean_du: -0.61
+      mean_dv: -0.838
+      rms_px: 2.143
+      max_px: 3.69
+      per_corner:
+      - - 0.702
+        - 0.409
+      - - -1.157
+        - 0.367
+      - - -2.59
+        - -2.629
+      - - 0.607
+        - -1.501
+    live/tf/usd:
+      mean_du: -0.61
+      mean_dv: -0.838
+      rms_px: 2.143
+      max_px: 3.69
+      per_corner:
+      - - 0.702
+        - 0.409
+      - - -1.157
+        - 0.367
+      - - -2.59
+        - -2.629
+      - - 0.607
+        - -1.501
+- settle: 400
+  frame: 1
+  magazine_live_pos:
+  - -6.5
+  - 2.0
+  - 0.59542
+  gt_live_minus_static_mm:
+  - 0.0
+  - -0.0
+  - -4.583
+  gt_live_minus_usd_mm:
+  - -0.0
+  - 0.0
+  - -0.0
+  cam_prim_minus_tf_mm:
+  - -0.0
+  - 0.0
+  - -0.0
+  cam_rot_prim_vs_tf_deg: 0.0
+  detected_px:
+  - - 738.0
+    - 345.0
+  - - 826.19
+    - 336.86
+  - - 832.61
+    - 424.63
+  - - 743.47
+    - 428.06
+  subpix_shift_px: 2.483
+  combos:
+    static/prim/info:
+      mean_du: 0.173
+      mean_dv: 10.09
+      rms_px: 10.25
+      max_px: 11.502
+      per_corner:
+      - - 1.372
+        - 11.122
+      - - -0.251
+        - 11.499
+      - - -1.734
+        - 8.458
+      - - 1.306
+        - 9.283
+    static/prim/usd:
+      mean_du: 0.173
+      mean_dv: 10.09
+      rms_px: 10.25
+      max_px: 11.502
+      per_corner:
+      - - 1.372
+        - 11.122
+      - - -0.251
+        - 11.499
+      - - -1.734
+        - 8.458
+      - - 1.306
+        - 9.283
+    static/tf/info:
+      mean_du: 0.174
+      mean_dv: 10.089
+      rms_px: 10.249
+      max_px: 11.501
+      per_corner:
+      - - 1.373
+        - 11.121
+      - - -0.25
+        - 11.498
+      - - -1.733
+        - 8.457
+      - - 1.307
+        - 9.282
+    static/tf/usd:
+      mean_du: 0.174
+      mean_dv: 10.089
+      rms_px: 10.249
+      max_px: 11.501
+      per_corner:
+      - - 1.373
+        - 11.121
+      - - -0.25
+        - 11.498
+      - - -1.733
+        - 8.457
+      - - 1.307
+        - 9.282
+    live/prim/info:
+      mean_du: -0.657
+      mean_dv: -0.866
+      rms_px: 2.12
+      max_px: 3.706
+      per_corner:
+      - - 0.552
+        - 0.331
+      - - -1.093
+        - 0.371
+      - - -2.576
+        - -2.665
+      - - 0.487
+        - -1.502
+    live/prim/usd:
+      mean_du: -0.657
+      mean_dv: -0.866
+      rms_px: 2.12
+      max_px: 3.706
+      per_corner:
+      - - 0.552
+        - 0.331
+      - - -1.093
+        - 0.371
+      - - -2.576
+        - -2.665
+      - - 0.487
+        - -1.502
+    live/tf/info:
+      mean_du: -0.656
+      mean_dv: -0.867
+      rms_px: 2.12
+      max_px: 3.706
+      per_corner:
+      - - 0.553
+        - 0.33
+      - - -1.092
+        - 0.37
+      - - -2.575
+        - -2.666
+      - - 0.488
+        - -1.503
+    live/tf/usd:
+      mean_du: -0.656
+      mean_dv: -0.867
+      rms_px: 2.12
+      max_px: 3.706
+      per_corner:
+      - - 0.553
+        - 0.33
+      - - -1.092
+        - 0.37
+      - - -2.575
+        - -2.666
+      - - 0.488
+        - -1.503
+- settle: 400
+  frame: 2
+  magazine_live_pos:
+  - -6.5
+  - 2.0
+  - 0.59542
+  gt_live_minus_static_mm:
+  - 0.0
+  - -0.0
+  - -4.583
+  gt_live_minus_usd_mm:
+  - -0.0
+  - 0.0
+  - -0.0
+  cam_prim_minus_tf_mm:
+  - 0.0
+  - 0.0
+  - -0.0
+  cam_rot_prim_vs_tf_deg: 0.0
+  detected_px:
+  - - 738.0
+    - 345.0
+  - - 826.09
+    - 336.87
+  - - 832.62
+    - 423.92
+  - - 745.0
+    - 427.0
+  subpix_shift_px: 2.033
+  combos:
+    static/prim/info:
+      mean_du: 0.137
+      mean_dv: 10.124
+      rms_px: 10.278
+      max_px: 11.476
+      per_corner:
+      - - 1.343
+        - 11.142
+      - - -0.255
+        - 11.473
+      - - -1.788
+        - 8.563
+      - - 1.247
+        - 9.319
+    static/prim/usd:
+      mean_du: 0.137
+      mean_dv: 10.124
+      rms_px: 10.278
+      max_px: 11.476
+      per_corner:
+      - - 1.343
+        - 11.142
+      - - -0.255
+        - 11.473
+      - - -1.788
+        - 8.563
+      - - 1.247
+        - 9.319
+    static/tf/info:
+      mean_du: 0.137
+      mean_dv: 10.123
+      rms_px: 10.277
+      max_px: 11.475
+      per_corner:
+      - - 1.343
+        - 11.14
+      - - -0.255
+        - 11.472
+      - - -1.788
+        - 8.562
+      - - 1.247
+        - 9.318
+    static/tf/usd:
+      mean_du: 0.137
+      mean_dv: 10.123
+      rms_px: 10.277
+      max_px: 11.475
+      per_corner:
+      - - 1.343
+        - 11.14
+      - - -0.255
+        - 11.472
+      - - -1.788
+        - 8.562
+      - - 1.247
+        - 9.318
+    live/prim/info:
+      mean_du: -0.694
+      mean_dv: -0.833
+      rms_px: 2.093
+      max_px: 3.669
+      per_corner:
+      - - 0.523
+        - 0.351
+      - - -1.097
+        - 0.345
+      - - -2.63
+        - -2.559
+      - - 0.428
+        - -1.466
+    live/prim/usd:
+      mean_du: -0.694
+      mean_dv: -0.833
+      rms_px: 2.093
+      max_px: 3.669
+      per_corner:
+      - - 0.523
+        - 0.351
+      - - -1.097
+        - 0.345
+      - - -2.63
+        - -2.559
+      - - 0.428
+        - -1.466
+    live/tf/info:
+      mean_du: -0.694
+      mean_dv: -0.834
+      rms_px: 2.093
+      max_px: 3.67
+      per_corner:
+      - - 0.523
+        - 0.35
+      - - -1.097
+        - 0.343
+      - - -2.63
+        - -2.56
+      - - 0.428
+        - -1.467
+    live/tf/usd:
+      mean_du: -0.694
+      mean_dv: -0.834
+      rms_px: 2.093
+      max_px: 3.67
+      per_corner:
+      - - 0.523
+        - 0.35
+      - - -1.097
+        - 0.343
+      - - -2.63
+        - -2.56
+      - - 0.428
+        - -1.467

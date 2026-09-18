@@ -24,6 +24,7 @@ setup(
     },
     entry_points={
         'console_scripts': [
+            'task_manager = cobot3_orchestrator.task_manager:main',
         ],
     },
 )

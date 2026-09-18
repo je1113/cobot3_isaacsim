@@ -1,0 +1,271 @@
+pose: shelf_1_top_close_centered
+target: shelf_1/top/magazine_1_orange:qr_label_ny
+gt_center:
+- -6.589999998682794
+- 1.9294999974191067
+- 0.6704165450225277
+summary:
+  data:
+    s_m: 0.0362
+    n: 14
+    pos_err_mm_mean: 1.638
+    pos_err_mm_max: 3.496
+    yaw_err_deg_mean: 0.0357
+    yaw_err_deg_absmax: 4.5971
+    err_along_view_mm_mean: -0.873
+    err_lateral_mm_mean: 0.554
+    pos_repeat_1sigma_mm: 1.7156
+    yaw_repeat_1sigma_deg: 2.2614
+  label:
+    s_m: 0.05
+    n: 14
+    pos_err_mm_mean: 102.778
+    pos_err_mm_max: 107.959
+    yaw_err_deg_mean: 0.0357
+    yaw_err_deg_absmax: 4.5971
+    err_along_view_mm_mean: 99.627
+    err_lateral_mm_mean: 23.012
+    pos_repeat_1sigma_mm: 10.8789
+    yaw_repeat_1sigma_deg: 2.2614
+rows:
+- jitter: -0.04
+  frame: 0
+  detected: true
+  data:
+    pos_err_mm: 1.192
+    yaw_err_deg: 0.2118
+    range_m: 0.2732
+    range_gt_m: 0.2744
+    err_along_view_mm: -1.028
+    err_lateral_mm: 0.602
+  label:
+    pos_err_mm: 102.996
+    yaw_err_deg: 0.2118
+    range_m: 0.3774
+    range_gt_m: 0.2744
+    err_along_view_mm: 95.896
+    err_lateral_mm: 37.579
+- jitter: -0.04
+  frame: 1
+  detected: true
+  data:
+    pos_err_mm: 0.934
+    yaw_err_deg: -1.0803
+    range_m: 0.2735
+    range_gt_m: 0.2744
+    err_along_view_mm: -0.791
+    err_lateral_mm: 0.498
+  label:
+    pos_err_mm: 103.363
+    yaw_err_deg: -1.0803
+    range_m: 0.3778
+    range_gt_m: 0.2744
+    err_along_view_mm: 96.225
+    err_lateral_mm: 37.745
+- jitter: -0.04
+  frame: 2
+  detected: true
+  data:
+    pos_err_mm: 0.946
+    yaw_err_deg: -0.8783
+    range_m: 0.2735
+    range_gt_m: 0.2744
+    err_along_view_mm: -0.806
+    err_lateral_mm: 0.495
+  label:
+    pos_err_mm: 103.345
+    yaw_err_deg: -0.8783
+    range_m: 0.3778
+    range_gt_m: 0.2744
+    err_along_view_mm: 96.203
+    err_lateral_mm: 37.753
+- jitter: -0.02
+  frame: 0
+  detected: true
+  data:
+    pos_err_mm: 2.511
+    yaw_err_deg: -1.2372
+    range_m: 0.2698
+    range_gt_m: 0.2723
+    err_along_view_mm: -2.32
+    err_lateral_mm: 0.959
+  label:
+    pos_err_mm: 100.38
+    yaw_err_deg: -1.2372
+    range_m: 0.3726
+    range_gt_m: 0.2723
+    err_along_view_mm: 95.791
+    err_lateral_mm: 30.005
+- jitter: -0.02
+  frame: 1
+  detected: true
+  data:
+    pos_err_mm: 0.758
+    yaw_err_deg: 0.3593
+    range_m: 0.2716
+    range_gt_m: 0.2723
+    err_along_view_mm: -0.617
+    err_lateral_mm: 0.442
+  label:
+    pos_err_mm: 102.813
+    yaw_err_deg: 0.3593
+    range_m: 0.3751
+    range_gt_m: 0.2723
+    err_along_view_mm: 98.144
+    err_lateral_mm: 30.63
+- jitter: -0.02
+  frame: 2
+  detected: false
+- jitter: 0.0
+  frame: 0
+  detected: true
+  data:
+    pos_err_mm: 3.486
+    yaw_err_deg: 4.5971
+    range_m: 0.2681
+    range_gt_m: 0.2715
+    err_along_view_mm: -3.346
+    err_lateral_mm: 0.979
+  label:
+    pos_err_mm: 98.748
+    yaw_err_deg: 4.5971
+    range_m: 0.3703
+    range_gt_m: 0.2715
+    err_along_view_mm: 96.063
+    err_lateral_mm: 22.869
+- jitter: 0.0
+  frame: 1
+  detected: true
+  data:
+    pos_err_mm: 3.01
+    yaw_err_deg: 3.5836
+    range_m: 0.2686
+    range_gt_m: 0.2715
+    err_along_view_mm: -2.877
+    err_lateral_mm: 0.885
+  label:
+    pos_err_mm: 99.41
+    yaw_err_deg: 3.5836
+    range_m: 0.3709
+    range_gt_m: 0.2715
+    err_along_view_mm: 96.711
+    err_lateral_mm: 23.007
+- jitter: 0.0
+  frame: 2
+  detected: true
+  data:
+    pos_err_mm: 3.496
+    yaw_err_deg: 2.3361
+    range_m: 0.2681
+    range_gt_m: 0.2715
+    err_along_view_mm: -3.334
+    err_lateral_mm: 1.054
+  label:
+    pos_err_mm: 98.735
+    yaw_err_deg: 2.3361
+    range_m: 0.3703
+    range_gt_m: 0.2715
+    err_along_view_mm: 96.081
+    err_lateral_mm: 22.74
+- jitter: 0.02
+  frame: 0
+  detected: true
+  data:
+    pos_err_mm: 3.02
+    yaw_err_deg: 0.0684
+    range_m: 0.2753
+    range_gt_m: 0.2723
+    err_along_view_mm: 2.994
+    err_lateral_mm: 0.394
+  label:
+    pos_err_mm: 107.959
+    yaw_err_deg: 0.0684
+    range_m: 0.3802
+    range_gt_m: 0.2723
+    err_along_view_mm: 106.555
+    err_lateral_mm: 17.352
+- jitter: 0.02
+  frame: 1
+  detected: true
+  data:
+    pos_err_mm: 0.278
+    yaw_err_deg: -3.2971
+    range_m: 0.2722
+    range_gt_m: 0.2723
+    err_along_view_mm: -0.041
+    err_lateral_mm: 0.275
+  label:
+    pos_err_mm: 103.697
+    yaw_err_deg: -3.2971
+    range_m: 0.376
+    range_gt_m: 0.2723
+    err_along_view_mm: 102.363
+    err_lateral_mm: 16.578
+- jitter: 0.02
+  frame: 2
+  detected: true
+  data:
+    pos_err_mm: 0.315
+    yaw_err_deg: -4.2012
+    range_m: 0.2721
+    range_gt_m: 0.2723
+    err_along_view_mm: -0.145
+    err_lateral_mm: 0.28
+  label:
+    pos_err_mm: 103.555
+    yaw_err_deg: -4.2012
+    range_m: 0.3758
+    range_gt_m: 0.2723
+    err_along_view_mm: 102.219
+    err_lateral_mm: 16.577
+- jitter: 0.04
+  frame: 0
+  detected: true
+  data:
+    pos_err_mm: 0.978
+    yaw_err_deg: 0.0955
+    range_m: 0.2735
+    range_gt_m: 0.2745
+    err_along_view_mm: -0.921
+    err_lateral_mm: 0.33
+  label:
+    pos_err_mm: 103.318
+    yaw_err_deg: 0.0955
+    range_m: 0.3778
+    range_gt_m: 0.2745
+    err_along_view_mm: 102.861
+    err_lateral_mm: 9.708
+- jitter: 0.04
+  frame: 1
+  detected: true
+  data:
+    pos_err_mm: 0.539
+    yaw_err_deg: -0.0168
+    range_m: 0.274
+    range_gt_m: 0.2745
+    err_along_view_mm: -0.434
+    err_lateral_mm: 0.319
+  label:
+    pos_err_mm: 103.988
+    yaw_err_deg: -0.0168
+    range_m: 0.3784
+    range_gt_m: 0.2745
+    err_along_view_mm: 103.532
+    err_lateral_mm: 9.719
+- jitter: 0.04
+  frame: 2
+  detected: true
+  data:
+    pos_err_mm: 1.464
+    yaw_err_deg: -0.0415
+    range_m: 0.2759
+    range_gt_m: 0.2745
+    err_along_view_mm: 1.444
+    err_lateral_mm: 0.242
+  label:
+    pos_err_mm: 106.588
+    yaw_err_deg: -0.0415
+    range_m: 0.381
+    range_gt_m: 0.2745
+    err_along_view_mm: 106.127
+    err_lateral_mm: 9.91

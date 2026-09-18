@@ -7,8 +7,8 @@
                 double radius = 5
             }
             dictionary Perspective = {
-                double3 position = (-3.860416272683859, -1.8040230330477036, 4.094764094793827)
-                double3 target = (-6.61601825430934, -0.8588958200302034, -4.408476043542223)
+                double3 position = (-5.7232709961942865, 0.3158503611112519, 0.4400656238086803)
+                double3 target = (-6.7305200395333635, 2.845082955336987, 0.22285104218090018)
             }
             dictionary Right = {
                 double3 position = (0, -5, 0)
@@ -221,7 +221,7 @@ def Xform "World"
                     double size = 1
                     quatf xformOp:orient = (1, 0, 0, 0)
                     double3 xformOp:scale = (2.5, 1, 0.05)
-                    double3 xformOp:translate = (0, 0, 0.26245642533320795)
+                    double3 xformOp:translate = (0, 0, 0.1)
                     uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
                 }
 
@@ -307,7 +307,7 @@ def Xform "World"
                     double size = 1
                     quatf xformOp:orient = (1, 0, 0, 0)
                     double3 xformOp:scale = (2.5, 1, 0.05)
-                    double3 xformOp:translate = (0, 0, 0.26245642533320795)
+                    double3 xformOp:translate = (0, 0, 0.1)
                     uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
                 }
 
@@ -593,7 +593,7 @@ def Xform "World"
                 {
                     quatf xformOp:orient = (1, 0, 0, 0)
                     float3 xformOp:scale = (1, 1, 1)
-                    double3 xformOp:translate = (-5.92333, 2, 0.29311178287374434)
+                    double3 xformOp:translate = (-5.92333, 2, 0.125)
                     uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
                 }
 
@@ -603,7 +603,7 @@ def Xform "World"
                 {
                     quatf xformOp:orient = (1, 0, 0, 0)
                     float3 xformOp:scale = (1, 1, 1)
-                    double3 xformOp:translate = (-6.5, 2, 0.29311178287374434)
+                    double3 xformOp:translate = (-6.5, 2, 0.125)
                     uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
                 }
 
@@ -614,7 +614,7 @@ def Xform "World"
                     token visibility = "inherited"
                     quatf xformOp:orient = (1, 0, 0, 0)
                     float3 xformOp:scale = (1, 1, 1)
-                    double3 xformOp:translate = (-4.7, 2, 0.29311178287374434)
+                    double3 xformOp:translate = (-4.7, 2, 0.125)
                     uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
                 }
 
@@ -625,7 +625,7 @@ def Xform "World"
                     token visibility = "inherited"
                     quatf xformOp:orient = (1, 0, 0, 0)
                     float3 xformOp:scale = (1, 1, 1)
-                    double3 xformOp:translate = (-5.29877, 2, 0.29311178287374434)
+                    double3 xformOp:translate = (-5.29877, 2, 0.125)
                     uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
                 }
             }
@@ -701,7 +701,7 @@ def Xform "World"
                 {
                     quatf xformOp:orient = (1, 0, 0, 0)
                     float3 xformOp:scale = (1, 1, 1)
-                    double3 xformOp:translate = (-5.92333, -2.2, 0.29311178287374434)
+                    double3 xformOp:translate = (-5.92333, -2.2, 0.125)
                     uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
                 }
 
@@ -711,7 +711,7 @@ def Xform "World"
                 {
                     quatf xformOp:orient = (1, 0, 0, 0)
                     float3 xformOp:scale = (1, 1, 1)
-                    double3 xformOp:translate = (-6.5, -2.2, 0.29311178287374434)
+                    double3 xformOp:translate = (-6.5, -2.2, 0.125)
                     uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
                 }
 
@@ -722,7 +722,7 @@ def Xform "World"
                     token visibility = "inherited"
                     quatf xformOp:orient = (1, 0, 0, 0)
                     float3 xformOp:scale = (1, 1, 1)
-                    double3 xformOp:translate = (-4.7, -2.2, 0.29311178287374434)
+                    double3 xformOp:translate = (-4.7, -2.2, 0.125)
                     uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
                 }
 
@@ -733,7 +733,7 @@ def Xform "World"
                     token visibility = "inherited"
                     quatf xformOp:orient = (1, 0, 0, 0)
                     float3 xformOp:scale = (1, 1, 1)
-                    double3 xformOp:translate = (-5.29877, -2.2, 0.29311178287374434)
+                    double3 xformOp:translate = (-5.29877, -2.2, 0.125)
                     uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
                 }
             }
