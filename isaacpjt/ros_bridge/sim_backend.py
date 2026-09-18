@@ -38,6 +38,16 @@ from isaacsim import SimulationApp
 HEADLESS = os.environ.get("SIM_HEADLESS", "1") == "1"
 simulation_app = SimulationApp({"headless": HEADLESS})
 
+# 씬(simple_factory_layout.usda)에 이미 OmniGraph 로 박혀 있는 ROS2 브릿지
+# 노드들(ROS2PublishClock, nova_carter1/2 의 odom·lidar 퍼블리셔)은 이 확장이
+# 꺼져 있으면 그냥 안 돈다 — SimulationApp 기본 구성에는 안 들어 있다. 이
+# 백엔드는 원래 JSON-RPC(팔·그리퍼·카메라)만 썼어서 필요 없었는데, Nav2 가
+# /clock·/robot1/chassis/odom·/robot1/front_3d_lidar/lidar_points 를 그
+# 노드들에서 받아야 해서 필요해졌다. LD_LIBRARY_PATH(isaac_ros 함수)는
+# 라이브러리를 "찾을 수 있게" 만들 뿐, 확장을 "켜는" 건 아니다 — 둘 다 필요하다.
+from isaacsim.core.utils.extensions import enable_extension  # noqa: E402
+enable_extension("isaacsim.ros2.bridge")
+
 import numpy as np
 import omni.usd
 import yaml
@@ -667,17 +677,19 @@ class Backend:
         self.gripper.reinit()
         return {"ok": True}
 
-    def observe_pose(self):
-        """관측 자세로 이동한다 (일단 2층만 정의 — taught_poses.yaml
-        shelf_1_top_close_centered). carrier_code_reader.scan_qr() 전에 부른다."""
+    def observe_pose(self, pose_name="shelf_1_top_close_centered"):
+        """관측 자세로 이동한다. taught_poses.yaml 에 있는 아무 키나 받는다 —
+        층별로 다른 관절값을 쓰려면(2층 shelf_1_top_close_centered, 1층
+        s1_bottom_scan) 호출하는 쪽에서 pose_name 을 바꿔서 넘기면 된다.
+        carrier_code_reader.scan_qr() 전에 부른다."""
         self._set_arm_stiffness(DRIVE_STIFFNESS)   # QR 디코드가 깨지지 않는 값으로
         taught = yaml.safe_load((ISAACPJT / "tools/out/taught_poses.yaml").read_text(encoding="utf-8"))
-        pose = taught["shelf_1_top_close_centered"]
+        pose = taught[pose_name]
         self._set_joint_deg(pose["joints_deg"])
         for _ in range(SETTLE_STEPS):
             self.world.step(render=not HEADLESS)
         self._ensure_camera_warm()
-        return {"ok": True, "pose": "shelf_1_top_close_centered"}
+        return {"ok": True, "pose": pose_name}
 
     def _ensure_camera_warm(self):
         """render_product 를 여기서(관측 자세에 이미 도착한 뒤) 처음 만든다.

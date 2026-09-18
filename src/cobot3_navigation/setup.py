@@ -100,6 +100,7 @@ setup(
 
     entry_points={
         'console_scripts': [
+            'nav_server = cobot3_navigation.nav_server:main',
         ],
     },
 )

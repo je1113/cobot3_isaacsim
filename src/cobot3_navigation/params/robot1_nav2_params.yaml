@@ -249,24 +249,35 @@ controller_server:
 
       debug_trajectory_details: true
 
-      min_vel_x: 0.0
+      # 후진을 허용한다 — PATROL_ROUTE 왕복 중 한쪽 구간은 yaw=0(동쪽)을
+      # 유지한 채 서쪽으로 이동해야 하는데(task_manager.py 참고), 전진만
+      # 허용하면 그 구간에서 선반 바로 앞 제자리 180도 회전이 필요해진다.
+      # 그 회전 스윕 반경(0.66m)이 선반 여유(0.26~0.48m)보다 넓어서 계속
+      # BLOCKED/ABORTED 로 막히던 게 이거였다 — 후진을 허용하면 그 구간에서
+      # 아예 회전할 필요가 없어진다. nav_server 가 속도 프로파일마다
+      # min_vel_x 도 -max_vel_x 로 같이 눌러준다.
+      min_vel_x: -0.25
       min_vel_y: 0.0
 
-      max_vel_x: 0.8
+      # 원래 NVIDIA 데모 값(0.8 / 0.7)은 개방된 창고 기준이라 빠르다. 선반 앞
+      # 구간(SHELF_ZONE)에서 손목 카메라로 QR 을 스캔하려면 베이스가 흔들림
+      # 없이 부드럽게 움직여야 해서 낮췄다 — carrier_code_reader.py 의 실시간
+      # QR 감시가 이 구간의 저속 주행을 전제로 한다.
+      max_vel_x: 0.25
       max_vel_y: 0.0
-      max_vel_theta: 0.7
+      max_vel_theta: 0.3
 
       min_speed_xy: 0.0
-      max_speed_xy: 1.0
+      max_speed_xy: 0.25
       min_speed_theta: 0.0
 
-      acc_lim_x: 2.5
+      acc_lim_x: 0.4
       acc_lim_y: 0.0
-      acc_lim_theta: 3.5
+      acc_lim_theta: 0.8
 
-      decel_lim_x: -2.5
+      decel_lim_x: -0.4
       decel_lim_y: 0.0
-      decel_lim_theta: -3.5
+      decel_lim_theta: -0.8
 
       vx_samples: 20
       vy_samples: 5
@@ -567,25 +578,29 @@ velocity_smoother:
     scale_velocities: false
     feedback: "OPEN_LOOP"
 
+    # FollowPath(DWB) 의 max_vel_x/theta·acc_lim 값과 맞춰서 낮췄다 — 여기만
+    # 낮추면 DWB 가 고른 빠른 궤적을 이 스무더가 뒤늦게 깎아내리면서 오히려
+    # 더 덜컹거린다(원인 그대로: 몸이 흔들리며 움직임). 두 레이어를 같은
+    # 값으로 맞춰야 매끄럽다.
     max_velocity:
-      - 0.8
+      - 0.25
       - 0.0
-      - 0.7
+      - 0.3
 
     min_velocity:
-      - -0.8
+      - -0.25
       - 0.0
-      - -0.7
+      - -0.3
 
     max_accel:
-      - 2.5
+      - 0.4
       - 0.0
-      - 3.5
+      - 0.8
 
     max_decel:
-      - -2.5
+      - -0.4
       - 0.0
-      - -3.5
+      - -0.8
 
     velocity_timeout: 1.0
 
