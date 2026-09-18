@@ -1,0 +1,594 @@
+docking_server:
+  ros__parameters:
+    use_sim_time: true
+
+    controller_frequency: 50.0
+    initial_perception_timeout: 5.0
+    wait_charge_timeout: 5.0
+    dock_approach_timeout: 30.0
+
+    undock_linear_tolerance: 0.05
+    undock_angular_tolerance: 0.1
+    max_retries: 3
+
+    base_frame: "base_link"
+    fixed_frame: "odom"
+
+    dock_prestaging_tolerance: 0.5
+
+    dock_plugins: ["simple_charging_dock"]
+
+    simple_charging_dock:
+      plugin: "opennav_docking::SimpleChargingDock"
+
+      docking_threshold: 0.05
+      staging_x_offset: -0.7
+
+      use_external_detection_pose: true
+      use_battery_status: false
+      use_stall_detection: false
+
+      dock_direction: "forward"
+
+      external_detection_timeout: 1.0
+      external_detection_translation_x: -0.18
+      external_detection_translation_y: 0.0
+      external_detection_rotation_roll: -1.57
+      external_detection_rotation_pitch: -1.57
+      external_detection_rotation_yaw: 0.0
+
+      filter_coef: 0.1
+
+      controller:
+        k_phi: 3.0
+        k_delta: 2.0
+        v_linear_min: 0.15
+        v_linear_max: 0.15
+        use_collision_detection: true
+
+        costmap_topic: "local_costmap/costmap_raw"
+        footprint_topic: "local_costmap/published_footprint"
+
+        transform_tolerance: 0.1
+        projection_time: 5.0
+        simulation_step: 0.1
+        dock_collision_threshold: 0.3
+collision_monitor:
+  ros__parameters:
+    use_sim_time: true
+
+    base_frame_id: "base_link"
+    odom_frame_id: "odom"
+
+    cmd_vel_in_topic: "cmd_vel_smoothed"
+    cmd_vel_out_topic: "cmd_vel"
+
+    state_topic: "collision_monitor_state"
+
+    transform_tolerance: 0.2
+    source_timeout: 1.0
+    base_shift_correction: true
+    stop_pub_timeout: 2.0
+
+    enable_stamped_cmd_vel: false
+
+    polygons: ["FootprintApproach"]
+
+    FootprintApproach:
+      type: "polygon"
+      action_type: "approach"
+      footprint_topic: "local_costmap/published_footprint"
+      time_before_collision: 1.2
+      simulation_time_step: 0.1
+      min_points: 6
+      visualize: true
+      enabled: true
+
+    observation_sources: ["scan"]
+
+    scan:
+      type: "scan"
+      topic: "scan"
+      source_timeout: 0.5
+      enabled: true
+amcl:
+  ros__parameters:
+    use_sim_time: true
+
+    alpha1: 0.2
+    alpha2: 0.2
+    alpha3: 0.2
+    alpha4: 0.2
+    alpha5: 0.2
+
+    base_frame_id: "base_link"
+    global_frame_id: "map"
+    odom_frame_id: "odom"
+
+    scan_topic: "scan"
+    map_topic: "map"
+
+    beam_skip_distance: 0.5
+    beam_skip_error_threshold: 0.9
+    beam_skip_threshold: 0.3
+    do_beamskip: false
+
+    lambda_short: 0.1
+    laser_likelihood_max_dist: 2.0
+    laser_max_range: 100.0
+    laser_min_range: -1.0
+    laser_model_type: "likelihood_field"
+
+    max_beams: 360
+    max_particles: 2000
+    min_particles: 500
+
+    pf_err: 0.05
+    pf_z: 0.99
+
+    recovery_alpha_fast: 0.0
+    recovery_alpha_slow: 0.0
+
+    resample_interval: 3
+
+    robot_model_type: "nav2_amcl::DifferentialMotionModel"
+
+    save_pose_rate: 0.5
+    sigma_hit: 0.2
+
+    tf_broadcast: true
+    transform_tolerance: 1.0
+
+    update_min_a: 0.2
+    update_min_d: 0.25
+
+    z_hit: 0.5
+    z_max: 0.05
+    z_rand: 0.5
+    z_short: 0.05
+
+    set_initial_pose: true
+    always_reset_initial_pose: false
+    first_map_only: false
+
+    # ==========================================================
+    # ROBOT 1 START POSITION
+    # Isaac Sim:
+    # X = 3.490373703049795
+    # Y = -4.243819003153972
+    # Rotate Z = 0 deg
+    # ==========================================================
+    initial_pose:
+      x: 3.490373703049795
+      y: -4.243819003153972
+      z: 0.0
+      yaw: 0.0
+
+
+amcl_map_client:
+  ros__parameters:
+    use_sim_time: true
+
+
+amcl_rclcpp_node:
+  ros__parameters:
+    use_sim_time: true
+
+
+bt_navigator:
+  ros__parameters:
+    use_sim_time: true
+
+    global_frame: "map"
+    robot_base_frame: "base_link"
+
+    # 앞에 /를 붙이지 않음
+    # namespace 적용 후:
+    # /robot1/chassis/odom
+    odom_topic: "chassis/odom"
+
+    bt_loop_duration: 10
+    default_server_timeout: 20
+    wait_for_service_timeout: 1000
+    action_server_result_timeout: 900.0
+
+    navigators:
+      - navigate_to_pose
+      - navigate_through_poses
+
+    navigate_to_pose:
+      plugin: "nav2_bt_navigator::NavigateToPoseNavigator"
+
+    navigate_through_poses:
+      plugin: "nav2_bt_navigator::NavigateThroughPosesNavigator"
+
+    error_code_names:
+      - compute_path_error_code
+      - follow_path_error_code
+
+
+controller_server:
+  ros__parameters:
+    use_sim_time: true
+
+    controller_frequency: 20.0
+    costmap_update_timeout: 0.30
+
+    min_x_velocity_threshold: 0.001
+    min_y_velocity_threshold: 0.5
+    min_theta_velocity_threshold: 0.001
+
+    failure_tolerance: 0.3
+
+    progress_checker_plugins:
+      - progress_checker
+
+    goal_checker_plugins:
+      - general_goal_checker
+
+    controller_plugins:
+      - FollowPath
+
+    use_realtime_priority: false
+
+    progress_checker:
+      plugin: "nav2_controller::SimpleProgressChecker"
+      required_movement_radius: 0.5
+      movement_time_allowance: 10.0
+
+    general_goal_checker:
+      plugin: "nav2_controller::SimpleGoalChecker"
+      stateful: true
+      xy_goal_tolerance: 0.25
+      yaw_goal_tolerance: 0.25
+
+    FollowPath:
+      plugin: "dwb_core::DWBLocalPlanner"
+
+      debug_trajectory_details: true
+
+      min_vel_x: 0.0
+      min_vel_y: 0.0
+
+      max_vel_x: 0.8
+      max_vel_y: 0.0
+      max_vel_theta: 0.7
+
+      min_speed_xy: 0.0
+      max_speed_xy: 1.0
+      min_speed_theta: 0.0
+
+      acc_lim_x: 2.5
+      acc_lim_y: 0.0
+      acc_lim_theta: 3.5
+
+      decel_lim_x: -2.5
+      decel_lim_y: 0.0
+      decel_lim_theta: -3.5
+
+      vx_samples: 20
+      vy_samples: 5
+      vtheta_samples: 20
+
+      sim_time: 1.7
+
+      linear_granularity: 0.05
+      angular_granularity: 0.025
+
+      transform_tolerance: 0.2
+
+      xy_goal_tolerance: 0.25
+      trans_stopped_velocity: 0.25
+
+      short_circuit_trajectory_evaluation: true
+      stateful: true
+
+      critics:
+        - RotateToGoal
+        - Oscillation
+        - BaseObstacle
+        - GoalAlign
+        - PathAlign
+        - PathDist
+        - GoalDist
+
+      BaseObstacle.scale: 0.02
+
+      PathAlign.scale: 32.0
+      PathAlign.forward_point_distance: 0.1
+
+      GoalAlign.scale: 24.0
+      GoalAlign.forward_point_distance: 0.1
+
+      PathDist.scale: 32.0
+      GoalDist.scale: 24.0
+
+      RotateToGoal.scale: 32.0
+      RotateToGoal.slowing_factor: 5.0
+      RotateToGoal.lookahead_time: -1.0
+
+
+local_costmap:
+  local_costmap:
+    ros__parameters:
+      use_sim_time: true
+
+      global_frame: "odom"
+      robot_base_frame: "base_link"
+
+      update_frequency: 5.0
+      publish_frequency: 2.0
+
+      rolling_window: true
+
+      width: 6
+      height: 6
+      resolution: 0.05
+
+      transform_tolerance: 0.3
+
+      # 기존 Carter 값 그대로 사용
+      footprint: "[ [0.14, 0.25], [0.14, -0.25], [-0.607, -0.25], [-0.607, 0.25] ]"
+      footprint_padding: 0.03
+
+      always_send_full_costmap: true
+
+      plugins:
+        - static_layer
+        - obstacle_layer
+        - inflation_layer
+
+      static_layer:
+        plugin: "nav2_costmap_2d::StaticLayer"
+        map_subscribe_transient_local: true
+        enabled: true
+
+      # ========================================================
+      # 3D LiDAR를 launch 파일에서 /scan으로 변환하여 사용
+      #
+      # robot1 namespace 적용 후:
+      # /robot1/scan
+      # ========================================================
+      obstacle_layer:
+        plugin: "nav2_costmap_2d::ObstacleLayer"
+        enabled: true
+
+        observation_sources: scan
+
+        scan:
+          topic: "scan"
+
+          data_type: "LaserScan"
+
+          clearing: true
+          marking: true
+
+          max_obstacle_height: 2.0
+
+          obstacle_max_range: 3.0
+          obstacle_min_range: 0.05
+
+          raytrace_max_range: 10.0
+          raytrace_min_range: 0.0
+
+      inflation_layer:
+        plugin: "nav2_costmap_2d::InflationLayer"
+        enabled: true
+
+        cost_scaling_factor: 3.0
+        inflation_radius: 0.8
+
+
+global_costmap:
+  global_costmap:
+    ros__parameters:
+      use_sim_time: true
+
+      global_frame: "map"
+      robot_base_frame: "base_link"
+
+      update_frequency: 1.0
+      publish_frequency: 1.0
+
+      resolution: 0.05
+
+      transform_tolerance: 0.3
+
+      footprint: "[ [0.14, 0.25], [0.14, -0.25], [-0.607, -0.25], [-0.607, 0.25] ]"
+      footprint_padding: 0.25
+
+      always_send_full_costmap: true
+
+      plugins:
+        - static_layer
+        - obstacle_layer
+        - inflation_layer
+
+      static_layer:
+        plugin: "nav2_costmap_2d::StaticLayer"
+        map_subscribe_transient_local: true
+        enabled: true
+
+      obstacle_layer:
+        plugin: "nav2_costmap_2d::ObstacleLayer"
+        enabled: true
+
+        observation_sources: scan
+
+        scan:
+          topic: "scan"
+
+          data_type: "LaserScan"
+
+          clearing: true
+          marking: true
+
+          max_obstacle_height: 2.0
+
+          raytrace_max_range: 10.0
+          raytrace_min_range: 0.0
+
+          obstacle_max_range: 10.0
+          obstacle_min_range: 0.0
+
+      inflation_layer:
+        plugin: "nav2_costmap_2d::InflationLayer"
+
+        cost_scaling_factor: 0.3
+        inflation_radius: 1.0
+
+  global_costmap_client:
+    ros__parameters:
+      use_sim_time: true
+
+  global_costmap_rclcpp_node:
+    ros__parameters:
+      use_sim_time: true
+
+
+map_server:
+  ros__parameters:
+    use_sim_time: true
+
+    # 실제 map 경로는 launch 파일에서 넣음
+    yaml_filename: ""
+
+
+map_saver:
+  ros__parameters:
+    use_sim_time: true
+
+    save_map_timeout: 5000
+    free_thresh_default: 0.25
+    occupied_thresh_default: 0.65
+    map_subscribe_transient_local: true
+
+
+planner_server:
+  ros__parameters:
+    use_sim_time: true
+
+    expected_planner_frequency: 10.0
+
+    planner_plugins:
+      - GridBased
+
+    GridBased:
+      plugin: "nav2_navfn_planner::NavfnPlanner"
+
+      tolerance: 0.5
+      use_astar: false
+      allow_unknown: true
+
+
+planner_server_rclcpp_node:
+  ros__parameters:
+    use_sim_time: true
+
+
+smoother_server:
+  ros__parameters:
+    use_sim_time: true
+
+    smoother_plugins:
+      - simple_smoother
+
+    simple_smoother:
+      plugin: "nav2_smoother::SimpleSmoother"
+
+      tolerance: 1.0e-10
+      max_its: 1000
+      do_refinement: true
+
+
+behavior_server:
+  ros__parameters:
+    use_sim_time: true
+
+    costmap_topic: "local_costmap/costmap_raw"
+    footprint_topic: "local_costmap/published_footprint"
+
+    cycle_frequency: 5.0
+
+    behavior_plugins:
+      - spin
+      - backup
+      - drive_on_heading
+      - wait
+
+    spin:
+      plugin: "nav2_behaviors::Spin"
+
+    backup:
+      plugin: "nav2_behaviors::BackUp"
+
+    drive_on_heading:
+      plugin: "nav2_behaviors::DriveOnHeading"
+
+    wait:
+      plugin: "nav2_behaviors::Wait"
+
+    global_frame: "odom"
+    robot_base_frame: "base_link"
+
+    transform_tolerance: 0.2
+
+    simulate_ahead_time: 2.0
+
+    max_rotational_vel: 1.2
+    min_rotational_vel: 0.4
+    rotational_acc_lim: 3.2
+
+
+waypoint_follower:
+  ros__parameters:
+    use_sim_time: true
+
+    loop_rate: 20
+    stop_on_failure: false
+
+    waypoint_task_executor_plugin: "wait_at_waypoint"
+
+    wait_at_waypoint:
+      plugin: "nav2_waypoint_follower::WaitAtWaypoint"
+
+      enabled: true
+      waypoint_pause_duration: 200
+
+
+velocity_smoother:
+  ros__parameters:
+    use_sim_time: true
+
+    smoothing_frequency: 20.0
+
+    scale_velocities: false
+    feedback: "OPEN_LOOP"
+
+    max_velocity:
+      - 0.8
+      - 0.0
+      - 0.7
+
+    min_velocity:
+      - -0.8
+      - 0.0
+      - -0.7
+
+    max_accel:
+      - 2.5
+      - 0.0
+      - 3.5
+
+    max_decel:
+      - -2.5
+      - 0.0
+      - -3.5
+
+    velocity_timeout: 1.0
+
+    # namespace 적용 후:
+    # /robot1/chassis/odom
+    odom_topic: "chassis/odom"
+
+    odom_duration: 0.1
