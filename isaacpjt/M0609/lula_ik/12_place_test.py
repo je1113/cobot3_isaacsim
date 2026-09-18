@@ -1,12 +1,23 @@
 """
-단위 테스트 — nova_carter1/m0609 로 magazine_1_orange 를 집어 컨베이어 앞
-바닥 스테이징 지점에 내려놓기 (PICK + PLACE)
+단위 테스트 — nova_carter1/m0609 로 magazine_2_blue_02 를 집어 컨베이어 앞
+바닥 스테이징 지점에 내려놓기 (SCAN + PICK + PLACE)
 
     isaac_python 12_place_test.py   (기본이 GUI)
     (헤드리스로 돌리려면)  PICK_HEADLESS=1 isaac_python 12_place_test.py
 
 12_pick_test.py 의 PICK 로직(흡착 PickFSM, 재시도 사다리 포함)을 그대로 쓰고,
-그 뒤에 PLACE 단계를 추가한다.
+그 앞에 SCAN(손목 카메라로 QR 실제 판독 확인) 단계를, 그 뒤에 PLACE 단계를
+추가한다.
+
+★ GT 직접 읽기에서 SCAN 게이트로 바꾼 이유: 원래(magazine_1_orange 대상)는
+인식 없이 USD 에서 매거진의 실제(GT) pose 를 바로 읽었다. 지금은 대상을
+magazine_2_blue_02(선반 위 다른 위치, QR 판독 창 x:[-4.90,-4.80])로 바꾸고,
+PICK 전에 sim_backend.py 의 observe_pose()+scan_qr() 와 같은 방식으로
+손목 카메라 QR 을 실제로 판독해 본다 — 판독 실패면 FAIL_NOT_FOUND 로 그 자리서
+중단하고 PICK/PLACE 는 시도하지 않는다. **다만 SCAN 은 게이트일 뿐이고,
+PICK 자체의 파지점은 여전히 GT(measure_prim(FLANGE_PATH))를 쓴다** — 실제
+파이프라인(carrier_code_reader/pick_place_server)처럼 QR 좌표로 파지점을
+역산하는 것까지는 아직 안 옮겼다.
 
 PLACE 목표 지점에 대해 — 원래 이 시나리오는 PackagingZone 컨베이어 위
 TestItem 의 초기 위치(x=4.5, z=1.05)에 내려놓는 것이었다. 하지만 그 지점은
@@ -18,10 +29,12 @@ IK 시드를 여러 조합으로 바꿔봐도 동일 — 12_pick_test.py 이전 
 씬 로드 후 비활성화한다(원래 충돌체가 없는 순수 시각적 prim이라 물리적으로는
 문제 없었지만, 시각적으로 방해가 된다).
 
-  - 인식(비전) 없이 USD 에서 매거진의 실제(GT) pose 를 직접 읽는다.
-  - Nav2 주행 없이 베이스(nova_carter1)를 WP_PICK -> WP_PLACE 로 직접 순간
-    이동시킨다(주행 시뮬레이션 없음). 텔레포트할 때마다 Lula 솔버에 새 base
-    pose 를 다시 알려준다.
+  - PICK 은 WP_PICK 으로 베이스를 텔레포트해 시작한다(텔레포트할 때마다
+    Lula 솔버에 새 base pose 를 다시 알려준다). TRANSPORT(WP_PICK -> WP_PLACE)
+    는 텔레포트가 아니라 nav_server(/navigation/navigate_to, cmd_vel 직접
+    주행)로 실제 물리 주행을 시킨다 — NavDriver 클래스 독스트링 참고.
+    실행 전 multi_navigation.launch.py + mission_nodes.launch.py 가 떠 있어야
+    한다.
   - 성공 판정은 project-plan.html 의 S4/S6 기준을 그대로 쓴다.
       pick  : 5 mm 리프트 후 유지, 기울기 <= 5도, 슬립 0
       place : 목표 xy 대비 위치오차 <= 2 mm, 자세오차 <= 1도
@@ -47,17 +60,30 @@ from isaacsim import SimulationApp
 HEADLESS = os.environ.get("PICK_HEADLESS", "0") == "1"
 simulation_app = SimulationApp({"headless": HEADLESS})
 
+# Nav2 로 PICK->PLACE 를 실제로 주행시키려면(이 파일 하단 NavDriver),
+# /robot1/clock·odom·scan 을 내는 Isaac 네이티브 ROS2 브릿지가 이 프로세스
+# 안에서 켜져 있어야 한다 — sim_backend.py 의 같은 이유(기본 구성엔 안
+# 들어 있다). 이 브릿지는 Isaac 쪽 C++/OmniGraph 구현이라 rclpy 와 무관하게
+# 동작한다(아래 NavDriver 독스트링 참고 — rclpy 는 이 프로세스에 아예 안 넣는다).
+from isaacsim.core.utils.extensions import enable_extension  # noqa: E402
+enable_extension("isaacsim.ros2.bridge")
+
 import dataclasses
+import math
+import shutil
+import sys
 import time
 from pathlib import Path
 from typing import Optional
 
 import numpy as np
 import omni.usd
+import yaml
 from pxr import Gf, Sdf, Usd, UsdGeom, UsdPhysics
 
 from isaacsim.core.api import World
 from isaacsim.core.api.tasks import BaseTask
+from isaacsim.core.utils.types import ArticulationAction
 from isaacsim.robot.manipulators.manipulators import SingleManipulator
 from isaacsim.robot_motion.motion_generation import (
     LulaKinematicsSolver,
@@ -71,10 +97,18 @@ from isaacsim.robot_motion.motion_generation import (
 THIS_DIR   = Path(__file__).resolve().parent
 M0609_DIR  = THIS_DIR.parent
 ISAACPJT_DIR = M0609_DIR.parent
+WS_ROOT      = ISAACPJT_DIR.parent
 
 WORLD_USD        = str(ISAACPJT_DIR / "worlds/simple_factory_layout.usda")
 URDF_PATH        = str(M0609_DIR / "doosan-robot2/urdf/m0609_isaac_sim.urdf")
 DESCRIPTION_PATH = str(M0609_DIR / "descriptor/m0609_description.yaml")
+FRAMES_YAML      = WS_ROOT / "src/cobot3_bringup/config/frames.yaml"
+TAUGHT_POSES_YAML = ISAACPJT_DIR / "tools/out/taught_poses.yaml"
+
+# sim_backend.py 와 같은 이유로 cobot3_perception 을 src/ 에서 직접 sys.path
+# 에 넣는다 — ROS2 노드가 아니라 이 안에서 QR 판독 함수만 재사용한다.
+sys.path.insert(0, str(WS_ROOT / "src/cobot3_perception"))
+from cobot3_perception.qr_pose import estimate_qr_pose, aggregate_qr_poses  # noqa: E402
 
 
 # ══════════════════════════════════════════════════════════════
@@ -93,13 +127,21 @@ ARTICULATION_ROOT_CANDIDATES = [
     BASE_XFORM_PATH,
 ]
 
-MAGAZINE_XFORM_PATH = "/World/Magazines/shelf_1_magaines/top_magazines/magazine_1_orange"
-# payload 로 합성되면 magazine_1_orange.usda 의 defaultPrim("Magazine")이 이
+MAGAZINE_XFORM_PATH = "/World/Magazines/shelf_1_magaines/top_magazines/magazine_2_blue_02"
+# payload 로 합성되면 magazine_*.usda 의 defaultPrim("Magazine")이 이
 # 경로 자체에 별칭(alias)되므로, 그 자식(flange_plate 등)은 별도의 "Magazine"
 # 서브프림이 아니라 MAGAZINE_XFORM_PATH 바로 아래에 붙는다.
 MAGAZINE_PATH = MAGAZINE_XFORM_PATH
 FLANGE_NAME           = "flange_plate"                      # top-grasp 지점 (파지용 손잡이)
 FLANGE_PATH            = f"{MAGAZINE_PATH}/{FLANGE_NAME}"
+
+# ── SCAN(QR 인식) 관련 prim/설정 — sim_backend.py 의 observe_pose/scan_qr 와
+# 같은 방식이다. 인식 자세(관절값)는 taught_poses.yaml 에서, 카메라 내·외부
+# 파라미터는 frames.yaml 에서 런타임에 읽는다(둘 다 "단일 출처" 원칙) ──
+CAMERA_PRIM = f"{GRIPPER_PRIM}/rsd455/RSD455/Camera_OmniVision_OV9782_Color"
+SCAN_RESOLUTION = (1280, 720)
+SCAN_N_FRAMES = 3
+SCAN_POSE_NAME = "shelf_1_top_close_centered"
 
 # 순수 시각적 prim(충돌체 없음)이라 물리적으로 방해되진 않지만, PLACE 목표
 # 지점과 겹쳐 보여서 씬 로드 후 비활성화한다.
@@ -122,32 +164,62 @@ READY_JOINTS_DEG = [0.0, 0.0, 90.0, 0.0, 90.0, 0.0]
 # ══════════════════════════════════════════════════════════════
 #  베이스 텔레포트 waypoint — Lula IK + 실측 지오메트리로 직접 스윕해서 검증한 값
 # ══════════════════════════════════════════════════════════════
-#   magazine_1_orange  (-6.5, 2.0, 0.6)  Shelf_01 위
+#   magazine_2_blue_02  Shelf_01 위, 실측 flange x = -4.700 (아래 참고)
 #   PLACE 목표          (4.0, 0.0, 바닥)  ConveyorFrame(x>=4.2) 바로 앞
 #
-# [WP_PICK] Shelf_01 은 Level_1/Level_2 두 단 선반판이 x 방향 2.5 m 전체를
-# 덮고 있어(world x:[-7.05,-4.55], y:[1.867,2.867]), 선반 옆(x축)으로
-# 접근하면 선반 몸체를 관통하는 경로가 된다. 차체는 통로 방향(yaw=0, x축
-# 정렬)으로 세워두고 팔만 옆(+y)으로 뻗어 집는다. base_x=-6.50,
-# base_y=1.42~1.72 m 구간 전체가 APPROACH/LIFT 둘 다 SOLVED 이면서 선반
-# 앞면(y=1.867)과의 간격도 0~18 cm 확보된다. 아래 값(1.45)은 그 구간의
-# 여유 있는 지점(간격 약 17.9 cm)이다.
+# [WP_PICK] ★ 원래 magazine_1_orange(x=-6.5) 로 직접 스윕 검증했던 값이다.
+# magazine_2_blue_02 로 바꾸면서 처음엔 QR 판독 창(frames.yaml
+# decode_windows_base_x) 중심인 -4.85 를 썼는데, REACHABILITY CHECK 가
+# FAILED 를 냈다 — 그때 찍힌 approach tcp(measure_prim(FLANGE_PATH) 기반
+# 실측값) 가 x=-4.700 이라, base x 를 -4.85 로 잡으면 magazine_1_orange
+# 때와 달리 dx=0.15 가 추가로 생겨 IK 범위를 벗어났다. magazine_1_orange
+# 는 base x 를 매거진 x 에 거의 그대로 맞춰서(dx≈0, dy=0.55 만 옆으로)
+# 풀렸던 거라, 이번에도 같은 방식으로 base x 를 실측 flange x(-4.700)에
+# 맞췄다. y=1.45, yaw=0 은 그대로 재사용했다 — Shelf_01 전체(world
+# x:[-7.05,-4.55])에 걸쳐 같은 통로 정렬(차체는 yaw=0 으로 세우고 팔만
+# 옆(+y)으로 뻗는 방식)이 성립하기 때문이다.
 #
 # [WP_PLACE] ConveyorFrame 충돌체가 x>=4.2 를 꽉 채우고 있어, PLACE 목표를
-# x=4.0(프레임 바로 앞 바닥)으로 잡고 베이스도 그 앞(yaw=0, 차체 정면이
-# 컨베이어를 향함)에 세운다. base_x 를 3.56~3.95 m 구간에서 스윕한 결과
-# 전 구간이 APPROACH/LOWER 둘 다 SOLVED 이면서 ConveyorFrame 앞면(x=4.2)
-# 과의 간격도 13~52 cm 확보된다. 아래 값(3.85)은 그 구간의 중간 지점
-# (간격 약 25 cm)이다.
+# x=4.0(프레임 바로 앞 바닥, PLACE_TARGET_XY)으로 잡고 베이스도 그 앞
+# (yaw=0, 차체 정면이 컨베이어를 향함)에 세운다. base_x 를 3.56~3.95 m
+# 구간에서 스윕한 결과 전 구간이 APPROACH/LOWER 둘 다 SOLVED 이면서
+# ConveyorFrame 앞면(x=4.2)과의 간격도 13~52 cm 확보된다 — 3.85 가 그
+# 구간의 중간 지점(간격 약 25 cm)이다.
+# ★ 이 스윕 검증값(3.85)이 실제 WP_PLACE 상수엔 안 들어가고 4.0 으로
+# 박혀 있었다 — 여유가 0.2m 밖에 없었던 것. 실측: nav_server 의
+# _fine_align(도착 후 제자리 yaw 보정)이 도는 동안 차체가 그 좁은 여유
+# 안에서 ConveyorFrame 에 부딪혀 흡착이 풀렸다(shelf 쪽에서 겪었던 것과
+# 같은 종류의 회전-여유 문제 — nav_server.py 조향 버그 이력 주석 참고).
+# 문서화된 안전값으로 되돌린다.
 
 # (베이스 world xyz, yaw_deg) — yaw 는 world +x 축 기준
-WP_PICK  = (np.array([-6.5, 1.45, 0.07963398335074101]), 0.0)
-WP_PLACE = (np.array([4.0, 0.0, 0.07963398335074101]), 0.0)
+# ★ 실측 flange 는 x=-4.700 에 고정. REACHABILITY CHECK 로 확인된 이력:
+#   (-4.80, 1.45)  dx=.10 dy=.55  FAILED
+#   (-4.75, 1.45)  dx=.05 dy=.55  SOLVED
+#   (-4.80, 1.55)  dx=.10 dy=.45  SOLVED  <- dy 를 줄여 dx=.10 보상
+# QR 가림 때문에 -x 로 더 옮겨야 한다는 요청은 이어지는데, y 는 더 옮길
+# 필요가 없다는 피드백이 와서 1.55 로 되돌리고 x 만 더 뺐다(-4.85).
+# ★ dx=.15, dy=.45 조합은 아직 검증된 적 없다 — 지금까지 SOLVED 로 확인된
+# 가장 큰 dx 는 .10(dy=.45 에서) 뿐이라 FAILED 날 수 있다. REACHABILITY
+# CHECK 로 반드시 재확인.
+WP_PICK  = (np.array([-4.85, 1.55, 0.07963398335074101]), 0.0)
+WP_PLACE = (np.array([3.85, 0.0, 0.07963398335074101]), 0.0)
 
-# PLACE 목표 xy — ConveyorFrame(x>=4.2) 바로 앞 바닥. z 는 매거진 자체
-# 높이만큼 띄운 값(런타임에 measure_prim 으로 재서 계산)을 쓴다.
-PLACE_TARGET_XY = np.array([4.0, 0.0])
-FLOOR_Z = 0.0
+# PLACE 목표 xy — ConveyorFrame(x>=4.2) 바로 앞. z 는 매거진 자체 높이만큼
+# 띄운 값(런타임에 measure_prim 으로 재서 계산)을 쓴다.
+# ★ WP_PLACE 를 3.85 로 뒤로 뺀 뒤(컨베이어 회전-여유 확보) 팔의 +x 리치가
+# 부족해 MOVE 도중 놓치는 게 실측(GUI)으로 확인됐다 — "안정적으로 도착 후
+# 팔을 더 +x 로 뻗어서 내려놓으면 성공할 것 같다"는 관찰에 따라 목표를
+# 컨베이어 쪽으로 조금 당긴다. 물체 자체(작은 매거진)는 차체보다 작아
+# 이 여유(0.1m)를 써도 안전하다.
+#
+# ★ 바닥(z=0)에 놓는 대신 컨베이어 벨트 위(z=0.6)에 놓도록 바꿨다 — GUI 로
+# 직접 좌표를 찍어 확인한 값(x=4.1, y=0, z=0.6). 바닥은 팔 마운트 높이
+# (~0.63m, frames.yaml m0609 마운트 오프셋)에서 거의 전체를 아래로 뻗어야
+# 해서 도달 한계 근처였는데, 벨트 높이는 마운트 높이와 비슷해 훨씬 자연스러운
+# 자세가 된다 — MOVE 도중 놓치던 문제의 근본 원인으로 보인다.
+PLACE_TARGET_XY = np.array([4.1, 0.0])
+CONVEYOR_BELT_Z = 0.6
 
 
 # ══════════════════════════════════════════════════════════════
@@ -205,7 +277,7 @@ PLACE_ORIENT_TOL_DEG = 1.0     # 배치 자세오차 허용치
 #  fail_code — docs/project-plan.html 체계 + 이 테스트용 확장(6, 7)
 # ══════════════════════════════════════════════════════════════
 FAIL_OK          = 0
-FAIL_NOT_FOUND   = 1   # (미사용 — GT pose 라 인식 실패 케이스 없음)
+FAIL_NOT_FOUND   = 1   # SCAN 단계에서 QR 을 못 읽음 (scan_qr_at_pose 참고)
 FAIL_LOW_CONF    = 2   # (미사용)
 FAIL_SLIP        = 3   # 파지 실패(흡착 재시도 소진) 또는 이동 중 낙하
 FAIL_COLLISION   = 4   # (미구현 — 접촉 리포트 연동은 추후 확장)
@@ -372,6 +444,117 @@ def translate_magazine_by(delta_xyz):
     """
     pos, quat = get_world_pose(MAGAZINE_XFORM_PATH)
     reset_magazine_pose(pos + np.array(delta_xyz), tuple(quat))
+
+
+# ══════════════════════════════════════════════════════════════
+#  QR 스캔 (SCAN 단계) — sim_backend.py 의 observe_pose()/scan_qr()/
+#  _ensure_camera_warm() 를 이 스크립트용으로 옮겨온 것. GT pose 를 쓰던
+#  이전 버전과 달리, magazine_2_blue_02 가 실제로 그 자리에 있다고 가정하지
+#  않고 손목 카메라로 QR 을 직접 읽어서 확인한다.
+# ══════════════════════════════════════════════════════════════
+def quat_xyzw_to_mat(q):
+    x, y, z, w = q
+    n = np.linalg.norm([x, y, z, w])
+    x, y, z, w = x / n, y / n, z / n, w / n
+    return quat_to_matrix([w, x, y, z])
+
+
+def load_scan_config():
+    """frames.yaml(카메라 내·외부 파라미터) + taught_poses.yaml(관측 관절값)
+    을 런타임에 읽는다 — frames.yaml 헤더의 "손으로 재지 않는다, 여기가
+    단일 출처다" 원칙을 그대로 따른다."""
+    frames = yaml.safe_load(FRAMES_YAML.read_text(encoding="utf-8"))
+    st = frames["static_transforms"]
+    R_l6_cam = quat_xyzw_to_mat(st["m0609_tool0__camera_link"]["quat_xyzw"])
+    t_l6_cam = np.array(st["m0609_tool0__camera_link"]["xyz"])
+    R_cam_opt = quat_xyzw_to_mat(st["camera_link__camera_color_optical_frame"]["quat_xyzw"])
+    ci = frames["wrist_camera"]["camera_info_observed"]
+    K = np.array(ci["k"], dtype=float).reshape(3, 3)
+    dist = np.array(ci["d"], dtype=float)
+
+    taught = yaml.safe_load(TAUGHT_POSES_YAML.read_text(encoding="utf-8"))
+    scan_joints_deg = taught[SCAN_POSE_NAME]["joints_deg"]
+
+    return dict(R_l6_cam=R_l6_cam, t_l6_cam=t_l6_cam, R_cam_opt=R_cam_opt,
+                K=K, dist=dist, joints_deg=scan_joints_deg)
+
+
+class ScanCamera:
+    """CAMERA_PRIM 의 RGB-D 렌더를 딱 한 번 만들어 재사용한다. sim_backend.py
+    의 _ensure_camera_warm() 과 같은 이유다 — 팔이 다른 방향을 보는 상태에서
+    미리 만들면 RTX 가 그 첫 시야로 밉맵/텍스처 스트리밍을 고정해 버려서,
+    나중에 관측 자세로 옮겨도 QR 디코드가 계속 깨진다. 그래서 관측 자세에
+    도착한 뒤(warm_up 호출 시점) 처음 만들고, 그 뒤로는 재사용한다."""
+
+    def __init__(self):
+        self._rgb = None
+        self._depth = None
+
+    def warm_up(self, world):
+        if self._rgb is None:
+            import omni.replicator.core as rep
+            rp = rep.create.render_product(CAMERA_PRIM, SCAN_RESOLUTION)
+            self._rgb = rep.AnnotatorRegistry.get_annotator("rgb")
+            self._rgb.attach([rp])
+            self._depth = rep.AnnotatorRegistry.get_annotator("distance_to_image_plane")
+            self._depth.attach([rp])
+        for _ in range(60):
+            world.step(render=True)
+
+    def capture(self, world):
+        for _ in range(3):
+            world.step(render=True)
+        rgb_raw = np.asarray(self._rgb.get_data())
+        if rgb_raw.ndim != 3:
+            raise RuntimeError(
+                f"rgb annotator 가 빈 프레임을 줬다 (shape={rgb_raw.shape}) — "
+                "render_product 워밍업이 부족했을 수 있다")
+        rgb = rgb_raw[:, :, :3][:, :, ::-1].copy()
+        depth = np.asarray(self._depth.get_data(), dtype=np.float64).reshape(rgb.shape[:2])
+        return rgb, depth
+
+
+def set_arm_joints_deg(robot, joints_deg):
+    """관절을 즉시 그 각도로 스냅한다 — observe_pose 는 아무것도 안 들고
+    있을 때만 쓰므로 급가속으로 흡착이 끊길 걱정이 없다(sim_backend.py
+    _set_joint_deg 와 같은 근거)."""
+    idx = np.array([robot.get_dof_index(j) for j in ARM_JOINTS])
+    q = robot.get_joint_positions()
+    q[idx] = np.deg2rad(joints_deg)
+    robot.set_joint_positions(q)
+    robot.set_joint_velocities(np.zeros_like(q))
+    robot.apply_action(ArticulationAction(
+        joint_positions=np.deg2rad(joints_deg), joint_indices=idx))
+
+
+def scan_qr_at_pose(world, robot, scan_cam, scan_cfg, expected_id=None):
+    """관측 자세로 팔을 옮기고, 손목 카메라로 QR 이 실제로 읽히는지 확인
+    한다. sim_backend.py 의 observe_pose()+scan_qr() 와 같은 순서다."""
+    set_arm_joints_deg(robot, scan_cfg["joints_deg"])
+    for _ in range(SETTLE_STEPS):
+        world.step(render=not HEADLESS)
+    scan_cam.warm_up(world)
+
+    obs_list = []
+    decoded = ""
+    for _ in range(SCAN_N_FRAMES):
+        rgb, depth = scan_cam.capture(world)
+        l6_p, l6_q = get_world_pose(EE_LINK_PATH)
+        R_l6 = quat_to_matrix(l6_q)
+        R_opt = R_l6 @ scan_cfg["R_l6_cam"] @ scan_cfg["R_cam_opt"]
+        p_opt = l6_p + R_l6 @ scan_cfg["t_l6_cam"]
+        obs = estimate_qr_pose(rgb, depth, scan_cfg["K"], scan_cfg["dist"],
+                               R_opt, p_opt, expected_id=expected_id)
+        obs_list.append(obs)
+        if obs.ok:
+            decoded = obs.decoded
+
+    agg = aggregate_qr_poses(obs_list)
+    if agg.ok and not decoded:
+        decoded = agg.decoded
+    print(f"   SCAN  {'QR 인식됨' if agg.ok else 'QR 인식 실패'}"
+          + (f"  payload={decoded!r}" if agg.ok else f"  reason={agg.reason}"))
+    return agg
 
 
 # ══════════════════════════════════════════════════════════════
@@ -605,6 +788,234 @@ class BaseTeleporter:
 
 
 # ══════════════════════════════════════════════════════════════
+#  실주행 (PICK -> PLACE) — nav_server(/navigation/navigate_to,
+#  cobot3_interfaces/action/NavigateTo)에 goal 을 보낸다. nav_server 는
+#  이제 Nav2 위임 없이 amcl_pose 를 보며 직접 cmd_vel 로 모는 노드다
+#  (src/cobot3_navigation/cobot3_navigation/nav_server.py 상단 주석 참고).
+#
+#  ★ rclpy 를 이 프로세스(isaac_python, Kit 번들 Python 3.11) 안에 직접
+#  넣지 않는다 — 실측: rclpy.node.Node() 생성만으로 파라미터 이벤트
+#  변환(rcl_interfaces__msg__parameter_event__convert_from_py) 도중
+#  __assert_fail 로 하드크래시가 난다(Isaac 번들 _rclpy_pybind11 이 시스템
+#  rosidl_generator_py 와 ABI 가 안 맞는 걸로 보인다). sim_backend.py 가
+#  rclpy 대신 JSON-RPC 를 쓰는 것과 같은 종류의 제약이다.
+#
+#  대신 시스템 ROS2(3.12)로 이미 빌드되어 있는 `ros2` CLI 를 별도 프로세스로
+#  띄워 goal 을 보낸다 — cobot3_interfaces 커스텀 액션도 CLI 프로세스
+#  안에서는 시스템 python 이 그대로 처리하니 ABI 문제가 없다.
+#
+#  ★ subprocess.run() 처럼 통째로 블로킹하면 그사이 world.step() 이 안
+#  불려 /clock 이 멈추고, use_sim_time 인 nav_server/AMCL 도 같이 멈춰서
+#  주행이 영원히 안 끝난다(rclpy 직접 호출 때와 같은 이유) — Popen 으로
+#  띄우고 poll() 을 world.step() 과 번갈아 부른다.
+# ══════════════════════════════════════════════════════════════
+NAV_NAMESPACE = "robot1"
+NAV_ACTION_NAME = "/navigation/navigate_to"
+NAV_ACTION_TYPE = "cobot3_interfaces/action/NavigateTo"
+NAV_DRIVE_TIMEOUT_S = 180.0
+
+
+def _clean_ros2_env():
+    """isaac_python(Kit 번들 Python 3.11) 은 자기 stdlib/extension 경로를
+    PYTHONPATH/PYTHONHOME 에 심어 두는데, 이게 자식 프로세스로 띄우는 시스템
+    `ros2`(별도 python3 바이너리, /opt/ros/jazzy) 에도 그대로 상속된다.
+    ros2 스크립트가 자기 stdlib 대신 Isaac 의 순수 파이썬 `re` 모듈을 줍고,
+    그 안의 컴파일된 `_sre` 확장(다른 빌드)과 매직 넘버가 안 맞아
+    AssertionError: SRE module mismatch 로 죽는다(실측).
+
+    ★ PYTHONPATH 를 통째로 지웠더니 다른 크래시가 났다 — ros2cli 자체가
+    /opt/ros/jazzy/.../site-packages 를 PYTHONPATH 로 찾는데(ros_set 이
+    source 하는 setup.bash 가 거기다 심어 둔다), 통째로 지우면 그것까지
+    같이 날아가 PackageNotFoundError: ros2cli 로 죽었다(실측). "isaacsim"/
+    "kit/python" 이 들어간 항목만 걸러내고 나머지(ROS2 site-packages)는
+    남긴다. PYTHONHOME 은 ROS2 쪽이 쓸 일이 없어 통째로 지운다."""
+    env = dict(os.environ)
+    env.pop("PYTHONHOME", None)
+    old_path = env.get("PYTHONPATH", "")
+    kept = [p for p in old_path.split(os.pathsep)
+            if p and "isaacsim" not in p and f"{os.sep}kit{os.sep}python" not in p]
+    if kept:
+        env["PYTHONPATH"] = os.pathsep.join(kept)
+    else:
+        env.pop("PYTHONPATH", None)
+    return env
+
+
+def _ros2_spawn(args, env):
+    """subprocess.Popen/run 대신 os.posix_spawn 을 직접 쓴다.
+
+    ★ 실측: subprocess 로 ros2 CLI 를 띄운 직후(퍼블리시/goal 요청 모두)
+    Kit 프로세스가 매번 똑같은 크래시로 죽었다 — omni.graph.core.plugin 의
+    std::recursive_mutex 해시맵을 건드리다 죽는데, 스택 심볼이
+    atexit_callfuncs/Py_FinalizeEx 로 찍혀서 처음엔 종료 시점 크래시로
+    오인했다. 하지만 스크립트가 아직 한참 남은 시점(NAV 섹션 진입 직후)
+    에도 똑같이 났다 — subprocess 호출 자체가 방아쇠였다는 뜻이다.
+
+    Kit 은 carb.tasking.plugin 스레드를 24개 띄워 두는데(커맨드라인
+    --/plugins/carb.tasking.plugin/threadCount=24), 그 상태에서
+    subprocess.Popen 이 (조건에 따라) fork() 경로를 타면 다른 스레드가
+    들고 있던 락이 자식 프로세스에 풀리지 않은 채로 남는 고전적
+    fork-안전성 문제가 생긴다 — 정확히 recursive_mutex 해시맵이 걸리는
+    이유와 들어맞는다. os.posix_spawn() 은 vfork 기반이라 이 문제를
+    피한다. 반환: (pid, stdout+stderr 를 묶은 읽기용 fd)."""
+    exe = shutil.which(args[0])
+    if exe is None:
+        raise FileNotFoundError(args[0])
+    r_fd, w_fd = os.pipe()
+    try:
+        pid = os.posix_spawn(
+            exe, args, env,
+            file_actions=[
+                (os.POSIX_SPAWN_DUP2, w_fd, 1),
+                (os.POSIX_SPAWN_DUP2, w_fd, 2),
+                (os.POSIX_SPAWN_CLOSE, r_fd),
+                (os.POSIX_SPAWN_CLOSE, w_fd),
+            ],
+        )
+    finally:
+        os.close(w_fd)
+    os.set_blocking(r_fd, False)
+    return pid, r_fd
+
+
+def _ros2_drain(r_fd, chunks):
+    while True:
+        try:
+            data = os.read(r_fd, 65536)
+        except BlockingIOError:
+            return
+        except OSError:
+            return
+        if not data:
+            return
+        chunks.append(data)
+
+
+def _ros2_poll(pid, r_fd, chunks):
+    """None 이면 아직 실행 중. 끝났으면 (returncode, 누적 출력 str)."""
+    _ros2_drain(r_fd, chunks)
+    done_pid, status = os.waitpid(pid, os.WNOHANG)
+    if done_pid != pid:
+        return None
+    _ros2_drain(r_fd, chunks)
+    os.close(r_fd)
+    rc = os.WEXITSTATUS(status) if os.WIFEXITED(status) else -1
+    return rc, b"".join(chunks).decode(errors="replace")
+
+
+def _ros2_kill(pid, r_fd):
+    try:
+        os.kill(pid, 9)
+        os.waitpid(pid, 0)
+    except OSError:
+        pass
+    os.close(r_fd)
+
+
+def _ros2_run_blocking(args, env, timeout_s):
+    """비대화형 짧은 호출용(NAV 섹션의 사전 점검 등) — world.step() 인터리빙이
+    필요 없는 곳에서만 쓴다. 반환: (returncode 또는 None(타임아웃), 출력)."""
+    pid, r_fd = _ros2_spawn(args, env)
+    chunks = []
+    deadline = time.time() + timeout_s
+    while True:
+        result = _ros2_poll(pid, r_fd, chunks)
+        if result is not None:
+            return result
+        if time.time() > deadline:
+            _ros2_kill(pid, r_fd)
+            return None, "".join(c.decode(errors="replace") for c in chunks)
+        time.sleep(0.02)
+
+
+class NavDriver:
+
+    def sync_localization(self, world, x, y, yaw_deg):
+        """이 스크립트가 텔레포트로 베이스를 옮긴 직후 반드시 불러야 한다
+        — 안 하면 AMCL 은 텔레포트를 모르고 옛 위치를 계속 추정해서
+        nav_server 가 엉뚱한 방향으로 출발한다. 텔레포트라 위치를 정확히
+        아니 공분산을 작게 준다."""
+        yaw = math.radians(yaw_deg)
+        pose_yaml = (
+            "{header: {frame_id: 'map'}, "
+            "pose: {pose: {position: {x: %.6f, y: %.6f, z: 0.0}, "
+            "orientation: {z: %.6f, w: %.6f}}, "
+            "covariance: [%s]}}" % (
+                float(x), float(y), math.sin(yaw / 2.0), math.cos(yaw / 2.0),
+                ",".join("0.01" if i in (0, 7, 35) else "0.0" for i in range(36)),
+            )
+        )
+        try:
+            # --once 는 퍼블리셔를 만들자마자 한 번 쏘고 바로 끝난다 — DDS
+            # 디스커버리(이 프로세스의 퍼블리셔 <-> AMCL 구독자 매칭)가 그
+            # 찰나에 안 끝나면 메시지가 그냥 유실된다(실측: rviz 에서 위치가
+            # 텔레포트 반영 안 된 채 이상하게 보임). 짧게(2초) 반복 퍼블리시
+            # 해서 매칭 이후에도 최소 한 번은 확실히 들어가게 한다.
+            rc, out = _ros2_run_blocking(
+                ["ros2", "topic", "pub", "-r", "10", "-t", "20",
+                 f"/{NAV_NAMESPACE}/initialpose",
+                 "geometry_msgs/msg/PoseWithCovarianceStamped", pose_yaml],
+                _clean_ros2_env(), timeout_s=15.0,
+            )
+            if rc != 0:
+                print(f"   !! initialpose 퍼블리시 실패 (rc={rc}): {out.strip()[-400:]}")
+        except Exception as e:
+            print(f"   !! initialpose 퍼블리시 중 예외: {type(e).__name__}: {e}")
+        # AMCL 이 이 initialpose 를 실제로 반영할 시간을 준다 — world.step()
+        # 을 계속 밟아야 /clock 이 흐르고 AMCL 콜백도 처리된다.
+        for _ in range(30):
+            world.step(render=not HEADLESS)
+
+    def drive_to(self, world, x, y, yaw_deg, timeout_s=NAV_DRIVE_TIMEOUT_S, gripper=None):
+        yaw = math.radians(yaw_deg)
+        goal_yaml = (
+            "{pose: {header: {frame_id: 'map'}, "
+            "pose: {position: {x: %.6f, y: %.6f, z: 0.0}, "
+            "orientation: {z: %.6f, w: %.6f}}}}" % (
+                float(x), float(y), math.sin(yaw / 2.0), math.cos(yaw / 2.0),
+            )
+        )
+        try:
+            pid, r_fd = _ros2_spawn(
+                ["ros2", "action", "send_goal", NAV_ACTION_NAME, NAV_ACTION_TYPE, goal_yaml],
+                _clean_ros2_env(),
+            )
+        except Exception as e:
+            print(f"   !! 'ros2 action send_goal' 실행 실패: {type(e).__name__}: {e}")
+            return False
+
+        chunks = []
+        deadline = time.time() + timeout_s + 30.0   # 액션 서버 대기(최대 30s) 여유
+        result = None
+        # 주행 중엔 흡착 상태를 전혀 안 지켜봤었다 — TRANSPORT 끝에는
+        # gripped=True 였는데 PLACE MOVE 시작 직후 바로 놓친 걸로 나온 실측
+        # 이후 추가: 5초마다 찍어서 "주행 중 어디서 떨어졌는지" vs "PLACE
+        # 전환 시점 문제인지"를 다음 실행에서 구분할 수 있게 한다.
+        last_log = time.time()
+        while time.time() < deadline:
+            world.step(render=not HEADLESS)
+            result = _ros2_poll(pid, r_fd, chunks)
+            if result is not None:
+                break
+            if gripper is not None and time.time() - last_log >= 5.0:
+                last_log = time.time()
+                print(f"   ...주행 중  gripped={holding(gripper.gripped())}")
+            time.sleep(0.01)
+
+        if result is None:
+            print(f"   !! 주행 타임아웃({timeout_s:.0f}s) — ros2 action send_goal 강제 종료")
+            _ros2_kill(pid, r_fd)
+            return False
+
+        _, out = result
+        ok = "Goal finished with status: SUCCEEDED" in out
+        print(f"   주행 -> {'SUCCEEDED' if ok else 'FAILED'}")
+        if not ok:
+            print(out.strip()[-800:])
+        return ok
+
+
+# ══════════════════════════════════════════════════════════════
 #  Pick 단계 FSM (WP_PICK 좌표계, top-grasp on flange_plate)
 # ══════════════════════════════════════════════════════════════
 class PickFSM:
@@ -658,7 +1069,13 @@ class PickFSM:
         if self.done:
             return self.waypoints[-1]
         if self.start is None:
-            return self.waypoints[self.state]
+            # 이 단계의 첫 프레임 — advance() 가 아직 start/goal 을 못 정했다.
+            # 여기서 waypoints[state](최종 목표)를 그대로 돌려주면 그 프레임의
+            # IK/apply_action 이 "한 스텝에 전체 거리" 를 목표로 잡아 큰 힘이
+            # 걸린다. 거리가 짧은 단계(LIFT 0.10m 등)는 안 드러났지만, PLACE
+            # MOVE(0.70m)에서 이 한 프레임짜리 스파이크가 흡착을 끊는 걸 실측
+            # 확인했다 — "제자리" 를 돌려줘 이번 프레임은 움직이지 않게 한다.
+            return get_tcp_pose(self._robot)
         return self.start + ease(self.step / float(self.n_steps)) * (self.goal - self.start)
 
     def note_ik(self, solved):
@@ -803,7 +1220,10 @@ class PlaceFSM:
         if self.done:
             return self.waypoints[-1]
         if self.start is None:
-            return self.waypoints[self.state]
+            # PickFSM.current_target() 과 같은 이유 — 실측으로 확인된 버그.
+            # 이 단계 첫 프레임엔 "제자리" 를 돌려줘 한 스텝짜리 전체거리
+            # 점프(힘 스파이크)를 막는다.
+            return get_tcp_pose(self._robot)
         return self.start + ease(self.step / float(self.n_steps)) * (self.goal - self.start)
 
     def note_ik(self, solved):
@@ -943,7 +1363,7 @@ def reachability_check(world, robot, lula, solver, teleporter, target_quat, plac
 #  한 트라이얼 실행
 # ══════════════════════════════════════════════════════════════
 def run_trial(trial_idx, world, robot, lula, solver, gripper, teleporter,
-              place_ref_z, place_target_quat_ref):
+              place_ref_z, place_target_quat_ref, scan_cam, scan_cfg, nav):
     t0 = time.time()
 
     # ── 1) PICK ────────────────────────────────────────────
@@ -952,6 +1372,18 @@ def run_trial(trial_idx, world, robot, lula, solver, gripper, teleporter,
     for _ in range(BASE_MOVE_SETTLE_STEPS):
         world.step(render=not HEADLESS)
     sync_ik_base_pose(lula)
+
+    # ── 1a) SCAN — GT pose 를 바로 안 믿고 손목 카메라로 QR 이 실제로
+    # 읽히는지 먼저 확인한다. 이전 버전(GT 직접 읽기)과 다른 점이다.
+    section("SCAN")
+    scan_result = scan_qr_at_pose(world, robot, scan_cam, scan_cfg)
+    if not scan_result.ok:
+        return TrialResult(
+            trial=trial_idx, fail_code=FAIL_NOT_FOUND,
+            cycle_time_s=time.time() - t0,
+            lift_rise_mm=0.0, tilt_deg=0.0,
+            place_pos_error_mm=None, place_orient_error_deg=None,
+        )
 
     target_quat = make_target_quat(APPROACH_ROLL_DEG, APPROACH_PITCH_DEG, GRIPPER_YAW_DEG)
     pick_fsm = PickFSM(robot, gripper)
@@ -981,66 +1413,22 @@ def run_trial(trial_idx, world, robot, lula, solver, gripper, teleporter,
             place_pos_error_mm=None, place_orient_error_deg=None,
         )
 
-    # ── 2) TRANSPORT (텔레포트, 주행 없음) ─────────────────
-    # 베이스 아티큘레이션에 set_world_pose() 를 호출하면(거리와 무관하게) 흡착이
-    # 즉시 풀린다 — 실측으로 확인. 게다가 PICK 은 선반 옆(+y)으로 뻗어 잡고
-    # PLACE 는 컨베이어 앞(+x)으로 뻗어야 해서, 잡았던 상대 위치를 그대로
-    # 들고 오면 WP_PLACE 에서는 그 y 오프셋(약 0.55 m)이 IK 로 안 풀리는
-    # 지점이 된다(실측으로 확인). 그래서 "떨어진 물체를 쫓아가 다시 잡기"
-    # 대신 — 팔을 먼저 이미 검증된 PLACE 접근 위치로 보내고, 거기서 매거진을
-    # 그리퍼 위치에 바로 갖다 놓은 뒤 흡착한다.
-    pos, yaw = WP_PLACE
-    teleporter.teleport(pos, yaw)
+    # ── 2) TRANSPORT (nav_server 실제 주행) ─────────────────
+    # 이전 버전은 베이스를 텔레포트했다 — set_world_pose() 를 부르면 거리와
+    # 무관하게 흡착이 즉시 풀려서(실측), 매거진을 접근 위치에 재배치하고
+    # 다시 흡착하는 우회가 필요했다. 이제는 nav_server 가 cmd_vel 로 실제
+    # 물리 주행을 시킨다(바퀴가 굴러서 점진적으로 이동) — PICK 의 LIFT
+    # 단계가 이미 증명한 대로(부드러운 IK 이동 중에는 흡착이 안 풀린다) 그
+    # 재배치 우회가 필요 없다. 팔은 LIFT 가 남겨 둔 자세(선반 쪽으로 뻗은
+    # 채) 그대로 두고 베이스만 몬다 — DRIVE_STIFFNESS(1e8)가 그 자세를
+    # 계속 버텨 준다.
+    section("TRANSPORT")
+    nav.sync_localization(world, WP_PICK[0][0], WP_PICK[0][1], WP_PICK[1])
+    drove_ok = nav.drive_to(world, WP_PLACE[0][0], WP_PLACE[0][1], WP_PLACE[1], gripper=gripper)
     sync_ik_base_pose(lula)
 
-    # PICK(LIFT) 직후의 관절 각도를 그대로 IK 시드로 쓰면, 그 각도가 이
-    # 새 목표(약 10 m 떨어진 곳)에서는 계속 안 풀리는 나쁜 시드가 되어 팔이
-    # 아예 안 움직인다(실측으로 확인 — 600 스텝 내내 solved=False). 아직
-    # 아무것도 붙들고 있지 않으니 지금 관절을 ready pose 로 리셋해 깨끗한
-    # 시드로 다시 IK 를 건다.
-    set_ready_pose(robot)
-    for _ in range(SETTLE_STEPS):
-        world.step(render=not HEADLESS)
-
-    # 팔이 실제로 approach_tcp 에 도착할 때까지 매 스텝 같은 IK 목표를 계속
-    # 재적용하면서 기다린다. 목표를 한 번만 걸고 world.step() 만 반복하면
-    # (드라이브가 계속 그 목표를 유지할 거라 기대했지만) 실제로는 팔이 다른
-    # 자세로 흘러내리는 걸 실측으로 확인했다 — 그래서 매 스텝 다시 명령한다.
-    approach_tcp = np.array([PLACE_TARGET_XY[0], PLACE_TARGET_XY[1],
-                              place_ref_z + APPROACH_HEIGHT_OFFSET])
-    flange_target = tcp_to_flange(approach_tcp, target_quat)
-
-    def _hold_ik_target(n_steps):
-        for _ in range(n_steps):
-            action, solved = solver.compute_inverse_kinematics(
-                target_position=flange_target, target_orientation=target_quat)
-            if solved:
-                robot.apply_action(action)
-            world.step(render=not HEADLESS)
-
-    _hold_ik_target(MAX_STEPS)
-
-    # 팔이 접근 위치에 자리잡았으면, 매거진을 그리퍼(흡착면) 바로 아래에
-    # 옮겨 붙인다. get_tcp_pose() 는 흡착면(suction face) 월드 위치이므로,
-    # 매거진의 flange_plate 윗면이 거기 닿도록 원점(=바닥면 기준)을 그만큼
-    # 내려서 잡는다 (place_ref_z 는 FLOOR_Z=0 기준 매거진 높이와 같다).
-    tcp_now = get_tcp_pose(robot)
-    new_origin = np.array([tcp_now[0], tcp_now[1], tcp_now[2] - place_ref_z])
-    reset_magazine_pose(new_origin, tuple(place_target_quat_ref))
-
-    gripper.close()
-    reattached = False
-    for _ in range(GRIP_WAIT):
-        action, solved = solver.compute_inverse_kinematics(
-            target_position=flange_target, target_orientation=target_quat)
-        if solved:
-            robot.apply_action(action)
-        world.step(render=not HEADLESS)
-        if holding(gripper.gripped()):
-            reattached = True
-            break
-    print(f"   텔레포트 후 재흡착  -> {'붙었다' if reattached else '안 붙었다'}  tcp={get_tcp_pose(robot)}")
-    if not reattached:
+    print(f"   TRANSPORT 결과  drove_ok={drove_ok}  gripped={gripper.gripped()}")
+    if not drove_ok or not holding(gripper.gripped()):
         return TrialResult(
             trial=trial_idx, fail_code=FAIL_SLIP,
             cycle_time_s=time.time() - t0,
@@ -1048,10 +1436,6 @@ def run_trial(trial_idx, world, robot, lula, solver, gripper, teleporter,
             tilt_deg=pick_fsm.tilt_at_lift_deg,
             place_pos_error_mm=None, place_orient_error_deg=None,
         )
-
-    _hold_ik_target(BASE_MOVE_SETTLE_STEPS)
-    sync_ik_base_pose(lula)
-    print(f"   DEBUG after settle  tcp={get_tcp_pose(robot)}  gripped={gripper.gripped()}")
 
     # ── 3) PLACE ───────────────────────────────────────────
     place_fsm = PlaceFSM(robot, gripper, PLACE_TARGET_XY, place_ref_z)
@@ -1116,8 +1500,9 @@ def main():
 
     magazine_spawn_pos, magazine_spawn_quat = get_world_pose(MAGAZINE_XFORM_PATH)
     _, _, magazine_height = measure_prim(MAGAZINE_PATH)
-    place_ref_z = FLOOR_Z + magazine_height
-    print(f"   magazine h   {magazine_height*1000:.1f} mm  ->  place_ref_z={place_ref_z:.3f} m")
+    place_ref_z = CONVEYOR_BELT_Z + magazine_height
+    print(f"   magazine h   {magazine_height*1000:.1f} mm  ->  place_ref_z={place_ref_z:.3f} m"
+          f"  (컨베이어 벨트 z={CONVEYOR_BELT_Z:.2f} 기준)")
 
     section("SOLVER")
     base_pos0, base_quat0 = get_world_pose(BASE_LINK_PATH)
@@ -1125,49 +1510,87 @@ def main():
     gripper = SurfaceGripperCtl(task.gripper_node_path)
     teleporter = BaseTeleporter(robot)
 
-    target_quat = make_target_quat(APPROACH_ROLL_DEG, APPROACH_PITCH_DEG, GRIPPER_YAW_DEG)
-    reachable = reachability_check(world, robot, lula, solver, teleporter, target_quat, place_ref_z)
-    if not reachable:
-        print("\n   WP_PICK/WP_PLACE 좌표를 먼저 조정하세요")
+    section("SCAN CONFIG")
+    scan_cam = ScanCamera()
+    scan_cfg = load_scan_config()
+    print(f"   scan pose    {SCAN_POSE_NAME}  joints_deg={scan_cfg['joints_deg']}")
+
+    section("NAV")
+    print("   전제: multi_navigation.launch.py + mission_nodes.launch.py 가"
+          " 이미 떠 있어야 한다 (robot1 네임스페이스, /navigation/navigate_to)")
+    ros2_bin = shutil.which("ros2")
+    if ros2_bin is None:
+        # subprocess.run(["ros2", ...]) 이 이 상태로 불리면 FileNotFoundError 가
+        # 나는데, Kit 프로세스 종료 타이밍과 겹쳐서 트레이스백 없이 그냥 창이
+        # 닫힌 것처럼 보일 수 있다 — 여기서 미리 막고 원인을 바로 알려준다.
+        print("   !! 'ros2' CLI 를 PATH 에서 못 찾았다 — isaac_python 을 실행한 셸에서"
+              " ROS2 환경(setup.bash)을 먼저 source 했는지 확인하세요")
+        simulation_app.close()   # try/finally 진입 전이라 여기서 직접 닫아야 한다
+        return
+    print(f"   ros2 bin     {ros2_bin}")
+
+    # cobot3_interfaces 는 워크스페이스 로컬 빌드 패키지라 install/setup.bash
+    # 를 source 해야 ros2 가 그 타입(NavigateTo)을 안다 — 실측: 안 하면
+    # "ros2 action send_goal" 이 "The passed action type is invalid" 로
+    # 죽는다(에러 메시지만으로는 원인이 안 보인다). 여기서 미리 확인한다.
+    check_rc, check_out = _ros2_run_blocking(
+        ["ros2", "interface", "show", NAV_ACTION_TYPE], _clean_ros2_env(), timeout_s=15.0,
+    )
+    if check_rc != 0:
+        print(f"   !! ros2 가 {NAV_ACTION_TYPE} 를 못 찾는다 — 이 셸에서"
+              " ROS2 환경(setup.bash)뿐 아니라 워크스페이스 오버레이도"
+              " source 했는지 확인하세요:  source install/setup.bash")
+        print(f"      (stderr: {check_out.strip()[-300:]})")
         simulation_app.close()
         return
+    nav = NavDriver()
 
-    def do_pick_place(trial_idx):
-        # 매거진/그리퍼/베이스를 시작 상태로 되돌린 뒤 pick+place 한 판을 실행한다.
-        # Stop 으로 물리가 초기화돼도 이 함수가 다시 명시적으로 상태를 맞춘다.
-        gripper.open()
-        reset_magazine_pose(magazine_spawn_pos, tuple(magazine_spawn_quat))
-        pos, yaw = WP_PICK
-        teleporter.teleport(pos, yaw)
-        for _ in range(SETTLE_STEPS):
+    try:
+        target_quat = make_target_quat(APPROACH_ROLL_DEG, APPROACH_PITCH_DEG, GRIPPER_YAW_DEG)
+        reachable = reachability_check(world, robot, lula, solver, teleporter, target_quat, place_ref_z)
+        if not reachable:
+            print("\n   WP_PICK/WP_PLACE 좌표를 먼저 조정하세요")
+            return
+
+        def do_pick_place(trial_idx):
+            # 매거진/그리퍼/베이스를 시작 상태로 되돌린 뒤 pick+place 한 판을 실행한다.
+            # Stop 으로 물리가 초기화돼도 이 함수가 다시 명시적으로 상태를 맞춘다.
+            gripper.open()
+            reset_magazine_pose(magazine_spawn_pos, tuple(magazine_spawn_quat))
+            pos, yaw = WP_PICK
+            teleporter.teleport(pos, yaw)
+            for _ in range(SETTLE_STEPS):
+                world.step(render=not HEADLESS)
+            set_ready_pose(robot)
+            gripper.reinit()
+            # Nav2/AMCL 에게도 이 텔레포트 위치를 알려준다 — 안 하면 이전
+            # 트라이얼이 끝난 자리(WP_PLACE 근처)를 계속 현재 위치로 믿는다.
+            nav.sync_localization(world, pos[0], pos[1], yaw)
+
+            section("RUN")
+            result = run_trial(trial_idx, world, robot, lula, solver, gripper, teleporter,
+                                place_ref_z, magazine_spawn_quat, scan_cam, scan_cfg, nav)
+            print(f"   trial {trial_idx + 1} -> fail_code={result.fail_code}  "
+                  f"cycle_time={result.cycle_time_s:.2f}s")
+
+        do_pick_place(0)
+
+        # 결과 상태로 정지해서 계속 띄워둔다. Stop 했다가 다시 Play 를 누르면
+        # (재생 상태 False -> True 전환을 감지해) pick+place 를 한 번 더 실행한다.
+        section("HOLD")
+        print("   결과 상태로 정지. Stop 후 Play 를 누르면 다시 실행합니다."
+              " 창을 닫으면 종료됩니다.")
+        was_playing = True
+        trial_idx = 1
+        while simulation_app.is_running():
             world.step(render=not HEADLESS)
-        set_ready_pose(robot)
-        gripper.reinit()
-
-        section("RUN")
-        result = run_trial(trial_idx, world, robot, lula, solver, gripper, teleporter,
-                            place_ref_z, magazine_spawn_quat)
-        print(f"   trial {trial_idx + 1} -> fail_code={result.fail_code}  "
-              f"cycle_time={result.cycle_time_s:.2f}s")
-
-    do_pick_place(0)
-
-    # 결과 상태로 정지해서 계속 띄워둔다. Stop 했다가 다시 Play 를 누르면
-    # (재생 상태 False -> True 전환을 감지해) pick+place 를 한 번 더 실행한다.
-    section("HOLD")
-    print("   결과 상태로 정지. Stop 후 Play 를 누르면 다시 실행합니다."
-          " 창을 닫으면 종료됩니다.")
-    was_playing = True
-    trial_idx = 1
-    while simulation_app.is_running():
-        world.step(render=not HEADLESS)
-        playing = world.is_playing()
-        if playing and not was_playing:
-            do_pick_place(trial_idx)
-            trial_idx += 1
-        was_playing = playing
-
-    simulation_app.close()
+            playing = world.is_playing()
+            if playing and not was_playing:
+                do_pick_place(trial_idx)
+                trial_idx += 1
+            was_playing = playing
+    finally:
+        simulation_app.close()
 
 
 if __name__ == "__main__":
