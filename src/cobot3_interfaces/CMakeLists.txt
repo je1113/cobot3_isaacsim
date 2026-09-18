@@ -18,12 +18,12 @@ find_package(std_msgs REQUIRED)
 rosidl_generate_interfaces(${PROJECT_NAME}
   # ── 여기 없는 파일은 만들어도 생성되지 않는다. 에러도 안 난다. ──
   # Messages
-  "msg/CarrierScan.msg"       # carrier_code_reader → task_manager
   "msg/TraceEvent.msg"        # task_manager → event_logger
   "msg/TaskOrder.msg"         # 보류 — 웹/MES 연동 시
   "msg/CycleLog.msg"          # 보류 — event 테이블에서 집계 가능
 
   # Services
+  "srv/CarrierScan.srv"       # task_manager → carrier_code_reader (멈춘 뒤 판독 요청)
   "srv/RegisterTask.srv"      # 보류 — 웹/MES 연동 시
 
   # Actions
