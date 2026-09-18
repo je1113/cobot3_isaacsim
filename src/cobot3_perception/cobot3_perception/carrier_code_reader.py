@@ -53,10 +53,16 @@ carrier_kind 필드와 MAGAZINE 상수가 메시지에서 사라졌다. 이 씬�
 만들어야 한다. qr_pose 도 759212e 이후 PoseStamped 가 아니라
 geometry_msgs/Pose 다 — 좌표계는 header.frame_id 하나로 말한다.
 
-★ 알려진 한계: observe_pose 의 관절값은 taught_poses.yaml 의 특정 베이스
-위치(x=-6.498, y=1.45) 기준으로 티칭된 것 하나뿐이다. SHELF_ZONE 안 어디서든
-같은 관절값을 쓰므로, 구역 가장자리(x=-7.05/-4.55 근처)에서 선반과 팔이
-간섭하지 않는지는 시뮬에서 직접 확인이 필요하다.
+층별 관측 자세: PATROL_ROUTE 는 두 점 사이 직선 왕복이다(task_manager.py).
+task_manager 가 /orchestrator/state 에 patrol_target(지금 향하는 인덱스)을
+같이 발행하고, 이 노드는 그걸 보고 POSE_BY_PATROL_TARGET 로 관절값을 고른다
+— PATROL_ROUTE[1](끝점, 선반)로 가는 중이면 2층(shelf_1_top_close_centered),
+PATROL_ROUTE[0](시작점)으로 돌아가는 중이면 1층(s1_bottom_scan).
+
+★ 알려진 한계: 두 관측 자세 다 taught_poses.yaml 의 같은 베이스 위치
+(x≈-6.5, y=1.45) 기준으로 티칭됐다. SHELF_ZONE 안 어디서든 같은 관절값을
+쓰므로, 구역 가장자리(x=-7.05/-4.55 근처)에서 선반과 팔이 간섭하지 않는지는
+시뮬에서 직접 확인이 필요하다.
 """
 
 import sys
@@ -76,6 +82,17 @@ from std_msgs.msg import Bool, String
 # 은 확실히 빠지게 했다.
 SHELF_ZONE_X = (-6.85, -4.65)
 SHELF_ZONE_Y = (1.10, 1.80)
+
+# task_manager 가 /orchestrator/state 로 알려주는 patrol_target(지금 향하는
+# PATROL_ROUTE 인덱스)과 층별 관측 자세를 잇는다. PATROL_ROUTE[1](끝점, 선반
+# 쪽)로 가는 중이면 2층, PATROL_ROUTE[0](시작점)으로 돌아가는 중이면 1층 —
+# taught_poses.yaml 에 그 두 자세(shelf_1_top_close_centered, s1_bottom_scan)
+# 가 이미 있다.
+POSE_BY_PATROL_TARGET = {
+    1: "shelf_1_top_close_centered",
+    0: "s1_bottom_scan",
+}
+DEFAULT_POSE_NAME = "shelf_1_top_close_centered"
 
 
 def _add_ros_bridge_to_syspath():
@@ -117,6 +134,7 @@ class CarrierCodeReader(Node):
         self.create_subscription(
             PoseWithCovarianceStamped, "/robot1/amcl_pose", self._on_amcl_pose, 10)
         self._orchestrator_state = None
+        self._patrol_target_idx = None  # task_manager 가 지금 향하는 PATROL_ROUTE 인덱스
         self._base_pose = None
         self._armed = False    # 이번 구역 체류 동안 observe_pose 를 이미 호출했는지
         self._found = False    # 이번 구역 체류 동안 이미 감지해서 발행했는지
@@ -135,16 +153,26 @@ class CarrierCodeReader(Node):
         x, y = self._base_pose
         return SHELF_ZONE_X[0] <= x <= SHELF_ZONE_X[1] and SHELF_ZONE_Y[0] <= y <= SHELF_ZONE_Y[1]
 
+    def _current_pose_name(self):
+        return POSE_BY_PATROL_TARGET.get(self._patrol_target_idx, DEFAULT_POSE_NAME)
+
     def _on_orchestrator_state(self, msg):
         new_state = None
         for part in msg.data.split("|"):
             part = part.strip()
             if part.startswith("state="):
                 new_state = part[len("state="):]
-                break
+            elif part.startswith("patrol_target="):
+                try:
+                    self._patrol_target_idx = int(part[len("patrol_target="):])
+                except ValueError:
+                    pass
         if new_state != self._orchestrator_state and new_state != "patrol":
             # patrol 을 벗어나면(HOLD/SCAN/PICK/NAV/PLACE) 팔이 다른 자세로
             # 움직일 것이므로, 다음에 patrol 로 돌아오면 다시 observe_pose 부터.
+            # patrol_target 은 그대로 둔다 — HOLD~SCAN 동안 이 상태 문자열엔
+            # 그 필드가 안 실리므로(task_manager 가 patrol 에서만 채운다),
+            # 마지막으로 알던 층을 carrier_scan 서비스가 그대로 써야 한다.
             self._armed = False
             self._found = False
         self._orchestrator_state = new_state
@@ -166,7 +194,7 @@ class CarrierCodeReader(Node):
 
         try:
             if not self._armed:
-                self.sim.call("observe_pose", timeout_s=15.0)
+                self.sim.call("observe_pose", pose_name=self._current_pose_name(), timeout_s=15.0)
                 self._armed = True
             r = self.sim.call("scan_qr", timeout_s=5.0, expected_id=None, n_frames=1)
         except SimClientError as e:
@@ -181,7 +209,7 @@ class CarrierCodeReader(Node):
     # ── ③④ /perception/carrier_scan ─────────────────────────────────────
     def _on_carrier_scan(self, request, response):
         try:
-            self.sim.call("observe_pose")
+            self.sim.call("observe_pose", pose_name=self._current_pose_name())
             r = self.sim.call("scan_qr", expected_id=None, n_frames=3)
         except SimClientError as e:
             response.found = False

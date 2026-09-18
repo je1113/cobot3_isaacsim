@@ -96,24 +96,19 @@ from cobot3_interfaces.srv import CarrierScan
 # 선반 라벨 가까이에, 그리고 멈춘 자리에서 팔이 매거진에 닿는 거리에 잡아야 한다
 # — 픽하러 따로 이동하지 않고 선 그 자리에서 집기 때문이다(M0609 도달거리 900 mm).
 #
-# 정차점 두 개(-7.05/-4.55, y=1.45)는 전부 yaw=0 으로 도착해야 한다 — frames.yaml
-# 의 관측/파지 자세(observation_poses)가 그 자세로 티칭돼 있어서 바꿀 수 없다.
-# 문제는 이 y=1.45 선이 선반1 앞면(front_post_inner_y=1.9277)에서 0.42~0.48m
-# 밖에 안 떨어져 있는데, 로봇 footprint(robot1_nav2_params.yaml, 팔 마운트 때문에
-# base_link 뒤로 0.607m 뻗어 있다)의 제자리회전 스윕 반경이 약 0.66m 라는 것 —
-# 실제로 선반에 닿는 반경이라 DWB 의 RotateToGoal 이 절대 못 돈다(costmap 인플레이션
-# 문제가 아니라 진짜 충돌 반경). 실측: -4.55->-7.05 로 갈 때(도착 시 180도 제자리
-# 회전이 필요한 방향)마다 제자리에서 계속 재시도만 하며 안 멈췄다.
-#
-# 그래서 방향 전환은 전부 선반에서 충분히 떨어진 개활지(y=0.30)에서 끝내고, 두
-# 정차점은 항상 서쪽에서 동쪽을 보고 직진해 들어가도록 순환 경로로 바꿨다 —
-# 정차점에서는 제자리 회전이 아예 필요 없게(작은 보정만) 만드는 게 목적이다.
-# 시험 좌표라 RViz 로 실제 경로를 보고 y=0.30 지점은 조정이 필요할 수 있다.
+# 개활지 회전 웨이포인트를 넣은 순환 경로(이전 버전)는 그 전환 구간 자체가
+# 깔끔하게 안 돌아서(실측: 방향이 몇 초 사이 수십 도씩 흔들림) 걷어냈다.
+# 대신 실제로 RViz/Isaac 에서 로봇을 직접 움직여 확인한 좌표 두 개로 단순
+# 직선 왕복을 쓴다 — 계산으로 추정한 좌표보다 이게 더 믿을 만하다.
+#   시작점: 2026-09-18 실측 (-2.674, 1.613)
+#   끝점:   2026-09-18 실측, 선반1 관측 자세 근처 (-6.582, 1.344)
+# 두 점 다 yaw=0 으로 고정 — frames.yaml 의 관측/파지 자세(observation_poses)가
+# 그 자세로 티칭돼 있어서다. 왕복 중 반대 방향으로 갈 때 정차점에서 제자리
+# 회전이 필요한 문제(footprint 스윕 0.66m vs 선반 여유 0.42~0.48m)는 아직
+# 해결 안 됐다 — nav_server 의 저속 프로파일 + 도착후 미세정렬로 완화만 됐다.
 PATROL_ROUTE = [
-    (-7.05, 1.45, 0.0),     # 정차점 1 (선반1, QR 스캔/픽) — 서쪽에서 동진하며 도착
-    (-4.55, 1.45, 0.0),     # 정차점 2 (선반1, QR 스캔/픽) — 정차점 1 에서 그대로 동진
-    (-4.55, 0.30, -90.0),   # 선반에서 벗어난 개활지로 남하 — 여기서부터 방향전환 시작
-    (-8.05, 0.30, 90.0),    # 개활지를 가로질러 정차점 1 서쪽으로 — 여긴 여유 있어 크게 돌아도 안전
+    (-2.674, 1.613, 0.0),
+    (-6.582, 1.344, 0.0),
 ]
 
 # place 하러 갈 목적지 — 테스트 스테이션 로더 앞 주차 위치.
@@ -222,6 +217,7 @@ class TaskManager(Node):
         self._detected = threading.Event() # 스레드끼리 주고받는 신호등 1
         self._shutdown = threading.Event() # 스레드끼리 주고받는 신호등 2
         self._patrol_idx = 0 # patrol할 때 지정 좌표 계속 순찰하게 하기 위함
+        self._patrol_target_idx = None  # 지금 향하고 있는 PATROL_ROUTE 인덱스 — /orchestrator/state 로 알림
         
         cb = ReentrantCallbackGroup() #동시 실행 가능하게 하는..
         self._carrier_scan = self.create_client(
@@ -270,6 +266,12 @@ class TaskManager(Node):
         # 상황을 한 줄 문자열로 만들어 /orchestrator/state 에 발행
         msg = String()
         parts = [f"state={self.state}", f"queue={len(self._queue)}"]
+        if self._patrol_target_idx is not None:
+            # carrier_code_reader 가 이걸 보고 층별 관측 자세(observe_pose
+            # pose_name)를 고른다 — PATROL_ROUTE[1](끝점)로 가는 중이면 2층,
+            # PATROL_ROUTE[0](시작점)으로 돌아가는 중이면 1층. 확정안 밖의
+            # 추가분(§03 note)이라 자유롭게 확장 가능하다.
+            parts.append(f"patrol_target={self._patrol_target_idx}")
         if self._current is not None:
             parts.append(f"carrier={self._current.carrier_id}")
             parts.append(f"variant={self._current.variant}")
@@ -327,8 +329,10 @@ class TaskManager(Node):
             time.sleep(0.2)   # 경로가 없으면 제자리 대기 - carrier_detected 만 기다림
             return
 
-        target = PATROL_ROUTE[self._patrol_idx % len(PATROL_ROUTE)] # 앞에 있던 _patrol_idx 나머지로 왕복 구현
+        self._patrol_target_idx = self._patrol_idx % len(PATROL_ROUTE) # 앞에 있던 _patrol_idx 나머지로 왕복 구현
+        target = PATROL_ROUTE[self._patrol_target_idx]
         self._patrol_idx += 1
+        self._publish_state()  # carrier_code_reader 가 층 전환을 바로 알 수 있게
         self.get_logger().info(f"patrol -> 정차점 {target}")
 
         try:

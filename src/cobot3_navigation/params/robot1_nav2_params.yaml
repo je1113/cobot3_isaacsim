@@ -247,7 +247,14 @@ controller_server:
 
       debug_trajectory_details: true
 
-      min_vel_x: 0.0
+      # 후진을 허용한다 — PATROL_ROUTE 왕복 중 한쪽 구간은 yaw=0(동쪽)을
+      # 유지한 채 서쪽으로 이동해야 하는데(task_manager.py 참고), 전진만
+      # 허용하면 그 구간에서 선반 바로 앞 제자리 180도 회전이 필요해진다.
+      # 그 회전 스윕 반경(0.66m)이 선반 여유(0.26~0.48m)보다 넓어서 계속
+      # BLOCKED/ABORTED 로 막히던 게 이거였다 — 후진을 허용하면 그 구간에서
+      # 아예 회전할 필요가 없어진다. nav_server 가 속도 프로파일마다
+      # min_vel_x 도 -max_vel_x 로 같이 눌러준다.
+      min_vel_x: -0.25
       min_vel_y: 0.0
 
       # 원래 NVIDIA 데모 값(0.8 / 0.7)은 개방된 창고 기준이라 빠르다. 선반 앞
