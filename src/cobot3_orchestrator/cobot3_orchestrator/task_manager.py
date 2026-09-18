@@ -192,7 +192,19 @@ PATROL_ROUTE = [
 # place 하러 갈 목적지 — 테스트 스테이션 로더 앞 주차 위치.
 # 지금은 매거진 1 · 2 를 전부 여기로 가져다 놓는다. (08 문서의 "매거진은 패키징
 # 로더로" 규칙은 지금 적용하지 않는다 — pkg_loader 는 나중에 추가한다.)
-TEST_LOADER = (4.0, 0.0, 0.0)
+# ★ isaacpjt/M0609/lula_ik/12_place_test.py 의 WP_PLACE 와 반드시 같은 값이어야
+# 한다 — place.yaml 의 PLACE_SLOT_POSE_BASE_LINK(그 노드가 여기 도착했다는
+# 전제로 만든 base_link 상대 오프셋)가 이 좌표 기준이다. 원래 4.0 이었는데
+# 컨베이어 회전-여유 문제로 3.85 로 뺐다(nav_server.py 조향 버그 이력 참고).
+TEST_LOADER = (3.85, 0.0, 0.0)
+
+# ★ 순찰 가지를 주석처리해 둔 동안 쓰는 임시 스위치 — carrier_detected 는
+# "순찰 중"에만 받아들이는데(patrolling 게이트), 순찰이 없으니 그 경로로는
+# 영원히 안 들어온다. True 면 노드가 뜨자마자 detected 를 강제로 세워서
+# 캐리어 처리 가지(SCAN 부터)가 바로 돈다 — simple_factory_layout.usda 의
+# nova_carter1 스폰을 이미 pick 위치로 옮겨 둔 것과 짝이다. 순찰을 다시
+# 살리면 False 로 되돌리고 이 강제 설정도 지운다.
+START_DETECTED_FOR_TEST = True
 
 # ── 단계 이름 ─────────────────────────────────────────────────────────────
 # 이전 판의 "상태" 다. 지금은 상태가 아니라 라벨이다 — 트리의 어느 노드인지,
@@ -689,43 +701,39 @@ def build_tree(node):
                   scan, pick, nav, place, ret,
                   CycleDone("사이클 완료", node, waypoints)])
 
-    # 순찰 — 도착(SUCCESS)을 RUNNING 으로 바꿔서 끝나지 않게 만든다. 다음 tick 에
-    # 잎이 다시 initialise() 되면서 _NextWaypoint 가 다음 정차점을 낸다.
-    # SuccessIsRunning 덕분에 이 Freeze 는 정차점에 도착하는 순간에도 RUNNING 을
-    # 유지한다 — _on_carrier_detected 가 "지금 순찰 중인가" 를 이걸로 판단하므로
-    # 도착하는 tick 에 신호를 흘리지 않으려면 그래야 한다.
-    # CANCELED 는 의도된 중단이라 실패로 치지 않는다 (NavigateTo.action 주석).
-    patrol = Freeze("PATROL", py_trees.decorators.SuccessIsRunning(
-        name="순찰", child=ActionLeaf(
-            PATROL, node, node.nav, "/navigation/navigate_to",
-            NavigateTo.Result, make_goal=waypoints, timeout_s=NAV_TIMEOUT_S,
-            ok_fail_reasons=(NavigateTo.Result.CANCELED,),
-            moves_base=True)), node, PATROL)
-
-    # 시작 자리에서 순찰 첫 정차점까지. 노드가 뜬 자리는 순찰 경로 위가 아니다.
-    # OneShot 이라 성공하면 그 뒤로는 자식을 tick 하지 않는다 — goal 은 평생 한 번
-    # 나간다. 성공 전에 끊기면(그럴 일은 아래 참고) 기억하지 않으므로 다시 시도한다.
-    start = py_trees.decorators.OneShot(
-        "START(1회)",
-        child=Freeze("START", ActionLeaf(
-            START, node, node.nav, "/navigation/navigate_to", NavigateTo.Result,
-            make_goal=lambda: NavigateTo.Goal(pose=_to_pose(PATROL_ROUTE[0])),
-            timeout_s=NAV_TIMEOUT_S, moves_base=True), node, START),
-        policy=py_trees.common.OneShotPolicy.ON_SUCCESSFUL_COMPLETION)
-
-    patrol_branch = py_trees.composites.Sequence(
-        "순찰 가지", memory=True, children=[start, patrol])
-
-    # 바깥에서 "지금 순찰 중인가" 를 물을 수 있게 해 둔다. START 중에는 patrol 이
-    # 아직 tick 되지 않아 INVALID 다 — 그래서 START 중에 들어온 carrier_detected 는
-    # 이전 판이 "상태가 patrol 이 아니면 버린다" 로 하던 것과 같이 버려진다.
-    node.patrol_node = patrol
+    # ★ 순찰 가지 통째로 주석처리 — patrol 좌표/전환 로직이 아직 이상해서
+    # (task_manager.py 상단 PATROL_ROUTE 주석 참고), task_manager 를
+    # 이식/검증하는 동안은 순찰 없이 SCAN 부터 바로 돈다(TaskManager.__init__
+    # 의 self.bb.detected = True 강제 설정과 짝이다 — 씬이 이미 pick 위치에서
+    # 시작하도록 simple_factory_layout.usda 의 nova_carter1 스폰도 옮겨 뒀다).
+    # 나중에 patrol 로직을 다시 정리하면 이 블록을 풀고 Selector children 에
+    # patrol_branch 를 되돌린다.
+    #
+    # patrol = Freeze("PATROL", py_trees.decorators.SuccessIsRunning(
+    #     name="순찰", child=ActionLeaf(
+    #         PATROL, node, node.nav, "/navigation/navigate_to",
+    #         NavigateTo.Result, make_goal=waypoints, timeout_s=NAV_TIMEOUT_S,
+    #         ok_fail_reasons=(NavigateTo.Result.CANCELED,),
+    #         moves_base=True)), node, PATROL)
+    #
+    # start = py_trees.decorators.OneShot(
+    #     "START(1회)",
+    #     child=Freeze("START", ActionLeaf(
+    #         START, node, node.nav, "/navigation/navigate_to", NavigateTo.Result,
+    #         make_goal=lambda: NavigateTo.Goal(pose=_to_pose(PATROL_ROUTE[0])),
+    #         timeout_s=NAV_TIMEOUT_S, moves_base=True), node, START),
+    #     policy=py_trees.common.OneShotPolicy.ON_SUCCESSFUL_COMPLETION)
+    #
+    # patrol_branch = py_trees.composites.Sequence(
+    #     "순찰 가지", memory=True, children=[start, patrol])
+    #
+    # node.patrol_node = patrol
 
     # 가지를 더한다면 여기다. 위에 있을수록 먼저 기회를 받는다 —
     # 배터리 선점(NavigateTo.action ★ hard_threshold_s)은 mission 위에,
     # 외부 작업 지시(RegisterTask.srv) 처리는 mission 과 patrol_branch 사이에 온다.
     return py_trees.composites.Selector(
-        "우선순위", memory=False, children=[mission, patrol_branch])
+        "우선순위", memory=False, children=[mission])
 
 
 def current_stage(root):
@@ -759,7 +767,7 @@ class TaskManager(Node):
         self.bb = _blackboard("task_manager", (
             "detected", "kind", "variant", "carrier_id", "qr_pose",
             "fail_stage", "fail_reason", "scan_fail_streak", "patrol_target"))
-        self.bb.detected = False
+        self.bb.detected = START_DETECTED_FOR_TEST
         self.bb.kind = ""
         self.bb.variant = ""
         self.bb.carrier_id = ""
@@ -902,7 +910,9 @@ class TaskManager(Node):
 
     # ── 표시 ──────────────────────────────────────────────────────────────
     def _on_post_tick(self, tree):
-        self.patrolling = self.patrol_node.status == Status.RUNNING
+        # patrol_branch 를 주석처리해 둔 동안은 patrol_node 가 None 이다.
+        self.patrolling = (self.patrol_node is not None
+                            and self.patrol_node.status == Status.RUNNING)
         snapshot = py_trees.display.unicode_tree(tree.root, show_status=True)
         if snapshot != self._last_snapshot:
             self._last_snapshot = snapshot

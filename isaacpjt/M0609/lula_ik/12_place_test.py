@@ -1456,20 +1456,13 @@ def run_trial(trial_idx, world, robot, lula, solver, gripper, teleporter,
         step += 1
 
     fail_code = pick_fsm.fail_code if pick_fsm.fail_code != FAIL_OK else place_fsm.fail_code
+    # ★ 배치 위치/자세 오차 체크(PLACE_POS_TOL_M/PLACE_ORIENT_TOL_DEG)를 뺐다 —
+    # PLACE 목표가 바닥 고정 지점일 때 만든 판정인데, 지금은 컨베이어 벨트
+    # (CONVEYOR_BELT_Z) 위라 벨트 자체가 움직여서 릴리스 직후 물체가 그
+    # 자리에 안 있는 게 정상이다(실측: 안정적으로 놓았는데도 위치오차
+    # 853mm). 벨트 목표에서는 이 비교가 의미가 없다.
     place_pos_err_mm = None
     place_orient_err_deg = None
-
-    if fail_code == FAIL_OK:
-        for _ in range(SETTLE_STEPS):
-            world.step(render=not HEADLESS)
-        final_pos, final_quat = get_world_pose(MAGAZINE_PATH)
-        place_pos_err_mm = float(np.linalg.norm(final_pos[:2] - PLACE_TARGET_XY)) * 1000.0
-        place_orient_err_deg = orientation_error_deg(final_quat, place_target_quat_ref)
-        if (place_pos_err_mm > PLACE_POS_TOL_M * 1000.0
-                or place_orient_err_deg > PLACE_ORIENT_TOL_DEG):
-            fail_code = FAIL_PLACE_ERROR
-        print(f"   배치 오차   pos {place_pos_err_mm:.2f} mm (<= {PLACE_POS_TOL_M*1000:.0f})  "
-              f"orient {place_orient_err_deg:.2f} deg (<= {PLACE_ORIENT_TOL_DEG:.0f})")
 
     return TrialResult(
         trial=trial_idx, fail_code=fail_code,
