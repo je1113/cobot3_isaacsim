@@ -5,11 +5,8 @@ from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument
 from launch.actions import IncludeLaunchDescription
-
 from launch.conditions import IfCondition
-
 from launch.launch_description_sources import PythonLaunchDescriptionSource
-
 from launch.substitutions import LaunchConfiguration
 
 from launch_ros.actions import Node
@@ -27,6 +24,19 @@ def generate_launch_description():
 
     nav2_bringup_dir = get_package_share_directory(
         "nav2_bringup"
+    )
+
+
+    # ==========================================================
+    # LAUNCH CONFIGURATION
+    # ==========================================================
+
+    use_sim_time = LaunchConfiguration(
+        "use_sim_time"
+    )
+
+    use_rviz = LaunchConfiguration(
+        "use_rviz"
     )
 
 
@@ -52,9 +62,12 @@ def generate_launch_description():
         "robot2_nav2_params.yaml"
     )
 
-    # ----------------------------------------------------------
-    # RVIZ CONFIG FILES
-    # ----------------------------------------------------------
+    robot_urdf_file = os.path.join(
+        package_dir,
+        "urdf",
+        "carter",
+        "carter.urdf"
+    )
 
     robot1_rviz_config = os.path.join(
         package_dir,
@@ -68,11 +81,6 @@ def generate_launch_description():
         "robot2_nav2.rviz"
     )
 
-
-    # ==========================================================
-    # NAV2 BRINGUP
-    # ==========================================================
-
     nav2_bringup_launch = os.path.join(
         nav2_bringup_dir,
         "launch",
@@ -81,17 +89,202 @@ def generate_launch_description():
 
 
     # ==========================================================
-    # LAUNCH CONFIGURATION
+    # ROBOT DESCRIPTION
     # ==========================================================
 
-    use_sim_time = LaunchConfiguration(
-        "use_sim_time"
+    with open(robot_urdf_file, "r") as urdf_file:
+        robot_description = urdf_file.read()
+
+
+    # ==========================================================
+    # ROBOT 1 STATE PUBLISHER
+    #
+    # robot_description
+    # -> /robot1/robot_description
+    #
+    # TF
+    # -> /robot1/tf
+    # -> /robot1/tf_static
+    # ==========================================================
+
+    robot1_state_publisher = Node(
+
+        package="robot_state_publisher",
+
+        executable="robot_state_publisher",
+
+        namespace="robot1",
+
+        name="robot_state_publisher",
+
+        output="screen",
+
+        parameters=[{
+            "robot_description": robot_description,
+            "use_sim_time": use_sim_time,
+        }],
+
+
+        remappings=[
+            (
+                "/tf",
+                "tf"
+            ),
+            (
+                "/tf_static",
+                "tf_static"
+            ),
+        ],
     )
 
-    use_rviz = LaunchConfiguration(
-        "use_rviz"
+
+    # ==========================================================
+    # ROBOT 1 JOINT STATE PUBLISHER
+    # ==========================================================
+
+    robot1_joint_state_publisher = Node(
+        package="joint_state_publisher",
+        executable="joint_state_publisher",
+
+        namespace="robot1",
+
+        name="joint_state_publisher",
+
+        output="screen",
+
+        parameters=[{
+            "robot_description": robot_description,
+            "use_sim_time": use_sim_time,
+        }],
     )
 
+
+    # ==========================================================
+    # ROBOT 1 base_link -> chassis_link
+    # ==========================================================
+
+    robot1_base_to_chassis = Node(
+        package="tf2_ros",
+        executable="static_transform_publisher",
+
+        namespace="robot1",
+
+        name="base_to_chassis",
+
+        output="screen",
+
+        arguments=[
+            "--x", "0",
+            "--y", "0",
+            "--z", "0",
+            "--roll", "0",
+            "--pitch", "0",
+            "--yaw", "0",
+            "--frame-id", "base_link",
+            "--child-frame-id", "chassis_link",
+        ],
+
+        remappings=[
+            (
+                "/tf_static",
+                "tf_static"
+            ),
+        ],
+    )
+
+    # ==========================================================
+    # ROBOT 2 STATE PUBLISHER
+    #
+    # robot_description
+    # -> /robot2/robot_description
+    #
+    # TF
+    # -> /robot2/tf
+    # -> /robot2/tf_static
+    # ==========================================================
+
+    robot2_state_publisher = Node(
+
+        package="robot_state_publisher",
+
+        executable="robot_state_publisher",
+
+        namespace="robot2",
+
+        name="robot_state_publisher",
+
+        output="screen",
+
+        parameters=[{
+            "robot_description": robot_description,
+            "use_sim_time": use_sim_time,
+        }],
+
+        remappings=[
+            (
+                "/tf",
+                "tf"
+            ),
+            (
+                "/tf_static",
+                "tf_static"
+            ),
+        ],
+    )
+
+    # ==========================================================
+    # ROBOT 2 JOINT STATE PUBLISHER
+    # ==========================================================
+
+    robot2_joint_state_publisher = Node(
+        package="joint_state_publisher",
+        executable="joint_state_publisher",
+
+        namespace="robot2",
+
+        name="joint_state_publisher",
+
+        output="screen",
+
+        parameters=[{
+            "robot_description": robot_description,
+            "use_sim_time": use_sim_time,
+        }],
+    )
+
+
+    # ==========================================================
+    # ROBOT 2 base_link -> chassis_link
+    # ==========================================================
+
+    robot2_base_to_chassis = Node(
+        package="tf2_ros",
+        executable="static_transform_publisher",
+
+        namespace="robot2",
+
+        name="base_to_chassis",
+
+        output="screen",
+
+        arguments=[
+            "--x", "0",
+            "--y", "0",
+            "--z", "0",
+            "--roll", "0",
+            "--pitch", "0",
+            "--yaw", "0",
+            "--frame-id", "base_link",
+            "--child-frame-id", "chassis_link",
+        ],
+
+        remappings=[
+            (
+                "/tf_static",
+                "tf_static"
+            ),
+        ],
+    )
 
     # ==========================================================
     # ROBOT 1
@@ -167,10 +360,14 @@ def generate_launch_description():
             "use_inf": True,
             "inf_epsilon": 1.0,
 
-            "use_sim_time": True,
+            "use_sim_time": use_sim_time,
         }],
     )
 
+
+    # ==========================================================
+    # ROBOT 1 NAV2
+    # ==========================================================
 
     robot1_nav2 = IncludeLaunchDescription(
 
@@ -199,11 +396,12 @@ def generate_launch_description():
     # ==========================================================
     # ROBOT 1 RVIZ
     #
-    # robot1_nav2.rviz 내부:
+    # robot1_nav2.rviz:
     #
     # Fixed Frame = map
-    # Map       = /robot1/map
+    # Map = /robot1/map
     # LaserScan = /robot1/scan
+    # RobotModel = /robot1/robot_description
     # ==========================================================
 
     robot1_rviz = Node(
@@ -211,7 +409,7 @@ def generate_launch_description():
         package="rviz2",
 
         executable="rviz2",
-
+        namespace="robot1",
         name="rviz2_robot1",
 
         output="screen",
@@ -235,7 +433,7 @@ def generate_launch_description():
         ],
 
         parameters=[{
-            "use_sim_time": True
+            "use_sim_time": use_sim_time
         }],
 
         condition=IfCondition(
@@ -315,10 +513,14 @@ def generate_launch_description():
             "use_inf": True,
             "inf_epsilon": 1.0,
 
-            "use_sim_time": True,
+            "use_sim_time": use_sim_time,
         }],
     )
 
+
+    # ==========================================================
+    # ROBOT 2 NAV2
+    # ==========================================================
 
     robot2_nav2 = IncludeLaunchDescription(
 
@@ -347,11 +549,12 @@ def generate_launch_description():
     # ==========================================================
     # ROBOT 2 RVIZ
     #
-    # robot2_nav2.rviz 내부:
+    # robot2_nav2.rviz:
     #
     # Fixed Frame = map
-    # Map       = /robot2/map
+    # Map = /robot2/map
     # LaserScan = /robot2/scan
+    # RobotModel = /robot2/robot_description
     # ==========================================================
 
     robot2_rviz = Node(
@@ -359,7 +562,7 @@ def generate_launch_description():
         package="rviz2",
 
         executable="rviz2",
-
+        namespace="robot2",
         name="rviz2_robot2",
 
         output="screen",
@@ -383,7 +586,7 @@ def generate_launch_description():
         ],
 
         parameters=[{
-            "use_sim_time": True
+            "use_sim_time": use_sim_time
         }],
 
         condition=IfCondition(
@@ -420,15 +623,31 @@ def generate_launch_description():
         # ------------------------------------------------------
 
         robot1_pointcloud_to_scan,
-        robot1_nav2,
-        robot1_rviz,
 
+        robot1_state_publisher,
+
+        robot1_joint_state_publisher,
+
+        robot1_base_to_chassis,
+
+        robot1_nav2,
+
+        robot1_rviz,
 
         # ------------------------------------------------------
         # Robot 2
         # ------------------------------------------------------
 
         robot2_pointcloud_to_scan,
+
+        robot2_state_publisher,
+
+        robot2_joint_state_publisher,
+
+        robot2_base_to_chassis,
+
         robot2_nav2,
+
         robot2_rviz,
+
     ])
