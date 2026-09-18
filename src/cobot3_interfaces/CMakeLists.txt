@@ -17,6 +17,8 @@ find_package(std_msgs REQUIRED)
 # Custom interfaces
 rosidl_generate_interfaces(${PROJECT_NAME}
   # ── 여기 없는 파일은 만들어도 생성되지 않는다. 에러도 안 난다. ──
+  # /perception/carrier_detected 는 std_msgs/Bool 이라 여기에 없다.
+  # 노드 그래프의 인터페이스 6개 중 5개가 이 패키지에 있다.
   # Messages
   "msg/TraceEvent.msg"        # task_manager → event_logger
   "msg/TaskOrder.msg"         # 보류 — 웹/MES 연동 시
