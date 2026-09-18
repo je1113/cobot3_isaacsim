@@ -3,7 +3,8 @@
 #  받는 노드   : cobot3_orchestrator / task_manager
 #  종류        : 토픽 또는 RegisterTask.srv 의 요청 본문  — 보류
 #  역할        : 외부에서 내려오는 작업 지시 1건 ("주황 매거진을 테스트 스테이션으로").
-#                지금은 carrier_scan 이 명령 큐를 채우므로 쓰지 않는다. 웹 연동 시 채운다.
+#                지금은 순찰 중 발견(carrier_detected) → 정지 → carrier_scan 판독이
+#                명령 큐를 채우므로 쓰지 않는다. 웹 연동 시 채운다.
 #  전달 내용   : 필드 미정. 예상: carrier_id · dst_port · priority
 # ══════════════════════════════════════════════════════════════════════
 

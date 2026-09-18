@@ -29,6 +29,9 @@ builtin_interfaces/Time stamp   # 시뮬 시각 (use_sim_time).
 
 string carrier_id               # "MAG-A17". 미판독이면 빈 문자열
 string stage                    # SCAN | PICK | TRANSIT | PLACE | RETURN | DOCK
+                                # SCAN 은 "carrier_detected 신호 → 정지(HOLD) →
+                                # carrier_scan 판독" 한 묶음이다. HOLD 는 결과가
+                                # 없는 순간 상태라 따로 적지 않는다.
 bool   success
 string fail_reason              # 실패 시만. 액션 result 의 상수명 그대로 ("NO_ATTACH")
 string port                     # 어디서 — "shelf_1_s3" | "pkg_loader" | "test_loader" | "dock_pad_1"
