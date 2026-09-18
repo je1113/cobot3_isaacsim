@@ -53,6 +53,8 @@ docking_server:
         projection_time: 5.0
         simulation_step: 0.1
         dock_collision_threshold: 0.3
+
+
 collision_monitor:
   ros__parameters:
     use_sim_time: true
@@ -88,9 +90,11 @@ collision_monitor:
 
     scan:
       type: "scan"
-      topic: "scan"
+      topic: "/robot2/scan"
       source_timeout: 0.5
       enabled: true
+
+
 amcl:
   ros__parameters:
     use_sim_time: true
@@ -105,7 +109,7 @@ amcl:
     global_frame_id: "map"
     odom_frame_id: "odom"
 
-    scan_topic: "scan"
+    scan_topic: "/robot2/scan"
     map_topic: "map"
 
     beam_skip_distance: 0.5
@@ -350,7 +354,7 @@ local_costmap:
         observation_sources: scan
 
         scan:
-          topic: "scan"
+          topic: "/robot2/scan"
 
           data_type: "LaserScan"
 
@@ -413,7 +417,7 @@ global_costmap:
         observation_sources: scan
 
         scan:
-          topic: "scan"
+          topic: "/robot2/scan"
 
           data_type: "LaserScan"
 
