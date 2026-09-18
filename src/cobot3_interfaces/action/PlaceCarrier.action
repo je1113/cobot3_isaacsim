@@ -1,0 +1,62 @@
+# ══════════════════════════════════════════════════════════════════════
+#  보내는 노드 : cobot3_orchestrator / task_manager
+#  받는 노드   : cobot3_manipulation / pick_place_server
+#  종류        : 액션  /manipulation/place_carrier
+#  역할        : "이 종류를 놓아라". 놓을 자리는 종류로 정해지므로(매거진→패키징 로더,
+#                스택→테스트 로더) 좌표를 받지 않고 place.yaml 에서 찾는다.
+#  전달 내용   : goal: variant  /  result: success · fail_reason  /  feedback: phase(MOVE/LOWER/RELEASE/RETREAT)
+# ══════════════════════════════════════════════════════════════════════
+
+# 기능: "이 종류를 여기 내려놔라" 를 받으면 배치 동작을 스스로 계산해서 내려놓는다.
+#
+# goal 이 variant 하나인 이유
+#   놓을 자리가 종류로 정해져 있다 — 매거진은 패키징 스테이션 로더, 스택은
+#   테스트 스테이션 로더. 그래서 "무엇을 들고 있나" 만 알면 어디에 놓을지가 나온다.
+#   좌표를 따로 받지 않는다.
+#
+#   전제: 로봇이 그 로더 앞 designated 자리에 이미 서 있다. 배치 자세는
+#   base_link 기준 고정값이라 place.yaml 에서 variant 로 찾는다.
+#   주차가 어긋나면 그만큼 배치도 어긋나는데, 그건 여기서 감지하지 않는다 —
+#   NavigateTo 가 먼저 TOLERANCE_NOT_MET 으로 알린다. 재시도 여부는
+#   orchestrator 가 정한다 (아직 미구현).
+#
+# 서버가 내부에서 하는 일 (12_place_test.py / 14_place_test_pse.py 순서)
+#   MOVE → LOWER → RELEASE(흡착 OFF) → RETREAT
+#   배치 자세도 내려놓는 높이도 서버가 정한다. 높이는 place.yaml 의 자세에
+#   캐리어 높이와 place_drop_m 을 더한 값이다.
+#
+# ★ pick_place_server 가 declare_parameter 로 정의해야 하는 것 (PickCarrier 와 공유)
+#   grasp_yaml       (string)          위와 같은 파일 — 캐리어 높이
+#   place_yaml       (string)          variant → 배치 자세(base_link) 표.
+#                                      매거진 → 패키징 로더, 스택 → 테스트 로더.
+#                                      좌표 미정 — 로더 실물이 정해지면 채운다.
+#   place_drop_m     (double, 0.005)   목표 높이보다 이만큼 더 내려 확실히 놓는다
+#   place_pos_tol_m  (double, 0.002)   배치 위치오차 허용치
+#   place_yaw_tol_rad(double, 0.017)   배치 자세오차 허용치 (약 1도)
+#
+# NOT_GRIPPED: 도착했는데 이미 gripped=false — 이송 중 놓쳤다.
+#              orchestrator 는 이걸 PLACE 가 아니라 TRANSIT 실패로 기록한다.
+
+# ── goal ──
+string variant                  # place.yaml · grasp.yaml 키. 예: "magazine_1_orange"
+                                # 이것만으로 놓을 자리가 정해진다 (매거진 → 패키징 로더)
+---
+# ── result ──
+uint8 NONE=0
+uint8 NO_IK=1
+uint8 COLLISION=2
+uint8 PORT_OCCUPIED=3           # 내려놓을 자리에 이미 뭔가 있다
+uint8 NOT_GRIPPED=4             # 도착 시 이미 놓친 상태
+uint8 UNKNOWN_VARIANT=5         # place.yaml 에 이 variant 의 배치 자세가 없다
+uint8 CANCELED=6
+
+bool  success
+uint8 fail_reason
+---
+# ── feedback ──
+uint8 MOVE=0
+uint8 LOWER=1
+uint8 RELEASE=2
+uint8 RETREAT=3
+
+uint8 phase

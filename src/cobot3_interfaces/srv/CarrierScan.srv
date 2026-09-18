@@ -1,0 +1,65 @@
+# ══════════════════════════════════════════════════════════════════════
+#  보내는 노드 : cobot3_orchestrator / task_manager       (클라이언트)
+#  받는 노드   : cobot3_perception / carrier_code_reader  (서버)
+#  종류        : 서비스  /perception/carrier_scan
+#  역할        : 로봇이 선 뒤 "지금 읽어라". 멈춘 상태에서 근접 판독해 QR 원문과
+#                라벨 위치를 돌려준다. perception 은 해석하지 않는다.
+#  전달 내용   : req: 없음  /  res: found · header · payload · qr_pose
+# ══════════════════════════════════════════════════════════════════════
+
+# 한 번에 올리지 않고 두 단계로 나눈다 (08 문서 02 참조)
+#   ① perception → orchestrator  /perception/carrier_detected (std_msgs/Bool)
+#                                "QR 이 보인다" 는 신호만. 새로 정의할 게 없어
+#                                이 패키지에 파일이 없다.
+#   ② orchestrator               그 로봇을 세운다 — 진행 중인 NavigateTo goal 을
+#                                취소하면 Nav2 가 cmd_vel 발행을 멈춘다. 상태 HOLD.
+#   ③ orchestrator → perception  이 서비스. "지금 읽어라"
+#   ④ perception → orchestrator  아래 응답. 원문 + 위치
+#
+# 왜 멈춘 뒤에 읽나
+#   05 §12-1 이 정한 원칙이 "정지 상태에서 근접 판독" 이다. 움직이는 중에 읽으면
+#   모션 블러와 판독 시각 오차가 qr_pose 에 그대로 실린다. 최대 판독 거리도
+#   0.28 m 라(05 §2-4, 50 mm 라벨 · 1280×720 · 4 px/모듈) 어차피 서야 읽힌다.
+#
+# 왜 서비스인가
+#   요청에 응답이 따라오므로 판독 결과를 놓치지 않는다. 그리고 방향이
+#   orchestrator → perception 이라 perception 은 자기를 부르는 쪽을 모른다 —
+#   "인식만 한다" 가 유지되고, 카메라 콜백에서 남의 서비스를 기다릴 일도 없다.
+#   기존 /perception/scan_now (std_srvs/Trigger) 가 같은 모양이었는데,
+#   Trigger 는 응답에 payload·qr_pose 를 담을 수 없어 이것으로 바꾼다.
+#
+# 요청이 비어 있는 이유
+#   "지금 읽어라" 외에 줄 게 없다. 어디를 볼지는 팔 자세가 정하고, 그 자세는
+#   HOLD 로 선 그 자리에서 이미 결정돼 있다. ROI 를 지정하고 싶어지면 그때 넣는다.
+#
+# ★ carrier_code_reader 가 declare_parameter 로 정의해야 하는 것
+#   decode_hz       (double, 5.0)    30 Hz 전부 디코드하지 않는다        05 §2-5
+#   roi_fraction    (double, 0.6)    중앙 크롭 — 옆 슬롯 라벨 오검출 차단  05 §2-5
+#   vote_window     (int, 8)         N-of-M 의 M. decode_hz 5.0 → 창 1.6 s
+#   vote_required   (int, 5)         N-of-M 의 N. 8중 5 (최소 판정 1.0 s)
+#   output_frame    (string, "map")  qr_pose 를 어느 좌표계로 낼지
+#   publish_debug   (bool, false)    크롭 이미지 디버그 토픽
+#   → ① 의 감지 신호와 ④ 의 응답이 같은 다수결 기준을 쓴다.
+
+---
+
+bool found                      # 요청받은 시점에 판독에 성공했나.
+                                # false 면 아래 셋은 비어 있다 — 세우는 사이 라벨이
+                                # 시야에서 벗어났거나 다수결을 못 채운 경우다.
+                                # orchestrator 는 이때 HOLD 를 풀고 patrol 로 돌아간다.
+
+std_msgs/Header header          # stamp   = 판독한 프레임 시각
+                                # frame_id = qr_pose 의 좌표계 (output_frame).
+                                #            이 응답에서 좌표계를 말하는 곳은 여기 하나다.
+
+string payload                  # QR 이 담고 있는 정보 원문. 예: "C3.MAG.A17.9"
+                                # 파싱(kind·serial 분해, 변형 조회)은 orchestrator 가 한다.
+
+geometry_msgs/Pose qr_pose      # 라벨 중심의 위치 + 방향.
+                                # 방향이 필요한 이유: orchestrator 가 "라벨 정면 0.5 m" 같은
+                                # 상대좌표를 적용해 로봇이 설 자리와 보는 방향까지 정한다.
+                                # +Z = 라벨 법선(바깥), +X = 라벨 이미지의 오른쪽.
+                                #   (grasp.yaml qr_frame_convention 과 같은 규약)
+                                # 이 값은 파지 목표가 아니라 대략값(prior)이다 — 실제 파지점은
+                                # manipulation 이 플랜지를 위에서 재서 정한다. 이유는
+                                # grasp.yaml flange_vision.why (라벨이 옆벽이라 yaw 1σ 2.3도).

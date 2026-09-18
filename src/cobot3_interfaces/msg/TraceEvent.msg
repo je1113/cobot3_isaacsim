@@ -1,0 +1,37 @@
+# ══════════════════════════════════════════════════════════════════════
+#  보내는 노드 : cobot3_orchestrator / task_manager
+#  받는 노드   : cobot3_orchestrator / event_logger
+#  종류        : 토픽  /trace/event   (Reliable, depth 50)
+#  역할        : 미션 단계가 하나 끝날 때마다 결과를 한 건 낸다. event_logger 는 그대로
+#                SQLite event 테이블에 append 한다 — 판단하지 않는다. 생산 트래킹 원천.
+#  전달 내용   : stamp · carrier_id · stage(SCAN/PICK/TRANSIT/PLACE/RETURN/DOCK) · success · fail_reason · port
+# ══════════════════════════════════════════════════════════════════════
+
+# 기능: 미션 단계 하나가 끝날 때마다 한 건. event_logger 는 받은 그대로
+#       SQLite event 테이블에 1행 append 한다 — 판단하지 않는다.
+#
+# 공통 정보(run_id · amr_id · 벽시계)는 메시지에 없다. 로거가 INSERT 할 때
+# 자기 파라미터와 datetime('now') 로 붙인다. 시뮬 시각은 stamp 다.
+# 공장·라인·로트는 carrier_id 로 carrier 테이블(지금은 carriers.yaml) 조인.
+#
+# 05 §2-6 의 event_type(PICK_TRY / PICK_OK / ...)은 stage + success 로 풀었다.
+# "단계별 실패율" 이 GROUP BY stage WHERE success=0 으로 바로 나온다.
+#
+# ★ event_logger 가 declare_parameter 로 정의해야 하는 것
+#   db_path   (string)            SQLite 파일 경로
+#   run_id    (string)            반복 시행 회차. 런치마다 지정, 모든 행에 붙인다
+#   amr_id    (string, "amr_1")   단일 AMR
+#   → 메시지에 없는 이 셋과 벽시계(datetime('now'))는 INSERT 때 로거가 붙인다.
+
+builtin_interfaces/Time stamp   # 시뮬 시각 (use_sim_time).
+                                # std_msgs/Header 가 아닌 이유: 로그 이벤트에는
+                                # 좌표계가 없어 frame_id 가 영원히 빈 값이 된다.
+
+string carrier_id               # "MAG-A17". 미판독이면 빈 문자열
+string stage                    # SCAN | PICK | TRANSIT | PLACE | RETURN | DOCK
+                                # SCAN 은 "carrier_detected 신호 → 정지(HOLD) →
+                                # carrier_scan 판독" 한 묶음이다. HOLD 는 결과가
+                                # 없는 순간 상태라 따로 적지 않는다.
+bool   success
+string fail_reason              # 실패 시만. 액션 result 의 상수명 그대로 ("NO_ATTACH")
+string port                     # 어디서 — "shelf_1_s3" | "pkg_loader" | "test_loader" | "dock_pad_1"
