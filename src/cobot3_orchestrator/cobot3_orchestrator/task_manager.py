@@ -223,7 +223,10 @@ RETURN = "return"
 NUMERIC_TO_VARIANT = {"1": "magazine_1_orange", "2": "magazine_2_blue"}
 
 # 각 단계를 이만큼 기다려도 안 끝나면 실패로 본다. 단위 초.
-SCAN_TIMEOUT_S = 10.0
+# SCAN 은 재시도(SCAN_RETRIES)까지 포함해서 이 시간 안에 끝나야 한다 — 시도
+# 한 번(observe_pose 재정렬 + n_frames 캡처)이 GUI/렌더 모드에서 몇 초씩
+# 걸리므로 재시도 여유를 넉넉히 둔다.
+SCAN_TIMEOUT_S = 40.0
 NAV_TIMEOUT_S = 300.0
 PICK_TIMEOUT_S = 120.0
 PLACE_TIMEOUT_S = 120.0
@@ -238,6 +241,14 @@ SCAN_COOLDOWN_S = 30.0
 # 연속 이만큼 실패하면 경고를 낸다. 쿨다운만 두면 로봇이 조용히 계속 도는데,
 # 그건 "안 보이는 실패" 라 더 나쁘다. 멈추지는 않는다 — 다른 라벨은 처리해야 한다.
 SCAN_FAIL_WARN = 3
+
+# SCAN 이 found=false 를 받아도 바로 patrol 로 돌아가지 않고 이 횟수만큼
+# carrier_scan 을 다시 부른다(최초 시도 포함 총 SCAN_RETRIES+1 번). 매 시도가
+# observe_pose 로 팔을 다시 정렬하고 카메라를 새로 캡처하므로, 렌더링 워밍업
+# 부족이나 그 한 프레임의 일시적 디코드 실패 같은 걸 재시도로 걸러낸다.
+# 그래도 계속 실패하면(라벨이 진짜 시야 밖이거나 판독거리 밖) 기존 정책대로
+# soft 실패로 patrol 로 돌아간다.
+SCAN_RETRIES = 2
 
 # carrier_detected 가 오면 주행을 그 자리에서 끊을지, 정차점까지 가고 나서
 # 처리할지.
@@ -420,9 +431,10 @@ class ScanLeaf(py_trees.behaviour.Behaviour):
     멈춘 뒤에 읽어야 정확하다 (05 §12-1 정지 상태에서 근접 판독). 앞의 HOLD 잎이
     로봇이 실제로 설 때까지 RUNNING 을 돌려주므로 여기 올 때는 이미 서 있다.
 
-    found=false 는 soft 실패다 — Freeze 가 얼리지 않고 FAILURE 를 그대로 올려서
-    캐리어 처리 가지가 통째로 FAILURE 가 되고, Selector 가 순찰로 넘어간다.
-    CarrierScan.srv 응답 주석이 정한 거동이다.
+    found=false 는 SCAN_RETRIES 번 재시도한 뒤에도 안 되면 soft 실패다 — Freeze
+    가 얼리지 않고 FAILURE 를 그대로 올려서 캐리어 처리 가지가 통째로 FAILURE
+    가 되고, Selector 가 순찰로 넘어간다. CarrierScan.srv 응답 주석이 정한
+    거동이다.
     """
 
     def __init__(self, name, node):
@@ -431,10 +443,12 @@ class ScanLeaf(py_trees.behaviour.Behaviour):
         self.bb = _blackboard(name, ("kind", "variant", "carrier_id", "qr_pose"))
         self.soft = False
         self.future = None
+        self.attempt = 0
 
     def initialise(self):
         self.future = None
         self.soft = False
+        self.attempt = 0
         now = time.monotonic()
         self.server_deadline = now + SERVER_WAIT_S
         self.deadline = now + SCAN_TIMEOUT_S
@@ -458,11 +472,21 @@ class ScanLeaf(py_trees.behaviour.Behaviour):
 
         res = self.future.result()
         if not res.found:
-            # 세우는 사이 라벨이 시야에서 벗어났거나 다수결을 못 채웠다.
-            # 멈추지 않고 순찰로 돌아간다 — 물건은 그 자리에 그대로 있다.
+            self.attempt += 1
+            if self.attempt <= SCAN_RETRIES:
+                # 재시도 — observe_pose 부터 다시 걸어 팔을 재정렬하고 카메라를
+                # 새로 캡처한다. future 를 비우면 다음 tick 에 새 요청이 나간다.
+                self.node.get_logger().info(
+                    f"SCAN 미판독 — 재시도 {self.attempt}/{SCAN_RETRIES}")
+                self.future = None
+                return Status.RUNNING
+            # 재시도까지 다 썼다 — 세우는 사이 라벨이 시야에서 벗어났거나
+            # 다수결을 못 채웠다고 본다. 멈추지 않고 순찰로 돌아간다 — 물건은
+            # 그 자리에 그대로 있다.
             self.soft = True
             self.node.on_scan_not_found()
-            self.feedback_message = "NOT_FOUND(found=false) — patrol 로 돌아간다"
+            self.feedback_message = (
+                f"NOT_FOUND(found=false) x{self.attempt} — patrol 로 돌아간다")
             return Status.FAILURE
 
         variant = NUMERIC_TO_VARIANT.get(res.payload)

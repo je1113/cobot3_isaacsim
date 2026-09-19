@@ -1037,7 +1037,7 @@ def Xform "World"
             }
 
             over "m0609" (
-                prepend references = @file:/home/rokey/cobot3_ws/isaacpjt/M0609/doosan-robot2/urdf/m0609_isaac_sim/m0609_isaac_sim.usd@
+                prepend references = @../M0609/doosan-robot2/urdf/m0609_isaac_sim/m0609_isaac_sim.usd@
             )
             {
                 string isaac:namespace (
@@ -1524,7 +1524,7 @@ def Xform "World"
             }
 
             over "m0609" (
-                prepend references = @file:/home/rokey/cobot3_ws/isaacpjt/M0609/doosan-robot2/urdf/m0609_isaac_sim/m0609_isaac_sim.usd@
+                prepend references = @../M0609/doosan-robot2/urdf/m0609_isaac_sim/m0609_isaac_sim.usd@
             )
             {
                 string isaac:namespace (
