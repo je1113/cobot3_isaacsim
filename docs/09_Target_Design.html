@@ -332,7 +332,7 @@
     <div class="fclegend">
       <span><i class="t" style="border-color:var(--fc-term);background:var(--fc-term-bg)"></i>시작 · 종료</span>
       <span><i style="border-color:var(--fc-perc);background:var(--fc-perc-bg)"></i>기본 단계 — 순찰 · 판독 · 복귀</span>
-      <span><i style="border-color:var(--fc-move);background:var(--fc-move-bg)"></i><b>중요 기능</b> — PICK · NAV · PLACE</span>
+      <span><i style="border-color:var(--fc-move);background:var(--fc-move-bg)"></i><b>중요 기능</b> — PICK · NAV(목적지) · PLACE</span>
       <span><i style="border-color:var(--fc-new);background:var(--fc-new-bg)"></i><b>신규 기능</b> — 도킹 · 웹 복구 · 경로 분기</span>
       <span><i class="d" style="border-color:var(--fc-dec);background:var(--fc-dec-bg)"></i>판정 분기</span>
     </div>
@@ -392,14 +392,14 @@
         <polygon class="fc fc-new" points="340,1716 505,1761 340,1806 175,1761"/>
         <text class="fc-t" x="340" y="1758" text-anchor="middle">soft_threshold_s 초과?</text>
         <text class="fc-s" x="340" y="1775" text-anchor="middle">가동시간 타이머</text>
-        <rect class="fc fc-move" x="660" y="1842" width="280" height="64"/>
+        <rect class="fc fc-new" x="660" y="1842" width="280" height="64"/>
         <text class="fc-t" x="800" y="1869" text-anchor="middle">NAV : 충전 패드로 주행</text>
         <text class="fc-s" x="800" y="1888" text-anchor="middle">frames.yaml dock_pads[robot_name]</text>
         <rect class="fc fc-new" x="660" y="1942" width="280" height="76"/>
         <text class="fc-t" x="800" y="1968" text-anchor="middle">DOCK : 충전</text>
         <text class="fc-s" x="800" y="1986" text-anchor="middle">Dock.action (신규)</text>
         <text class="fc-s" x="800" y="2003" text-anchor="middle">feedback charge_pct</text>
-        <polygon class="fc fc-dec" points="800,2054 945,2099 800,2144 655,2099"/>
+        <polygon class="fc fc-new" points="800,2054 945,2099 800,2144 655,2099"/>
         <text class="fc-t" x="800" y="2096" text-anchor="middle">충전 성공?</text>
         <text class="fc-s" x="800" y="2113" text-anchor="middle">charge_target_pct 도달</text>
         <rect class="fc fc-new" x="660" y="2200" width="280" height="80"/>
