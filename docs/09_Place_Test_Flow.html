@@ -67,16 +67,20 @@
     display:block; width:100%; height:auto; margin-inline:auto;
     font-family:'IBM Plex Sans KR','IBM Plex Sans',system-ui,sans-serif;
   }
-  svg.cycle { min-width:960px; max-width:1100px; }
+  svg.cycle { min-width:700px; max-width:760px; }
   svg.fsm   { min-width:980px; max-width:1100px; }
-  svg.loop  { min-width:900px; max-width:1100px; }
+  svg.loop  { min-width:880px; max-width:1000px; }
 
   svg.flow .nt { font-size:13.5px; font-weight:600; fill:var(--ink); }
-  svg.flow .ns { font-size:10.5px; fill:var(--ink-3); }
-  svg.flow .nx { font-size:10px; fill:var(--ink-3); }
+  svg.flow .stage { font-size:19px; font-weight:600; fill:var(--ink); }
+  svg.flow .gloss { font-size:12.5px; fill:var(--ink-2); }
+  svg.flow .step  { font-size:12.5px; fill:var(--ink-2); }
+  svg.flow .kor   { font-size:16px; font-weight:600; fill:var(--ink); }
+  svg.flow .ns { font-size:11.5px; fill:var(--ink-3); }
+  svg.flow .nx { font-size:11px; fill:var(--ink-3); }
   svg.flow .m  { font-family:'IBM Plex Mono',ui-monospace,monospace; }
-  svg.flow .lb { font-size:10.5px; fill:var(--ink-3); }
-  svg.flow .la { font-size:10.5px; fill:var(--accent); }
+  svg.flow .lb { font-size:11px; fill:var(--ink-3); }
+  svg.flow .la { font-size:11px; fill:var(--accent); }
   svg.flow .sec { font-family:'IBM Plex Mono',ui-monospace,monospace; font-size:10px; letter-spacing:.11em; fill:var(--ink-3); }
   svg.flow .idx { fill:var(--ink-3); font-weight:400; }
   svg.flow .box     { fill:var(--surface);   stroke:var(--ink-2); stroke-width:1.3; }
@@ -123,94 +127,75 @@
     <li><i class="end"></i>시작 · 종료</li>
     <li><i></i>판독</li>
     <li><i class="act"></i>실행 — 파지 · 주행 · 배치</li>
-    <li><i class="seq"></i>FSM 단계 시퀀스</li>
+    <li><i class="seq"></i>세부 단계</li>
   </ul>
 
   <!-- ══════════ FIG.1 ══════════ -->
   <figure>
     <div class="fig-head"><span class="no">FIG.1</span><h2>한 트라이얼의 이송 사이클</h2></div>
     <div class="fig-scroll">
-    <svg class="flow cycle" viewBox="0 0 1100 840" role="img"
-         aria-label="한 트라이얼의 이송 사이클. 손목 카메라로 QR 을 판독하는 SCAN 에서 시작해, PickFSM 이 흡착으로 매거진을 들어올리고, nav_server 실주행으로 WP_PICK 에서 WP_PLACE 까지 이동한 뒤, PlaceFSM 이 컨베이어 벨트 위에 내려놓고 물러난다. 마지막 HOLD 상태에서 Stop 후 Play 를 누르면 SCAN 으로 돌아가 다음 트라이얼을 실행한다.">
+    <svg class="flow cycle" viewBox="0 0 760 730" role="img"
+         aria-label="한 트라이얼의 이송 사이클. SCAN 에서 손목 카메라로 QR 을 읽고, PICK 이 매거진을 흡착해 들어올리고, TRANSPORT 가 컨베이어 앞까지 주행하고, PLACE 가 벨트 위에 내려놓은 뒤 HOLD 로 정지한다. Play 를 다시 누르면 SCAN 으로 돌아간다.">
       <defs>
         <marker id="c-a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--ink-2)"/></marker>
         <marker id="c-l" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--ink-3)"/></marker>
       </defs>
 
       <g class="edge" marker-end="url(#c-a)">
-        <path d="M460,132 V178"/>
-        <path d="M460,334 V380"/>
-        <path d="M460,472 V518"/>
-        <path d="M460,674 V720"/>
+        <path d="M380,112 V154"/>
+        <path d="M380,280 V322"/>
+        <path d="M380,394 V436"/>
+        <path d="M380,562 V604"/>
       </g>
       <g class="edge">
-        <path d="M460,256 V276"/>
-        <path d="M460,596 V616"/>
+        <path d="M380,226 V240"/>
+        <path d="M380,508 V522"/>
       </g>
-      <path class="edge-l" marker-end="url(#c-l)" d="M290,755 H150 V86 H290"/>
-      <text class="lb" x="282" y="76" text-anchor="end">Stop → Play 전환 시 다음 트라이얼</text>
+      <path class="edge-l" marker-end="url(#c-l)" d="M230,640 H120 V76 H230"/>
+      <text class="lb" x="222" y="66" text-anchor="end">Play 를 다시 누르면</text>
 
       <g class="thin">
-        <path d="M630,86 H678"/><path d="M630,217 H678"/><path d="M630,426 H678"/>
-        <path d="M630,557 H678"/><path d="M630,755 H678"/>
+        <path d="M530,76 H542"/><path d="M530,190 H542"/>
+        <path d="M530,358 H542"/><path d="M530,472 H542"/><path d="M530,640 H542"/>
       </g>
-      <path class="mark" d="M272,518 V674"/>
+      <path class="mark" d="M214,436 V562"/>
 
-      <!-- SCAN -->
-      <rect class="box" x="290" y="40" width="340" height="92" rx="3"/>
-      <text class="nt" x="460" y="65" text-anchor="middle">SCAN — 손목 카메라 QR 판독</text>
-      <text class="ns" x="460" y="85" text-anchor="middle">관측 자세 shelf_1_top_close_centered 로 스냅</text>
-      <text class="ns" x="460" y="102" text-anchor="middle">RGB-D 워밍업 60 step → 3 프레임 캡처</text>
-      <text class="ns" x="460" y="119" text-anchor="middle">estimate_qr_pose ×3 → aggregate_qr_poses</text>
+      <rect class="box" x="230" y="40" width="300" height="72" rx="3"/>
+      <text class="stage" x="380" y="70" text-anchor="middle">SCAN</text>
+      <text class="gloss" x="380" y="92" text-anchor="middle">손목 카메라로 QR 을 읽는다</text>
 
-      <!-- PickFSM -->
-      <rect class="box-act" x="290" y="178" width="340" height="78" rx="3"/>
-      <text class="nt" x="460" y="203" text-anchor="middle">PickFSM — 파지 IK 루프</text>
-      <text class="ns" x="460" y="223" text-anchor="middle">GT 파지점(flange_plate) 위로 접근 · 흡착 · 리프트</text>
-      <text class="ns" x="460" y="240" text-anchor="middle">roll 180° (흡착면 ↓) · smoothstep 보간</text>
+      <rect class="box-act" x="230" y="154" width="300" height="72" rx="3"/>
+      <text class="stage" x="380" y="184" text-anchor="middle">PICK</text>
+      <text class="gloss" x="380" y="206" text-anchor="middle">매거진을 흡착해 들어올린다</text>
 
-      <rect class="box-seq" x="290" y="276" width="340" height="58" rx="3"/>
-      <text class="ns m" x="460" y="300" text-anchor="middle">0 APPROACH +0.15 → 1 DESCEND gap → 2 GRIP (90)</text>
-      <text class="ns m" x="460" y="318" text-anchor="middle">3 HOLD (120) → 4 LIFT +0.10 → 5 DONE</text>
+      <rect class="box-seq" x="230" y="240" width="300" height="40" rx="3"/>
+      <text class="step" x="380" y="265" text-anchor="middle">접근 → 하강 → 흡착 → 유지 → 리프트</text>
 
-      <!-- TRANSPORT -->
-      <rect class="box-act" x="290" y="380" width="340" height="92" rx="3"/>
-      <text class="nt" x="460" y="405" text-anchor="middle">TRANSPORT — nav_server 실주행</text>
-      <text class="ns" x="460" y="425" text-anchor="middle">initialpose 동기화 → /navigation/navigate_to</text>
-      <text class="ns" x="460" y="442" text-anchor="middle">posix_spawn 으로 ros2 CLI · world.step() 과 교대 폴링</text>
-      <text class="ns" x="460" y="459" text-anchor="middle">팔은 LIFT 자세 그대로, 바퀴로만 이동한다</text>
+      <rect class="box-act" x="230" y="322" width="300" height="72" rx="3"/>
+      <text class="stage" x="380" y="352" text-anchor="middle">TRANSPORT</text>
+      <text class="gloss" x="380" y="374" text-anchor="middle">컨베이어 앞까지 실제로 주행한다</text>
 
-      <!-- PlaceFSM -->
-      <rect class="box-act" x="290" y="518" width="340" height="78" rx="3"/>
-      <text class="nt" x="460" y="543" text-anchor="middle">PlaceFSM — 배치 IK 루프</text>
-      <text class="ns" x="460" y="563" text-anchor="middle">목표 xy (4.1, 0.0) · 컨베이어 벨트 위 place_ref_z</text>
-      <text class="ns" x="460" y="580" text-anchor="middle">네 단계를 한 프레임씩 진행한다</text>
+      <rect class="box-act" x="230" y="436" width="300" height="72" rx="3"/>
+      <text class="stage" x="380" y="466" text-anchor="middle">PLACE</text>
+      <text class="gloss" x="380" y="488" text-anchor="middle">벨트 위에 내려놓고 물러난다</text>
 
-      <rect class="box-seq" x="290" y="616" width="340" height="58" rx="3"/>
-      <text class="ns m" x="460" y="640" text-anchor="middle">0 MOVE +0.15 → 1 LOWER +0.005 → 2 RELEASE (90)</text>
-      <text class="ns m" x="460" y="658" text-anchor="middle">3 RETREAT +0.15 → 4 DONE</text>
+      <rect class="box-seq" x="230" y="522" width="300" height="40" rx="3"/>
+      <text class="step" x="380" y="547" text-anchor="middle">이동 → 하강 → 놓기 → 후퇴</text>
 
-      <!-- HOLD -->
-      <rect class="box-end" x="290" y="720" width="340" height="70" rx="35"/>
-      <text class="nt" x="460" y="744" text-anchor="middle">HOLD — 결과 상태로 정지</text>
-      <text class="ns" x="460" y="762" text-anchor="middle">Stop → Play 전환을 감시하며 world.step()</text>
-      <text class="ns m" x="460" y="778" text-anchor="middle">창을 닫으면 simulation_app.close()</text>
+      <rect class="box-end" x="230" y="604" width="300" height="72" rx="36"/>
+      <text class="stage" x="380" y="634" text-anchor="middle">HOLD</text>
+      <text class="gloss" x="380" y="656" text-anchor="middle">결과 상태로 정지한다</text>
 
-      <!-- 우측 주석 -->
-      <g class="lb">
-        <text class="m" x="690" y="82">scan_qr_at_pose()</text>
-        <text x="690" y="99">손목 카메라 3 프레임 → aggregate</text>
-        <text class="m" x="690" y="213">PickFSM + IK 루프</text>
-        <text x="690" y="230">흡착으로 매거진을 들어올린다</text>
-        <text class="m" x="690" y="422">NavDriver.drive_to()</text>
-        <text x="690" y="439">WP_PICK → WP_PLACE 물리 주행</text>
-        <text class="m" x="690" y="751">main() HOLD 루프</text>
-        <text x="690" y="768">Stop → Play 를 감시한다</text>
+      <g class="lb m">
+        <text x="552" y="80">scan_qr_at_pose()</text>
+        <text x="552" y="194">PickFSM</text>
+        <text x="552" y="362">NavDriver.drive_to()</text>
+        <text x="552" y="644">main() 루프</text>
       </g>
-      <g class="la">
-        <text class="m" x="690" y="553">PlaceFSM + IK 루프</text>
-        <text x="690" y="570">벨트 위에 내려놓고 물러난다 — FIG.2</text>
+      <g class="la m">
+        <text x="552" y="469">PlaceFSM</text>
       </g>
+      <text class="la" x="552" y="486">↓ FIG.2 에서 자세히</text>
     </svg>
     </div>
     <figcaption>
@@ -242,18 +227,18 @@
     <p>
       생김새가 이렇게 된 이유는 대부분 <b>흡착을 안 끊기게 하려는 것</b>이다. 첫째, 각 단계의 첫 프레임에는
       목표 대신 <b>“제자리”</b>(현재 TCP)를 돌려준다 — 그러지 않으면 그 한 프레임이 전체 거리를 한 번에
-      목표로 잡아 큰 힘이 걸리고, 거리가 긴 MOVE(0.7 m)에서 흡착이 끊기는 게 실측으로 확인됐다.
-      둘째, RELEASE 는 이동이 없는 <b>대기 단계</b>다 — <code>gripper.open()</code> 을 부른 뒤 같은 좌표를
+      목표로 잡아 큰 힘이 걸리고, 거리가 긴 <b>이동</b>(MOVE, 0.7 m)에서 흡착이 끊기는 게 실측으로 확인됐다.
+      둘째, <b>놓기</b>(RELEASE)는 이동이 없는 <b>대기 단계</b>다 — <code>gripper.open()</code> 을 부른 뒤 같은 좌표를
       90 step 동안 유지해서 물체가 확실히 벨트에 놓이게 한다.
     </p>
   </div>
 
   <!-- ══════════ FIG.2 ══════════ -->
   <figure>
-    <div class="fig-head"><span class="no">FIG.2</span><h2>PlaceFSM 의 네 단계와 TCP 높이 궤적</h2></div>
+    <div class="fig-head"><span class="no">FIG.2</span><h2>PLACE 의 네 단계 — PlaceFSM</h2></div>
     <div class="fig-scroll">
     <svg class="flow fsm" viewBox="0 0 1100 500" role="img"
-         aria-label="PlaceFSM 의 네 단계. 0 MOVE 는 접근 높이(ref + 0.15 m)로 진입하고, 1 LOWER 는 ref + 0.005 m 까지 0.145 m 내려가고, 2 RELEASE 는 이동 없이 그리퍼를 열고 90 스텝 기다리고, 3 RETREAT 는 다시 접근 높이로 0.145 m 올라간 뒤 4 DONE 으로 끝난다. 아래 높이 궤적은 접근 높이로 수평 진입해 릴리스 높이까지 내려갔다가, 그 높이를 유지한 뒤 다시 접근 높이로 올라가는 모양을 보여준다.">
+         aria-label="PLACE 의 네 단계. 이동(MOVE)은 접근 높이 ref + 0.15 로 진입하고, 하강(LOWER)은 ref + 0.005 까지 0.145 미터 내려가고, 놓기(RELEASE)는 제자리에서 그리퍼를 열고 90 스텝 기다리고, 후퇴(RETREAT)는 다시 접근 높이로 올라간다. 아래 궤적은 접근 높이로 들어와 릴리스 높이까지 내려갔다가 그 높이를 유지한 뒤 다시 올라가는 모양이다.">
       <defs>
         <marker id="s-a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--ink-2)"/></marker>
         <marker id="s-d" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--accent)"/></marker>
@@ -261,121 +246,116 @@
       </defs>
 
       <g class="edge" marker-end="url(#s-a)">
-        <path d="M224,92 H264"/><path d="M464,92 H504"/>
-        <path d="M704,92 H744"/><path d="M944,92 H980"/>
+        <path d="M226,93 H252"/><path d="M462,93 H488"/>
+        <path d="M698,93 H724"/><path d="M934,93 H962"/>
       </g>
 
-      <rect class="box-acc" x="24" y="40" width="200" height="104" rx="3"/>
-      <text class="nt" x="124" y="66" text-anchor="middle"><tspan class="idx m">0</tspan>  MOVE</text>
-      <text class="ns m" x="124" y="90" text-anchor="middle">goal z = ref + 0.15 m</text>
-      <text class="ns m" x="124" y="107" text-anchor="middle">n = dist / 0.002 (90–600)</text>
-      <text class="ns" x="124" y="124" text-anchor="middle">접근 높이로 진입</text>
+      <rect class="box-acc" x="16" y="40" width="210" height="106" rx="3"/>
+      <text class="kor" x="121" y="68" text-anchor="middle">이동</text>
+      <text class="nx m" x="121" y="86" text-anchor="middle">0  MOVE</text>
+      <text class="ns" x="121" y="108" text-anchor="middle">접근 높이로 진입</text>
+      <text class="ns" x="121" y="125" text-anchor="middle">거리에 비례 · 약 350 step</text>
 
-      <rect class="box-acc" x="264" y="40" width="200" height="104" rx="3"/>
-      <text class="nt" x="364" y="66" text-anchor="middle"><tspan class="idx m">1</tspan>  LOWER</text>
-      <text class="ns m" x="364" y="90" text-anchor="middle">goal z = ref + 0.005 m</text>
-      <text class="ns" x="364" y="107" text-anchor="middle">0.145 m 하강 · 90 step</text>
-      <text class="ns" x="364" y="124" text-anchor="middle">흡착 유지</text>
+      <rect class="box-acc" x="252" y="40" width="210" height="106" rx="3"/>
+      <text class="kor" x="357" y="68" text-anchor="middle">하강</text>
+      <text class="nx m" x="357" y="86" text-anchor="middle">1  LOWER</text>
+      <text class="ns" x="357" y="108" text-anchor="middle">0.145 m 내려간다</text>
+      <text class="ns" x="357" y="125" text-anchor="middle">90 step · 흡착 유지</text>
 
-      <rect class="box-acc" x="504" y="40" width="200" height="104" rx="3"/>
-      <text class="nt" x="604" y="66" text-anchor="middle"><tspan class="idx m">2</tspan>  RELEASE</text>
-      <text class="ns" x="604" y="90" text-anchor="middle">goal 그대로 · 이동 없음</text>
-      <text class="ns m" x="604" y="107" text-anchor="middle">gripper.open() · 90 step</text>
-      <text class="ns" x="604" y="124" text-anchor="middle">여기서 벨트에 놓인다</text>
+      <rect class="box-acc" x="488" y="40" width="210" height="106" rx="3"/>
+      <text class="kor" x="593" y="68" text-anchor="middle">놓기</text>
+      <text class="nx m" x="593" y="86" text-anchor="middle">2  RELEASE</text>
+      <text class="ns" x="593" y="108" text-anchor="middle">제자리에서 그리퍼 open</text>
+      <text class="ns" x="593" y="125" text-anchor="middle">90 step 대기 — 이동 없음</text>
 
-      <rect class="box-acc" x="744" y="40" width="200" height="104" rx="3"/>
-      <text class="nt" x="844" y="66" text-anchor="middle"><tspan class="idx m">3</tspan>  RETREAT</text>
-      <text class="ns m" x="844" y="90" text-anchor="middle">goal z = ref + 0.15 m</text>
-      <text class="ns" x="844" y="107" text-anchor="middle">0.145 m 상승 · 90 step</text>
-      <text class="ns" x="844" y="124" text-anchor="middle">빈 그리퍼로 물러난다</text>
+      <rect class="box-acc" x="724" y="40" width="210" height="106" rx="3"/>
+      <text class="kor" x="829" y="68" text-anchor="middle">후퇴</text>
+      <text class="nx m" x="829" y="86" text-anchor="middle">3  RETREAT</text>
+      <text class="ns" x="829" y="108" text-anchor="middle">접근 높이로 복귀</text>
+      <text class="ns" x="829" y="125" text-anchor="middle">0.145 m 상승 · 90 step</text>
 
-      <rect class="box-end" x="980" y="70" width="96" height="44" rx="22"/>
-      <text class="nt" x="1028" y="97" text-anchor="middle"><tspan class="idx m">4</tspan>  DONE</text>
+      <text class="nt" x="970" y="90" text-anchor="start">끝</text>
+      <text class="nx m" x="970" y="106" text-anchor="start">4 DONE</text>
 
-      <text class="lb" x="550" y="176" text-anchor="middle">모든 전이 — step ≥ n_steps 일 때 다음 단계로 (advance())</text>
+      <text class="lb" x="475" y="180" text-anchor="middle">네 단계 모두 — step 이 n_steps 에 닿으면 다음 단계로 넘어간다</text>
 
-      <text class="sec" x="24" y="222">TCP(흡착면) 높이 궤적</text>
+      <text class="sec" x="16" y="224">흡착면 높이 궤적</text>
 
       <g class="guide">
-        <path d="M60,282 H950"/>
-        <path d="M60,384 H950"/>
+        <path d="M50,262 H934"/>
+        <path d="M50,364 H934"/>
       </g>
-      <g class="thin" opacity=".55">
-        <path d="M244,268 V448"/><path d="M484,268 V448"/><path d="M724,268 V448"/>
+      <g class="thin" opacity=".5">
+        <path d="M239,248 V428"/><path d="M475,248 V428"/><path d="M711,248 V428"/>
       </g>
-      <rect x="60" y="436" width="890" height="12" fill="var(--surface-2)" stroke="var(--ink-3)" stroke-width=".9"/>
+      <rect x="50" y="416" width="884" height="12" fill="var(--surface-2)" stroke="var(--ink-3)" stroke-width=".9"/>
 
-      <path class="trace" d="M60,336 C104,336 132,282 196,282 H244 C318,282 402,384 484,384 H724 C796,384 828,282 892,282 H944"/>
+      <path class="trace" d="M50,312 C90,312 116,262 176,262 H239 C310,262 400,364 475,364 H711 C780,364 812,262 872,262 H934"/>
 
-      <path class="thin" marker-start="url(#s-d)" marker-end="url(#s-d)" stroke="var(--accent)" d="M604,284 V382"/>
-      <text class="la" x="612" y="337">0.145 m</text>
-      <path class="thin" marker-start="url(#s-t)" marker-end="url(#s-t)" d="M880,386 V434"/>
-      <text class="lb" x="888" y="414">5 mm + 매거진 높이</text>
+      <path class="thin" marker-start="url(#s-d)" marker-end="url(#s-d)" stroke="var(--accent)" d="M593,264 V362"/>
+      <text class="la" x="601" y="318">0.145 m</text>
+      <path class="thin" marker-start="url(#s-t)" marker-end="url(#s-t)" d="M790,366 V414"/>
+      <text class="lb" x="798" y="394">5 mm + 매거진 높이</text>
 
       <g class="lb">
-        <text x="960" y="279">ref + 0.15 — 접근</text>
-        <text x="960" y="381">ref + 0.005 — 릴리스</text>
-        <text x="960" y="433">벨트 z = 0.6 m</text>
-        <text x="62" y="318" text-anchor="start">TRANSPORT 직후 자세</text>
+        <text x="950" y="259">접근 높이 ref + 0.15</text>
+        <text x="950" y="361">릴리스 ref + 0.005</text>
+        <text x="950" y="413">컨베이어 벨트 0.6 m</text>
+        <text x="52" y="296">TRANSPORT 직후</text>
       </g>
       <g class="lb m" text-anchor="middle">
-        <text x="152" y="472">MOVE</text><text x="364" y="472">LOWER</text>
-        <text x="604" y="472">RELEASE</text><text x="834" y="472">RETREAT</text>
+        <text x="145" y="452">MOVE</text><text x="357" y="452">LOWER</text>
+        <text x="593" y="452">RELEASE</text><text x="822" y="452">RETREAT</text>
       </g>
     </svg>
     </div>
     <figcaption>
       <b>ref</b> = <code>place_ref_z</code> = 컨베이어 벨트 <code>0.6 m</code> + 매거진 높이(씬 로드 후 바운딩박스로 실측).
-      MOVE 는 TRANSPORT 가 남겨둔 LIFT 자세에서 접근 높이로 들어오므로 거리가 길고(약 0.7 m → 350 step),
-      LOWER · RETREAT 는 0.145 m 뿐이라 <code>MIN_STEPS</code> 90 에 걸린다. RELEASE 만 거리가 0 인 대기 구간이다.
+      <b>이동</b>은 TRANSPORT 가 남겨둔 자세에서 접근 높이로 들어오므로 거리가 길지만(약 0.7 m → 350 step),
+      <b>하강 · 후퇴</b>는 0.145 m 뿐이라 최소 스텝 수 90 에 걸린다. <b>놓기</b>만 거리가 0 인 대기 구간이다.
     </figcaption>
   </figure>
 
   <!-- ══════════ FIG.3 ══════════ -->
   <figure>
-    <div class="fig-head"><span class="no">FIG.3</span><h2>FSM 을 움직이는 한 프레임 루프</h2></div>
+    <div class="fig-head"><span class="no">FIG.3</span><h2>FSM 을 움직이는 것은 바깥 루프다</h2></div>
     <div class="fig-scroll">
-    <svg class="flow loop" viewBox="0 0 1100 210" role="img"
-         aria-label="한 프레임 구동 루프. world.step() 으로 물리를 한 스텝 돌리고, PlaceFSM 의 current_target() 이 보간된 목표 좌표를 주면, tcp_to_flange() 로 흡착면 좌표를 플랜지 좌표로 바꾸고, compute_inverse_kinematics() 로 관절해를 구해 풀렸을 때만 apply_action() 으로 명령한다. 마지막에 advance() 가 step 을 올리고 필요하면 다음 단계로 넘긴 뒤 루프가 반복된다.">
+    <svg class="flow loop" viewBox="0 0 1000 210" role="img"
+         aria-label="한 프레임 구동 루프. 물리를 한 스텝 돌리고, PLACE 의 FSM 이 보간된 목표 좌표를 주면, 그것을 IK 로 풀어 관절에 명령하고, 마지막에 FSM 을 한 칸 전진시킨 뒤 반복한다.">
       <defs>
         <marker id="l-a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--ink-2)"/></marker>
       </defs>
 
       <g class="edge" marker-end="url(#l-a)">
-        <path d="M217,67 H247"/><path d="M429,67 H459"/>
-        <path d="M641,67 H671"/><path d="M853,67 H883"/>
-        <path d="M459,140 H126 V94"/>
+        <path d="M240,68 H274"/><path d="M484,68 H518"/><path d="M728,68 H762"/>
+        <path d="M518,142 H135 V96"/>
       </g>
-      <path class="edge" d="M974,94 V140 H641"/>
+      <path class="edge" d="M867,96 V142 H728"/>
 
-      <rect class="box" x="35" y="40" width="182" height="54" rx="3"/>
-      <text class="nt" x="126" y="62" text-anchor="middle">물리 1 스텝</text>
-      <text class="ns m" x="126" y="80" text-anchor="middle">world.step()</text>
+      <rect class="box" x="30" y="40" width="210" height="56" rx="3"/>
+      <text class="nt" x="135" y="64" text-anchor="middle">물리 1 스텝</text>
+      <text class="nx m" x="135" y="83" text-anchor="middle">world.step()</text>
 
-      <rect class="box-acc" x="247" y="40" width="182" height="54" rx="3"/>
-      <text class="nt" x="338" y="62" text-anchor="middle">보간 목표 좌표</text>
-      <text class="ns m" x="338" y="80" text-anchor="middle">current_target()</text>
+      <rect class="box-acc" x="274" y="40" width="210" height="56" rx="3"/>
+      <text class="nt" x="379" y="64" text-anchor="middle">목표 좌표를 받는다</text>
+      <text class="nx m" x="379" y="83" text-anchor="middle">current_target()</text>
 
-      <rect class="box" x="459" y="40" width="182" height="54" rx="3"/>
-      <text class="nt" x="550" y="62" text-anchor="middle">흡착면 → 플랜지</text>
-      <text class="ns m" x="550" y="80" text-anchor="middle">tcp_to_flange()</text>
+      <rect class="box" x="518" y="40" width="210" height="56" rx="3"/>
+      <text class="nt" x="623" y="64" text-anchor="middle">IK 로 관절해를 푼다</text>
+      <text class="nx m" x="623" y="83" text-anchor="middle">tcp_to_flange → IK</text>
 
-      <rect class="box" x="671" y="40" width="182" height="54" rx="3"/>
-      <text class="nt" x="762" y="62" text-anchor="middle">Lula IK 해</text>
-      <text class="ns m" x="762" y="80" text-anchor="middle">compute_inverse_kinematics()</text>
+      <rect class="box" x="762" y="40" width="210" height="56" rx="3"/>
+      <text class="nt" x="867" y="64" text-anchor="middle">관절에 명령한다</text>
+      <text class="nx m" x="867" y="83" text-anchor="middle">apply_action()</text>
 
-      <rect class="box" x="883" y="40" width="182" height="54" rx="3"/>
-      <text class="nt" x="974" y="62" text-anchor="middle">관절 명령</text>
-      <text class="ns m" x="974" y="80" text-anchor="middle">solved 일 때만 apply_action()</text>
-
-      <rect class="box-acc" x="459" y="116" width="182" height="48" rx="3"/>
-      <text class="nt" x="550" y="138" text-anchor="middle">FSM 한 칸 전진</text>
-      <text class="ns m" x="550" y="155" text-anchor="middle">advance() — step++</text>
+      <rect class="box-acc" x="518" y="116" width="210" height="52" rx="3"/>
+      <text class="nt" x="623" y="138" text-anchor="middle">FSM 한 칸 전진</text>
+      <text class="nx m" x="623" y="157" text-anchor="middle">advance() — step++</text>
     </svg>
     </div>
     <figcaption>
-      파란 상자 두 개만 PlaceFSM 의 메서드다 — 나머지는 <code>run_trial()</code> 의 <code>while not place_fsm.done</code>
-      루프가 한다. FSM 은 좌표를 주고 카운터를 올릴 뿐, IK 가 풀렸는지 로봇이 어디에 있는지는 모른다.
+파란 상자 두 개만 PlaceFSM 이 하는 일이다 — 나머지는 <code>run_trial()</code> 의 루프가 한다.
+      FSM 은 좌표를 주고 카운터를 올릴 뿐, IK 가 풀렸는지 로봇이 실제로 어디 있는지는 모른다.
     </figcaption>
   </figure>
 
