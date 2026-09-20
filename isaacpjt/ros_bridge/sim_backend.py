@@ -180,11 +180,18 @@ MAGAZINE_XFORM_PATH = "/World/Magazines/shelf_1_magaines/top_magazines/magazine_
 FLANGE_PATH = f"{MAGAZINE_XFORM_PATH}/flange_plate"
 CONVEYOR_FRAME_PATH = "/World/Environment/PackagingZone/ConveyorFrame"
 
-# 12_place_test.py / 14_place_test_pse.py 검증값 — ConveyorFrame(x>=4.2) 바로 앞
-# 바닥(z=0) 스테이징 지점. pkg_loader 슬롯 자체(포트 지오메트리)는 아직 씬에
-# 없어서, 이 바닥 지점을 그대로 place 목표로 쓴다 (다음 범위: 실제 로더 슬롯).
-PLACE_TARGET_XY = np.array([4.0, 0.0])
-FLOOR_Z = 0.0
+# 12_place_test.py 검증값 — ConveyorFrame(x>=4.2) 바로 앞. pkg_loader 슬롯
+# 자체(포트 지오메트리)는 아직 씬에 없어서, 이 지점을 그대로 place 목표로
+# 쓴다 (다음 범위: 실제 로더 슬롯).
+# ★ 원래 바닥(z=0, FLOOR_Z)에 내려놓게 돼 있었는데, 팔 마운트 높이(~0.63m)
+# 에서 거의 전체를 아래로 뻗어야 해서 IK 한계 근처였다 — 실측 재현: PLACE
+# 가 NO_IK 로 멈췄다(task_manager.py QR/PICK 디버깅 이력 이어서 발견).
+# 12_place_test.py 가 이미 벨트 높이(CONVEYOR_BELT_Z)로 바꿔서 검증해
+# 뒀는데 이 서빙 코드(sim_backend.py)에는 그 수정이 반영이 안 돼 있었다 —
+# 그대로 옮겨온다. PLACE_TARGET_XY 도 4.0 → 4.1 로 같이 맞춘다(그쪽 값이
+# 실측 스윕으로 재검증된 값).
+PLACE_TARGET_XY = np.array([4.1, 0.0])
+CONVEYOR_BELT_Z = 0.6
 PLACE_APPROACH_HEIGHT_OFFSET = 0.15
 PLACE_DROP = 0.005
 RELEASE_WAIT = 90
@@ -1121,12 +1128,23 @@ class Backend:
     def get_place_slot_pose_base_link(self):
         """편의 메서드 — get_flange_pose_world 와 같은 목적, place 쪽 GT.
         포트/슬롯 지오메트리가 아직 씬에 없어서(다음 범위), 12_place_test.py 가
-        검증한 바닥 스테이징 지점(PLACE_TARGET_XY, FLOOR_Z)을 그대로 현재
-        base_link(=chassis) 프레임으로 돌려준다. pkg_loader 정지 지점에
-        도착한 뒤(NavigateTo 완료 후) 호출해야 값이 맞다."""
+        검증한 컨베이어 벨트 위 스테이징 지점(PLACE_TARGET_XY, CONVEYOR_BELT_Z)을
+        그대로 현재 base_link(=chassis) 프레임으로 돌려준다. pkg_loader 정지
+        지점에 도착한 뒤(NavigateTo 완료 후) 호출해야 값이 맞다.
+
+        z 는 PICK 때와 같은 관례를 쓴다 — "판 윗면"(flange_plate, 물체
+        바닥에서 물체 높이만큼 위)을 옮긴다. 그래서 벨트 높이에 물체 자체를
+        얹었을 때의 바닥은 CONVEYOR_BELT_Z 지만, 흡착해서 들고 있는
+        flange_plate 는 거기서 물체 높이(magazine_height)만큼 더 위에
+        있어야 물체 바닥이 실제로 벨트에 닿는다(12_place_test.py 의
+        place_ref_z = CONVEYOR_BELT_Z + magazine_height 와 같은 식이다).
+        지금 들고 있는 실제 인스턴스(self._current_magazine_path, PICK
+        때 pick_phase1_approach 가 찾아둔 것)의 실측 높이를 그대로 쓴다."""
         base_p, base_q = get_world_pose(CHASSIS_LINK_PATH)
         R_base = quat_to_matrix(base_q)
-        world_target = np.array([PLACE_TARGET_XY[0], PLACE_TARGET_XY[1], FLOOR_Z])
+        magazine_height = measure_prim(self._current_magazine_path)[2]
+        target_z = CONVEYOR_BELT_Z + magazine_height
+        world_target = np.array([PLACE_TARGET_XY[0], PLACE_TARGET_XY[1], target_z])
         p_rel = R_base.T @ (world_target - base_p)
         return {"position": p_rel.tolist(), "quat_wxyz": [1.0, 0.0, 0.0, 0.0]}
 
