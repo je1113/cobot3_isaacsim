@@ -1,0 +1,678 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>cobot3 목표 설계도 — 개발 프로세스 09</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans+KR:wght@400;500;600;700&display=swap">
+<style>
+  *{box-sizing:border-box}
+  html{color-scheme:light dark}
+  body{margin:0}
+  img{max-width:100%}
+  :root{
+    --paper:#e9eded; --sheet:#fff; --sheet-2:#f3f6f6;
+    --ink:#111a1e; --ink-2:#44525a; --ink-3:#74838c;
+    --rule:#ccd6d7; --rule-2:#9daaad;
+    --topic:#5a6a73; --service:#8a6410; --action:#0a6f66; --prop:#a92c1c;
+    --topic-soft:#e7ebec; --service-soft:#f7edd7; --action-soft:#dff0ed; --prop-soft:#fbe8e4;
+    --fc-perc:#6a7780;  --fc-perc-bg:#ffffff;
+    --fc-move:#b23a2b;  --fc-move-bg:#fbe7e3;
+    --fc-dec:#9a7212;   --fc-dec-bg:#fbf1d8;
+    --fc-path:#1a7a58;  --fc-path-bg:#ddf1e6;
+    --fc-term:#44525a;  --fc-term-bg:#eef1f2;
+    --fc-frozen:#8e1d10; --fc-frozen-bg:#f6d9d3;
+  }
+  @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+    --paper:#0e1417; --sheet:#161e22; --sheet-2:#1c262b;
+    --ink:#e4ebec; --ink-2:#a6b4ba; --ink-3:#7b8a92;
+    --rule:#2b383e; --rule-2:#4a5c64;
+    --topic:#94a6b0; --service:#dcab4e; --action:#45cfc0; --prop:#ff8a76;
+    --topic-soft:#1d262b; --service-soft:#2e2409; --action-soft:#0d2d2a; --prop-soft:#331713;
+    --fc-perc:#9aa8b0;  --fc-perc-bg:#1b242a;
+    --fc-move:#ff8f7c;  --fc-move-bg:#331812;
+    --fc-dec:#e0b154;   --fc-dec-bg:#2e2509;
+    --fc-path:#52cf9a;  --fc-path-bg:#0e2e22;
+    --fc-term:#a6b4ba;  --fc-term-bg:#1c262b;
+    --fc-frozen:#ff7b66; --fc-frozen-bg:#3d160f;
+  }}
+  :root[data-theme="dark"]{
+    --paper:#0e1417; --sheet:#161e22; --sheet-2:#1c262b;
+    --ink:#e4ebec; --ink-2:#a6b4ba; --ink-3:#7b8a92;
+    --rule:#2b383e; --rule-2:#4a5c64;
+    --topic:#94a6b0; --service:#dcab4e; --action:#45cfc0; --prop:#ff8a76;
+    --topic-soft:#1d262b; --service-soft:#2e2409; --action-soft:#0d2d2a; --prop-soft:#331713;
+    --fc-perc:#9aa8b0;  --fc-perc-bg:#1b242a;
+    --fc-move:#ff8f7c;  --fc-move-bg:#331812;
+    --fc-dec:#e0b154;   --fc-dec-bg:#2e2509;
+    --fc-path:#52cf9a;  --fc-path-bg:#0e2e22;
+    --fc-term:#a6b4ba;  --fc-term-bg:#1c262b;
+    --fc-frozen:#ff7b66; --fc-frozen-bg:#3d160f;
+  }
+  body{background:var(--paper);color:var(--ink);
+    font-family:"IBM Plex Sans KR","Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif;
+    font-size:15px;line-height:1.7;-webkit-font-smoothing:antialiased;}
+  .wrap{max-width:1220px;margin:0 auto;padding-inline:20px;padding-block:44px 72px;}
+  .prose{max-width:760px;}
+  code,.mono{font-family:"IBM Plex Mono",ui-monospace,Menlo,monospace;}
+  .eyebrow{font-family:"IBM Plex Mono",monospace;font-size:11px;font-weight:500;
+    letter-spacing:.16em;text-transform:uppercase;color:var(--ink-3);}
+  h1{font-size:clamp(28px,4.6vw,44px);font-weight:700;line-height:1.14;
+    letter-spacing:-.018em;margin:10px 0 0;text-wrap:balance;}
+  .lede{color:var(--ink-2);font-size:16px;margin:14px 0 0;max-width:64ch;}
+  .lede strong{font-weight:600;color:var(--ink);}
+  .srcline{margin-top:22px;padding-top:14px;border-top:1px solid var(--rule);
+    display:flex;flex-wrap:wrap;gap:6px 26px;
+    font-family:"IBM Plex Mono",monospace;font-size:11.5px;color:var(--ink-3);}
+  .srcline b{font-weight:500;color:var(--ink-2);}
+  .toc{margin-top:26px;display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));
+    gap:1px;background:var(--rule);border:1px solid var(--rule);}
+  .toc a{background:var(--sheet);padding:14px 16px;text-decoration:none;display:block;color:inherit;}
+  .toc a:hover{background:var(--sheet-2);}
+  .toc .n{font-family:"IBM Plex Mono",monospace;font-size:10.5px;font-weight:600;
+    letter-spacing:.12em;color:var(--action);display:block;}
+  .toc .t{font-weight:600;font-size:14px;display:block;margin-top:3px;}
+  .toc .d{font-size:12px;color:var(--ink-3);display:block;margin-top:2px;line-height:1.5;}
+  figure.sheet{margin:52px 0 0;background:var(--sheet);border:1px solid var(--rule);}
+  .tblock{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 14px;
+    padding:12px 18px;border-bottom:1px solid var(--rule);background:var(--sheet-2);}
+  .tblock .no{font-family:"IBM Plex Mono",monospace;font-size:11px;font-weight:600;
+    letter-spacing:.12em;color:var(--action);}
+  .tblock h2{font-size:16px;font-weight:600;margin:0;letter-spacing:-.005em;}
+  .tblock .ref{margin-left:auto;font-family:"IBM Plex Mono",monospace;font-size:11px;color:var(--ink-3);}
+  .canvas{overflow-x:auto;padding:22px 18px 6px;}
+  .canvas svg{display:block;width:100%;min-width:620px;max-width:100%;height:auto;}
+  .canvas .tall{max-width:880px;margin:0 auto;}
+  figcaption{padding:12px 18px 18px;border-top:1px solid var(--rule);margin-top:16px;
+    font-size:13px;color:var(--ink-2);}
+  figcaption .k{color:var(--ink);font-weight:600;}
+  figcaption code{font-size:12px;}
+  .fclegend{display:flex;flex-wrap:wrap;gap:9px 18px;padding:13px 18px;
+    border-bottom:1px solid var(--rule);font-size:12px;color:var(--ink-2);}
+  .fclegend span{display:inline-flex;align-items:center;gap:7px;}
+  .fclegend i{width:20px;height:13px;border:1.6px solid;display:inline-block;
+    font-style:normal;flex:0 0 auto;}
+  .fclegend i.d{transform:rotate(45deg) scale(.78);}
+  .fclegend i.t{border-radius:7px;}
+  .fclegend i.l{height:0;border:0;border-top:2.5px solid;width:22px;}
+  svg text{font-family:"IBM Plex Sans KR",system-ui,sans-serif;}
+  .nname{font-family:"IBM Plex Mono",monospace;font-size:13.5px;font-weight:600;fill:var(--ink);}
+  .npkg{font-family:"IBM Plex Mono",monospace;font-size:10.5px;font-weight:500;
+    letter-spacing:.06em;fill:var(--ink-3);}
+  .nrole{font-size:11px;fill:var(--ink-2);}
+  .nitem{font-size:10.5px;fill:var(--ink-3);}
+  .grp{font-family:"IBM Plex Mono",monospace;font-size:11px;font-weight:500;
+    letter-spacing:.1em;fill:var(--ink-3);}
+  .a-name{font-family:"IBM Plex Mono",monospace;font-size:10px;font-weight:500;}
+  .a-qual{font-size:9.5px;fill:var(--ink-3);}
+  .t-topic{fill:var(--topic);} .t-service{fill:var(--service);} .t-action{fill:var(--action);}
+  .box-n{fill:var(--sheet-2);stroke:var(--rule-2);stroke-width:1.4;}
+  .box-sim{fill:none;stroke:var(--rule-2);stroke-width:1.4;stroke-dasharray:5 4;}
+  .ln-topic{fill:none;stroke:var(--topic);stroke-width:1.5;}
+  .ln-service{fill:none;stroke:var(--service);stroke-width:1.5;}
+  .ln-action{fill:none;stroke:var(--action);stroke-width:1.5;}
+  .ln-rpc{fill:none;stroke:var(--ink-3);stroke-width:1.3;stroke-dasharray:4 4;}
+  .hd-topic path{fill:var(--topic);} .hd-service path{fill:var(--service);}
+  .hd-action path{fill:var(--action);} .hd-ink path{fill:var(--ink-3);}
+  .fc{stroke-width:1.6;}
+  .fc-term{fill:var(--fc-term-bg);stroke:var(--fc-term);}
+  .fc-perc{fill:var(--fc-perc-bg);stroke:var(--fc-perc);}
+  .fc-move{fill:var(--fc-move-bg);stroke:var(--fc-move);}
+  .fc-dec{fill:var(--fc-dec-bg);stroke:var(--fc-dec);}
+  .fc-path{fill:var(--fc-path-bg);stroke:var(--fc-path);}
+  .fc-frozen{fill:var(--fc-frozen-bg);stroke:var(--fc-frozen);stroke-width:2;}
+  .fc-t{font-size:13px;font-weight:600;fill:var(--ink);}
+  .fc-s{font-size:10.5px;fill:var(--ink-2);}
+  .fc-ln{fill:none;stroke:var(--ink-2);stroke-width:1.6;}
+  .fc-ln-f{fill:none;stroke:var(--fc-move);stroke-width:1.4;stroke-dasharray:6 4;}
+  .fc-e{font-size:11px;font-weight:600;fill:var(--ink-2);}
+  .fc-e-f{font-size:10.5px;fill:var(--fc-move);}
+  .fc-dot{fill:var(--ink-2);}
+  .hd-a path{fill:var(--ink-2);} .hd-af path{fill:var(--fc-move);}
+  .st-n{font-family:"IBM Plex Mono",monospace;font-size:13px;font-weight:600;fill:var(--ink);}
+  .st-e{font-size:11px;fill:var(--ink-2);}
+  .st-e-f{font-size:11px;fill:var(--fc-move);}
+  h3{font-size:22px;font-weight:700;margin:64px 0 4px;letter-spacing:-.012em;
+    padding-top:18px;border-top:2px solid var(--ink);}
+  h4{font-size:16px;font-weight:600;margin:34px 0 8px;}
+  h3 + .sub{color:var(--ink-3);font-size:13.5px;margin:0 0 20px;max-width:70ch;}
+  p{margin:0 0 14px;max-width:76ch;}
+  ul.plain{list-style:none;margin:0 0 16px;padding:0;display:flex;flex-direction:column;gap:11px;max-width:76ch;}
+  ul.plain li{display:flex;gap:11px;font-size:14px;line-height:1.65;color:var(--ink-2);}
+  ul.plain li .mk{flex:0 0 auto;font-family:"IBM Plex Mono",monospace;font-weight:600;
+    font-size:12px;width:20px;text-align:center;color:var(--action);padding-top:2px;}
+  ul.plain li b{color:var(--ink);font-weight:600;}
+  ul.plain li code{font-size:12.5px;}
+  .tbl-wrap{overflow-x:auto;border:1px solid var(--rule);background:var(--sheet);margin-bottom:18px;}
+  table{border-collapse:collapse;width:100%;min-width:640px;font-size:13px;}
+  th,td{text-align:left;padding:11px 14px;border-bottom:1px solid var(--rule);vertical-align:top;}
+  thead th{font-family:"IBM Plex Mono",monospace;font-size:10.5px;font-weight:500;
+    letter-spacing:.11em;text-transform:uppercase;color:var(--ink-3);
+    background:var(--sheet-2);white-space:nowrap;}
+  tbody tr:last-child td{border-bottom:none;}
+  td.d{color:var(--ink-2);font-size:12.5px;}
+  td code{font-size:12px;}
+  .note{margin:20px 0;border-left:3px solid var(--service);background:var(--service-soft);
+    padding:14px 18px;font-size:13.5px;color:var(--ink-2);max-width:76ch;}
+  .note.warn{border-color:var(--prop);background:var(--prop-soft);}
+  .note b{color:var(--ink);font-weight:600;}
+  .note code{font-size:12.5px;}
+  .open{border:1px solid var(--rule);background:var(--sheet);margin-bottom:20px;}
+  .open .row{display:flex;gap:14px;padding:13px 16px;border-bottom:1px solid var(--rule);font-size:13.5px;}
+  .open .row:last-child{border-bottom:none;}
+  .open .num{flex:0 0 26px;font-family:"IBM Plex Mono",monospace;font-weight:700;
+    color:var(--prop);font-size:13px;padding-top:1px;}
+  .open .q{flex:1;color:var(--ink);}
+  .open .q em{display:block;font-style:normal;color:var(--ink-3);font-size:12.5px;margin-top:3px;}
+  footer{margin-top:72px;padding-top:18px;border-top:1px solid var(--rule);
+    font-family:"IBM Plex Mono",monospace;font-size:11px;color:var(--ink-3);
+    display:flex;flex-wrap:wrap;gap:6px 20px;}
+  @media (max-width:640px){.wrap{padding-block:32px 52px;}figure.sheet{margin-top:38px;}
+    .canvas{padding:16px 12px 4px;}h3{margin-top:48px;}}
+  a:focus-visible{outline:2px solid var(--action);outline-offset:2px;}
+</style>
+
+<div class="wrap">
+
+  <header class="prose">
+    <div class="eyebrow">cobot3_isaacsim · 개발 프로세스 09</div>
+    <h1>2·3차 목표 설계도</h1>
+    <p class="lede">
+      1차 시연 코드에 <strong>도킹</strong>과 <strong>웹 개입</strong>을 더한 뒤의 목표 형태다.
+      노드 <strong>6개 + 웹 게이트웨이</strong>, 인터페이스 <strong>8개</strong>.
+      <code>task_manager</code> 는 <strong>전역 1개</strong>로 둔다 —
+      로봇 2대가 되면 이 결정이 가장 먼저 흔들리므로, 무엇이 달라지는지를 §2 에 적어 뒀다.
+    </p>
+    <div class="srcline">
+      <span><b>기준</b> 08_ROS2_NODE_Graph.html 확정안 + 도킹 · 웹 추가</span>
+      <span><b>상태</b> 미구현 — 설계 문서</span>
+    </div>
+  </header>
+
+  <nav class="toc">
+    <a href="#fig1"><span class="n">FIG.1</span><span class="t">노드 구성도</span>
+      <span class="d">누가 누구와 무엇으로 말하는가</span></a>
+    <a href="#fig2"><span class="n">FIG.2</span><span class="t">이송 사이클 플로우차트</span>
+      <span class="d">한 사이클이 도는 순서와 실패 경로</span></a>
+    <a href="#fig3"><span class="n">FIG.3</span><span class="t">로봇 상태 전이</span>
+      <span class="d">/orchestrator/state 값이 바뀌는 흐름</span></a>
+    <a href="#care"><span class="n">§</span><span class="t">주의해야 할 것</span>
+      <span class="d">구현하면서 걸리는 것 · 아직 안 정한 것</span></a>
+  </nav>
+
+  <!-- ══════════ FIG.1 ══════════ -->
+  <figure class="sheet" id="fig1">
+    <div class="tblock"><span class="no">FIG.1</span><h2>노드 구성도 — 목표</h2>
+      <span class="ref">노드 6 + 웹 · 인터페이스 8</span></div>
+    <div class="fclegend">
+      <span><i class="l" style="border-color:var(--topic)"></i>토픽</span>
+      <span><i class="l" style="border-color:var(--service)"></i>서비스</span>
+      <span><i class="l" style="border-color:var(--action)"></i>액션</span>
+      <span><i class="l" style="border-color:var(--ink-3);border-top-style:dashed"></i>sim_backend RPC (ROS 아님)</span>
+      <span><i style="border-color:var(--rule-2);border-style:dashed;background:none"></i>시뮬 경계 · 미구현</span>
+    </div>
+    <div class="canvas">
+      <svg viewBox="0 0 1200 840" role="img" aria-label="Isaac Sim 위에서 carrier_code_reader, task_manager, nav_server, pick_place_server, docking_server 다섯 노드와 웹 게이트웨이가 토픽 2개·서비스 2개·액션 4개로 연결된 목표 노드 구성도">
+        <defs>
+          <marker id="f1-topic" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" class="hd-topic"><path d="M0,0 L10,5 L0,10 z"/></marker>
+          <marker id="f1-service" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" class="hd-service"><path d="M0,0 L10,5 L0,10 z"/></marker>
+          <marker id="f1-action" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" class="hd-action"><path d="M0,0 L10,5 L0,10 z"/></marker>
+          <marker id="f1-ink" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" class="hd-ink"><path d="M0,0 L10,5 L0,10 z"/></marker>
+        </defs>
+        <rect class="box-sim" x="460" y="24" width="280" height="62"/>
+        <text class="nname" x="476" y="50" text-anchor="start">web_gateway</text>
+        <text class="npkg" x="476" y="70" text-anchor="start">COBOT3_WEB — 신규 · 미구현</text>
+        <text class="npkg" x="30" y="158" text-anchor="start">COBOT3_PERCEPTION</text>
+        <rect class="box-n" x="30" y="170" width="260" height="140"/>
+        <text class="nname" x="46" y="197" text-anchor="start">carrier_code_reader</text>
+        <text class="nrole" x="46" y="218" text-anchor="start">역할 — QR 판독 + 관측 자세 유지</text>
+        <text class="nitem" x="46" y="238" text-anchor="start">observe_pose 로 팔을 잡는다</text>
+        <text class="nitem" x="46" y="256" text-anchor="start">state==patrol 일 때만 폴링</text>
+        <text class="nitem" x="46" y="274" text-anchor="start">→ /robot1/amcl_pose 구독</text>
+        <text class="nitem" x="46" y="292" text-anchor="start">판독은 sim_backend RPC</text>
+        <text class="npkg" x="460" y="128" text-anchor="start">COBOT3_ORCHESTRATOR</text>
+        <rect class="box-n" x="460" y="140" width="280" height="280"/>
+        <text class="nname" x="476" y="167" text-anchor="start">task_manager</text>
+        <text class="nrole" x="476" y="188" text-anchor="start">역할 — 미션 지휘 · 전역 1개</text>
+        <text class="nitem" x="476" y="211" text-anchor="start">행동트리 (py_trees) · tick 0.1 s</text>
+        <text class="nitem" x="476" y="229" text-anchor="start">복구 > 충전 > 미션 > 순찰</text>
+        <text class="nitem" x="476" y="247" text-anchor="start">보면 정지(HOLD) → 그 자리 판독</text>
+        <text class="nitem" x="476" y="265" text-anchor="start">명령 큐 없음 — 본 로봇이 바로 집는다</text>
+        <text class="nitem" x="476" y="283" text-anchor="start">payload 해석 → variant → 목적지</text>
+        <text class="nitem" x="476" y="301" text-anchor="start">가동시간 타이머 (soft/hard_threshold_s)</text>
+        <text class="nitem" x="476" y="319" text-anchor="start">실패 = 그 자리 정지 (Freeze)</text>
+        <text class="nitem" x="476" y="337" text-anchor="start">frames.yaml · carriers.yaml 을 읽는다</text>
+        <text class="nitem" x="476" y="355" text-anchor="start">★ 2대가 되면 이 박스가 갈린다 —</text>
+        <text class="nitem" x="476" y="373" text-anchor="start">   주의사항 §2 참조</text>
+        <text class="npkg" x="910" y="128" text-anchor="start">COBOT3_NAVIGATION</text>
+        <rect class="box-n" x="910" y="140" width="260" height="106"/>
+        <text class="nname" x="926" y="167" text-anchor="start">nav_server</text>
+        <text class="nrole" x="926" y="188" text-anchor="start">역할 — 받은 좌표로 주행</text>
+        <text class="nitem" x="926" y="208" text-anchor="start">Nav2 미사용 — cmd_vel 직접 주행</text>
+        <text class="nitem" x="926" y="226" text-anchor="start">→ /robot1/cmd_vel → Isaac Sim</text>
+        <text class="nitem" x="926" y="244" text-anchor="start">“정지”를 모른다 · 취소되면 CANCELED</text>
+        <text class="npkg" x="910" y="274" text-anchor="start">COBOT3_MANIPULATION</text>
+        <rect class="box-n" x="910" y="286" width="260" height="124"/>
+        <text class="nname" x="926" y="313" text-anchor="start">pick_place_server</text>
+        <text class="nrole" x="926" y="334" text-anchor="start">역할 — 파지점 계산 · pick/place</text>
+        <text class="nitem" x="926" y="354" text-anchor="start">grasp.yaml · place.yaml</text>
+        <text class="nitem" x="926" y="372" text-anchor="start">phase OBSERVE…STOW · MOVE…RETREAT</text>
+        <text class="nitem" x="926" y="390" text-anchor="start">동작은 sim_backend RPC</text>
+        <text class="nitem" x="926" y="408" text-anchor="start">★ flange_topview 미연결 (주의사항 §5)</text>
+        <text class="npkg" x="460" y="458" text-anchor="start">COBOT3_DOCKING — 신규</text>
+        <rect class="box-n" x="460" y="470" width="280" height="120"/>
+        <text class="nname" x="476" y="497" text-anchor="start">docking_server</text>
+        <text class="nrole" x="476" y="518" text-anchor="start">역할 — 접점 붙이기 · 충전 대기</text>
+        <text class="nitem" x="476" y="538" text-anchor="start">전역 1개 — 도크는 공용 자원이라</text>
+        <text class="nitem" x="476" y="556" text-anchor="start">대수만큼 복제하지 않는다</text>
+        <text class="nitem" x="476" y="574" text-anchor="start">charge_target_pct 로 완료 판정</text>
+        <rect class="box-sim" x="30" y="650" width="1140" height="92"/>
+        <text class="nname" x="48" y="678" text-anchor="start">Isaac Sim 5.x</text>
+        <text class="npkg" x="48" y="698" text-anchor="start">sim_backend.py — 자체 RPC 서버 (ROS 2 Bridge 아님)</text>
+        <text class="nitem" x="48" y="724" text-anchor="start">손목 RSD455 RGB-D · Nova Carter base · M0609 + 흡착 컵 Ø50 · 3존 팹 씬</text>
+        <text class="nitem" x="700" y="724" text-anchor="start">observe_pose · scan_qr · 팔 동작 · 그리퍼 · 접점/충전(미구현)</text>
+        <path class="ln-service" d="M700,86 L700,134" marker-end="url(#f1-service)"/>
+        <text class="a-name t-service" x="712" y="106" text-anchor="start">/orchestrator/resume</text>
+        <text class="a-qual" x="712" y="119" text-anchor="start">std_srvs/SetBool · 서비스 (신규)</text>
+        <path class="ln-topic" d="M290,195 L454,195" marker-end="url(#f1-topic)"/>
+        <text class="a-name t-topic" x="364" y="173" text-anchor="middle">/perception/carrier_detected</text>
+        <text class="a-qual" x="364" y="185" text-anchor="middle">std_msgs/Bool · 토픽</text>
+        <path class="ln-service" d="M460,240 L296,240" marker-end="url(#f1-service)"/>
+        <text class="a-name t-service" x="378" y="257" text-anchor="middle">/perception/carrier_scan</text>
+        <text class="a-qual" x="378" y="269" text-anchor="middle">CarrierScan · 서비스</text>
+        <path class="ln-topic" d="M460,290 L296,290" marker-end="url(#f1-topic)"/>
+        <text class="a-name t-topic" x="378" y="307" text-anchor="middle">/orchestrator/state</text>
+        <text class="a-qual" x="378" y="319" text-anchor="middle">std_msgs/String · 토픽</text>
+        <path class="ln-action" d="M740,180 L904,180" marker-end="url(#f1-action)"/>
+        <text class="a-name t-action" x="822" y="158" text-anchor="middle">/navigation/navigate_to</text>
+        <text class="a-qual" x="822" y="170" text-anchor="middle">NavigateTo · 액션</text>
+        <path class="ln-action" d="M740,320 L904,320" marker-end="url(#f1-action)"/>
+        <text class="a-name t-action" x="822" y="298" text-anchor="middle">/manipulation/pick_carrier</text>
+        <text class="a-qual" x="822" y="310" text-anchor="middle">PickCarrier · 액션</text>
+        <path class="ln-action" d="M740,375 L904,375" marker-end="url(#f1-action)"/>
+        <text class="a-name t-action" x="822" y="353" text-anchor="middle">/manipulation/place_carrier</text>
+        <text class="a-qual" x="822" y="365" text-anchor="middle">PlaceCarrier · 액션</text>
+        <path class="ln-action" d="M700,420 L700,464" marker-end="url(#f1-action)"/>
+        <text class="a-name t-action" x="712" y="438" text-anchor="start">/docking/dock</text>
+        <text class="a-qual" x="712" y="451" text-anchor="start">Dock · 액션 (신규)</text>
+        <path class="ln-rpc" d="M160,310 L160,644" marker-end="url(#f1-ink)"/>
+        <path class="ln-rpc" d="M1040,410 L1040,644" marker-end="url(#f1-ink)"/>
+        <path class="ln-rpc" d="M600,590 L600,644" marker-end="url(#f1-ink)"/>
+        <text class="a-qual" x="172" y="470" text-anchor="start">sim_backend RPC</text>
+        <text class="a-qual" x="172" y="484" text-anchor="start">observe_pose · scan_qr</text>
+        <text class="a-qual" x="1028" y="470" text-anchor="end">sim_backend RPC</text>
+        <text class="a-qual" x="1028" y="484" text-anchor="end">팔 동작 · 흡착</text>
+        <text class="a-qual" x="612" y="622" text-anchor="start">RPC (미구현)</text>
+        <text class="grp" x="30" y="780" text-anchor="start">노드 6 + 웹 게이트웨이 · 인터페이스 8</text>
+        <text class="grp" x="30" y="802" text-anchor="start">토픽 2 · 서비스 2 · 액션 4</text>
+        <text class="nitem" x="560" y="780" text-anchor="start">외부 배선 — /robot1/amcl_pose (Nav2 AMCL → nav_server · carrier_code_reader)</text>
+        <text class="nitem" x="560" y="798" text-anchor="start">/robot1/cmd_vel (nav_server → Isaac Sim) · Nav2 planner·controller 는 쓰지 않는다</text>
+        <text class="nitem" x="560" y="816" text-anchor="start">설정 — carriers.yaml · frames.yaml → task_manager / grasp.yaml · place.yaml → pick_place_server</text>
+
+      </svg>
+    </div>
+    <figcaption>
+      <span class="k">화살표는 전부 task_manager 에서 나가거나 task_manager 로 들어온다.</span>
+      1차 대비 새로 생기는 것은 <code>docking_server</code>(신규 노드) ·
+      <code>web_gateway</code>(신규 노드) · <code>/docking/dock</code>(신규 액션) ·
+      <code>/orchestrator/resume</code>(std_srvs, 새 파일 없음) 넷이다.
+      <code>/wrist_camera</code> 같은 ROS 카메라 토픽은 없다 — Isaac 과는 전부
+      <code>sim_backend</code> 자체 RPC 로 말한다. <code>nav_server</code> 도 Nav2 의
+      <code>navigate_to_pose</code> 를 쓰지 않고 <code>cmd_vel</code> 로 직접 몬다.
+    </figcaption>
+  </figure>
+
+  <!-- ══════════ FIG.2 ══════════ -->
+  <figure class="sheet" id="fig2">
+    <div class="tblock"><span class="no">FIG.2</span><h2>이송 사이클 플로우차트 — 목표</h2>
+      <span class="ref">도킹 · 웹 복구 포함</span></div>
+    <div class="fclegend">
+      <span><i class="t" style="border-color:var(--fc-term);background:var(--fc-term-bg)"></i>시작 · 종료</span>
+      <span><i style="border-color:var(--fc-perc);background:var(--fc-perc-bg)"></i>캐리어 없이 — 순찰 · 판독 · 충전 · 복귀</span>
+      <span><i style="border-color:var(--fc-move);background:var(--fc-move-bg)"></i>캐리어를 든 구간 — 파지 · 이송 · 배치</span>
+      <span><i class="d" style="border-color:var(--fc-dec);background:var(--fc-dec-bg)"></i>판정 분기</span>
+      <span><i style="border-color:var(--fc-path);background:var(--fc-path-bg)"></i>이송 경로 ① · ②</span>
+      <span><i style="border-color:var(--fc-frozen);background:var(--fc-frozen-bg)"></i>정지 (FROZEN)</span>
+    </div>
+    <div class="canvas">
+      <svg viewBox="0 0 1060 2720" class="tall" role="img" aria-label="시작에서 START로 순찰 시작점에 간 뒤 PATROL 순찰, QR 감지, HOLD, 근접 판독, PICK, variant 분기, 목적지 주행, PLACE 를 거치고, soft 초과면 충전 패드로 가 DOCK 한 뒤 RETURN 으로 순찰 시작점에 복귀하는 플로우차트. 판독 실패만 자동으로 PATROL 로 돌아가고 나머지 실패는 FROZEN 으로 정지했다가 웹 허가를 받아 RETURN 으로 복귀한다.">
+        <defs>
+          <marker id="fc-a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" class="hd-a"><path d="M0,0 L10,5 L0,10 z"/></marker>
+          <marker id="fc-af" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" class="hd-af"><path d="M0,0 L10,5 L0,10 z"/></marker>
+        </defs>
+        <rect class="fc fc-term" x="190" y="40" width="300" height="52" rx="26"/>
+        <text class="fc-t" x="340" y="71" text-anchor="middle">시작 — 노드 기동 · 씬 로드</text>
+        <rect class="fc fc-perc" x="190" y="128" width="300" height="64"/>
+        <text class="fc-t" x="340" y="155" text-anchor="middle">START : 순찰 시작점으로 주행</text>
+        <text class="fc-s" x="340" y="174" text-anchor="middle">NavigateTo(PATROL_ROUTE[0]) · 평생 1회</text>
+        <rect class="fc fc-perc" x="190" y="228" width="300" height="64"/>
+        <text class="fc-t" x="340" y="255" text-anchor="middle">PATROL : 스토커 순찰 주행</text>
+        <text class="fc-s" x="340" y="274" text-anchor="middle">NavigateTo 로 순찰 경로 연속 주행</text>
+        <polygon class="fc fc-dec" points="340,328 505,373 340,418 175,373"/>
+        <text class="fc-t" x="340" y="370" text-anchor="middle">QR 이 보이나?</text>
+        <text class="fc-s" x="340" y="387" text-anchor="middle">/perception/carrier_detected (Bool)</text>
+        <rect class="fc fc-perc" x="190" y="454" width="300" height="64"/>
+        <text class="fc-t" x="340" y="481" text-anchor="middle">HOLD : 그 자리에 세운다</text>
+        <text class="fc-s" x="340" y="500" text-anchor="middle">진행 중 goal 취소 → 설 때까지 대기</text>
+        <rect class="fc fc-perc" x="190" y="554" width="300" height="64"/>
+        <text class="fc-t" x="340" y="581" text-anchor="middle">SCAN : 근접 판독</text>
+        <text class="fc-s" x="340" y="600" text-anchor="middle">/perception/carrier_scan (CarrierScan)</text>
+        <polygon class="fc fc-dec" points="340,654 505,699 340,744 175,699"/>
+        <text class="fc-t" x="340" y="696" text-anchor="middle">판독 성공?</text>
+        <text class="fc-s" x="340" y="713" text-anchor="middle">res.found · payload · qr_pose</text>
+        <rect class="fc fc-move" x="190" y="780" width="300" height="76"/>
+        <text class="fc-t" x="340" y="806" text-anchor="middle">PICK : 접근 → 파지 → 리프트</text>
+        <text class="fc-s" x="340" y="824" text-anchor="middle">PickCarrier · 선 자리에서 바로 집는다</text>
+        <text class="fc-s" x="340" y="841" text-anchor="middle">OBSERVE → APPROACH → … → STOW</text>
+        <polygon class="fc fc-dec" points="340,892 505,937 340,982 175,937"/>
+        <text class="fc-t" x="340" y="934" text-anchor="middle">파지 성공?</text>
+        <text class="fc-s" x="340" y="951" text-anchor="middle">흡착 유지 확인</text>
+        <polygon class="fc fc-dec" points="340,1018 505,1063 340,1108 175,1063"/>
+        <text class="fc-t" x="340" y="1060" text-anchor="middle">무엇을 집었나? (variant)</text>
+        <text class="fc-s" x="340" y="1077" text-anchor="middle">종류가 목적지를 정한다</text>
+        <rect class="fc fc-path" x="60" y="1144" width="230" height="64"/>
+        <text class="fc-t" x="175" y="1171" text-anchor="middle">경로 ① 매거진</text>
+        <text class="fc-s" x="175" y="1190" text-anchor="middle">→ 패키징 로더 (pkg_loader)</text>
+        <rect class="fc fc-path" x="390" y="1144" width="230" height="64"/>
+        <text class="fc-t" x="505" y="1171" text-anchor="middle">경로 ② 스택</text>
+        <text class="fc-s" x="505" y="1190" text-anchor="middle">→ 테스트 로더 (test_loader)</text>
+        <rect class="fc fc-move" x="190" y="1252" width="300" height="64"/>
+        <text class="fc-t" x="340" y="1279" text-anchor="middle">NAV : 목적지 로더로 주행</text>
+        <text class="fc-s" x="340" y="1298" text-anchor="middle">frames.yaml 의 포트 좌표</text>
+        <polygon class="fc fc-dec" points="340,1352 505,1397 340,1442 175,1397"/>
+        <text class="fc-t" x="340" y="1394" text-anchor="middle">주행 성공?</text>
+        <rect class="fc fc-move" x="190" y="1478" width="300" height="76"/>
+        <text class="fc-t" x="340" y="1504" text-anchor="middle">PLACE : 정렬 → 해제 → 후퇴</text>
+        <text class="fc-s" x="340" y="1522" text-anchor="middle">PlaceCarrier · place.yaml 에서 자리</text>
+        <text class="fc-s" x="340" y="1539" text-anchor="middle">MOVE → LOWER → RELEASE → RETREAT</text>
+        <polygon class="fc fc-dec" points="340,1590 505,1635 340,1680 175,1635"/>
+        <text class="fc-t" x="340" y="1632" text-anchor="middle">배치 성공?</text>
+        <polygon class="fc fc-dec" points="340,1716 505,1761 340,1806 175,1761"/>
+        <text class="fc-t" x="340" y="1758" text-anchor="middle">soft_threshold_s 초과?</text>
+        <text class="fc-s" x="340" y="1775" text-anchor="middle">가동시간 타이머</text>
+        <rect class="fc fc-perc" x="660" y="1842" width="280" height="64"/>
+        <text class="fc-t" x="800" y="1869" text-anchor="middle">NAV : 충전 패드로 주행</text>
+        <text class="fc-s" x="800" y="1888" text-anchor="middle">frames.yaml dock_pads[robot_name]</text>
+        <rect class="fc fc-perc" x="660" y="1942" width="280" height="76"/>
+        <text class="fc-t" x="800" y="1968" text-anchor="middle">DOCK : 충전</text>
+        <text class="fc-s" x="800" y="1986" text-anchor="middle">Dock.action (신규)</text>
+        <text class="fc-s" x="800" y="2003" text-anchor="middle">feedback charge_pct</text>
+        <polygon class="fc fc-dec" points="800,2054 945,2099 800,2144 655,2099"/>
+        <text class="fc-t" x="800" y="2096" text-anchor="middle">충전 성공?</text>
+        <text class="fc-s" x="800" y="2113" text-anchor="middle">charge_target_pct 도달</text>
+        <rect class="fc fc-frozen" x="660" y="2200" width="280" height="80"/>
+        <text class="fc-t" x="800" y="2227" text-anchor="middle">FROZEN — 그 자리에서 정지</text>
+        <text class="fc-s" x="800" y="2246" text-anchor="middle">자동 복귀도 재시도도 없다</text>
+        <polygon class="fc fc-dec" points="800,2316 945,2361 800,2406 655,2361"/>
+        <text class="fc-t" x="800" y="2358" text-anchor="middle">웹 허가?</text>
+        <text class="fc-s" x="800" y="2375" text-anchor="middle">/orchestrator/resume (SetBool)</text>
+        <rect class="fc fc-perc" x="190" y="2460" width="300" height="64"/>
+        <text class="fc-t" x="340" y="2487" text-anchor="middle">RETURN : 순찰 시작점 복귀</text>
+        <text class="fc-s" x="340" y="2506" text-anchor="middle">NavigateTo(PATROL_ROUTE[0])</text>
+        <rect class="fc fc-term" x="190" y="2580" width="300" height="52" rx="26"/>
+        <text class="fc-t" x="340" y="2611" text-anchor="middle">PATROL 로 복귀</text>
+        <path class="fc-ln" d="M340,92 L340,122" marker-end="url(#fc-a)"/>
+        <path class="fc-ln" d="M340,192 L340,222" marker-end="url(#fc-a)"/>
+        <path class="fc-ln" d="M340,292 L340,322" marker-end="url(#fc-a)"/>
+        <path class="fc-ln" d="M340,418 L340,448" marker-end="url(#fc-a)"/>
+        <path class="fc-ln" d="M340,518 L340,548" marker-end="url(#fc-a)"/>
+        <path class="fc-ln" d="M340,618 L340,648" marker-end="url(#fc-a)"/>
+        <path class="fc-ln" d="M340,744 L340,774" marker-end="url(#fc-a)"/>
+        <path class="fc-ln" d="M340,856 L340,886" marker-end="url(#fc-a)"/>
+        <path class="fc-ln" d="M340,982 L340,1012" marker-end="url(#fc-a)"/>
+        <path class="fc-ln" d="M340,1316 L340,1346" marker-end="url(#fc-a)"/>
+        <path class="fc-ln" d="M340,1442 L340,1472" marker-end="url(#fc-a)"/>
+        <path class="fc-ln" d="M340,1554 L340,1584" marker-end="url(#fc-a)"/>
+        <path class="fc-ln" d="M340,1680 L340,1710" marker-end="url(#fc-a)"/>
+        <path class="fc-ln" d="M800,1906 L800,1936" marker-end="url(#fc-a)"/>
+        <path class="fc-ln" d="M800,2018 L800,2048" marker-end="url(#fc-a)"/>
+        <path class="fc-ln" d="M800,2280 L800,2310" marker-end="url(#fc-a)"/>
+        <path class="fc-ln" d="M340,2524 L340,2574" marker-end="url(#fc-a)"/>
+        <text class="fc-e" x="352" y="440" text-anchor="start">예</text>
+        <text class="fc-e" x="352" y="740" text-anchor="start">예</text>
+        <text class="fc-e" x="352" y="866" text-anchor="start">예</text>
+        <text class="fc-e" x="352" y="1698" text-anchor="start">예</text>
+        <text class="fc-e" x="812" y="2296" text-anchor="start">예</text>
+        <path class="fc-ln" d="M175,1063 L175,1138" marker-end="url(#fc-a)"/>
+        <path class="fc-ln" d="M505,1063 L505,1138" marker-end="url(#fc-a)"/>
+        <text class="fc-e" x="163" y="1053" text-anchor="end">매거진</text>
+        <text class="fc-e" x="517" y="1053" text-anchor="start">스택</text>
+        <path class="fc-ln" d="M175,1208 L175,1232 L340,1232"/>
+        <path class="fc-ln" d="M505,1208 L505,1232 L340,1232"/>
+        <path class="fc-ln" d="M340,1232 L340,1246" marker-end="url(#fc-a)"/>
+        <circle class="fc-dot" cx="340" cy="1232" r="3.5"/>
+        <path class="fc-ln" d="M505,1761 L800,1761 L800,1836" marker-end="url(#fc-a)"/>
+        <text class="fc-e" x="517" y="1751" text-anchor="start">예 — 충전하러 간다</text>
+        <path class="fc-ln" d="M340,1806 L340,2454" marker-end="url(#fc-a)"/>
+        <text class="fc-e" x="352" y="1850" text-anchor="start">아니오</text>
+        <path class="fc-ln" d="M800,2144 L800,2175 L340,2175"/>
+        <text class="fc-e" x="788" y="2166" text-anchor="end">예 — 충전 완료</text>
+        <circle class="fc-dot" cx="340" cy="2175" r="3.5"/>
+        <path class="fc-ln-f" d="M505,937 L1010,937"/>
+        <text class="fc-e-f" x="519" y="929" text-anchor="start">아니오 — 파지 실패</text>
+        <path class="fc-ln-f" d="M505,1397 L1010,1397"/>
+        <text class="fc-e-f" x="519" y="1389" text-anchor="start">아니오 — 주행 실패</text>
+        <path class="fc-ln-f" d="M505,1635 L1010,1635"/>
+        <text class="fc-e-f" x="519" y="1627" text-anchor="start">아니오 — 배치 실패</text>
+        <path class="fc-ln-f" d="M945,2099 L1010,2099"/>
+        <text class="fc-e-f" x="959" y="2091" text-anchor="start">아니오 — 충전 실패</text>
+        <path class="fc-ln-f" d="M1010,937 L1010,2240 L946,2240" marker-end="url(#fc-af)"/>
+        <path class="fc-ln" d="M655,2361 L340,2361"/>
+        <text class="fc-e" x="643" y="2352" text-anchor="end">예 — 허가</text>
+        <circle class="fc-dot" cx="340" cy="2361" r="3.5"/>
+        <path class="fc-ln" d="M945,2361 L990,2361 L990,2440 L800,2440 L800,2412" marker-end="url(#fc-a)"/>
+        <text class="fc-e-f" x="953" y="2390" text-anchor="start">아니오 — 허가 올 때까지 대기</text>
+        <path class="fc-ln" d="M175,373 L132,373 L132,274 L184,274" marker-end="url(#fc-a)"/>
+        <text class="fc-e" x="144" y="410" text-anchor="start">아니오 — 계속 주행</text>
+        <path class="fc-ln" d="M175,699 L100,699 L100,260 L184,260" marker-end="url(#fc-a)"/>
+        <text class="fc-e" x="112" y="740" text-anchor="start">아니오 — 미판독</text>
+        <text class="fc-s" x="112" y="754" text-anchor="start">3회 재시도 후 · 30 s 쿨다운</text>
+        <path class="fc-ln" d="M340,2632 L340,2664 L28,2664 L28,242 L184,242" marker-end="url(#fc-a)"/>
+        <text class="fc-e" x="40" y="1400" text-anchor="start">다시 순찰</text>
+
+      </svg>
+    </div>
+    <figcaption>
+      <span class="k">자동으로 순찰에 복귀하는 실패는 “판독 실패” 하나뿐이다.</span>
+      그것도 3회 재시도 후이고, 같은 자리에 또 서지 않도록 30 초 쿨다운이 걸린다.
+      파지 · 주행 · 배치 · 충전 실패는 전부 <span class="k">FROZEN</span> — 그 자리에서 멈추고
+      자동 복귀도 재시도도 하지 않는다. 사람이 웹으로 허가를 내려야 <code>RETURN</code> 으로 빠져나온다.
+      <code>RETURN</code> 은 “순찰 시작점으로 간다”는 러프한 뜻이고, 미션 복귀 · 충전 복귀 · 실패 복구가
+      전부 이 한 칸으로 모인다.
+    </figcaption>
+  </figure>
+
+  <!-- ══════════ FIG.3 ══════════ -->
+  <figure class="sheet" id="fig3">
+    <div class="tblock"><span class="no">FIG.3</span><h2>로봇 상태 전이</h2>
+      <span class="ref">/orchestrator/state</span></div>
+    <div class="canvas">
+      <svg viewBox="0 0 1380 520" role="img" aria-label="START에서 PATROL, HOLD, SCAN, PICK, NAV, PLACE, DOCKING, RETURN 순으로 이어지고 RETURN 에서 PATROL 로 돌아가는 상태 전이도. 어느 단계에서든 실패하면 FROZEN 으로 가고 웹 허가로 RETURN 에 복귀한다.">
+        <defs>
+          <marker id="f3-a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" class="hd-a"><path d="M0,0 L10,5 L0,10 z"/></marker>
+          <marker id="f3-af" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" class="hd-af"><path d="M0,0 L10,5 L0,10 z"/></marker>
+        </defs>
+        <rect class="fc fc-perc" x="36" y="140" width="124" height="54" rx="27"/>
+        <text class="st-n" x="98" y="173" text-anchor="middle">START</text>
+        <rect class="fc fc-perc" x="184" y="140" width="124" height="54" rx="27"/>
+        <text class="st-n" x="246" y="173" text-anchor="middle">PATROL</text>
+        <rect class="fc fc-perc" x="332" y="140" width="124" height="54" rx="27"/>
+        <text class="st-n" x="394" y="173" text-anchor="middle">HOLD</text>
+        <rect class="fc fc-perc" x="480" y="140" width="124" height="54" rx="27"/>
+        <text class="st-n" x="542" y="173" text-anchor="middle">SCAN</text>
+        <rect class="fc fc-move" x="628" y="140" width="124" height="54" rx="27"/>
+        <text class="st-n" x="690" y="173" text-anchor="middle">PICK</text>
+        <rect class="fc fc-move" x="776" y="140" width="124" height="54" rx="27"/>
+        <text class="st-n" x="838" y="173" text-anchor="middle">NAV</text>
+        <rect class="fc fc-move" x="924" y="140" width="124" height="54" rx="27"/>
+        <text class="st-n" x="986" y="173" text-anchor="middle">PLACE</text>
+        <rect class="fc fc-perc" x="1072" y="140" width="124" height="54" rx="27"/>
+        <text class="st-n" x="1134" y="173" text-anchor="middle">DOCKING</text>
+        <rect class="fc fc-perc" x="1220" y="140" width="124" height="54" rx="27"/>
+        <text class="st-n" x="1282" y="173" text-anchor="middle">RETURN</text>
+        <path class="fc-ln" d="M160,167 L178,167" marker-end="url(#f3-a)"/>
+        <path class="fc-ln" d="M308,167 L326,167" marker-end="url(#f3-a)"/>
+        <path class="fc-ln" d="M456,167 L474,167" marker-end="url(#f3-a)"/>
+        <path class="fc-ln" d="M604,167 L622,167" marker-end="url(#f3-a)"/>
+        <path class="fc-ln" d="M752,167 L770,167" marker-end="url(#f3-a)"/>
+        <path class="fc-ln" d="M900,167 L918,167" marker-end="url(#f3-a)"/>
+        <path class="fc-ln" d="M1048,167 L1066,167" marker-end="url(#f3-a)"/>
+        <path class="fc-ln" d="M1196,167 L1214,167" marker-end="url(#f3-a)"/>
+        <text class="st-e" x="320" y="128" text-anchor="middle">carrier_detected</text>
+        <text class="st-e" x="616" y="128" text-anchor="middle">found=true</text>
+        <text class="st-e" x="1060" y="128" text-anchor="middle">soft 초과</text>
+        <text class="st-e" x="1208" y="128" text-anchor="middle">충전 완료</text>
+        <path class="fc-ln" d="M204,140 L204,106 L244,106 L244,134" marker-end="url(#f3-a)"/>
+        <text class="st-e" x="224" y="98" text-anchor="middle">순찰 계속</text>
+        <path class="fc-ln" d="M542,140 L542,70 L168,70 L168,155 L178,155" marker-end="url(#f3-a)"/>
+        <text class="st-e" x="360" y="62" text-anchor="middle">found=false — 3회 재시도 후 · 30 s 쿨다운</text>
+        <path class="fc-ln" d="M1000,194 L1000,240 L1282,240 L1282,200" marker-end="url(#f3-a)"/>
+        <text class="st-e" x="1140" y="232" text-anchor="middle">soft 미만</text>
+        <path class="fc-ln" d="M1240,194 L1240,300 L246,300 L246,200" marker-end="url(#f3-a)"/>
+        <text class="st-e" x="700" y="292" text-anchor="middle">복귀 완료 — 순찰 재개</text>
+        <rect class="fc fc-frozen" x="860" y="420" width="290" height="76"/>
+        <text class="st-n" x="1005" y="450" text-anchor="middle">FROZEN</text>
+        <text class="fc-s" x="1005" y="472" text-anchor="middle">SCAN · PICK · NAV · PLACE · DOCKING</text>
+        <text class="fc-s" x="1005" y="488" text-anchor="middle">RETURN — 어느 단계에서든 실패하면</text>
+        <path class="fc-ln-f" d="M1005,356 L1005,414" marker-end="url(#f3-af)"/>
+        <text class="st-e-f" x="1017" y="382" text-anchor="start">실패</text>
+        <path class="fc-ln" d="M1150,458 L1310,458 L1310,200" marker-end="url(#f3-a)"/>
+        <text class="st-e" x="1160" y="448" text-anchor="start">웹 허가 (/orchestrator/resume)</text>
+
+      </svg>
+    </div>
+    <figcaption>
+      <span class="k">이 값이 <code>/orchestrator/state</code> 의 <code>state=</code> 에 그대로 실린다.</span>
+      그리고 그건 장식이 아니라 <code>carrier_code_reader</code> 와의 계약이다 — 그 노드는
+      <code>state == "patrol"</code> 일 때만 QR 폴링을 돌고, 아니면 팔을 놓는다(disarm).
+      <code>DOCKING</code> · <code>RETURN</code> · <code>FROZEN</code> 이 늘어도 전부 “patrol 아님” 으로 묶이므로,
+      <span class="k">충전 중에 팔을 안 건드리는 것이 따로 코드를 안 써도 보장된다.</span>
+      반대로 순찰 상태의 이름을 바꾸면 그 노드가 같이 깨진다.
+    </figcaption>
+  </figure>
+
+  <!-- ══════════ 주의사항 ══════════ -->
+  <h3 id="care">주의해야 할 것</h3>
+  <p class="sub">위 세 그림이 코드가 되는 과정에서 실제로 걸리는 것들. §3 · §4 는 안 지키면 노드가 죽거나
+    동작이 조용히 어긋나는 것이고, §6 은 아직 답이 없어서 그림에 못 그린 것이다.</p>
+
+  <h4>§1 &nbsp;이 문서의 위치</h4>
+  <ul class="plain">
+    <li><span class="mk">·</span><span>08 문서의 <b>확정안(§01–03)</b>을 바탕으로 하되, 1차 시연 코드에서 실제로 달라진 것(Nav2 미사용, sim_backend RPC, <code>/orchestrator/state</code>)을 반영했다.</span></li>
+    <li><span class="mk">·</span><span>08 문서의 <b>제안(§04–07)</b> 중 <b>명령 큐 제거</b>는 채택했고(그림에 큐가 없다), <b>언로더 스택 회수</b>는 넣지 않았다 — §6 참조.</span></li>
+    <li><span class="mk">·</span><span><b>전부 미구현이다.</b> <code>cobot3_docking</code> 은 지금 <code>console_scripts</code> 가 비어 있는 빈 껍데기고, <code>cobot3_web</code> 은 패키지 자체가 없다.</span></li>
+  </ul>
+
+  <h4>§2 &nbsp;task_manager 를 전역 1개로 둔 선택</h4>
+  <p>지금은 로봇이 1대라 어느 쪽이든 같지만, <b>2대가 되는 순간 이 결정이 가장 먼저 흔들린다.</b>
+    08 문서 §07-② 가 정한 원칙은 <b>“필드가 아니라 네임스페이스”</b> 다 —
+    카메라 · 팔 · 베이스가 물리적으로 따로라 <code>perception</code> · <code>navigation</code> ·
+    <code>manipulation</code> 은 대수만큼 복제되는 게 자연스럽고, 복제된 서버를 지목하는 ROS 2 의 방법이
+    네임스페이스이기 때문이다(<code>/amr_1/navigation/navigate_to</code>).</p>
+
+  <div class="tbl-wrap">
+    <table>
+      <thead><tr><th>2대가 되면</th><th>전역 1개 (이 문서)</th><th>로봇당 1개</th></tr></thead>
+      <tbody>
+        <tr><td>노드 수</td><td class="d">1 + (3×2) + docking + web = 9</td><td class="d">2 + (3×2) + docking + web = 10</td></tr>
+        <tr><td>액션 클라이언트</td><td class="d"><code>/amr_1/…</code> · <code>/amr_2/…</code> 두 벌을 한 노드가 든다</td><td class="d">자기 네임스페이스 한 벌</td></tr>
+        <tr><td>행동트리</td><td class="d"><b>로봇당 트리를 하나씩 들어야 한다.</b> 블랙보드 키도 <code>amr_1/detected</code> 처럼 갈라야 한다</td><td class="d">지금 트리 그대로</td></tr>
+        <tr><td>“본 놈이 가는 것”</td><td class="d"><b>코드로 갈라야 한다</b> — 섞이면 버그가 난다</td><td class="d">배선으로 보장된다. <code>/amr_1</code> 의 스캔은 <code>/amr_1</code> 의 task_manager 만 듣는다</td></tr>
+        <tr><td>두 로봇이 같은 캐리어를 보면</td><td class="d"><b>한 노드 안에서 조정할 수 있다</b> — 08 §07-② 가 말한 dispatcher · traffic_manager 를 따로 안 만들어도 된다</td><td class="d">조정 노드가 따로 필요하다</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="note">
+    <b>어느 쪽이든 <code>docking_server</code> 는 전역 1개다.</b> 도크가 공용 자원이라 “누가 어느 패드를 쓰는가”를
+    한 곳에서 알아야 하기 때문이다. 그래서 <code>Dock.action</code> 의 <code>robot_name</code> 필드는
+    <b>두 경우 모두 필요하다</b> — 네임스페이스 밖에 있는 유일한 서버라 식별자가 필드로 올라오는 예외가 여기 하나다.
+    그리고 그 서버는 <b>goal 을 동시에 두 개 받을 수 있어야 한다</b>(패드가 로봇별 고정 배정이라 물리적으로는 병렬).
+    rclpy <code>ActionServer</code> 는 기본이 순차라 <code>handle_accepted_callback</code> 을 붙여야 한다.
+  </div>
+
+  <div class="note warn">
+    <b>나중에 바꿀 때 같이 손대야 하는 곳.</b> 토픽 · 액션 이름 전부,
+    <code>carrier_code_reader</code> 의 <code>/robot1/amcl_pose</code> <b>하드코딩</b>,
+    <code>nav_server</code> 의 <code>robot_namespace</code> 파라미터(여기만 이미 파라미터화돼 있다).
+    지금은 네임스페이스가 반만 적용돼 있는 상태라, 2대로 갈 때 한 번에 정리해야 한다.
+  </div>
+
+  <h4>§3 &nbsp;행동트리(BT)가 만족해야 하는 조건</h4>
+  <p><code>task_manager.py</code> 는 상태기계가 아니라 <code>py_trees</code> 행동트리다.
+    목표 트리는 이 모양이 된다:</p>
+
+  <div class="tbl-wrap">
+    <table>
+      <thead><tr><th>가지</th><th>조건</th><th>하는 일</th></tr></thead>
+      <tbody>
+        <tr><td><code>[?] 우선순위</code></td><td class="d">Selector · <b>memory=False</b></td><td class="d">매 tick 맨 위부터 재검사</td></tr>
+        <tr><td>&nbsp;├ <b>복구</b></td><td class="d">허가 떨어졌나?</td><td class="d">RETURN → 미션 가지 리셋</td></tr>
+        <tr><td>&nbsp;├ <b>충전</b></td><td class="d">soft 초과?</td><td class="d">NAV(dock) → DOCK → RETURN</td></tr>
+        <tr><td>&nbsp;├ <b>캐리어 처리</b></td><td class="d">Sequence · <b>memory=True</b></td><td class="d">HOLD → SCAN → PICK → NAV → PLACE → RETURN</td></tr>
+        <tr><td>&nbsp;└ <b>순찰</b></td><td class="d">Sequence · memory=True</td><td class="d">START(1회) → 순찰</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <ul class="plain">
+    <li><span class="mk">1</span><span><b>최상위 Selector 는 <code>memory=False</code> 여야 한다.</b> 그래야 순찰이 RUNNING 인 중에도 매 tick <code>detected?</code> 가 재검사되고, 신호가 오는 순간 캐리어 가지가 선점된다. 밀려난 순찰 잎의 <code>terminate(INVALID)</code> 에서 진행 중인 goal 취소가 나가는데 — <b>이게 HOLD 다.</b> “감지되면 멈춰라”를 어디에도 안 적었는데 구조에서 나온다.</span></li>
+    <li><span class="mk">2</span><span><b>각 가지 Sequence 는 <code>memory=True</code> 여야 한다.</b> PICK 이 RUNNING 인 동안 앞의 HOLD · SCAN 을 다시 tick 하면 안 된다.</span></li>
+    <li><span class="mk">3</span><span><b><code>Freeze</code> 에 해제 경로를 새로 만들어야 한다.</b> 지금은 <code>self.frozen = True</code> 가 되면 되돌리는 코드가 없다. 그리고 <code>frozen = False</code> 만으론 부족하다 — 자식을 <code>stop(Status.INVALID)</code> 로 리셋해야 다음 tick 에 <code>initialise()</code> 가 다시 불린다.</span></li>
+    <li><span class="mk">4</span><span><b>복구는 Freeze 해제만으론 표현되지 않는다.</b> Sequence 가 <code>memory=True</code> 라, PICK 에서 얼었다가 풀면 <b>PICK 부터 다시 시작한다</b> — 즉 다시 집으려 든다. 원하는 건 “미션 포기하고 RETURN”이므로 <b>복구 가지를 Selector 최상단에 따로</b> 둬야 한다.</span></li>
+    <li><span class="mk">5</span><span><b>충전 복귀에도 <code>waypoints.idx = 1</code> 되감기가 필요하다.</b> START 와 RETURN 이 둘 다 <code>PATROL_ROUTE[0]</code> 에 데려다 놓으므로, 안 되감으면 순찰이 이미 서 있는 자리로 goal 을 한 번 더 보낸다. 미션 쪽은 <code>CycleDone</code> 이 하고 있으니 충전 · 복구 가지에도 같은 잎이 필요하다.</span></li>
+    <li><span class="mk">6</span><span><b>충전 타이머 리셋은 <code>Dock.action</code> 의 result success 시점이다.</b> RETURN 시점이 아니다 — Selector 가 <code>memory=False</code> 라, 리셋이 늦으면 복귀하자마자 “아직 충전 필요”가 참이라 <b>또 도킹하러 간다.</b></span></li>
+    <li><span class="mk">7</span><span><b>새로 만들 잎은 넷뿐이다</b> — <code>허가?</code>(복구 조건) · <code>충전 필요?</code>(타이머 조건) · <code>충전 완료</code>(타이머 리셋 + idx 되감기) · <code>복구 완료</code>(미션 가지 <code>stop(INVALID)</code> + 상태 초기화). <code>DOCK</code> 은 기존 <code>ActionLeaf</code> + <code>Freeze</code> 로 그대로 꽂힌다.</span></li>
+    <li><span class="mk">8</span><span><b>1차 코드에서 순찰 가지가 통째로 주석처리돼 있다.</b> <code>START_DETECTED_FOR_TEST = True</code> 로 노드가 뜨자마자 SCAN 부터 도는 상태라, 목표 설계로 가려면 이걸 되살리고 그 상수를 지우는 게 첫 작업이다. 되살리는 순간 <code>/perception/carrier_detected</code> 가 비로소 소비된다(지금은 <code>patrolling</code> 게이트에 막혀 전부 버려진다).</span></li>
+  </ul>
+
+  <h4>§4 &nbsp;인터페이스 계약 — 깨면 코드가 죽는다</h4>
+  <ul class="plain">
+    <li><span class="mk">1</span><span><b><code>ActionLeaf</code> 는 result 가 <code>bool success</code> + <code>uint8 fail_reason</code> 모양이길 요구한다.</b> <code>success=false</code> 가 오면 <code>result.fail_reason</code> 을 무조건 읽으므로, 필드가 없으면 <code>AttributeError</code> 로 tick 이 죽는다 — Freeze 로 얌전히 멈추는 게 아니라 <b>노드가 터진다.</b> <code>Dock.action</code> 도 이 모양을 지켜야 한다. 상수 이름(<code>NO_CONTACT=1</code> 같은 것)은 없어도 된다 — <code>_reason_name</code> 이 못 찾으면 숫자를 그대로 쓴다.</span></li>
+    <li><span class="mk">2</span><span><b><code>/orchestrator/state</code> 의 <code>state=</code> 값은 <code>carrier_code_reader</code> 와의 계약이다.</b> 그 노드는 <code>state == "patrol"</code> 일 때만 QR 폴링을 돌고 아니면 팔을 disarm 한다. 새 상태를 추가해도 “patrol 아님”으로 묶여 안전하지만, <b>순찰 상태의 이름을 바꾸면 그 노드가 같이 깨진다.</b></span></li>
+    <li><span class="mk">3</span><span><b><code>/orchestrator/resume</code> 에서 task_manager 가 서비스 <em>서버</em>가 되는 것은 괜찮다.</b> 플래그만 내리고 즉시 반환이라 O(1)이고, task_manager 는 콜백 그룹도 스레드도 없는 단일 스레드라 오히려 tick 과 직렬화돼 경쟁이 없다. <b>반대로 “판단”이 필요한 서비스 서버는 두면 안 된다</b> — 응답을 tick 이 돌아야 알 수 있어서 bool 이 약속일 뿐 보장이 아니게 된다. (도킹을 <code>DockingNeed.srv</code> 로 하려다 접은 이유가 이것이고, 그래서 타이머는 task_manager 가 든다.)</span></li>
+    <li><span class="mk">4</span><span><b><code>TraceEvent.stage</code> 의 <code>RETURN</code> 은 러프한 뜻이다</b> — “순찰 시작점으로 복귀”. 미션 복귀 · 충전 복귀 · 실패 복구가 전부 같은 값을 쓴다(충전 자체는 <code>DOCK</code> 으로 따로 있다). 로그에서만 갈리게 하려면 <code>Freeze</code> 의 <b>표시 이름만</b> 다르게 두면 된다 — <code>RETURN</code> / <code>RETURN(충전)</code> / <code>RETURN(복구)</code>. <code>/orchestrator/state</code> 와 <code>stage</code> 는 셋 다 <code>return</code> 이다.</span></li>
+    <li><span class="mk">5</span><span><b>py_trees 잎 인스턴스는 트리에서 한 자리만 차지한다.</b> RETURN 을 세 가지가 공유한다고 같은 객체를 세 군데 꽂으면 안 된다. 이름만 같게 두고 객체는 따로 만들어야 한다.</span></li>
+  </ul>
+
+  <h4>§5 &nbsp;1차 코드에서 그대로 이어받는 갭</h4>
+  <ul class="plain">
+    <li><span class="mk">·</span><span><b><code>flange_topview</code> 가 연결돼 있지 않다.</b> <code>PickCarrier</code> 의 OBSERVE 는 “QR prior + <code>T_QR_grasp_xyz</code> 계산”까지만 하고 손목캠 재관측을 안 한다 — <code>sim_backend</code> 가 임의 자세에서 카메라 프레임을 돌려주는 RPC 를 아직 안 내주기 때문이다. 라이브러리는 있는데 안 쓰는 상태다.</span></li>
+    <li><span class="mk">·</span><span><b>다수결 판독 파라미터가 선언만 돼 있다.</b> <code>vote_window</code> · <code>vote_required</code> · <code>roi_fraction</code> · <code>publish_debug</code> 가 <code>declare_parameter</code> 만 되고 실제 판정에 안 쓰인다. 지금 판정은 <code>scan_qr(n_frames=3)</code> 의 평균이다.</span></li>
+    <li><span class="mk">·</span><span><b>QR payload 가 숫자 한 글자</b>(<code>"1"</code> / <code>"2"</code>)다. <code>carriers.yaml</code> 의 <code>C3.MAG.A17.9</code> 형식 파싱이 안 붙어서, 같은 종류의 여러 개체를 구분하지 못한다 — 그 종류의 첫 항목을 쓴다.</span></li>
+    <li><span class="mk">·</span><span><b><code>TaskOrder.msg</code> · <code>RegisterTask.srv</code> · <code>CycleLog.msg</code> 가 빈 정의로 남아 있다.</b> 필드가 하나도 없는데 <code>CMakeLists.txt</code> 에는 들어 있어 에러 없이 빌드된다 — 채워진 것으로 오인하기 쉽다. 웹을 붙이기로 한 이상 <code>RegisterTask</code> 는 그때 새로 정의하는 편이 낫다.</span></li>
+    <li><span class="mk">·</span><span><b><code>event_logger</code> 와 <code>/trace/event</code> 가 없다.</b> 노드도 없고 task_manager 에 발행 코드도 없다. 지금 기록 수단은 <code>/orchestrator/state</code> 토픽과 콘솔 로그뿐이다.</span></li>
+    <li><span class="mk">·</span><span><b>좌표가 소스에 하드코딩돼 있다.</b> <code>PATROL_ROUTE</code> · <code>TEST_LOADER</code> 가 <code>task_manager.py</code> 상단에 박혀 있다. <code>dock_pads</code> · <code>pkg_loader</code> 를 추가할 때는 <code>frames.yaml</code> 로 가야 같은 문제가 반복되지 않는다.</span></li>
+    <li><span class="mk">·</span><span><b>Nav2 의 회피 · 전역 경로계획을 안 쓴다.</b> <code>nav_server</code> 가 <code>amcl_pose</code> 를 보며 <code>cmd_vel</code> 로 직접 몬다(DWB 의 제자리회전 스윕 0.66 m 가 선반 여유 0.26~0.48 m 보다 넓어서 계속 막혔다). 경로 중간에 예상 못 한 장애물이 생기는 시나리오에는 이 접근이 안 맞는다.</span></li>
+  </ul>
+
+  <h4>§6 &nbsp;아직 안 정해진 것</h4>
+  <p class="sub" style="margin-top:-8px">답이 나와야 그림에 칸이 생기는 것들. 위 플로우차트는 이것들을 <b>비워 둔 채</b> 그린 것이다.</p>
+  <div class="open">
+    <div class="row"><div class="num">1</div><div class="q">흡착한 채로 얼어붙으면 복구 가지가 물건을 어떻게 하나
+      <em>NAV · PLACE 에서 실패하면 캐리어를 들고 있다. 그대로 RETURN 하면 물건을 든 채 순찰한다. 복구 가지에 “내려놓기” 단계를 넣을지 — 넣으면 FIG.2 에 박스가 하나 는다.</em></div></div>
+    <div class="row"><div class="num">2</div><div class="q">START · 순찰 실패는 RETURN 복구가 성립하지 않는다
+      <em>RETURN 이 하려는 게 바로 “<code>PATROL_ROUTE[0]</code> 으로 가라”인데, START 가 실패한 이유가 그것이다. 순찰도 같은 경로에서 또 실패한다. 이 둘을 실패 정책에서 어떻게 뺄지.</em></div></div>
+    <div class="row"><div class="num">3</div><div class="q">DOCK 실패 재시도 · 포기 조건
+      <em>정하지 않으면 무한 루프다 — 충전을 못 했으니 <code>soft</code> 조건이 영원히 참이라 복귀 → 배치 → 또 도킹 → 또 실패를 반복한다.</em></div></div>
+    <div class="row"><div class="num">4</div><div class="q">복구 RETURN 자체가 실패하면
+      <em>이중 실패다. “복구 RETURN 은 얼리지 않고 그 자리에 둔다” 정도로 정해 두는 게 보통이다.</em></div></div>
+    <div class="row"><div class="num">5</div><div class="q">웹 안전정지(정상 동작 중 정지) 후 어디로 돌아가나
+      <em><code>SetBool</code> 로 가면 <code>data=false</code>(정지)도 같이 들어온다. 08 §07-④ 가 남긴 질문 그대로 — “정할 건 타입이 아니라 풀면 어디로 돌아가나”다. 실패 정지와 같은 처리로 통일하면 간단하지만, “잠깐 세웠다 이어가기”가 불가능해진다.</em></div></div>
+    <div class="row"><div class="num">6</div><div class="q"><code>hard_threshold_s</code> 를 쓸지
+      <em>안 쓰는 쪽(0.0 유지)을 권한다. 미션 중 도킹 선점이 없어져 1번 문제가 아예 안 생기고 충전 판정이 PLACE 뒤 한 곳으로 모인다. 대신 <b>한 사이클이 길면 그 안에서 방전되는 걸 막을 방법이 없다.</b></em></div></div>
+    <div class="row"><div class="num">7</div><div class="q">언로더 스택 회수 가지를 넣을지
+      <em>08 §04 의 제안(매거진을 놓은 뒤 언로더를 5초 관측). 넣으면 <code>WATCH_UNLOADER</code> 상태와 <code>unloader_watch_s</code> · <code>idle_observe_pose</code> 파라미터가 생기고 플로우차트가 거의 두 배가 된다. 이 문서에는 넣지 않았다.</em></div></div>
+    <div class="row"><div class="num">8</div><div class="q">QR 최대 판독 거리 — 0.28 m 인가 0.45 m 인가
+      <em>05 문서 §2-4 는 0.28 m, <code>carrier_code_reader</code> 헤더는 <code>frames.yaml</code> 의 실측을 근거로 0.45 m 라고 적는다. 순찰 정차 위치와 <code>SHELF_ZONE</code> 범위가 이 값에 걸린다.</em></div></div>
+    <div class="row"><div class="num">9</div><div class="q"><code>pkg_loader</code> 좌표
+      <em>FIG.2 의 경로 ① 이 실제로 돌려면 필요하다. <code>frames.yaml</code> 은 <code>measure_layout.py</code> 로 생성되므로 USD 쪽이 먼저다. 지금 코드는 매거진 · 스택을 전부 <code>TEST_LOADER</code> 하나로 보낸다.</em></div></div>
+    <div class="row"><div class="num">10</div><div class="q">시연 종료 조건
+      <em>무한히 도나, 스토커가 비면 서나, 사이클 N 회면 끝나나.</em></div></div>
+  </div>
+
+  <footer>
+    <span>cobot3_isaacsim · 개발 프로세스 09 · 2·3차 목표 설계</span>
+    <span>관련 — 08_ROS2_NODE_Graph · 06_System_Architecture · 05_QR_Traceability</span>
+  </footer>
+
+</div>
