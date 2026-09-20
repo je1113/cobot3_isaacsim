@@ -21,6 +21,7 @@
     --fc-path:#1a7a58;  --fc-path-bg:#ddf1e6;
     --fc-term:#44525a;  --fc-term-bg:#eef1f2;
     --fc-frozen:#8e1d10; --fc-frozen-bg:#f6d9d3;
+    --fc-new:#127a4e;   --fc-new-bg:#d8f0e2;
   }
   @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
     --paper:#0e1417; --sheet:#161e22; --sheet-2:#1c262b;
@@ -34,6 +35,7 @@
     --fc-path:#52cf9a;  --fc-path-bg:#0e2e22;
     --fc-term:#a6b4ba;  --fc-term-bg:#1c262b;
     --fc-frozen:#ff7b66; --fc-frozen-bg:#3d160f;
+    --fc-new:#46d193;   --fc-new-bg:#0b3324;
   }}
   :root[data-theme="dark"]{
     --paper:#0e1417; --sheet:#161e22; --sheet-2:#1c262b;
@@ -47,6 +49,7 @@
     --fc-path:#52cf9a;  --fc-path-bg:#0e2e22;
     --fc-term:#a6b4ba;  --fc-term-bg:#1c262b;
     --fc-frozen:#ff7b66; --fc-frozen-bg:#3d160f;
+    --fc-new:#46d193;   --fc-new-bg:#0b3324;
   }
   body{background:var(--paper);color:var(--ink);
     font-family:"IBM Plex Sans KR","Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif;
@@ -120,6 +123,7 @@
   .fc-dec{fill:var(--fc-dec-bg);stroke:var(--fc-dec);}
   .fc-path{fill:var(--fc-path-bg);stroke:var(--fc-path);}
   .fc-frozen{fill:var(--fc-frozen-bg);stroke:var(--fc-frozen);stroke-width:2;}
+  .fc-new{fill:var(--fc-new-bg);stroke:var(--fc-new);stroke-width:2;}
   .fc-t{font-size:13px;font-weight:600;fill:var(--ink);}
   .fc-s{font-size:10.5px;fill:var(--ink-2);}
   .fc-ln{fill:none;stroke:var(--ink-2);stroke-width:1.6;}
@@ -327,11 +331,10 @@
       <span class="ref">도킹 · 웹 복구 포함</span></div>
     <div class="fclegend">
       <span><i class="t" style="border-color:var(--fc-term);background:var(--fc-term-bg)"></i>시작 · 종료</span>
-      <span><i style="border-color:var(--fc-perc);background:var(--fc-perc-bg)"></i>캐리어 없이 — 순찰 · 판독 · 충전 · 복귀</span>
-      <span><i style="border-color:var(--fc-move);background:var(--fc-move-bg)"></i>캐리어를 든 구간 — 파지 · 이송 · 배치</span>
+      <span><i style="border-color:var(--fc-perc);background:var(--fc-perc-bg)"></i>기본 단계 — 순찰 · 판독 · 복귀</span>
+      <span><i style="border-color:var(--fc-move);background:var(--fc-move-bg)"></i><b>중요 기능</b> — PICK · NAV · PLACE</span>
+      <span><i style="border-color:var(--fc-new);background:var(--fc-new-bg)"></i><b>신규 기능</b> — 도킹 · 웹 복구 · 경로 분기</span>
       <span><i class="d" style="border-color:var(--fc-dec);background:var(--fc-dec-bg)"></i>판정 분기</span>
-      <span><i style="border-color:var(--fc-path);background:var(--fc-path-bg)"></i>이송 경로 ① · ②</span>
-      <span><i style="border-color:var(--fc-frozen);background:var(--fc-frozen-bg)"></i>정지 (FROZEN)</span>
     </div>
     <div class="canvas">
       <svg viewBox="0 0 1060 2720" class="tall" role="img" aria-label="시작에서 START로 순찰 시작점에 간 뒤 PATROL 순찰, QR 감지, HOLD, 근접 판독, PICK, variant 분기, 목적지 주행, PLACE 를 거치고, soft 초과면 충전 패드로 가 DOCK 한 뒤 RETURN 으로 순찰 시작점에 복귀하는 플로우차트. 판독 실패만 자동으로 PATROL 로 돌아가고 나머지 실패는 FROZEN 으로 정지했다가 웹 허가를 받아 RETURN 으로 복귀한다.">
@@ -369,10 +372,10 @@
         <polygon class="fc fc-dec" points="340,1018 505,1063 340,1108 175,1063"/>
         <text class="fc-t" x="340" y="1060" text-anchor="middle">무엇을 집었나? (variant)</text>
         <text class="fc-s" x="340" y="1077" text-anchor="middle">종류가 목적지를 정한다</text>
-        <rect class="fc fc-path" x="60" y="1144" width="230" height="64"/>
+        <rect class="fc fc-new" x="60" y="1144" width="230" height="64"/>
         <text class="fc-t" x="175" y="1171" text-anchor="middle">경로 ① 매거진</text>
         <text class="fc-s" x="175" y="1190" text-anchor="middle">→ 패키징 로더 (pkg_loader)</text>
-        <rect class="fc fc-path" x="390" y="1144" width="230" height="64"/>
+        <rect class="fc fc-new" x="390" y="1144" width="230" height="64"/>
         <text class="fc-t" x="505" y="1171" text-anchor="middle">경로 ② 스택</text>
         <text class="fc-s" x="505" y="1190" text-anchor="middle">→ 테스트 로더 (test_loader)</text>
         <rect class="fc fc-move" x="190" y="1252" width="300" height="64"/>
@@ -386,23 +389,23 @@
         <text class="fc-s" x="340" y="1539" text-anchor="middle">MOVE → LOWER → RELEASE → RETREAT</text>
         <polygon class="fc fc-dec" points="340,1590 505,1635 340,1680 175,1635"/>
         <text class="fc-t" x="340" y="1632" text-anchor="middle">배치 성공?</text>
-        <polygon class="fc fc-dec" points="340,1716 505,1761 340,1806 175,1761"/>
+        <polygon class="fc fc-new" points="340,1716 505,1761 340,1806 175,1761"/>
         <text class="fc-t" x="340" y="1758" text-anchor="middle">soft_threshold_s 초과?</text>
         <text class="fc-s" x="340" y="1775" text-anchor="middle">가동시간 타이머</text>
-        <rect class="fc fc-perc" x="660" y="1842" width="280" height="64"/>
+        <rect class="fc fc-move" x="660" y="1842" width="280" height="64"/>
         <text class="fc-t" x="800" y="1869" text-anchor="middle">NAV : 충전 패드로 주행</text>
         <text class="fc-s" x="800" y="1888" text-anchor="middle">frames.yaml dock_pads[robot_name]</text>
-        <rect class="fc fc-perc" x="660" y="1942" width="280" height="76"/>
+        <rect class="fc fc-new" x="660" y="1942" width="280" height="76"/>
         <text class="fc-t" x="800" y="1968" text-anchor="middle">DOCK : 충전</text>
         <text class="fc-s" x="800" y="1986" text-anchor="middle">Dock.action (신규)</text>
         <text class="fc-s" x="800" y="2003" text-anchor="middle">feedback charge_pct</text>
         <polygon class="fc fc-dec" points="800,2054 945,2099 800,2144 655,2099"/>
         <text class="fc-t" x="800" y="2096" text-anchor="middle">충전 성공?</text>
         <text class="fc-s" x="800" y="2113" text-anchor="middle">charge_target_pct 도달</text>
-        <rect class="fc fc-frozen" x="660" y="2200" width="280" height="80"/>
+        <rect class="fc fc-new" x="660" y="2200" width="280" height="80"/>
         <text class="fc-t" x="800" y="2227" text-anchor="middle">FROZEN — 그 자리에서 정지</text>
         <text class="fc-s" x="800" y="2246" text-anchor="middle">자동 복귀도 재시도도 없다</text>
-        <polygon class="fc fc-dec" points="800,2316 945,2361 800,2406 655,2361"/>
+        <polygon class="fc fc-new" points="800,2316 945,2361 800,2406 655,2361"/>
         <text class="fc-t" x="800" y="2358" text-anchor="middle">웹 허가?</text>
         <text class="fc-s" x="800" y="2375" text-anchor="middle">/orchestrator/resume (SetBool)</text>
         <rect class="fc fc-perc" x="190" y="2460" width="300" height="64"/>
