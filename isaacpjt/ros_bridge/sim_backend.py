@@ -46,6 +46,20 @@ simulation_app = SimulationApp({"headless": HEADLESS})
 # 노드들에서 받아야 해서 필요해졌다. LD_LIBRARY_PATH(isaac_ros 함수)는
 # 라이브러리를 "찾을 수 있게" 만들 뿐, 확장을 "켜는" 건 아니다 — 둘 다 필요하다.
 from isaacsim.core.utils.extensions import enable_extension  # noqa: E402
+# ★ 다른 확장(특히 isaacsim.ros2.bridge 의뢰존성 트리에 걸려 나중에 자동으로
+# 끌려오는 omni.graph.image.core 등)보다 먼저 켠다. 그렇게 안 하면 로딩 순서에
+# 따라 omni.graph.core 가 "Found duplicate of category 'Replicator' - was
+# 'Annotators', adding 'Fabric Reader'" / "Category 'Replicator' not accepted
+# on node type 'omni.replicator.core.FabricReader'" 경고를 내며 카테고리
+# 등록이 꼬인다(실측: sim_backend.py 콘솔에서 매번 재현). 이 카테고리 등록이
+# 꼬인 상태에서 이어지는 stage 로딩이 omni.graph.image.core.plugin.so 안에서
+# 세그폴트로 죽거나(REACHABILITY 재현됨), 죽지 않고 넘어가더라도 이후
+# rep.create.render_product() 로 새로 만드는 render_product 의 rgb annotator
+# 가 계속 빈 프레임(shape=(0,))만 주는 것으로 보인다 — observe_pose/scan_qr/
+# debug_capture 전부, 심지어 이미 잘 동작하던 front_hawk 카메라로 대조군을
+# 만들어도 똑같이 재현됐다. omni.replicator.core 를 여기서 제일 먼저 등록해
+# 그 확장이 자기 카테고리를 스스로 정상 선점하게 만들어 경합을 피해본다.
+enable_extension("omni.replicator.core")
 enable_extension("isaacsim.ros2.bridge")
 # SurfaceGripper 는 USD 프림이 아니라 이 익스텐션이 등록하는 OmniGraph 노드
 # 타입(isaacsim.robot.surface_gripper.SurfaceGripper)이다 — 스테이지를 열기
@@ -55,10 +69,31 @@ enable_extension("isaacsim.ros2.bridge")
 # 익스텐션이 그 전에는 아예 등록을 안 하기 때문).
 enable_extension("isaacsim.robot.surface_gripper")
 
+import ctypes
+
 import numpy as np
 import omni.usd
 import yaml
 from pxr import Usd, UsdGeom, UsdPhysics
+
+
+def _pycapsule_to_bytes(capsule, size):
+    """omni.kit.renderer_capture 의 *_callback 계열이 buffer 로 주는 건
+    실제 바이트가 아니라 PyCapsule(C 포인터 래퍼)이다 — np.frombuffer 에
+    바로 못 넣는다(실측: "TypeError: a bytes-like object is required, not
+    'PyCapsule'"). ctypes 의 PyCapsule C-API 로 직접 포인터를 꺼내 읽는다.
+    이름을 미리 알 필요는 없다 — PyCapsule_GetName 으로 그 캡슐이 실제로
+    갖고 있는 이름을 먼저 읽어서 그대로 PyCapsule_GetPointer 에 되돌려준다
+    (PyCapsule_GetPointer 는 이름이 정확히 일치해야만 포인터를 내준다)."""
+    ctypes.pythonapi.PyCapsule_GetName.restype = ctypes.c_char_p
+    ctypes.pythonapi.PyCapsule_GetName.argtypes = [ctypes.py_object]
+    name = ctypes.pythonapi.PyCapsule_GetName(capsule)
+    ctypes.pythonapi.PyCapsule_GetPointer.restype = ctypes.c_void_p
+    ctypes.pythonapi.PyCapsule_GetPointer.argtypes = [ctypes.py_object, ctypes.c_char_p]
+    ptr = ctypes.pythonapi.PyCapsule_GetPointer(capsule, name)
+    if not ptr:
+        raise RuntimeError("PyCapsule 에서 포인터를 못 가져왔다")
+    return bytes((ctypes.c_uint8 * size).from_address(ptr))
 
 from isaacsim.core.api import World
 from isaacsim.core.prims import SingleRigidPrim
@@ -103,6 +138,12 @@ ARM_JOINTS = ["joint_1", "joint_2", "joint_3", "joint_4", "joint_5", "joint_6"]
 
 CARTER_Z = 0.07963398335074101
 RESOLUTION = (1280, 720)
+# _capture_frame() 이 raw AOV 캡쳐로 요청하는 depth 채널의 실제 이름.
+# Replicator 의 annotator 이름("distance_to_image_plane")과 다르다 — 실측
+# 확인: omni.replicator.core.scripts.annotators 의 AnnotatorParams 테이블에
+# 찍힌 raw 이름이 이거다("SD" 접미사). "DistanceToImagePlane"(SD 없이)으로
+# 등록하면 aov_map 에 이름은 잡히는데 텍스처가 끝까지 (0,0) 해상도로 안 채워진다.
+DEPTH_AOV_NAME = "DistanceToImagePlaneSD"
 # 12_pick_test.py 는 흡착 중 견고함을 위해 1e8 을 쓰지만, 그 값으로는 관측
 # 자세에서 미세 진동이 남아 QR 디코드가 깨졌다(실측 확인). eval_qr_pose_depth.py
 # 가 검증한 값(1e5)으로 낮췄다 — SCAN 도 PICK 도 이 값 하나로 돌려 봤더니,
@@ -505,8 +546,8 @@ class Backend:
             end_effector_frame_name=EE_LINK_NAME)
         self.gripper = SurfaceGripperCtl(self._gripper_node_path)
         self.target_quat = make_target_quat(APPROACH_ROLL_DEG, APPROACH_PITCH_DEG, GRIPPER_YAW_DEG)
-        self._rgb = None
-        self._depth = None
+        self._capture_ready = False   # _ensure_camera_warm() 이 한 번 세팅하면 True
+        self._pending_capture = None  # _capture_frame() 이 진행 중인 캡쳐를 GC 로부터 붙잡아두는 자리
 
         st = self.frames["static_transforms"]
         self.R_l6_cam = quat_xyzw_to_mat(st["m0609_tool0__camera_link"]["quat_xyzw"])
@@ -758,38 +799,99 @@ class Backend:
         self._ensure_camera_warm()
         return {"ok": True, "pose": pose_name}
 
-    def _ensure_camera_warm(self):
-        """render_product 를 여기서(관측 자세에 이미 도착한 뒤) 처음 만든다.
+    def _ensure_camera_warm(self, force=False):
+        """관측 자세에 이미 도착한 뒤, 뷰포트를 손목 카메라로 돌리고 depth
+        AOV 를 등록한다.
 
-        __init__ 시점(팔이 READY 자세 — QR 과 무관한 방향을 봄)에 미리
-        만들어 뒀더니 RTX 가 그 첫 시야 기준으로 밉맵/텍스처 스트리밍 상태를
-        고정해 버려서, 나중에 관측 자세로 옮겨 렌더 스텝을 아무리 밟아도
-        QR 디코드가 계속 깨졌다(실측으로 원인 확정 — eval_qr_pose_depth.py
-        는 이미 관측 자세에 있는 상태에서 render_product 를 만들어서 이
-        문제가 없었다). 그래서 '진짜로 볼 것을 보고 있는 상태'에서 처음
-        만들고, 그 뒤로는 재사용한다.
+        ★★★ 이전 판은 rep.create.render_product() + AnnotatorRegistry 로
+        새 render_product 를 만들었는데, 이 세션(Isaac Sim 5.1.0 rc.19)에서
+        그 경로 자체가 원인 불명으로 항상 빈 프레임만 줬다 — 카메라 종류·
+        동시 부하·확장 로드 순서·multi_gpu·Kit 사용자 설정을 전부 바꿔봐도
+        재현됐고, 순정 재설치판에서도 재현됐다(스테이지 로드 중
+        omni.graph.core 쪽 세그폴트까지 같이 남 — 업스트림
+        Replicator/FabricReader 버그로 보인다. task_manager.py QR 인식
+        디버깅 이력 참고). 심지어 이미 정상 동작 중인 메인 뷰포트의
+        render_product 에 새 annotator 를 "붙이기만" 해도 똑같이
+        빈 프레임이었다 — 문제가 render_product 가 아니라 annotator
+        (FabricReader) 파이프라인 자체에 있다는 뜻이다.
+
+        그래서 Replicator/AnnotatorRegistry 를 아예 안 거치는
+        omni.kit.widget.viewport.capture(Kit 자체 스크린샷/뷰포트 캡쳐가
+        쓰는 것과 같은 omni.renderer_capture 백엔드)로 바꿨다 — 뷰포트
+        카메라를 손목 카메라로 돌리고, 그 뷰포트의 render_product 에
+        raw AOV 캡쳐(_capture_frame)로 RGB+depth 를 직접 받는다.
+        depth 는 omni.kit.viewport.utility.add_aov_to_viewport() 로 등록하는데
+        (Replicator 를 안 거치고 RenderProduct prim 의 orderedVars 에 USD
+        레벨로만 RenderVar 를 추가하는 함수라 FabricReader 버그를 피해간다),
+        이 함수 자체에도 버그가 있다 — `/app/hydra/renderSettings/
+        saveUsdAttributes` 가 True 일 때 타는 분기가
+        `for render_var_prims in render_var_prims:` 로 루프 변수를 자기
+        자신에 덮어써서 그 안의 `render_var_prim`(단수)이 UnboundLocalError
+        로 죽는다(실측 재현). 그 설정을 미리 꺼서 우회한다.
+
+        raw AOV 이름은 Replicator 주석("distance_to_image_plane")과 다르다 —
+        omni.replicator.core.scripts.annotators 의 AnnotatorParams 테이블에
+        찍힌 실제 이름은 "DistanceToImagePlaneSD"(SD 접미사, 실측 확인:
+        "DistanceToImagePlane"으로는 aov_map 에 등록만 되고 텍스처 해상도가
+        (0,0)으로 끝까지 안 채워짐 — SD 이름이라야 R32_SFLOAT/1280x720 로
+        실제 채워진다).
+
+        부작용: 이 호출 이후 GUI 뷰포트에는 씬 전체가 아니라 손목 카메라
+        시야가 보인다 — 감수한다.
         """
-        if self._rgb is None:
-            import omni.replicator.core as rep
-            rp = rep.create.render_product(CAMERA_PRIM, RESOLUTION)
-            self._rgb = rep.AnnotatorRegistry.get_annotator("rgb")
-            self._rgb.attach([rp])
-            self._depth = rep.AnnotatorRegistry.get_annotator("distance_to_image_plane")
-            self._depth.attach([rp])
-        for _ in range(60):
+        from omni.kit.viewport.utility import get_active_viewport, add_aov_to_viewport
+        import carb.settings
+
+        viewport = get_active_viewport()
+        if viewport is None:
+            raise RuntimeError(
+                "활성 뷰포트를 찾을 수 없다 — headless 모드에서는 이 우회가 안 통한다")
+        viewport.camera_path = CAMERA_PRIM
+        if force or not self._capture_ready:
+            carb.settings.get_settings().set(
+                "/app/hydra/renderSettings/saveUsdAttributes", False)
+            add_aov_to_viewport(viewport, DEPTH_AOV_NAME)
+            self._capture_ready = False
+        for _ in range(30):
             self.world.step(render=True)
-        # 고정 60프레임으로 항상 충분한 건 아니었다(실측: carrier_scan 3회
-        # 재시도 전부 rgb annotator shape=(0,) — 빈 프레임). RTX 파이프라인
-        # 워밍업 시간은 세션/부하에 따라 들쭉날쭉하므로, 실제로 유효한
-        # (H,W,3) 프레임이 나올 때까지 추가로 더 기다린다.
-        for _ in range(240):
-            rgb_raw = np.asarray(self._rgb.get_data())
-            if rgb_raw.ndim == 3:
-                return
+        # 실제로 유효한 프레임이 나오는지 한 번 확인한다 — 이전 판의
+        # "워밍업 검증" 과 같은 취지다. 실패하면 그대로 예외를 올린다.
+        self._capture_frame(timeout_frames=240)
+        self._capture_ready = True
+
+    def _capture_frame(self, timeout_frames=180):
+        """뷰포트의 render_product 에서 RGB(BGR 로 변환해서 반환)+depth 를
+        raw 바이트 콜백으로 한 프레임 받는다. _ensure_camera_warm() 독스트링
+        참고 — Replicator/AnnotatorRegistry(FabricReader)를 아예 안 거친다."""
+        from omni.kit.viewport.utility import get_active_viewport
+        from omni.kit.widget.viewport.capture import MultiAOVByteCapture
+
+        viewport = get_active_viewport()
+        if viewport is None:
+            raise RuntimeError("활성 뷰포트를 찾을 수 없다")
+
+        result = {}
+
+        def _on_rgb(buffer, buffer_size, width, height, byte_format):
+            raw = _pycapsule_to_bytes(buffer, buffer_size)
+            arr = np.frombuffer(raw, dtype=np.uint8, count=buffer_size)
+            result["rgb"] = arr.reshape(height, width, 4)[:, :, :3][:, :, ::-1].copy()
+
+        def _on_depth(buffer, buffer_size, width, height, byte_format):
+            raw = _pycapsule_to_bytes(buffer, buffer_size)
+            arr = np.frombuffer(raw, dtype=np.float32, count=width * height)
+            result["depth"] = arr.reshape(height, width).astype(np.float64).copy()
+
+        cap = MultiAOVByteCapture(["", DEPTH_AOV_NAME], [_on_rgb, _on_depth])
+        self._pending_capture = cap  # GC 되면 콜백이 안 온다 — 끝날 때까지 붙잡아둔다
+        viewport.schedule_capture(cap)
+        for _ in range(timeout_frames):
             self.world.step(render=True)
-        raise RuntimeError(
-            f"카메라 워밍업 타임아웃 — rgb annotator 가 계속 빈 프레임을 준다 "
-            f"(마지막 shape={np.asarray(self._rgb.get_data()).shape})")
+            if "rgb" in result and "depth" in result:
+                self._pending_capture = None
+                return result["rgb"], result["depth"]
+        self._pending_capture = None
+        raise RuntimeError("프레임 캡쳐 타임아웃 — rgb/depth 콜백이 오지 않았다")
 
     def scan_qr(self, expected_id=None, n_frames=3):
         """cobot3_perception.qr_pose 로 QR 자세를 재고, base_link 프레임으로
@@ -801,22 +903,7 @@ class Backend:
         obs_list = []
         decoded = ""
         for _ in range(n_frames):
-            for _ in range(3):
-                self.world.step(render=True)
-            rgb_raw = np.asarray(self._rgb.get_data())
-            extra = 0
-            while rgb_raw.ndim != 3 and extra < 60:
-                # 워밍업 뒤에도 가끔 한 프레임이 비어 올 수 있다 — 바로 죽이지
-                # 않고 몇 스텝 더 밟아본다.
-                self.world.step(render=True)
-                rgb_raw = np.asarray(self._rgb.get_data())
-                extra += 1
-            if rgb_raw.ndim != 3:
-                raise RuntimeError(
-                    f"rgb annotator 가 빈 프레임을 줬다 (shape={rgb_raw.shape}) — "
-                    "render_product 워밍업이 부족했을 수 있다")
-            rgb = rgb_raw[:, :, :3][:, :, ::-1].copy()
-            depth = np.asarray(self._depth.get_data(), dtype=np.float64).reshape(rgb.shape[:2])
+            rgb, depth = self._capture_frame()
             l6_p, l6_q = get_world_pose(EE_LINK_PATH)
             R_l6 = quat_to_matrix(l6_q)
             R_opt = R_l6 @ self.R_l6_cam @ self.R_cam_opt
@@ -1054,6 +1141,97 @@ class Backend:
         p_rel = R_base.T @ (fc - base_p)
         return {"position": p_rel.tolist(), "quat_wxyz": [1.0, 0.0, 0.0, 0.0]}
 
+    def debug_capture_via_widget(self, path, camera_prim=None, settle_frames=30, wait_frames=120):
+        """디버그 전용 — omni.replicator.core(AnnotatorRegistry/FabricReader)를
+        완전히 안 거치는 별도 경로로 캡쳐해본다. omni.kit.widget.viewport.capture
+        가 쓰는 것과 같은 네이티브 Kit 캡쳐(omni.renderer_capture)라서, 지금까지
+        재현된 "annotator 가 항상 빈 프레임" 버그가 여기도 재현되는지가
+        Replicator/FabricReader 쪽 문제인지 아니면 렌더러 자체 문제인지를
+        가른다."""
+        import os
+        from omni.kit.viewport.utility import get_active_viewport, capture_viewport_to_file
+
+        viewport = get_active_viewport()
+        if viewport is None:
+            raise RuntimeError("활성 뷰포트를 찾을 수 없다 — headless 모드에서는 안 통한다")
+        if camera_prim:
+            viewport.camera_path = camera_prim
+        for _ in range(settle_frames):
+            self.world.step(render=True)
+
+        try:
+            if os.path.exists(path):
+                os.remove(path)
+        except OSError:
+            pass
+
+        capture_viewport_to_file(viewport, file_path=path)
+        for _ in range(wait_frames):
+            self.world.step(render=True)
+            if os.path.exists(path) and os.path.getsize(path) > 0:
+                return {"ok": True, "saved": path, "size": os.path.getsize(path)}
+        return {"ok": False, "saved": None}
+
+    def debug_capture_aov(self, aov_name, camera_prim=None, settle_frames=30, wait_frames=120):
+        """디버그 전용 — Replicator/AnnotatorRegistry 를 거치지 않고
+        (omni.kit.widget.viewport.capture 의 MultiAOVByteCapture 로) 임의의
+        AOV 하나를 raw 바이트로 받아본다. depth(distance_to_image_plane)가
+        이 경로로도 되는지 확인하는 용도 — 정확한 raw AOV 이름을 모르니
+        여러 후보를 넣어보고 aov_map 에 뭐가 실제로 들어있는지도 로그로
+        남긴다."""
+        import carb.settings
+        from omni.kit.viewport.utility import get_active_viewport, add_aov_to_viewport
+        from omni.kit.widget.viewport.capture import MultiAOVByteCapture
+
+        viewport = get_active_viewport()
+        if viewport is None:
+            raise RuntimeError("활성 뷰포트를 찾을 수 없다")
+        if camera_prim:
+            viewport.camera_path = camera_prim
+        # ★ add_aov_to_viewport() 자체에 버그가 있다 —
+        # /app/hydra/renderSettings/saveUsdAttributes 가 True 일 때 타는
+        # 분기가 `for render_var_prims in render_var_prims:` 로 루프
+        # 변수를 자기 자신에 덮어써서 그 안의 `render_var_prim`(단수)이
+        # UnboundLocalError 로 죽는다(실측 재현). 이 세션 설정값이 True 라
+        # 매번 그 분기를 탄다 — False 분기(버그 없음)를 강제로 타게 만든다.
+        carb.settings.get_settings().set("/app/hydra/renderSettings/saveUsdAttributes", False)
+        add_aov_to_viewport(viewport, aov_name)
+        for _ in range(settle_frames):
+            self.world.step(render=True)
+
+        result = {}
+        seen_aovs = []
+
+        def _on_capture(buffer, buffer_size, width, height, byte_format):
+            result["got"] = True
+            result["width"] = width
+            result["height"] = height
+            result["byte_format"] = str(byte_format)
+            result["buffer_size"] = buffer_size
+
+        class _Probe(MultiAOVByteCapture):
+            def capture(self, aov_map, frame_info, hydra_texture, result_handle):
+                seen_aovs.extend(list(aov_map.keys()))
+                aov_data = aov_map.get(aov_name)
+                if aov_data:
+                    tex = aov_data.get("texture", {})
+                    result["aov_data_keys"] = list(aov_data.keys())
+                    result["texture_keys"] = list(tex.keys())
+                    result["texture_info"] = {k: str(v) for k, v in tex.items()
+                                               if k != "rp_resource"}
+                return super().capture(aov_map, frame_info, hydra_texture, result_handle)
+
+        cap = _Probe([aov_name], [_on_capture])
+        self._debug_cap_ref = cap  # GC 방지 — 콜백 끝날 때까지 붙잡아둔다
+        viewport.schedule_capture(cap)
+        for _ in range(wait_frames):
+            self.world.step(render=True)
+            if result.get("got"):
+                break
+        result["requested_aov"] = aov_name
+        result["available_aovs"] = seen_aovs
+        return result
+
     def debug_state(self):
         """디버그 전용 — tcp/매거진 world pose 와 간격을 바로 본다."""
         tcp = self._get_tcp_pose()
@@ -1065,11 +1243,81 @@ class Backend:
                "gripped": holding(self.gripper.gripped()),
                "dist_tcp_to_mag_top": float(np.linalg.norm(tcp - np.array([cx[0], cx[1], top_z])))}
 
-    def debug_capture(self, path):
+    def debug_list_cameras(self, root_path="/World/Robots/nova_carter1"):
+        """디버그 전용 — root 아래 Camera 타입 프림 경로를 전부 나열한다.
+        대조군으로 쓸 다른 카메라(front_hawk 등)를 찾을 때 쓴다."""
+        root = self.stage.GetPrimAtPath(root_path)
+        if not root.IsValid():
+            return {"root": root_path, "valid": False, "cameras": []}
+        cams = [str(p.GetPath()) for p in Usd.PrimRange(root)
+                if p.GetTypeName() == "Camera"]
+        return {"root": root_path, "valid": True, "cameras": cams}
+
+    def debug_capture_prim(self, camera_prim, path, width=640, height=480):
+        """디버그 전용 — 임의의 카메라 prim 하나로 새 render_product 를 만들어
+        한 번 찍어본다. self._rgb/self._depth(손목 카메라 전용)는 건드리지
+        않는다 — CAMERA_PRIM 이외의 카메라로 렌더 파이프라인 자체가 이
+        세션에서 살아있는지 대조군으로 볼 때 쓴다."""
+        import cv2
+        import omni.replicator.core as rep
+        prim = self.stage.GetPrimAtPath(camera_prim)
+        if not prim.IsValid():
+            raise RuntimeError(f"{camera_prim} 프림이 없다")
+        rp = rep.create.render_product(camera_prim, (width, height))
+        rgb = rep.AnnotatorRegistry.get_annotator("rgb")
+        rgb.attach([rp])
+        for _ in range(60):
+            self.world.step(render=True)
+        ok = False
+        raw = np.asarray(rgb.get_data())
+        for _ in range(240):
+            raw = np.asarray(rgb.get_data())
+            if raw.ndim == 3:
+                ok = True
+                break
+            self.world.step(render=True)
+        result = {"camera_prim": camera_prim, "ok": ok}
+        if ok:
+            img = raw[:, :, :3][:, :, ::-1].copy()
+            cv2.imwrite(path, img)
+            result["saved"] = path
+            result["shape"] = list(img.shape)
+        else:
+            result["last_shape"] = list(raw.shape)
+        rgb.detach()
+        return result
+
+    def debug_check_camera_prim(self):
+        """디버그 전용 — CAMERA_PRIM 이 지금 스테이지에 실제로 존재/로드돼
+        있는지 확인한다. rgb annotator 가 계속 shape=(0,) 을 줄 때 render_product
+        가 애초에 존재하지 않는 prim 을 가리키고 있는 건 아닌지 가른다."""
+        prim = self.stage.GetPrimAtPath(CAMERA_PRIM)
+        info = {"path": CAMERA_PRIM, "valid": prim.IsValid()}
+        if prim.IsValid():
+            info["type"] = prim.GetTypeName()
+            info["active"] = prim.IsActive()
+        # 조상 중 payload 가 unloaded 인 게 있는지 위로 훑는다 — 자식 경로가
+        # 안 보이는 가장 흔한 이유다(configure_gripper_limits 의 short_gripper
+        # 사례와 같은 종류).
+        chain = []
+        p = self.stage.GetPrimAtPath(GRIPPER_PRIM)
+        for name in ["", "rsd455", "RSD455", "Camera_OmniVision_OV9782_Color"]:
+            if name:
+                p = p.GetChild(name) if p.IsValid() else p
+            chain.append({
+                "path": str(p.GetPath()) if p.IsValid() else f"<invalid after {name!r}>",
+                "valid": p.IsValid(),
+                "hasPayload": p.HasPayload() if p.IsValid() else None,
+                "isLoaded": p.IsLoaded() if p.IsValid() else None,
+            })
+        info["chain"] = chain
+        return info
+
+    def debug_capture(self, path, force=False):
         """디버그 전용 — 지금 손목 카메라가 보는 그림을 저장한다."""
         import cv2
-        self._ensure_camera_warm()
-        rgb = np.asarray(self._rgb.get_data())[:, :, :3][:, :, ::-1].copy()
+        self._ensure_camera_warm(force=force)
+        rgb, _depth = self._capture_frame()
         cv2.imwrite(path, rgb)
         base_p, base_q = get_world_pose(CHASSIS_LINK_PATH)
         l6_p, l6_q = get_world_pose(EE_LINK_PATH)
@@ -1100,6 +1348,11 @@ def main():
         "get_flange_pose_world": backend.get_flange_pose_world,
         "debug_capture": backend.debug_capture,
         "debug_state": backend.debug_state,
+        "debug_check_camera_prim": backend.debug_check_camera_prim,
+        "debug_list_cameras": backend.debug_list_cameras,
+        "debug_capture_prim": backend.debug_capture_prim,
+        "debug_capture_via_widget": backend.debug_capture_via_widget,
+        "debug_capture_aov": backend.debug_capture_aov,
     }
 
     while simulation_app.is_running():

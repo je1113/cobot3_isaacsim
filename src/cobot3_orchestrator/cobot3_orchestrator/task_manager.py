@@ -937,6 +937,28 @@ class TaskManager(Node):
         # patrol_branch 를 주석처리해 둔 동안은 patrol_node 가 None 이다.
         self.patrolling = (self.patrol_node is not None
                             and self.patrol_node.status == Status.RUNNING)
+
+        # ★ 임시 — patrol 가지가 없는 동안의 재시도 흉내.
+        # SCAN 이 found=false 로 soft 실패하면 mission Sequence 가 FAILURE 로
+        # 끝나고, patrol 가지가 없으니 Selector 도 그대로 FAILURE 다 — 아무
+        # 리프도 RUNNING 이 아닌 "완전 정지" 상태가 된다. patrol 이 있었다면
+        # 자연히 거기로 빠져 순찰하다 다시 carrier_detected 를 받았을 자리인데,
+        # 지금은 그 경로가 없다. bb.detected 는 Hold 가 한 번 쓰고 지우는
+        # 값이라(START_DETECTED_FOR_TEST 는 노드 시작 시 딱 한 번만 세운다)
+        # 아무도 다시 세워주지 않으면 로봇이 영원히 멈춘 채로 남는다.
+        # 여기서 그 자리를 대신한다: 완전 정지 상태를 감지하면 detected 를
+        # 다시 세워 SCAN 부터 재시도한다. SCAN_COOLDOWN_S(on_scan_not_found
+        # 가 세우는 값)로 재시도 폭주를 막는다 — hard 실패(self.failed=True)는
+        # Freeze 가 RUNNING 을 계속 돌려주므로 이 조건에 안 걸린다.
+        # patrol 을 다시 살리면 patrol_node 가 None 이 아니게 되어 이 블록은
+        # 저절로 꺼진다 — 그때 지워도 되고 안 지워도 무해하다.
+        if (self.patrol_node is None and not self.failed
+                and tree.root.status == Status.FAILURE
+                and time.monotonic() >= self._scan_cooldown_until):
+            self.get_logger().info(
+                "완전 정지 상태(patrol 없음) — detected 재설정, SCAN 재시도")
+            self.bb.detected = True
+
         snapshot = py_trees.display.unicode_tree(tree.root, show_status=True)
         if snapshot != self._last_snapshot:
             self._last_snapshot = snapshot
