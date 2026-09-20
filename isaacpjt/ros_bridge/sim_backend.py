@@ -47,6 +47,13 @@ simulation_app = SimulationApp({"headless": HEADLESS})
 # 라이브러리를 "찾을 수 있게" 만들 뿐, 확장을 "켜는" 건 아니다 — 둘 다 필요하다.
 from isaacsim.core.utils.extensions import enable_extension  # noqa: E402
 enable_extension("isaacsim.ros2.bridge")
+# SurfaceGripper 는 USD 프림이 아니라 이 익스텐션이 등록하는 OmniGraph 노드
+# 타입(isaacsim.robot.surface_gripper.SurfaceGripper)이다 — 스테이지를 열기
+# 전에 켜두지 않으면 short_gripper payload 가 로드돼도 OmniGraph 가 그 노드
+# 타입을 몰라서 인스턴스화하지 못하고, configure_gripper_limits() 가
+# "SurfaceGripper node not found" 로 죽는다(재시도 프레임을 늘려도 안 됨 —
+# 익스텐션이 그 전에는 아예 등록을 안 하기 때문).
+enable_extension("isaacsim.robot.surface_gripper")
 
 import numpy as np
 import omni.usd
@@ -254,6 +261,20 @@ def find_prim_path(root_path, name):
     return None
 
 
+def wait_for_stage_load(ctx, min_frames=60, max_frames=600):
+    """open_stage()/Load() 뒤에 고정 프레임만 돌리면 외부 payload(short_gripper 등)가
+    아직 안 붙은 상태에서 다음 단계로 넘어갈 수 있다 — SurfaceGripper not found 로
+    재현됨. get_stage_loading_status()[2](대기 중인 로드 개수)가 0이 될 때까지
+    돈다. min_frames 는 상태가 바로 0으로 보고되는 첫 프레임들을 건너뛰기 위한
+    최소 대기."""
+    for _ in range(min_frames):
+        simulation_app.update()
+    for _ in range(max_frames - min_frames):
+        if ctx.get_stage_loading_status()[2] == 0:
+            break
+        simulation_app.update()
+
+
 # 12_pick_test.py 검증값. 에셋 기본값(coaxial/shear=0)으로 두면 아무것도 못
 # 든다 — frames.yaml suction_gripper.asset_defaults 주석 참고.
 COAXIAL_FORCE_LIMIT = 200.0
@@ -261,7 +282,7 @@ SHEAR_FORCE_LIMIT = 100.0
 MAX_GRIP_DISTANCE = 0.03
 
 
-def configure_gripper_limits(stage, gripper_prim):
+def configure_gripper_limits(stage, gripper_prim, max_wait_frames=180):
     """씬에 붙어 있는 SurfaceGripper 노드의 한계값을 12_pick_test.py 값으로
     덮어쓴다. 이걸 빼먹으면 위치가 완벽해도 흡착이 전혀 안 붙는다 — 실제로
     한 번 이 실수를 했다(NO_ATTACH 4/4, GT 좌표로 줘도 재현됨).
@@ -269,10 +290,40 @@ def configure_gripper_limits(stage, gripper_prim):
     반환값(SurfaceGripper 노드 경로 자체)이 중요하다 — SurfaceGripperCtl 은
     부모 prim(short_gripper)이 아니라 이 노드 경로를 받아야 한다. 처음에
     부모 경로를 넘겼다가 또 한 번 NO_ATTACH 를 재현했다.
+
+    short_gripper 는 외부 payload(omniverse-content-production S3)라서
+    stage.Load() 가 "끝났다"고 리턴한 뒤에도 실제 프림이 몇 프레임 늦게
+    붙는 경우가 있었다(RuntimeError: SurfaceGripper node not found 로 재현됨).
+    바로 죽이지 말고 max_wait_frames 만큼 재시도한다.
     """
+    root = stage.GetPrimAtPath(gripper_prim)
+    if root.IsValid() and root.HasPayload() and not root.IsLoaded():
+        print(f"   !! {gripper_prim} payload 가 unloaded 상태 — root.Load() 직접 호출")
+        root.Load()
+        simulation_app.update()
+
     node_path = find_prim_path(gripper_prim, "SurfaceGripper")
+    waited = 0
+    while node_path is None and waited < max_wait_frames:
+        simulation_app.update()
+        waited += 1
+        node_path = find_prim_path(gripper_prim, "SurfaceGripper")
     if node_path is None:
-        raise RuntimeError(f"SurfaceGripper node not found under {gripper_prim}")
+        root = stage.GetPrimAtPath(gripper_prim)
+        if not root.IsValid():
+            diag = f"{gripper_prim} 프림 자체가 없음 (root invalid)"
+        else:
+            names = [str(p.GetPath()) for p in Usd.PrimRange(root)]
+            diag = (
+                f"{gripper_prim} 은 있음: hasPayload={root.HasPayload()} "
+                f"isLoaded={root.IsLoaded()} isActive={root.IsActive()} "
+                f"loadRules={stage.GetLoadRules()} "
+                f"하위 프림 {len(names) - 1}개: {names[1:]}"
+            )
+        raise RuntimeError(
+            f"SurfaceGripper node not found under {gripper_prim} "
+            f"(waited {waited} extra frames). {diag}"
+        )
     node = stage.GetPrimAtPath(node_path)
     node.GetAttribute("isaac:coaxialForceLimit").Set(COAXIAL_FORCE_LIMIT)
     node.GetAttribute("isaac:shearForceLimit").Set(SHEAR_FORCE_LIMIT)
@@ -414,12 +465,14 @@ class Backend:
 
         ctx = omni.usd.get_context()
         ctx.open_stage(WORLD_USD)
-        for _ in range(60):
-            simulation_app.update()
+        wait_for_stage_load(ctx)
         self.stage = ctx.get_stage()
+        # open_stage() 의 load_set 기본값(LOAD_ALL)과 무관하게, 이 앱 프로필에서는
+        # short_gripper payload 가 로드 안 된 채로 남는 걸 확인했다(실패 시 진단
+        # 로그가 "프림은 있음, 하위 0개" 를 찍음 — Usd.PrimRange 의 기본 predicate 는
+        # unloaded 프림을 root 조차 스킵한다). 그래서 명시적으로 Load() 가 필요하다.
         self.stage.Load()
-        for _ in range(60):
-            simulation_app.update()
+        wait_for_stage_load(ctx)
         configure_drives(self.stage)
         self._gripper_node_path = configure_gripper_limits(self.stage, GRIPPER_PRIM)
         filter_collision(GRIPPER_PRIM, MAGAZINE_XFORM_PATH)
@@ -490,7 +543,20 @@ class Backend:
             q[self.robot.get_dof_index(name)] = np.deg2rad(deg)
         self.robot.set_joint_positions(q)
 
+    def _require_playing(self):
+        """Stop 상태에서는 articulation view 가 무효라 get_joint_positions() 가
+        None 을 반환한다 — 그 자리에서 바로 TypeError('NoneType' object does
+        not support item assignment) 로 죽어서 원인을 알기 어려웠다(실측).
+        자동으로 다시 play() 하지는 않는다 — 사용자가 일부러 Stop 을 누른
+        경우와 구분이 안 되기 때문이다. 대신 여기서 명확한 이유를 알려준다."""
+        if not self.world.is_playing():
+            raise RuntimeError(
+                "시뮬레이션이 Play 상태가 아니다 — Isaac Sim 뷰포트에서 Play 를 "
+                "누른 뒤 다시 시도해라 (Stop 상태에서는 로봇 articulation 을 "
+                "읽거나 움직일 수 없다)")
+
     def _set_joint_deg(self, joints_deg):
+        self._require_playing()
         idx = np.array([self.robot.get_dof_index(j) for j in ARM_JOINTS])
         q = self.robot.get_joint_positions()
         q[idx] = np.deg2rad(joints_deg)
@@ -505,6 +571,7 @@ class Backend:
         중에 쓰면 그 순간 가속으로 접합이 끊긴다(실측: LIFT 판정은 통과했는데
         STOW 이후 최종 gripped=False). 대신 매 스텝 목표를 다시 명령해 부드럽게
         움직인다 — _servo_tcp 와 같은 방식."""
+        self._require_playing()
         idx = np.array([self.robot.get_dof_index(j) for j in ARM_JOINTS])
         start_deg = np.degrees(self.robot.get_joint_positions()[idx])
         target_deg = np.array(target_joints_deg, dtype=float)
@@ -711,6 +778,18 @@ class Backend:
             self._depth.attach([rp])
         for _ in range(60):
             self.world.step(render=True)
+        # 고정 60프레임으로 항상 충분한 건 아니었다(실측: carrier_scan 3회
+        # 재시도 전부 rgb annotator shape=(0,) — 빈 프레임). RTX 파이프라인
+        # 워밍업 시간은 세션/부하에 따라 들쭉날쭉하므로, 실제로 유효한
+        # (H,W,3) 프레임이 나올 때까지 추가로 더 기다린다.
+        for _ in range(240):
+            rgb_raw = np.asarray(self._rgb.get_data())
+            if rgb_raw.ndim == 3:
+                return
+            self.world.step(render=True)
+        raise RuntimeError(
+            f"카메라 워밍업 타임아웃 — rgb annotator 가 계속 빈 프레임을 준다 "
+            f"(마지막 shape={np.asarray(self._rgb.get_data()).shape})")
 
     def scan_qr(self, expected_id=None, n_frames=3):
         """cobot3_perception.qr_pose 로 QR 자세를 재고, base_link 프레임으로
@@ -725,6 +804,13 @@ class Backend:
             for _ in range(3):
                 self.world.step(render=True)
             rgb_raw = np.asarray(self._rgb.get_data())
+            extra = 0
+            while rgb_raw.ndim != 3 and extra < 60:
+                # 워밍업 뒤에도 가끔 한 프레임이 비어 올 수 있다 — 바로 죽이지
+                # 않고 몇 스텝 더 밟아본다.
+                self.world.step(render=True)
+                rgb_raw = np.asarray(self._rgb.get_data())
+                extra += 1
             if rgb_raw.ndim != 3:
                 raise RuntimeError(
                     f"rgb annotator 가 빈 프레임을 줬다 (shape={rgb_raw.shape}) — "
