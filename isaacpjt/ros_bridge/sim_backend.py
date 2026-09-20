@@ -154,6 +154,17 @@ DEPTH_AOV_NAME = "DistanceToImagePlaneSD"
 DRIVE_STIFFNESS, DRIVE_DAMPING, DRIVE_MAX_FORCE = 1e5, 1e4, 2700.0
 DRIVE_STIFFNESS_PICK = 1e8
 READY_JOINTS_DEG = [0.0, 0.0, 90.0, 0.0, 90.0, 0.0]
+# 부팅 직후 팔의 초기 자세. 예전엔 READY_JOINTS_DEG(위, STOW 이송 자세와
+# 같은 값)로 세웠는데, task_manager.py 의 START_DETECTED_FOR_TEST 때문에
+# 노드가 뜨자마자 SCAN 이 바로 도는 지금 배선에서는 그 사이 "팔이 아직
+# READY 자세인데 SCAN 은 이미 관측 자세인 줄 알고 진행" 하는 과도기가
+# 혼선을 줬다(실측: PICK 위치 오차/QR 미인식 재현 이력). 아예 부팅 시점
+# 부터 SCAN 관측 자세로 세운다 — simple_factory_layout.usda 의 nova_carter1
+# 팔 관절 초기값도 이 자세로 맞춰 놨다(둘 다 일치해야 한다: USD 쪽 값은
+# Backend.__init__ 이 아래에서 다시 명시적으로 덮어쓰므로 실제 동작을
+# 좌우하는 건 이 상수 쪽이고, USD 값은 "씬만 열었을 때"도 같은 자세로
+# 보이게 하기 위한 것).
+BOOT_POSE_NAME = "shelf_1_top_close_centered"
 
 # 12_pick_test.py / grasp.yaml 검증값 — 새로 지어내지 않는다.
 SUCTION_FACE_Z = 0.161
@@ -532,11 +543,40 @@ class Backend:
             prim_path=MAGAZINE_XFORM_PATH, name="magazine"))
         self.world.reset()
         self.robot.initialize()
-        self._set_ready_pose()
+        # ★ 2단계 부팅 — 1) 먼저 안전하다고 검증된 READY_JOINTS_DEG 로
+        # 즉시 스냅하고 충분히 세워 안정시킨다. 2) 안정된 뒤에야
+        # BOOT_POSE_NAME(SCAN 관측 자세, joint_3=150° 근처로 훨씬 더
+        # 뻗은 자세)로 _servo_joint_deg(부드러운 보간)로 옮긴다.
+        # 순서를 바꿔서 reset() 직후 곧바로 SCAN 자세로 순간 스냅해봤더니
+        # (또는 USD 의 state:angular:physics:position 자체를 그 값으로
+        # 박아봤더니) 베이스가 물리 충격으로 넘어지는 게 실측 재현됐다 —
+        # 이 씬에서 READY_JOINTS_DEG 는 오래 써 온 안전한 시작 자세라
+        # 그대로 두고, 거기서 SCAN 자세까지는 반드시 부드럽게 옮긴다.
+        q = np.zeros(self.robot.num_dof)
+        for name, deg in zip(ARM_JOINTS, READY_JOINTS_DEG):
+            q[self.robot.get_dof_index(name)] = np.deg2rad(deg)
+        self.robot.set_joint_positions(q)
         for _ in range(SETTLE_STEPS):
             self.world.step(render=not HEADLESS)
 
+        taught = yaml.safe_load((ISAACPJT / "tools/out/taught_poses.yaml").read_text(encoding="utf-8"))
+        self._servo_joint_deg(taught[BOOT_POSE_NAME]["joints_deg"], n_steps=SETTLE_STEPS)
+
         self.magazine_spawn_pos, self.magazine_spawn_quat = self.magazine.get_world_pose()
+
+        # ★ PICK 판정(rise/tilt)이 "지금 실제로 집은 매거진"이 아니라 항상
+        # MAGAZINE_XFORM_PATH(magazine_1_orange) 하나만 쟀던 버그의 수정.
+        # 이 씬은 magazine_2_blue 같은 variant 가 선반마다 여러 인스턴스로
+        # 있어서(layout_measured.yaml 참고 — shelf_1/2 x top/bottom x
+        # orange/blue x 2개씩, 총 16개) 이름만으로는 "지금 집은 그것"을 못
+        # 가른다. QR 은 종류만 담아서 인스턴스 ID 도 없다(task_manager.py
+        # 상단 "알려진 갭" 참고). 그래서 이름이 아니라 위치로 가른다 —
+        # pick_phase1_approach 가 이미 아는 실제 목표 flange_world 좌표에
+        # 가장 가까운 인스턴스를 찾는다. 그 후보 목록을 여기서 한 번만
+        # 읽어둔다(매 PICK 마다 yaml 다시 읽을 필요 없음).
+        meas_layout = yaml.safe_load(MEASURED.read_text(encoding="utf-8"))
+        self._all_magazine_prims = [m["prim"] for m in meas_layout["magazines"].values()]
+        self._current_magazine_path = MAGAZINE_XFORM_PATH  # PICK 전 기본값(레거시 메서드용)
 
         base_pos0, base_quat0 = get_world_pose(BASE_LINK_PATH)
         self.lula = LulaKinematicsSolver(robot_description_path=DESC_PATH, urdf_path=URDF_PATH)
@@ -577,12 +617,6 @@ class Backend:
         pos, quat = get_world_pose(BASE_LINK_PATH)
         self.lula.set_robot_base_pose(robot_position=pos, robot_orientation=quat)
         return pos, quat
-
-    def _set_ready_pose(self):
-        q = np.zeros(self.robot.num_dof)
-        for name, deg in zip(ARM_JOINTS, READY_JOINTS_DEG):
-            q[self.robot.get_dof_index(name)] = np.deg2rad(deg)
-        self.robot.set_joint_positions(q)
 
     def _require_playing(self):
         """Stop 상태에서는 articulation view 가 무효라 get_joint_positions() 가
@@ -962,6 +996,22 @@ class Backend:
             w = (R[1,0]-R[0,1])/S; x=(R[0,2]+R[2,0])/S; y=(R[1,2]+R[2,1])/S; z=0.25*S
         return np.array([w,x,y,z])
 
+    def _find_nearest_magazine(self, flange_world):
+        """실제로 지금 집으려는 매거진이 씬의 몇 번째 인스턴스인지는 이름
+        만으로 못 가른다(위 __init__ 의 self._all_magazine_prims 주석 참고).
+        pick_phase1_approach 가 이미 아는 실제 목표 flange_world(QR pose 로
+        역산한 3D 좌표)에 flange_plate 가 가장 가까운 인스턴스를 찾는다."""
+        best_path, best_d = None, None
+        for path in self._all_magazine_prims:
+            try:
+                cx, top_z, _h = measure_prim(f"{path}/flange_plate")
+            except Exception:
+                continue
+            d = float(np.linalg.norm(np.array([cx[0], cx[1], top_z]) - flange_world))
+            if best_d is None or d < best_d:
+                best_path, best_d = path, d
+        return best_path or MAGAZINE_XFORM_PATH
+
     def pick_phase1_approach(self, flange_pose_base_link, approach_dist_m):
         """PickCarrier 의 APPROACH. flange_pose 는 base_link 프레임
         {position:[x,y,z], quat_wxyz:[..]} (Pose 규약과 동일, position=판
@@ -972,6 +1022,10 @@ class Backend:
         p_rel = np.array(flange_pose_base_link["position"])
         flange_world = base_p + R_base @ p_rel
         self._flange_world = flange_world   # DESCEND 단계에서 재사용
+        # ★ pick_phase2_finish 의 rise/tilt 판정이 엉뚱한(하드코딩된
+        # magazine_1_orange) 매거진을 재던 버그의 수정 — 실제 목표 위치에
+        # 가장 가까운 인스턴스를 여기서 미리 찾아둔다.
+        self._current_magazine_path = self._find_nearest_magazine(flange_world)
 
         _set_status(phase="APPROACH", gripped=False, gap_m=0.0, message="")
         goal = flange_world + np.array([0, 0, approach_dist_m])
@@ -1017,17 +1071,24 @@ class Backend:
         tcp_now = self._get_tcp_pose()
         final_offset_m = float(np.linalg.norm((tcp_now - flange_world)[:2]))
 
+        # ★ 하드코딩된 FLANGE_PATH/self.magazine(magazine_1_orange) 대신,
+        # pick_phase1_approach 가 찾아둔 "실제로 지금 집는 그 인스턴스"를
+        # 잰다 — 안 그러면 아무도 안 건드리는 magazine_1_orange 만 계속
+        # 재서 rise 가 항상 0mm 으로 나오고 실제로는 성공한 PICK 이
+        # SLIP 으로 오판정된다(실측 재현 — task_manager.py QR 인식
+        # 디버깅 이력 참고).
+        target_flange_path = f"{self._current_magazine_path}/flange_plate"
         _set_status(phase="LIFT")
-        top_z0 = measure_prim(FLANGE_PATH)[1]
+        top_z0 = measure_prim(target_flange_path)[1]
         lift_goal = flange_world + np.array([0, 0, lift_height_m])
         self._servo_tcp(lift_goal, "LIFT")
         for _ in range(HOLD_WAIT):
             self.world.step(render=not HEADLESS)
         gripped_after_lift = holding(self.gripper.gripped())
         _set_status(gripped=gripped_after_lift)
-        top_z1 = measure_prim(FLANGE_PATH)[1]
+        top_z1 = measure_prim(target_flange_path)[1]
         rise_m = top_z1 - top_z0
-        _, mag_q = self.magazine.get_world_pose()
+        _, mag_q = get_world_pose(self._current_magazine_path)
         tilt_deg = tilt_deg_from_quat(mag_q)
 
         if not gripped_after_lift:
@@ -1233,11 +1294,17 @@ class Backend:
         return result
 
     def debug_state(self):
-        """디버그 전용 — tcp/매거진 world pose 와 간격을 바로 본다."""
+        """디버그 전용 — tcp/매거진 world pose 와 간격을 바로 본다.
+
+        self._current_magazine_path(PICK 시도 때 pick_phase1_approach 가
+        찾아둔 실제 인스턴스)를 쓴다 — 하드코딩된 MAGAZINE_XFORM_PATH
+        (magazine_1_orange)를 그대로 뒀더니 실제로 집은 게 magazine_2_blue
+        여도 엉뚱한 매거진 위치가 찍혀서 디버깅에 혼선을 줬다."""
         tcp = self._get_tcp_pose()
-        mag_p, mag_q = self.magazine.get_world_pose()
-        cx, top_z, height = measure_prim(MAGAZINE_XFORM_PATH)
+        mag_p, mag_q = get_world_pose(self._current_magazine_path)
+        cx, top_z, height = measure_prim(self._current_magazine_path)
         return {"tcp_world": tcp.tolist(), "magazine_world_pos": mag_p.tolist(),
+               "magazine_path": self._current_magazine_path,
                "magazine_top_z": top_z, "magazine_height": height,
                "magazine_center_xy": cx.tolist(),
                "gripped": holding(self.gripper.gripped()),
