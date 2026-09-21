@@ -66,7 +66,7 @@ docs/08_ROS2_NODE_Graph.html 의 확정안(01-03)이 기준이다. 노드 5개 �
       detected     carrier_detected 신호가 와 있나
       kind         QR 원문. 이 씬에서는 "1" 또는 "2" — 물체의 종류
       variant      kind 를 grasp.yaml(어떻게집나)/place.yaml(어디에놓나) 키로 푼 것
-      carrier_id   carriers.yaml(어느개체가어느종류인가) 조회 결과. 로그·표시용
+      carrier_id   QR 원문 그대로 = 개체 ID. 로그·표시용. DB 의 qr_payload 와 같은 값
       run_id       미션 1회를 묶는 UUID. SCAN 성공 때 발행해 사이클 끝까지 들고 간다.
                    DB 의 magazine_log.run_id 와 같은 값이다 (docs/DB구성.md §4)
       qr_pose      PickCarrier 가 플랜지를 찾을 탐색 창 prior
@@ -149,8 +149,9 @@ docs/08_ROS2_NODE_Graph.html 의 확정안(01-03)이 기준이다. 노드 5개 �
                               정차점까지 더 가고 싶으면 아래 상수 하나를 끈다.
 
 알려진 갭
-  - 이 씬의 QR 은 숫자 하나("1"/"2")만 담아서 같은 종류의 여러 개체를 구분하지
-    못한다. carriers.yaml 에서 그 종류의 첫 항목을 쓴다.
+  - 씬이 아직 옛 에셋이라 QR 이 숫자 하나("1"/"2")만 담는다. 그 동안에도 돌도록
+    _variant_of() 가 새 페이로드(F1-MGZB-1)와 옛 숫자를 둘 다 받는다.
+    씬을 16종으로 바꾸면 NUMERIC_TO_VARIANT 와 그 폴백을 지운다.
   - 순찰 중이 아닐 때(START · scan · pick · nav · place · return) 들어온
     carrier_detected 는 버린다. 물건은 그 자리에 그대로 있으므로 다음 순찰에
     다시 보인다.
@@ -161,13 +162,13 @@ docs/08_ROS2_NODE_Graph.html 의 확정안(01-03)이 기준이다. 노드 5개 �
 """
 
 import math
+import sys
 import time
 import uuid
 from pathlib import Path
 
 import py_trees
 import rclpy
-import yaml
 from geometry_msgs.msg import PoseStamped
 from py_trees.common import Access, Status
 from rclpy.action import ActionClient
@@ -254,9 +255,6 @@ STAGE_TO_REASON = {PICK: "pick_error", NAV: "nav_error",
 # 어디서 일어난 일인가. 순찰 중 발견 방식이라 슬롯 번호를 모르므로 place 만 채워진다.
 PORT_BY_STAGE = {PLACE: "test_loader"}
 
-# QR payload -> grasp.yaml / place.yaml 의 variant 키.
-# 이 씬의 QR 은 "1" 또는 "2" 한 글자만 담고 있다.
-NUMERIC_TO_VARIANT = {"1": "magazine_1_orange", "2": "magazine_2_blue"}
 
 # 각 단계를 이만큼 기다려도 안 끝나면 실패로 본다. 단위 초.
 # SCAN 은 재시도(SCAN_RETRIES)까지 포함해서 이 시간 안에 끝나야 한다 — 시도
@@ -314,7 +312,41 @@ def _find_ws_root():
 
 
 WS_ROOT = _find_ws_root()
-CARRIERS_YAML = WS_ROOT / "src/cobot3_bringup/config/carriers.yaml"
+
+# isaacpjt 는 ament 패키지가 아니라 그냥으로는 import 되지 않는다. carrier_code.py 는
+# 의존성 없는 순수 파이썬이고 QR 코드 규칙의 유일한 주인이라, 복사본을 만드는 대신
+# 경로를 열어 그 파일 하나를 쓴다 — cobot3_perception/carrier_code_reader.py 가
+# sim_client 를 집어 오는 방식과 같은 관례다.
+sys.path.insert(0, str(WS_ROOT / "isaacpjt" / "assets"))
+import carrier_code  # noqa: E402
+
+# ── QR 원문 -> grasp.yaml / place.yaml 의 variant 키 ──────────────────────
+# 옛 씬의 QR 은 "1" 또는 "2" 한 글자만 담았다. 16종 에셋으로 바꾸면
+# "F1-MGZB-1" 이 온다. 씬 교체가 끝나기 전까지 둘 다 받는다 — 그래야 씬을
+# 언제 바꾸든 로봇이 멈추지 않는다. 교체가 끝나면 이 표와 아래 폴백을 지운다.
+NUMERIC_TO_VARIANT = {"1": "magazine_1_orange", "2": "magazine_2_blue"}
+
+
+def _variant_of(payload):
+    """QR 원문 -> variant 키. 못 풀면 None.
+
+    새 페이로드는 carrier_code 가 푼다. 거기서 나오는 base_asset 의 확장자만
+    떼면 지금 grasp.yaml / place.yaml 의 키와 그대로 맞는다:
+
+        "F1-MGZB-1" -> base_asset "magazine_2_blue.usda" -> "magazine_2_blue"
+
+    덕분에 yaml 키 이름 바꾸기를 씬 교체와 분리할 수 있다. 나중에 yaml 키를
+    carrier_type(magazine_blue)으로 바꾸면 아래 한 줄만 고치면 된다:
+
+        return f"{info.family}_{info.color}"
+
+    자리를 보지 않고 아는 품목 코드를 찾는 방식이라, 로트 날짜가 끼어도
+    (F1-260921-MGZO-1) 그대로 읽힌다.
+    """
+    info = carrier_code.parse_code(payload)
+    if info is not None:
+        return info.base_asset[:-len(".usda")]
+    return NUMERIC_TO_VARIANT.get(payload)          # 옛 씬용 폴백
 
 
 def _reason_name(result_cls, code):
@@ -486,7 +518,10 @@ class ScanLeaf(py_trees.behaviour.Behaviour):
 
     def initialise(self):
         self.future = None
-        self.soft = False
+        # ★ SCAN 은 어떤 실패도 로봇을 얼리지 않는다 — soft 를 처음부터 True 로 둔다.
+        #   판독이 안 되면 무조건 순찰로 돌아간다. SCAN 은 에러가 아니다.
+        #   (docs/DB구성.md §4-6 — 그래서 DB 에도 scan 행이 없다)
+        self.soft = True
         self.attempt = 0
         now = time.monotonic()
         self.server_deadline = now + SERVER_WAIT_S
@@ -494,12 +529,14 @@ class ScanLeaf(py_trees.behaviour.Behaviour):
 
     def update(self):
         if time.monotonic() > self.deadline:
+            self.node.on_scan_not_found()      # 쿨다운. 없으면 곧바로 또 시도한다
             self.feedback_message = f"TIMEOUT({SCAN_TIMEOUT_S:.0f}s)"
             return Status.FAILURE
 
         if self.future is None:
             if not self.node.carrier_scan.service_is_ready():
                 if time.monotonic() > self.server_deadline:
+                    self.node.on_scan_not_found()
                     self.feedback_message = "SERVICE_UNAVAILABLE(/perception/carrier_scan)"
                     return Status.FAILURE
                 self.feedback_message = "서비스 대기"
@@ -528,8 +565,9 @@ class ScanLeaf(py_trees.behaviour.Behaviour):
                 f"NOT_FOUND(found=false) x{self.attempt} — patrol 로 돌아간다")
             return Status.FAILURE
 
-        variant = NUMERIC_TO_VARIANT.get(res.payload)
+        variant = _variant_of(res.payload)
         if variant is None:
+            self.node.on_scan_not_found()
             self.feedback_message = f"UNKNOWN_PAYLOAD({res.payload!r})"
             return Status.FAILURE
 
@@ -538,7 +576,7 @@ class ScanLeaf(py_trees.behaviour.Behaviour):
         qr_pose.pose = res.qr_pose           # 위치 및 방향 정보
         self.bb.kind = res.payload
         self.bb.variant = variant
-        self.bb.carrier_id = self.node.lookup_carrier_id(variant)
+        self.bb.carrier_id = res.payload      # 페이로드 자체가 개체 ID 다
         self.bb.qr_pose = qr_pose
         self.node.on_scan_ok()
         self.node.get_logger().info(
@@ -837,7 +875,6 @@ class TaskManager(Node):
 
     def __init__(self):
         super().__init__("task_manager")
-        self.carriers = yaml.safe_load(CARRIERS_YAML.read_text(encoding="utf-8"))
 
         self.failed = False
         self.patrolling = False
@@ -1053,16 +1090,6 @@ class TaskManager(Node):
     def on_scan_ok(self):
         self._scan_fail_streak = 0
         self.bb.scan_fail_streak = 0
-
-    def lookup_carrier_id(self, variant):
-        """carriers.yaml 에서 그 variant 의 첫 항목.
-
-        QR 이 종류만 담아서 개체는 못 가린다.
-        """
-        for cid, info in self.carriers.items():
-            if isinstance(info, dict) and info.get("variant") == variant:
-                return cid
-        return ""
 
     def log_phase(self, label):
         return lambda fb: self.get_logger().info(f"  {label} phase={fb.feedback.phase}")

@@ -604,17 +604,27 @@ append-only면 셋 다 없다. 정정은 **삭제가 아니라 정정 행 추가
 |---|---|
 | `msg/TraceEvent.msg` | **8필드** 추가 — 시각 3개(`started_stamp`·`started_wall`·`wall_stamp`) + `robot_id`·`run_id`·`status`·`attempt`·`fail_detail`. 기존 `stamp`는 "단계가 끝난 시뮬 시각"으로 의미가 굳는다. `CMakeLists.txt`는 이미 등록돼 있어 안 고친다 |
 | `task_manager.py` | ⓐ `ActionLeaf.initialise()`에 `started_stamp`/`started_wall` ⓑ **`Freeze.update()`의 SCAN 분기에서 `new_run()`** — `ScanLeaf`는 건드리지 않는다 ⓒ **`Freeze.update()`에서 발행** ⓓ `__init__`에 publisher·`robot_id`·벽시계·resume 서비스 ⓔ `now_pair()`/`new_run()`/`attempt_of()`/`_status_of()`/`emit_trace()` 추가 ⓕ `on_freeze()`에 인자 하나 + `_on_resume()`(§4-7) |
-| `carrier_code.py` | **옮기지 않는다.** 로거가 파서 대신 `carrier_kind` 4행을 읽어 "원문에 그 코드가 들어 있는가"로 표를 고른다 — 자리를 안 보므로 로트 날짜가 끼어도 동작하고, 코드 목록이 DB 한 곳에만 있다. 용어(`line` → `plant`)만 나중에 정리 |
+| `carrier_code.py` | **옮기지 않는다.** 로거는 파서 대신 `carrier_kind` 4행을 읽어 "원문에 그 코드가 들어 있는가"로 표를 고른다. `task_manager` 는 `WS_ROOT/isaacpjt/assets` 를 `sys.path` 에 넣어 import 한다 — `carrier_code_reader.py` 가 `sim_client` 를 집어 오는 것과 같은 관례. 용어는 `line` → `plant` 로 정리했다 |
 | `carrier_code.py` | `isaacpjt/assets/` → `cobot3_orchestrator/` (ament 패키지가 아니라 노드가 import 못 한다) |
 | `setup.py` · `package.xml` · `mission_nodes.launch.py` | 엔트리포인트 · 의존성 · **네임스페이스 없이 전역 1개**로 로거 추가 |
 
-| 지울 것 |
+| 지운 것 |
 |---|
-| `src/cobot3_bringup/config/carriers.yaml` · `task_manager.py`의 `CARRIERS_YAML` · `self.carriers` · `lookup_carrier_id()` |
+| `task_manager.py`의 `CARRIERS_YAML` · `self.carriers` · `lookup_carrier_id()` · `import yaml` |
 
-> 🔧 **위 '지울 것'과 `ScanLeaf`를 soft 로 바꾸는 것(§4-6)은 `ScanLeaf.update()`의
-> `NUMERIC_TO_VARIANT` 교체와 같은 함수에 있다.** 그 교체가 끝난 뒤에 함께 정리한다 —
-> 트레이스 발행은 그 함수를 건드리지 않고 `Freeze` 쪽에서만 붙였다.
+> ⚠️ **`carriers.yaml` 파일 자체는 아직 못 지운다.** `isaacpjt/ros_bridge/sim_backend.py:523`
+> 이 시작할 때 `yaml.safe_load(CARRIERS_YAML...)` 로 읽는다. 파일이 없으면 `FileNotFoundError`
+> 로 **Isaac 백엔드가 아예 안 뜬다.** 그런데 거기 담긴 `self.carriers` 는 그 파일 어디에서도
+> 쓰이지 않는 **죽은 로드**다 — 그 한 줄(`:523`)과 상수(`:121`)를 지우면 `carriers.yaml` 도
+> 같이 삭제할 수 있다. Isaac 쪽 작업이라 남겨 둔다.
+
+> ✅ **전부 반영됐다.** `ScanLeaf`는 `_variant_of()`로 새 페이로드와 옛 숫자를 둘 다 받고,
+> `initialise()`의 `soft = True` 로 어떤 판독 실패도 로봇을 얼리지 않는다.
+>
+> 🔧 **씬이 아직 옛 에셋이라 `NUMERIC_TO_VARIANT` 폴백이 남아 있다.** 16종으로 바꾸면
+> 그 표와 폴백 한 줄을 지운다. `_variant_of()`가 `base_asset` 에서 확장자만 떼어
+> 지금 yaml 키(`magazine_2_blue`)와 맞추므로, **yaml 키 이름 바꾸기는 씬 교체와 무관하게
+> 나중에** 할 수 있다 — 그때 `_variant_of()` 의 `return` 한 줄만 고치면 된다.
 
 **발행 지점이 `Freeze` 하나인 것이 핵심이다.** `pick` · `nav` · `place` · `return` 넷이 전부 `Freeze`로 감싸져 있고
 (`:704` `:711` `:717` `:728`), 이 데코레이터가 자식의 SUCCESS도 FAILURE도 다 보며 `self.stage`를 이미 들고 있다.
