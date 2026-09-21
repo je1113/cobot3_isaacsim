@@ -11,7 +11,7 @@ task_manager.py 의 peer_busy() · peer_frozen() 에 들어 있다. py_trees 와
 확인하는 것
   1. 상대를 한 번도 못 받았으면 조율 없이 직행한다 (한 대만 띄웠을 때)
   2. 단계별 양보 판단이 양쪽 설정과 맞는다
-  3. 상대 소식이 묵으면 안전한 쪽(양보)으로 넘어간다
+  3. 소식이 끊겨도 마지막으로 들은 단계를 그대로 쓴다
   4. 상대가 차선 안에서 얼어붙으면 즉시 실패로 올리고, 차선 밖(대기 자리)에서
      얼어붙으면 양보를 푼다
   5. 둘 다 줄 서 있는 상태로 서로를 기다리는 교착 조합이 없다
@@ -122,12 +122,15 @@ def main():
         want = st in busy_set
         check(got == want, f"state={st:9s} 양보={got!s:5s} (기대 {want!s:5s})")
 
-    print("\n── 3. 소식이 묵으면 안전 쪽(양보) ──")
-    stale = ns["PEER_STALE_S"] + 1.0
-    check(make(busy_set, seen=ns["PATROL"], age=stale).peer_busy()[0] is True,
-          f"patrol 이지만 {stale:.0f}s 묵음 -> 양보")
-    check(make(busy_set, seen=ns["PATROL"]).peer_busy()[0] is False,
-          "patrol 이고 신선 -> 직행")
+    print("\n── 3. 소식이 끊겨도 마지막 단계를 그대로 쓴다 ──")
+    # 수신 시각으로 "묵었으면 양보" 하는 규칙은 없다. 위험한 방향은 마지막
+    # 단계가 이미 막아 주고, 그 규칙을 두면 순찰 중에 죽은 상대 때문에
+    # 살아 있는 로봇이 얼어붙는다.
+    for age in (0.0, 30.0):
+        check(make(busy_set, seen=ns["PATROL"], age=age).peer_busy()[0] is False,
+              f"마지막이 patrol, {age:.0f}s 전 -> 직행")
+        check(make(busy_set, seen=ns["PLACE"], age=age).peer_busy()[0] is True,
+              f"마지막이 place,  {age:.0f}s 전 -> 양보")
 
     print("\n── 4. 상대가 얼어붙은 경우 ──")
     for st in lane_like:
@@ -160,6 +163,18 @@ def main():
           "LANE_STAGES 에 wait · approach 가 없다 — 있으면 5번 교착이 생긴다")
     check(ns["RETURN"] in busy_set,
           "LANE_STAGES 에 return 이 있다 — 빼면 이탈하는 로봇과 정면으로 만난다")
+
+    print("\n── 7. 거리 기반 진입 설정 ──")
+    capped = list(ns["PEER_CAPPED_STAGES"])
+    check(all(st in busy_set for st in capped),
+          f"PEER_CAPPED_STAGES {capped} 가 전부 양보 목록 안에 있다 — "
+          f"양보하지 않는 단계에 상한을 둬도 의미가 없다")
+    check(float(ns["DEFAULT_LANE_CLEAR_DIST_M"]) > 0,
+          f"lane_clear_dist_m 기본값 {ns['DEFAULT_LANE_CLEAR_DIST_M']} m > 0")
+    src = io.open(LAUNCH, encoding="utf-8").read()
+    check(("peer_pose_topic" in src) and ("amcl_pose" in src),
+          "launch 가 peer_pose_topic 을 넘긴다 — 없으면 거리 판정을 못 하고 "
+          "상대의 return 이 끝날 때까지 기다린다")
 
     print()
     if failures:

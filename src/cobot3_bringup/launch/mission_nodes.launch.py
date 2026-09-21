@@ -118,6 +118,11 @@ def _task_manager_params(ns, namespaces):
 
     params["peer_state_topic"] = f"/{peer}/orchestrator/state"
     params["peer_busy_stages"] = list(LANE_STAGES)
+    # 상대가 로더에서 얼마나 멀어졌는지 보려면 상대 위치가 필요하다. 없어도
+    # 동작은 하지만(상대의 return 이 끝날 때까지 기다린다) 그만큼 느리다.
+    # Nav2(multi_navigation.launch.py)가 네임스페이스마다 amcl 을 띄우므로
+    # 이 토픽은 이미 나와 있다.
+    params["peer_pose_topic"] = f"/{peer}/amcl_pose"
     return params
 
 
