@@ -1019,6 +1019,87 @@ class Backend:
                 best_path, best_d = path, d
         return best_path or MAGAZINE_XFORM_PATH
 
+    def pick_observe_flange(self, flange_pose_base_link, variant):
+        """PickCarrier 의 OBSERVE — qr_pose(prior) 위로 손목캠을 가져가
+        flange_topview.detect_flange() 로 진짜 파지점(중심 xy·윗면 z·yaw)을
+        잰다. PickCarrier.action ★ 블록과 pick_place_server.py 독스트링이
+        "알려진 갭"으로 적어 두던 손목캠 재관측을 채운다 — 12_pick_test.py
+        의 FlangeVision(observe_tcp/capture)과 같은 수식을 그대로 옮겼다.
+
+        입력 flange_pose_base_link 는 _flange_pose_from_qr()(pick_place_server.py)
+        가 QR 대략값으로 계산한 prior — 탐색 창 중심으로만 쓰고, 반환값이
+        진짜 파지점이다(pick_phase1_approach 에 그대로 넘기면 된다)."""
+        entry = self.grasp["magazines"].get(variant)
+        if entry is None:
+            return {"ok": False, "reason": f"grasp.yaml 에 없는 variant: {variant}"}
+        fv = self.grasp["flange_vision"]
+
+        base_p, base_q = get_world_pose(CHASSIS_LINK_PATH)
+        R_base = quat_to_matrix(base_q)
+        p_rel = np.array(flange_pose_base_link["position"])
+        prior_world = base_p + R_base @ p_rel
+        R_prior_rel = quat_to_matrix(np.array(flange_pose_base_link["quat_wxyz"]))
+        yaw_prior_world = yaw_of_quat(base_q) + math.atan2(
+            (R_base @ R_prior_rel)[1, 0], (R_base @ R_prior_rel)[0, 0])
+
+        # observe_tcp — FlangeVision.observe_tcp 와 동일 수식. target_quat(고정
+        # top-down 접근 자세)로 팔이 도착했을 때 손목캠이 prior_world 를
+        # observe_image_offset_px 위치(흡착 컵이 화면 아래를 가리므로 중앙보다
+        # 위)에 담도록 카메라/TCP 위치를 역산한다.
+        h = float(fv["observe_cam_height_m"])
+        du, dv = fv["observe_image_offset_px"]
+        R_tool = quat_to_matrix(self.target_quat)
+        R_wo = R_tool @ self.R_l6_cam @ self.R_cam_opt
+        p_c = np.array([du / self.K[0, 0] * h, dv / self.K[1, 1] * h, h])
+        cam_pos = prior_world - R_wo @ p_c
+        tool0_pos = cam_pos - R_tool @ self.t_l6_cam
+        observe_tcp = tool0_pos + R_tool @ TCP_OFFSET
+
+        _set_status(phase="OBSERVE_FLANGE", message="")
+        if not self._servo_tcp(observe_tcp, "OBSERVE_FLANGE"):
+            return {"ok": False, "reason": "관측 자세 IK 실패"}
+
+        self._ensure_camera_warm()   # 이미 만들어져 있으면 재사용(경고 주석 참고)
+        for _ in range(int(fv.get("settle_steps", 30))):
+            self.world.step(render=not HEADLESS)
+        for _ in range(int(fv.get("render_steps", 4))):
+            self.world.step(render=True)
+
+        rgb_raw = np.asarray(self._rgb.get_data())
+        if rgb_raw.ndim != 3:
+            return {"ok": False, "reason": f"rgb annotator 가 빈 프레임을 줬다 (shape={rgb_raw.shape})"}
+        rgb = rgb_raw[:, :, :3][:, :, ::-1].copy()
+        depth = np.asarray(self._depth.get_data(), dtype=np.float64).reshape(rgb.shape[:2])
+
+        l6_p, l6_q = get_world_pose(EE_LINK_PATH)
+        R_l6 = quat_to_matrix(l6_q)
+        R_opt = R_l6 @ self.R_l6_cam @ self.R_cam_opt
+        p_opt = l6_p + R_l6 @ self.t_l6_cam
+
+        obs = detect_flange(
+            rgb, self.K, self.dist, R_opt, p_opt,
+            expected_center_world=prior_world, top_z_prior=float(prior_world[2]),
+            yaw_prior_rad=yaw_prior_world, color=entry.get("color"),
+            flange_size_m=tuple(entry["flange_size"][:2]),
+            depth=depth if fv.get("use_depth", True) else None,
+            depth_band_m=float(fv["depth_band_m"]),
+            search_radius_m=float(fv["search_radius_m"]),
+            size_tol=float(fv["size_tol"]), min_fill=float(fv["min_fill"]),
+            max_depth_correction_m=float(fv["max_depth_correction_m"]))
+
+        if not obs.ok:
+            _set_status(phase="OBSERVE_FLANGE", message=obs.reason)
+            return {"ok": False, "reason": obs.reason}
+
+        p_rel_out = R_base.T @ (obs.center_world - base_p)
+        yaw_rel_out = obs.yaw_rad - yaw_of_quat(base_q)
+        half = yaw_rel_out / 2.0
+        print(f"   OBSERVE_FLANGE  {variant}  depth_corr {obs.depth_correction_m*1000:+.1f} mm  "
+              f"fill {obs.fill_ratio:.2f}  edge_rms {obs.edge_rms_mm:.2f} mm")
+        return {"ok": True,
+               "position": p_rel_out.tolist(),
+               "quat_wxyz": [float(math.cos(half)), 0.0, 0.0, float(math.sin(half))]}
+
     def pick_phase1_approach(self, flange_pose_base_link, approach_dist_m):
         """PickCarrier 의 APPROACH. flange_pose 는 base_link 프레임
         {position:[x,y,z], quat_wxyz:[..]} (Pose 규약과 동일, position=판
@@ -1425,6 +1506,7 @@ def main():
         "reset_magazine": backend.reset_magazine,
         "observe_pose": backend.observe_pose,
         "scan_qr": backend.scan_qr,
+        "pick_observe_flange": backend.pick_observe_flange,
         "pick_phase1_approach": backend.pick_phase1_approach,
         "pick_phase2_finish": backend.pick_phase2_finish,
         "place_phase1_approach": backend.place_phase1_approach,

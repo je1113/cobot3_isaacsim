@@ -17,16 +17,14 @@ pick_place_server — PickCarrier · PlaceCarrier 액션 서버.
   끝낸다 — 이 노드는 캐리어의 ID 를 모른다. 다만 variant 는 안다(자기
   설정 인덱스 — grasp.yaml/place.yaml 키). 파지점 · 배치점 계산은 여기
   안에서 한다: OBSERVE 단계가 qr_pose(prior) + grasp.yaml 의
-  T_QR_grasp_xyz 로 flange_pose 를 만들고, PlaceCarrier 는 variant 로
-  place.yaml 에서 슬롯 자세를 찾는다. VerifyCarrier 서비스는 그
-  인터록과 함께 인터페이스에서 삭제됐다.
-
-  ★ 알려진 갭: OBSERVE 는 아직 "QR prior + T_QR_grasp 계산값"까지만 하고,
-  액션 설계가 요구하는 손목캠 재관측(flange_topview.detect_flange())은
-  붙지 않았다 — sim_backend 가 임의 자세에서 카메라 프레임을 돌려주는
-  RPC 를 아직 노출하지 않는다(observe_pose/scan_qr 은 QR 관측 자세 전용).
-  이 계산은 task_manager 가 하던 것을 그대로 옮긴 것뿐이다(구 CarrierScan
-  기준 flange_pose 계산과 동일 수식).
+  T_QR_grasp_xyz 로 대략 파지점(prior)을 만들고, 손목캠을 그 위로 가져가
+  sim_backend.pick_observe_flange() -> cobot3_perception.flange_topview.
+  detect_flange() 로 진짜 파지점(중심 xy·윗면 z·yaw)을 잰다 — QR prior 는
+  검증 안 된 거리/각도에서 오차가 커질 수 있어서(WP_PICK 이 taught_poses.yaml
+  관측 자세의 원래 티칭 거리보다 훨씬 가깝다) 그대로 쓰지 않는다. 이 관측이
+  실패하면 NO_FLANGE 로 그 자리서 중단한다(APPROACH 를 시도하지 않는다).
+  PlaceCarrier 는 variant 로 place.yaml 에서 슬롯 자세를 찾는다.
+  VerifyCarrier 서비스는 그 인터록과 함께 인터페이스에서 삭제됐다.
 
 이 노드가 declare_parameter 로 정의하는 것 (PickCarrier/PlaceCarrier.action
 ★ 블록 그대로):
@@ -232,16 +230,32 @@ class PickPlaceServer(Node):
         offset_limit_m = float(self.get_parameter("offset_limit_m").value)
         lift_height_m = float(self.get_parameter("lift_height_m").value)
 
-        # ── OBSERVE: qr_pose(prior) + grasp.yaml 로 flange_pose 계산 ──
-        # ★ 알려진 갭: 액션 설계가 요구하는 손목캠 재관측(flange_topview)은
-        # 아직 없다 — 모듈 독스트링 참고.
+        # ── OBSERVE: qr_pose(prior) + grasp.yaml 로 대략 파지점 계산 ──
         feedback.phase = PickCarrier.Feedback.OBSERVE
         goal_handle.publish_feedback(feedback)
         try:
-            flange_pose_base_link = self._flange_pose_from_qr(goal.variant, goal.qr_pose)
+            prior_pose = self._flange_pose_from_qr(goal.variant, goal.qr_pose)
         except KeyError:
             self.get_logger().warn(f"grasp.yaml 에 없는 variant: {goal.variant}")
             return self._abort(goal_handle, result, "NO_FLANGE")
+
+        # ── OBSERVE 계속: 손목캠으로 prior 위를 다시 관측해 진짜 파지점을
+        # 잰다(flange_topview.detect_flange) — PickCarrier.action ★ 블록이
+        # 요구하는 단계이자 sim_backend.py pick_observe_flange 독스트링이
+        # 채우는 "알려진 갭"이다. QR prior 는 검증 안 된 거리/각도에서 오차가
+        # 커질 수 있어서(파지점 계산에 넣기 전에) 실제로 보고 확정한다.
+        holder0 = {}
+        t0 = threading.Thread(target=lambda: holder0.__setitem__(
+            "r", self._safe_call("pick_observe_flange",
+                                 flange_pose_base_link=prior_pose, variant=goal.variant)))
+        t0.start()
+        self._poll_until(t0, goal_handle, feedback)
+        r0 = holder0.get("r")
+        if r0 is None or not r0.get("ok"):
+            self.get_logger().warn(
+                f"OBSERVE(손목캠) 실패: {(r0 or {}).get('reason', '응답 없음')} — 파지를 중단한다")
+            return self._abort(goal_handle, result, "NO_FLANGE")
+        flange_pose_base_link = {"position": r0["position"], "quat_wxyz": r0["quat_wxyz"]}
 
         # ── APPROACH ──
         feedback.phase = PickCarrier.Feedback.APPROACH
