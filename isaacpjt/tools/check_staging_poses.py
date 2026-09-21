@@ -253,6 +253,13 @@ def main():
     tm = _literals(WS / "src/cobot3_orchestrator/cobot3_orchestrator/task_manager.py")
     ret = tm["PATROL_ROUTE"][0][:2]
 
+    fails = []
+
+    def check(ok, label):
+        print(f"  {'PASS' if ok else 'FAIL'}  {label}")
+        if not ok:
+            fails.append(label)
+
     print(f"지도 {grid.w}x{grid.h} res={grid.res} origin=({grid.ox:.3f},{grid.oy:.3f})")
     print(f"로더 주차점 ({lx}, {ly})   제자리회전 스윕 반경 {sweep:.3f} m")
 
@@ -265,12 +272,19 @@ def main():
             print(f"  ⚠ PATROL_ROUTE[{i}] ({wp[0]}, {wp[1]}) 가 지도 밖이다 — "
                   f"AMCL 이 그 자리를 못 잡고, 아래 이탈 근사도 못 믿는다")
 
-    fails = []
-
-    def check(ok, label):
-        print(f"  {'PASS' if ok else 'FAIL'}  {label}")
-        if not ok:
-            fails.append(label)
+    # ★ 반경 판정의 중심이 두 곳에 적혀 있다. task_manager 는 TEST_LOADER 상수를
+    #   쓰고, 이 도구와 웹 설정은 stations.yaml 을 읽는다. stations.yaml 주석이
+    #   "TEST_LOADER 상수가 하던 일을 이 파일로 옮긴다" 라고 적어 뒀지만 아직
+    #   상수가 살아 있으므로, 둘이 갈라지면 코드와 검증이 다른 점을 본다.
+    tl = tm.get("TEST_LOADER")
+    if tl is not None:
+        drift = math.hypot(tl[0] - lx, tl[1] - ly)
+        print(f"\n── 로더 좌표 출처 두 곳이 일치하나 ──")
+        print(f"  stations.yaml PKG-01 place_pose ({lx}, {ly})")
+        print(f"  task_manager.py TEST_LOADER      ({tl[0]}, {tl[1]})")
+        check(drift < 1e-6,
+              f"두 출처가 같다 (차이 {drift:.3f} m) — 다르면 코드와 이 검증이 "
+              f"서로 다른 점을 본다")
 
     print("\n── 로더 주차점: 그 자리에서 몸을 돌릴 수 있나 ──")
     near = grid.nearest_obstacle(lx, ly)
