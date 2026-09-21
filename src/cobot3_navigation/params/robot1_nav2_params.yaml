@@ -141,8 +141,8 @@ amcl:
     tf_broadcast: true
     transform_tolerance: 1.0
 
-    update_min_a: 0.03
-    update_min_d: 0.05
+    update_min_a: 0.2
+    update_min_d: 0.25
 
     z_hit: 0.5
     z_max: 0.05
@@ -155,17 +155,14 @@ amcl:
 
     # ==========================================================
     # ROBOT 1 START POSITION
-    # ★ simple_factory_layout.usda 의 nova_carter1 스폰을 WP_PICK 으로 옮기면서
-    #   (task_manager 를 patrol 없이 SCAN 부터 테스트하려고) 여기도 같이
-    #   맞췄다 — 안 맞추면 AMCL 이 처음부터 틀린 위치를 믿는다.
     # Isaac Sim:
-    # X = -4.85
-    # Y = 1.55
+    # X = 3.490373703049795
+    # Y = -4.243819003153972
     # Rotate Z = 0 deg
     # ==========================================================
     initial_pose:
-      x: -4.85
-      y: 1.55
+      x: 3.490373703049795
+      y: -4.243819003153972
       z: 0.0
       yaw: 0.0
 
