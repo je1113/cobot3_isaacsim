@@ -16,14 +16,8 @@
   <depend>python3-yaml</depend>
   <depend>rcl_interfaces</depend>
 
-  <depend>rclpy</depend>
-  <depend>std_msgs</depend>
-  <depend>std_srvs</depend>
-  <depend>cobot3_interfaces</depend>
-  <!-- 행동트리 -->
-  <exec_depend>python3-py-trees</exec_depend>
   <!-- event_logger 의 PostgreSQL 클라이언트.
-       우분투 24.04 는 PEP 668 로 pip 설치가 막히므로 apt 패키지를 쓴다:
+       우분투 24.04 는 PEP 668 로 pip 설치가 막히므로 apt 로 깐다:
            sudo apt install python3-psycopg2 -->
   <exec_depend>python3-psycopg2</exec_depend>
 
