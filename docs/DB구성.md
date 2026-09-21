@@ -124,9 +124,12 @@ CREATE TABLE magazine_log (
     run_id       UUID        NOT NULL,        -- 미션 1회를 묶는 끈
     qr_payload   TEXT        NOT NULL,        -- ① 'F1-MGZB-1' 원문 그대로
     kind_code    TEXT        NOT NULL,        -- ② 'MGZB' → carrier_kind 조인
+    plant_code   TEXT                         --   'F1' 공장. 첫 토큰은 항상 첫 자리다(§8-3)
+                 GENERATED ALWAYS AS (split_part(qr_payload, '-', 1)) STORED,
     robot_id     TEXT        NOT NULL,        -- ③ 'robot1'
 
     stage        TEXT        NOT NULL,        -- ④ pick | nav | place | return
+    attempt      INT         NOT NULL DEFAULT 1,   -- ④ 같은 단계의 몇 번째 시도인가 (§4-7)
     started_at   TIMESTAMPTZ NOT NULL,        -- ④ 그 단계 시작 (벽시계)
     ended_at     TIMESTAMPTZ NOT NULL,        -- ④ 그 단계 끝 (벽시계) ← 표시하는 값
     started_sim  DOUBLE PRECISION,            --    같은 순간의 시뮬 시각
@@ -145,7 +148,7 @@ CREATE TABLE magazine_log (
     CONSTRAINT mag_detail_needs_reason
         CHECK (fail_detail IS NULL OR fail_reason IS NOT NULL),
     CONSTRAINT mag_run_stage_once
-        UNIQUE (run_id, stage)
+        UNIQUE (run_id, stage, attempt)
 );
 
 CREATE INDEX idx_mag_carrier ON magazine_log (qr_payload, ended_at DESC);
@@ -161,8 +164,10 @@ CREATE INDEX idx_mag_open    ON magazine_log (status) WHERE status = 'IN_TRANSIT
 | `run_id` | **미션 1회.** `ScanLeaf`가 성공한 순간 `uuid4()` 발행 → `CycleDone`에서 폐기 | 같은 캐리어를 두 번 돌렸을 때 "이번 PICK"과 "지난번 PICK"을 시간으로만 갈라야 한다 |
 | `qr_payload` | `CarrierScan` 응답 원문 **그대로**. 가공 없음 | 파싱 규칙이 바뀌면(로트 날짜 추가) 과거 행을 다시 해석할 수 없다 |
 | `kind_code` | `carrier_code.parse_code()` 결과 | 조인 키라 인덱스가 필요하고, **SQL로는 못 푼다**(§8-3) |
+| `plant_code` | 생성열. 공장 `F1`·`F2`·`F3` | 공장별 집계를 `qr_payload` 문자열 검색으로 해야 한다 |
 | `robot_id` | `self.get_namespace().strip('/')` | 전역 로거 하나가 두 로봇 이벤트를 받으므로 메시지에 실려야 한다 |
 | `stage` | BT 잎 이름 상수 그대로 — **소문자** | |
+| `attempt` | 같은 `(run_id, stage)`의 몇 번째 시도. 기본 1 | 웹 복구로 재시도한 행이 제약에 걸려 **기록을 잃는다**(아래 4-7) |
 | `started_at` / `ended_at` | 잎의 `initialise()` / SUCCESS·FAILURE 반환 시각. **`task_manager`가 찍는다** | 로거의 `now()`를 쓰면 큐 지연·스풀 재적재분이 전부 그때로 찍힌다 |
 | `started_sim` / `ended_sim` | 같은 순간의 시뮬 시각 (`use_sim_time`) | 아래 4-2 |
 | `duration_sec` | 생성열. **시뮬 기준** | 애플리케이션이 계산해 넣으면 두 시각과 어긋날 수 있다 |
@@ -278,10 +283,66 @@ F1-MGZB-1 | robot1 | return | succeeded=false | status=COMPLETED | nav_error / B
 | `SERVICE_UNAVAILABLE(/perception/carrier_scan)` `:475` | hard — 그 자리 정지 |
 | `UNKNOWN_PAYLOAD('…')` `:505` | hard — 그 자리 정지 |
 
-> 🔧 **hard 3종은 로봇이 얼어붙는데 DB에 흔적이 없다.** 원문이 없거나(앞의 둘) 종류를 못 풀어서(`UNKNOWN_PAYLOAD`)
-> 매거진·스택 중 어느 표에 넣을지 알 수 없기 때문이다. 지금은 `/orchestrator/state`와 로그로만 확인한다.
-> `DOCK`을 구현할 때 **`robot_log`(payload 없는 로봇 단위 사건 전용, 정상이면 0행)** 를 같이 넣는 것을 권한다.
-> 표 2·3이 `qr_payload`를 키로 쓰므로 나중에 추가해도 기존 표는 안 바뀐다.
+> 🔧 **hard 3종도 DB에 남기지 않는다 — 대신 없앤다.** `ScanLeaf.initialise():461`의 `self.soft = False` 를
+> `True` 로 바꾸면 `ScanLeaf`가 내는 **모든** FAILURE가 soft가 되어 `Freeze:660`이 절대 얼리지 않는다.
+> 판독이 안 되면 무조건 순찰로 돌아간다 — **SCAN 은 에러가 아니다.**
+>
+> ⚠️ 같이 봐야 할 것: `on_scan_not_found()`(쿨다운 30초)가 지금은 `found=false` 경로에서만 불린다.
+> `TIMEOUT`·`SERVICE_UNAVAILABLE`도 soft가 되면 쿨다운 없이 즉시 재시도라, `carrier_code_reader`가
+> 안 떠 있을 때 5초마다 계속 돈다. **세 경로 모두에서 부르는 게 맞다.**
+>
+> 📌 그래서 **`robot_log` 표는 만들지 않는다.** 표는 4개, `fail_reason`은 4개로 끝이다.
+
+## 4-7. ⭐ `attempt` — 웹 복구로 같은 단계를 다시 시도할 때
+
+`PLACE`가 `PORT_OCCUPIED`로 실패하면 **매거진은 아직 흡착에 붙어 있다.** 화면이 `/orchestrator/resume`으로
+풀어주면 그 단계를 다시 시도한다. 이때 **새 미션이 아니라 같은 미션의 재시도**다 — 구조가 그렇게 생겼다.
+
+```python
+# Freeze.tick()  :640
+if self.frozen:
+    self.status = Status.RUNNING      # ← 얼어 있는 동안 RUNNING 을 돌려준다
+    yield self
+    return
+yield from super().tick()
+```
+
+`Freeze`가 RUNNING을 돌려주므로 `memory=True`인 mission Sequence가 이 잎을 **"진행 중인 자식"으로 붙들고** 있다.
+`frozen = False` 한 줄이면 자식이 `initialise()`부터 다시 돌아 goal 이 새로 나가고,
+**`pick`·`nav`는 재실행되지 않는다.** 그래서 `run_id`는 그대로 두고 `attempt`만 올린다.
+
+```
+run_id  stage   attempt  succeeded  status      fail_reason  fail_detail
+aaa…    pick    1        t          IN_TRANSIT  ·            ·
+aaa…    nav     1        t          IN_TRANSIT  ·            ·
+aaa…    place   1        f          FAILED      place_error  PORT_OCCUPIED(3)
+aaa…    place   2        t          COMPLETED   ·            ·
+aaa…    return  1        t          COMPLETED   ·            ·
+```
+
+**한 미션의 이야기가 한 묶음에 남는다.** 새 `run_id`를 발행하는 안은 `place` 행 하나짜리 기형 미션을 만든다 —
+로봇이 이미 들고 있으므로 `pick`도 `nav`도 없는 미션이 되기 때문이다.
+
+### 누가 세는가
+
+`task_manager`가 `stage → 횟수` dict 로 들고 있고, **`ScanLeaf`가 `run_id`를 새로 발행할 때 비운다.**
+미션이 바뀌면 `attempt`도 1로 돌아간다.
+
+```python
+def new_run(self):
+    self.bb.run_id = str(uuid.uuid4())
+    self._attempts = {}                 # ← 새 미션이면 초기화
+    return self.bb.run_id
+```
+
+resume 서비스(`std_srvs/SetBool`, **상대이름** — 로봇마다 하나다)는 얼어붙은 `Freeze`를 알아야 하므로,
+`on_freeze()`가 자기 자신을 넘긴다(인자 하나 추가). 푸는 것은 `node.frozen = False` 한 줄이다.
+
+> ⚠️ **집계 주의 — `run_outcome` 뷰를 쓴다.** 위 로그에는 `FAILED` 행과 `COMPLETED` 행이 **같은 미션 안에** 있다.
+> `WHERE status='FAILED'` 로 미션 실패를 세면 이 미션이 실패로도 성공으로도 잡힌다.
+> 미션의 최종 결과는 **그 `run_id`의 마지막 행**이고, 그것이 §6의 `run_outcome`이다.
+
+> 📌 `data=false`(포기)는 미구현이다. 로봇이 캐리어를 든 채 미션을 버리는 처리가 따로 필요하다.
 
 ---
 
@@ -352,7 +413,7 @@ DB가 유일한 조회처라 여기 둘 값이 맞다.
 
 ---
 
-# 6. 뷰 4개
+# 6. 뷰 5개
 
 append-only의 유일한 비용이 *"지금 상태가 뭐냐"* 를 바로 못 읽는 것이다. 뷰가 그것을 갚는다.
 
@@ -384,15 +445,24 @@ LEFT JOIN carrier_kind   ks ON ks.kind_code = s.kind_code;
 
 -- 전체 집계용 — 표 2 UNION ALL 표 3
 CREATE VIEW carrier_log AS
-SELECT 'MAGAZINE' AS role, log_id, run_id, qr_payload, kind_code, robot_id, stage,
-       started_at, ended_at, duration_sec, succeeded, status,
+SELECT 'MAGAZINE' AS role, log_id, run_id, qr_payload, kind_code, plant_code, robot_id,
+       stage, attempt, started_at, ended_at, duration_sec, succeeded, status,
        fail_reason, fail_detail, port
 FROM magazine_log
 UNION ALL
-SELECT 'STACK',           log_id, run_id, qr_payload, kind_code, robot_id, stage,
-       started_at, ended_at, duration_sec, succeeded, status,
+SELECT 'STACK',           log_id, run_id, qr_payload, kind_code, plant_code, robot_id,
+       stage, attempt, started_at, ended_at, duration_sec, succeeded, status,
        fail_reason, fail_detail, port
 FROM stack_log;
+
+-- 미션별 최종 결과 = 그 run_id 의 마지막 행. 성공률 집계는 전부 이걸로 (§4-7)
+CREATE VIEW run_outcome AS
+SELECT DISTINCT ON (run_id)
+       run_id, role, qr_payload, kind_code, plant_code, robot_id,
+       status AS final_status, fail_reason, fail_detail,
+       (SELECT max(attempt) FROM carrier_log c2 WHERE c2.run_id = c.run_id) AS max_attempt
+FROM carrier_log c
+ORDER BY run_id, log_id DESC;
 ```
 
 > 한 번도 이송하지 않은 개체는 `production_tracking`에서 종류가 NULL이다 — **종류는 로그 행이 들고 오기 때문**이다.
@@ -418,13 +488,23 @@ FROM magazine_log WHERE run_id = '…' ORDER BY log_id;
  PLACE | 2026.09.21 12:22 |   60.9 | FAILED     | place_error | PORT_OCCUPIED(3)
 ```
 
+> ⚠️ **미션 단위 집계는 반드시 `run_outcome`을 쓴다.** 재시도한 미션에는 `FAILED` 행과 `COMPLETED` 행이
+> 같이 들어 있어서, `magazine_log`를 직접 세면 한 미션이 실패로도 성공으로도 잡힌다(§4-7).
+
 ```sql
 -- 종류별 성공률 (미션 단위)
 SELECT k.carrier_type,
-       count(*) FILTER (WHERE l.stage = 'pick')                          AS 시도,
-       count(*) FILTER (WHERE l.status = 'COMPLETED' AND l.stage='place') AS 성공
-FROM carrier_log l LEFT JOIN carrier_kind k USING (kind_code)
+       count(*)                                            AS 미션,
+       count(*) FILTER (WHERE r.final_status = 'COMPLETED') AS 성공,
+       count(*) FILTER (WHERE r.max_attempt > 1)            AS 사람이_살린것
+FROM run_outcome r LEFT JOIN carrier_kind k USING (kind_code)
 GROUP BY k.carrier_type;
+
+-- 공장별 통과량 — plant_code 가 생성열이라 파서 없이 나온다 (§8-3)
+SELECT plant_code,
+       count(*) FILTER (WHERE final_status = 'COMPLETED') AS 성공,
+       count(*) FILTER (WHERE final_status = 'FAILED')    AS 실패
+FROM run_outcome GROUP BY plant_code ORDER BY plant_code;
 
 -- 어느 단계 · 어느 사유에 실패가 몰리는가  ← 04 §12-1 이 요구한 것
 SELECT stage, fail_reason, fail_detail, count(*)
@@ -482,11 +562,15 @@ append-only면 셋 다 없다. 정정은 **삭제가 아니라 정정 행 추가
 
 > **파서는 `carrier_code.py` 하나. DB는 그 결과를 평범한 컬럼에 저장한다.**
 
+📌 **첫 토큰은 예외다.** 날짜가 끼어 밀리는 것은 **두 번째 토큰부터**이고, 공장 코드 `F1`은 어떤 경우에도
+첫 자리다. 그래서 `plant_code`만은 `split_part(qr_payload, '-', 1)` 생성열로 둬도 안전하다 —
+이 경고는 **`kind_code`에만** 해당한다.
+
 ## 8-4. 왜 `SCAN` 실패가 4개 사유에 없나
 
 말 그대로 **에러가 아니기 때문**이다. `found=false`는 `ScanLeaf:497`에서 `self.soft = True`가 되고
 `Freeze:660`이 얼리지 않아 순찰로 돌아간다. 물건은 그 자리에 그대로 있으므로 다음 순찰에 다시 보인다.
-미션이 시작되지도 않았으니 남길 행도 없다. (hard 3종은 §4-6의 남은 구멍.)
+미션이 시작되지도 않았으니 남길 행도 없다. (hard 3종도 §4-6대로 soft 로 바꿔 없앤다.)
 
 ## 8-5. 왜 `carriers.yaml`을 없애나
 
@@ -512,20 +596,35 @@ append-only면 셋 다 없다. 정정은 **삭제가 아니라 정정 행 추가
 
 | 만들 것 | 내용 |
 |---|---|
-| `sql/001_schema.sql` | 위 ENUM 2 · 표 4 · 뷰 4 · 인덱스 |
+| `sql/001_schema.sql` | 위 ENUM 2 · 표 4 · 뷰 5 · 인덱스 |
 | `sql/002_seed.sql` | `carrier_kind` 4행 · `carrier_pair` 8행 |
 | `cobot3_orchestrator/event_logger.py` | `/trace/event` 구독 → 큐 → psycopg INSERT. 스풀 + 재접속 |
 
 | 고칠 것 | 내용 |
 |---|---|
-| `msg/TraceEvent.msg` | `robot_id` · `run_id` · `status` · `wall_stamp` 4필드 추가. `CMakeLists.txt`는 이미 등록돼 있어 안 고친다 |
-| `task_manager.py` | ⓐ `initialise()` 두 곳에 `started_at`/`started_sim` ⓑ `ScanLeaf` 성공부에 `run_id = uuid4()` ⓒ **`Freeze.update()`에서 발행** ⓓ `__init__`에 publisher·`robot_id` ⓔ `emit_trace()` / `_status()` 추가, `lookup_carrier_id()` 삭제 |
+| `msg/TraceEvent.msg` | **8필드** 추가 — 시각 3개(`started_stamp`·`started_wall`·`wall_stamp`) + `robot_id`·`run_id`·`status`·`attempt`·`fail_detail`. 기존 `stamp`는 "단계가 끝난 시뮬 시각"으로 의미가 굳는다. `CMakeLists.txt`는 이미 등록돼 있어 안 고친다 |
+| `task_manager.py` | ⓐ `ActionLeaf.initialise()`에 `started_stamp`/`started_wall` ⓑ **`Freeze.update()`의 SCAN 분기에서 `new_run()`** — `ScanLeaf`는 건드리지 않는다 ⓒ **`Freeze.update()`에서 발행** ⓓ `__init__`에 publisher·`robot_id`·벽시계·resume 서비스 ⓔ `now_pair()`/`new_run()`/`attempt_of()`/`_status_of()`/`emit_trace()` 추가 ⓕ `on_freeze()`에 인자 하나 + `_on_resume()`(§4-7) |
+| `carrier_code.py` | **옮기지 않는다.** 로거는 파서 대신 `carrier_kind` 4행을 읽어 "원문에 그 코드가 들어 있는가"로 표를 고른다. `task_manager` 는 `WS_ROOT/isaacpjt/assets` 를 `sys.path` 에 넣어 import 한다 — `carrier_code_reader.py` 가 `sim_client` 를 집어 오는 것과 같은 관례. 용어는 `line` → `plant` 로 정리했다 |
 | `carrier_code.py` | `isaacpjt/assets/` → `cobot3_orchestrator/` (ament 패키지가 아니라 노드가 import 못 한다) |
 | `setup.py` · `package.xml` · `mission_nodes.launch.py` | 엔트리포인트 · 의존성 · **네임스페이스 없이 전역 1개**로 로거 추가 |
 
-| 지울 것 |
+| 지운 것 |
 |---|
-| `src/cobot3_bringup/config/carriers.yaml` · `task_manager.py`의 `CARRIERS_YAML` · `self.carriers` · `lookup_carrier_id()` |
+| `task_manager.py`의 `CARRIERS_YAML` · `self.carriers` · `lookup_carrier_id()` · `import yaml` |
+
+> ⚠️ **`carriers.yaml` 파일 자체는 아직 못 지운다.** `isaacpjt/ros_bridge/sim_backend.py:523`
+> 이 시작할 때 `yaml.safe_load(CARRIERS_YAML...)` 로 읽는다. 파일이 없으면 `FileNotFoundError`
+> 로 **Isaac 백엔드가 아예 안 뜬다.** 그런데 거기 담긴 `self.carriers` 는 그 파일 어디에서도
+> 쓰이지 않는 **죽은 로드**다 — 그 한 줄(`:523`)과 상수(`:121`)를 지우면 `carriers.yaml` 도
+> 같이 삭제할 수 있다. Isaac 쪽 작업이라 남겨 둔다.
+
+> ✅ **전부 반영됐다.** `ScanLeaf`는 `_variant_of()`로 새 페이로드와 옛 숫자를 둘 다 받고,
+> `initialise()`의 `soft = True` 로 어떤 판독 실패도 로봇을 얼리지 않는다.
+>
+> 🔧 **씬이 아직 옛 에셋이라 `NUMERIC_TO_VARIANT` 폴백이 남아 있다.** 16종으로 바꾸면
+> 그 표와 폴백 한 줄을 지운다. `_variant_of()`가 `base_asset` 에서 확장자만 떼어
+> 지금 yaml 키(`magazine_2_blue`)와 맞추므로, **yaml 키 이름 바꾸기는 씬 교체와 무관하게
+> 나중에** 할 수 있다 — 그때 `_variant_of()` 의 `return` 한 줄만 고치면 된다.
 
 **발행 지점이 `Freeze` 하나인 것이 핵심이다.** `pick` · `nav` · `place` · `return` 넷이 전부 `Freeze`로 감싸져 있고
 (`:704` `:711` `:717` `:728`), 이 데코레이터가 자식의 SUCCESS도 FAILURE도 다 보며 `self.stage`를 이미 들고 있다.
@@ -592,7 +691,7 @@ CREATE INDEX idx_task_run ON task (run_id);
 |---|---|---|
 | ① | `target_ref` | **FK가 아니다.** 설정의 주인이 파일이라 DB가 참조 무결성을 걸 수 없다. *"티칭 미완료 선반은 배정 불가"* 는 배정 시점에 백엔드가 yaml을 읽어서 검사한다 |
 | ② | `run_id` | 배정 시점에는 NULL이다. **QR을 읽어야 미션이 시작**되므로(§4-6) `ScanLeaf` 성공 순간 발행된 값을 여기에 찍는다 |
-| ③ | `resume_*` | 웹 복구용. §11 미정 #3(같은 `run_id`를 이어갈지)이 정해지면 이 둘의 의미도 같이 고정된다 |
+| ③ | `resume_*` | 웹 복구용. §4-7이 *"같은 `run_id` + `attempt`"* 로 정해지면서 의미가 고정됐다 — **"이 미션을 어디까지 했나"** 다. 재개가 같은 미션이라 `task.run_id`를 덮을 일도 없다 |
 
 **큐는 별도 표가 아니다** — `robot_id` + `queue_order`가 큐이고, 드래그 재정렬은 UPDATE 한 번이다.
 회수 우선순위도 `priority` 칸 없이 `kind='RECOVER'` 를 앞으로 정렬하면 된다.
@@ -679,8 +778,10 @@ lock 을 칸으로 들지 않는 원칙 자체는 유지된다 — 해제를 잊
 | `frames.yaml` | `measure_layout.py` 생성물 | 손대지 않는다 (§8-5) |
 | **`stations.yaml`** (신설) | 처리시간 · 산출물 종류 · 완료 신호 · capacity · 라우팅 체인 | 지금 `task_manager.py:210`의 `TEST_LOADER` 상수가 하던 일을 여기로 옮긴다 |
 
-> 🔧 **남은 구멍: 화면이 파일을 고쳤을 때 떠 있는 노드는 모른다.**
-> 저장 시 reload 신호(토픽/서비스)를 보낼지, 미션 시작마다 다시 읽게 할지 정해야 *"화면에서 place 좌표 변경"* 이 실제로 반영된다. → §11 미정 #4
+> 📌 **reload 신호는 만들지 않는다.** 노드는 **뜰 때 한 번** 읽고(`pick_place_server.py:176-177`),
+> 설정을 바꾸면 **노드를 재시작한다.** 새 서비스도 토픽도 없다.
+> 운전 중에 설정을 고칠 일이 없다는 전제이고, 그 전제가 깨지면 그때 미션 시작마다 재독하는 쪽으로 바꾼다
+> (파일 저장을 `os.replace()` 로 원자적으로 하는 것만 지키면 배선 없이 된다).
 
 ## 10-7. 배선 (§9에 더해지는 것)
 
@@ -695,11 +796,26 @@ lock 을 칸으로 들지 않는 원칙 자체는 유지된다 — 해제를 잊
 
 ---
 
-# 11. 미정
+# 11. 결정 기록 · 남은 것
 
-| # | 내용 | 막히는 것 |
+**표 1~4는 미정이 없다.** 먼저 열려 있던 넷은 이렇게 닫혔다.
+
+| 열려 있던 것 | 결론 | 어디에 |
 |---|---|---|
-| 1 | `SCAN` hard 실패 3종을 어디에 남길지 (`robot_log`) | `DOCK` 구현 때 같이 정한다. **일시정지·비상정지도 payload가 없어 같은 표를 필요로 한다** — 만들면 표가 7개가 된다 |
-| 2 | 웹 복구(`/orchestrator/resume`) 후 같은 `run_id`를 이어갈지 새로 발행할지 | 이어가면 `UNIQUE(run_id, stage)`를 `(run_id, stage, attempt)`로 바꿔야 한다. 기본은 **새 `run_id`**. `task.resume_*`(§10-2 ③)의 의미도 여기 걸려 있다 |
-| 3 | **화면이 yaml을 고쳤을 때 떠 있는 노드가 어떻게 아는가** — reload 신호 vs 미션 시작마다 재독 | §10-6 전체. 이게 정해져야 화면의 설정 편집이 실제로 동작한다 |
-| 4 | 페이로드에 **라인** 이 없다 (`F1-MGZB-1` 은 공장만 갖는다) | 라인별 조회 화면. 정말 필요한지부터 |
+| `SCAN` hard 실패를 어디에 (`robot_log`) | **표를 만들지 않는다.** 대신 `ScanLeaf`를 전부 soft 로 바꿔 hard 실패 자체를 없앤다. **DB는 SCAN 성공 이후부터** | §4-6 |
+| 웹 복구 후 `run_id`를 이어갈지 | **같은 `run_id` + `attempt`.** 제약은 `UNIQUE (run_id, stage, attempt)`, 집계는 `run_outcome` | §4-7 · §6 |
+| 화면이 yaml을 고쳤을 때 reload | **만들지 않는다.** 노드는 뜰 때 한 번 읽고, 설정을 바꾸면 재시작한다 | §10-6 |
+| 페이로드에 라인이 없다 | **공장만 쓴다.** `F1`·`F2`·`F3` = 공장 1~3. 라인은 QR 이 복잡해져 의도적으로 뺐다. `plant_code` 생성열로 공장별 집계는 된다 | §8-3 · §9 |
+
+> 🔧 마지막 항목은 **용어 정리를 남긴다** — `carrier_code.py`가 첫 토큰을 `line` 이라 부르고 docstring도
+> *"라인 코드"* 라고 적는데, 실제로는 공장이다. `plant` 로 고쳐야 나중에 진짜 라인이 생겨도 안 부딪힌다.
+
+## 남은 것 — 전부 뒤 단계에서
+
+| # | 내용 | 언제 |
+|---|---|---|
+| 1 | `/orchestrator/resume` 의 `data=false`(포기) — 로봇이 캐리어를 든 채 미션을 버리는 처리 | resume 구현 때 |
+| 2 | `DOCK` 실패(`dock_error`)를 어디에 — `return` 처럼 캐리어 로그에 붙일지, 미션 밖 도킹은 어떻게 할지 | `DOCK` 구현 때 |
+| 3 | 표 5·6(§10)은 **제안 상태** | 관제 화면을 실제로 붙일 때 |
+
+**표 1~4 · 뷰 5개 · §9 배선은 지금 그대로 구현할 수 있다.**

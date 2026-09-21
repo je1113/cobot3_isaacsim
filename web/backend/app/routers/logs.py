@@ -31,7 +31,8 @@ from ..errors import NotFound, Unprocessable
 
 router = APIRouter(tags=["logs"])
 
-_LOG_COLS = """role, log_id, run_id::text AS run_id, qr_payload, kind_code, robot_id, stage,
+_LOG_COLS = """role, log_id, run_id::text AS run_id, qr_payload, kind_code, plant_code,
+               robot_id, stage, attempt,
                started_at, ended_at, duration_sec, succeeded, status::text AS status,
                fail_reason::text AS fail_reason, fail_detail, port"""
 
@@ -146,12 +147,25 @@ async def tracking():
 # ── 2.3 통계 ─────────────────────────────────────────────────────────
 @router.get("/stats")
 async def stats():
+    # ★ 미션 단위 집계는 carrier_log 가 아니라 run_outcome 으로 한다(§4-7 · §6).
+    #   재시도한 미션에는 FAILED 행과 COMPLETED 행이 **같은 run_id 안에** 같이
+    #   있어서, 로그 행을 그대로 세면 한 미션이 성공에도 실패에도 잡힌다.
+    #   max_attempt > 1 은 "사람이 복구해서 살린 미션" 이라 따로 보여줄 값이 된다.
     by_type = await db.fetch(
         "SELECT k.carrier_type, "
-        "  count(*) FILTER (WHERE l.stage = 'pick') AS attempts, "
-        "  count(*) FILTER (WHERE l.status = 'COMPLETED' AND l.stage = 'place') AS completed "
-        "FROM carrier_log l LEFT JOIN carrier_kind k USING (kind_code) "
+        "  count(*) AS attempts, "
+        "  count(*) FILTER (WHERE r.final_status = 'COMPLETED') AS completed, "
+        "  count(*) FILTER (WHERE r.max_attempt > 1) AS recovered "
+        "FROM run_outcome r LEFT JOIN carrier_kind k USING (kind_code) "
         "WHERE k.carrier_type IS NOT NULL GROUP BY k.carrier_type ORDER BY 1"
+    )
+    # 공장별 통과량 — plant_code 가 생성열이라 파서 없이 나온다(§8-3).
+    by_plant = await db.fetch(
+        "SELECT plant_code, "
+        "  count(*) FILTER (WHERE final_status = 'COMPLETED') AS completed, "
+        "  count(*) FILTER (WHERE final_status = 'FAILED') AS failed "
+        "FROM run_outcome WHERE plant_code IS NOT NULL "
+        "GROUP BY plant_code ORDER BY plant_code"
     )
     failures = await db.fetch(
         "SELECT stage, fail_reason::text AS fail_reason, fail_detail, count(*) AS n "
@@ -171,6 +185,7 @@ async def stats():
     #   화면에 "사이클 타임" 으로 쓸 값은 이쪽이 맞다.
     return {
         "by_type": by_type,
+        "by_plant": by_plant,
         "failures": failures,
         "durations_sim_sec": durations,
         "in_transit": in_transit,

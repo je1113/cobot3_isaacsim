@@ -4,9 +4,9 @@
 QR 에 들어가는 문자열은 이렇게 생겼다.
 
     F1-MGZO-1
-    │  │    └ 일련번호 (같은 라인·품목에서 몇 번째 개체인지)
+    │  │    └ 일련번호 (같은 공장·품목에서 몇 번째 개체인지)
     │  └ 품목 코드 4자  ← 이것만 보면 어떤 캐리어인지 안다
-    └ 라인 코드
+    └ 공장 코드 (F1 · F2 · F3). 라인은 QR 이 복잡해져 일부러 넣지 않았다
 
 '-' 로 자른 두 번째 토큰(인덱스 1)이 품목 코드다.
 품목 코드는 앞 3자가 종류, 끝 1자가 손잡이 색이다.
@@ -67,7 +67,7 @@ CODES = [
     "F3-STKB-1", "F3-STKB-2", "F3-STKB-3", "F3-STKB-4",   # 파란 스택
 ]
 
-Carrier = namedtuple("Carrier", "code line kind family color serial base_asset rgb")
+Carrier = namedtuple("Carrier", "code plant kind family color serial base_asset rgb")
 
 
 # ──────────────────────────────────────────────────────────────
@@ -117,7 +117,7 @@ def parse_code(text):
     parts = str(text).strip().upper().split(SEP)
     i = parts.index(kind)
     color = COLOR[kind[3]]
-    return Carrier(code=SEP.join(parts), line=parts[0], kind=kind,
+    return Carrier(code=SEP.join(parts), plant=parts[0], kind=kind,
                    family=FAMILY[kind[:3]], color=color,
                    serial=parts[i + 1] if len(parts) > i + 1 else "",
                    base_asset=BASE_ASSET[kind], rgb=RGB[color])

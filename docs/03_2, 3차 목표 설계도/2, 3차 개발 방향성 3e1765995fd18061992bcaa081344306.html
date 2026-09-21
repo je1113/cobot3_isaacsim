@@ -1,0 +1,1278 @@
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=utf-8"/><title>2, 3차 개발 방향성</title><style>
+/* cspell:disable-file */
+/* webkit printing magic: print all background colors */
+html {
+	-webkit-print-color-adjust: exact;
+}
+* {
+	box-sizing: border-box;
+	-webkit-print-color-adjust: exact;
+}
+
+html,
+body {
+	margin: 0;
+	padding: 0;
+}
+@media only screen {
+	body {
+		margin: 2em auto;
+		max-width: 900px;
+		color: rgb(55, 53, 47);
+	}
+}
+
+body {
+	line-height: 1.5;
+	white-space: pre-wrap;
+}
+
+a,
+a.visited {
+	color: inherit;
+	text-decoration: underline;
+}
+
+.pdf-relative-link-path {
+	font-size: 80%;
+	color: #444;
+}
+
+h1,
+h2,
+h3 {
+	letter-spacing: -0.01em;
+	line-height: 1.2;
+	font-weight: 600;
+	margin-bottom: 0;
+}
+
+/* Override strong tags inside headings to maintain consistent weight */
+h1 strong,
+h2 strong,
+h3 strong {
+	font-weight: 600;
+}
+
+.page-title {
+	font-size: 2.5rem;
+	font-weight: 700;
+	margin-top: 0;
+	margin-bottom: 0.75em;
+}
+
+h1 {
+	font-size: 1.875rem;
+	margin-top: 1.875rem;
+}
+
+h2 {
+	font-size: 1.5rem;
+	margin-top: 1.5rem;
+}
+
+h3 {
+	font-size: 1.25rem;
+	margin-top: 1.25rem;
+}
+
+.source {
+	border: 1px solid #ddd;
+	border-radius: 3px;
+	padding: 1.5em;
+	word-break: break-all;
+}
+
+.callout {
+	border-radius: 10px;
+	padding: 1rem;
+}
+
+/* For default-background callouts, render the border outline. */
+.callout.block-color-default_background {
+	border: 1px solid rgba(55, 53, 47, 0.09);
+}
+
+figure {
+	margin: 1.25em 0;
+	page-break-inside: avoid;
+}
+
+/*
+ * Toggles and callouts hold arbitrary content, so they can easily be taller
+ * than a page. They must stay breakable: avoiding breaks inside them makes
+ * Chromium push the whole block onto the next page, which leaves the previous
+ * page mostly empty before every long toggle.
+ */
+details,
+aside {
+	margin: 1.25em 0;
+}
+
+/* Keep a toggle's title on the same page as the start of its content. */
+summary {
+	page-break-after: avoid;
+	break-after: avoid;
+}
+
+/*
+ * Toggle headings render as <h1/h2/h3 style="display:inline-block"> inside
+ * <summary>. Without this reset, the heading's margin-top pushes it below the
+ * ::marker (▼), so the triangle and the title appear on separate lines.
+ */
+summary h1,
+summary h2,
+summary h3,
+summary h4 {
+	margin-top: 0;
+}
+
+figcaption {
+	opacity: 0.5;
+	font-size: 85%;
+	margin-top: 0.5em;
+}
+
+mark {
+	background-color: transparent;
+}
+
+.indented {
+	padding-left: 1.5em;
+}
+
+hr {
+	background: transparent;
+	display: block;
+	width: 100%;
+	height: 1px;
+	visibility: visible;
+	border: none;
+	border-bottom: 1px solid rgba(55, 53, 47, 0.09);
+}
+
+img {
+	max-width: 100%;
+}
+
+@media only print {
+	img {
+		max-height: 100vh;
+		object-fit: contain;
+	}
+
+	table.collection-content {
+		width: 100%;
+		table-layout: fixed;
+	}
+
+	table.collection-content th,
+	table.collection-content td {
+		overflow-wrap: anywhere;
+	}
+
+	table.collection-content td > .user,
+	table.collection-content td > time {
+		white-space: pre-wrap;
+	}
+}
+
+@page {
+	margin: 1in;
+}
+
+.collection-content-wrapper {
+	overflow-x: auto;
+}
+
+@media only print {
+	.collection-content-wrapper {
+		overflow-x: visible;
+	}
+}
+
+.collection-content {
+	font-size: 0.875rem;
+}
+
+.collection-content td {
+	white-space: pre-wrap;
+	word-break: break-word;
+}
+
+.column-list {
+	display: flex;
+	gap: 46px;
+}
+
+.column {
+	min-width: 0;
+	overflow: hidden;
+}
+
+.column > *:first-child {
+	margin-top: 0;
+}
+
+.table_of_contents-item {
+	display: block;
+	font-size: 0.875rem;
+	line-height: 1.3;
+	padding-inline: 0.125rem;
+	padding-block: 0.375rem;
+}
+
+.table_of_contents-indent-1 {
+	margin-left: 1.5rem;
+}
+
+.table_of_contents-indent-2 {
+	margin-left: 3rem;
+}
+
+.table_of_contents-indent-3 {
+	margin-left: 4.5rem;
+}
+
+.table_of_contents-link {
+	text-decoration: none;
+	opacity: 0.7;
+	border-bottom: 1px solid rgba(55, 53, 47, 0.18);
+}
+
+table,
+th,
+td {
+	border: 1px solid rgba(55, 53, 47, 0.09);
+}
+
+table {
+	border-collapse: collapse;
+	border-left: none;
+	border-right: none;
+}
+
+th,
+td {
+	font-weight: normal;
+	padding: 0.25em 0.5em;
+	line-height: 1.5;
+	min-height: 1.5em;
+	text-align: left;
+}
+
+th {
+	color: rgba(55, 53, 47, 0.6);
+}
+
+ol,
+ul {
+	margin: 0;
+	margin-block-start: 0.6em;
+	margin-block-end: 0.6em;
+}
+
+li > ol:first-child,
+li > ul:first-child {
+	margin-block-start: 0.6em;
+}
+
+ul > li {
+	list-style: disc;
+}
+
+ul.to-do-list {
+	padding-inline-start: 0;
+}
+
+ul.to-do-list > li {
+	list-style: none;
+}
+
+.to-do-children-checked {
+	text-decoration: line-through;
+	opacity: 0.375;
+}
+
+ul.toggle > li {
+	list-style: none;
+}
+
+ul {
+	padding-inline-start: 1.7em;
+}
+
+ul > li {
+	padding-left: 0.1em;
+}
+
+ol {
+	padding-inline-start: 1.6em;
+}
+
+ol.numbered-list.numbered-list-digits-2 {
+	padding-inline-start: 2em;
+}
+
+ol.numbered-list.numbered-list-digits-3plus {
+	padding-inline-start: 2.4em;
+}
+
+ol > li {
+	padding-left: 0.2em;
+}
+
+.mono ol {
+	padding-inline-start: 2em;
+}
+
+.mono ol > li {
+	text-indent: -0.4em;
+}
+
+.toggle {
+	padding-inline-start: 0em;
+	list-style-type: none;
+}
+
+/* Indent toggle children */
+.toggle > li > details {
+	padding-left: 1.7em;
+}
+
+.toggle > li > details > summary {
+	margin-left: -1.1em;
+}
+
+.selected-value {
+	display: inline-block;
+	padding: 0 0.5em;
+	background: rgba(206, 205, 202, 0.5);
+	border-radius: 3px;
+	margin-right: 0.5em;
+	margin-top: 0.3em;
+	margin-bottom: 0.3em;
+	white-space: nowrap;
+}
+
+.collection-title {
+	display: inline-block;
+	margin-right: 1em;
+}
+
+.page-description {
+	margin-bottom: 2em;
+}
+
+.simple-table {
+	margin-top: 1em;
+	font-size: 0.875rem;
+	empty-cells: show;
+}
+.simple-table td {
+	height: 29px;
+	min-width: 120px;
+}
+
+.simple-table th {
+	height: 29px;
+	min-width: 120px;
+}
+
+.simple-table-header-color {
+	background: rgb(247, 246, 243);
+	color: black;
+}
+.simple-table-header {
+	font-weight: 500;
+}
+
+time {
+	opacity: 0.5;
+}
+
+.icon {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	max-width: 1.2em;
+	max-height: 1.2em;
+	text-decoration: none;
+	vertical-align: text-bottom;
+	margin-right: 0.5em;
+}
+
+/*
+ * Render emoji icons using a ::before pseudo-element to keep the glyph
+ * out of the DOM textContent traversal. This avoids double-rendering icons
+ * in callouts and page titles.
+ * NOTE(slim/html-export-pseudo-icons): I can't tagref this because it will
+ * flag as a duplicate tag after codegen.
+ */
+.icon[data-emoji]::before {
+	content: attr(data-emoji);
+}
+
+img.icon {
+	border-radius: 3px;
+}
+
+.callout img.notion-static-icon {
+	width: 1em;
+	height: 1em;
+}
+
+.callout p {
+	margin: 0;
+}
+
+.callout h1,
+.callout h2,
+.callout h3 {
+	margin: 0 0 0.6rem;
+}
+
+.user-icon {
+	width: 1.5em;
+	height: 1.5em;
+	border-radius: 100%;
+	margin-right: 0.5rem;
+}
+
+.user-icon-inner {
+	font-size: 0.8em;
+}
+
+.text-icon {
+	border: 1px solid #000;
+	text-align: center;
+}
+
+.page-cover-image {
+	display: block;
+	object-fit: cover;
+	width: 100%;
+	max-height: 30vh;
+}
+
+.page-header-icon {
+	font-size: 3rem;
+	margin-bottom: 1rem;
+}
+
+.page-header-icon-with-cover {
+	margin-top: -0.72em;
+	margin-left: 0.07em;
+}
+
+.page-header-icon img {
+	border-radius: 3px;
+}
+
+.link-to-page {
+	margin: 1em 0;
+	padding: 0;
+	border: none;
+	font-weight: 500;
+}
+
+p > .user {
+	opacity: 0.5;
+}
+
+td > .user,
+td > time {
+	white-space: nowrap;
+}
+
+input[type="checkbox"] {
+	margin-right: 0.4em;
+	vertical-align: middle;
+}
+
+p {
+	margin-top: 0.5em;
+	margin-bottom: 0.5em;
+}
+
+.image {
+	border: none;
+	margin: 1.5em 0;
+	padding: 0;
+	border-radius: 0;
+	text-align: center;
+}
+
+.code,
+code {
+	background: rgba(135, 131, 120, 0.15);
+	border-radius: 3px;
+	padding: 0.2em 0.4em;
+	border-radius: 3px;
+	font-size: 85%;
+	tab-size: 2;
+}
+
+code {
+	color: #eb5757;
+}
+
+.code {
+	padding: 1.5em 1em;
+}
+
+.code-wrap {
+	white-space: pre-wrap;
+	word-break: break-all;
+}
+
+.code > code {
+	background: none;
+	padding: 0;
+	font-size: 100%;
+	color: inherit;
+}
+
+blockquote {
+	font-size: 1em;
+	margin: 1em 0;
+	padding-left: 1em;
+	border-left: 3px solid rgb(55, 53, 47);
+}
+
+blockquote.quote-large {
+	font-size: 1.25em;
+}
+
+.bookmark {
+	text-decoration: none;
+	max-height: 8em;
+	padding: 0;
+	display: flex;
+	width: 100%;
+	align-items: stretch;
+}
+
+.bookmark-title {
+	font-size: 0.85em;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	height: 1.75em;
+	white-space: nowrap;
+}
+
+.bookmark-text {
+	display: flex;
+	flex-direction: column;
+}
+
+.bookmark-info {
+	flex: 4 1 180px;
+	padding: 12px 14px 14px;
+	display: flex;
+	flex-direction: column;
+	justify-content: space-between;
+}
+
+.bookmark-image {
+	width: 33%;
+	flex: 1 1 180px;
+	display: block;
+	position: relative;
+	object-fit: cover;
+	border-radius: 1px;
+}
+
+.bookmark-description {
+	color: rgba(55, 53, 47, 0.6);
+	font-size: 0.75em;
+	overflow: hidden;
+	max-height: 4.5em;
+	word-break: break-word;
+}
+
+.bookmark-href {
+	font-size: 0.75em;
+	margin-top: 0.25em;
+}
+
+.tab {
+	margin: 1.25em 0;
+	padding-inline: 1rem;
+	border: 1px solid rgba(55, 53, 47, 0.09);
+}
+
+.sans { font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI Variable Display", "Segoe UI", Helvetica, "Apple Color Emoji", "Noto Sans Arabic", "Noto Sans Hebrew", Arial, sans-serif, "Segoe UI Emoji", "Segoe UI Symbol"; }
+.code { font-family: "SFMono-Regular", Menlo, Consolas, "PT Mono", "Liberation Mono", Courier, monospace; }
+.serif { font-family: Lyon-Text, Georgia, ui-serif, serif; }
+.mono { font-family: iawriter-mono, Nitti, Menlo, Courier, monospace; }
+.pdf .sans { font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI Variable Display", "Segoe UI", Helvetica, "Apple Color Emoji", "Noto Sans Arabic", "Noto Sans Hebrew", Arial, sans-serif, "Segoe UI Emoji", "Segoe UI Symbol", 'Twemoji', 'Noto Color Emoji', 'Noto Sans CJK JP'; }
+.pdf:lang(zh-CN) .sans { font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI Variable Display", "Segoe UI", Helvetica, "Apple Color Emoji", "Noto Sans Arabic", "Noto Sans Hebrew", Arial, sans-serif, "Segoe UI Emoji", "Segoe UI Symbol", 'Twemoji', 'Noto Color Emoji', 'Noto Sans CJK SC'; }
+.pdf:lang(zh-TW) .sans { font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI Variable Display", "Segoe UI", Helvetica, "Apple Color Emoji", "Noto Sans Arabic", "Noto Sans Hebrew", Arial, sans-serif, "Segoe UI Emoji", "Segoe UI Symbol", 'Twemoji', 'Noto Color Emoji', 'Noto Sans CJK TC'; }
+.pdf:lang(ko-KR) .sans { font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI Variable Display", "Segoe UI", Helvetica, "Apple Color Emoji", "Noto Sans Arabic", "Noto Sans Hebrew", Arial, sans-serif, "Segoe UI Emoji", "Segoe UI Symbol", 'Twemoji', 'Noto Color Emoji', 'Noto Sans CJK KR'; }
+.pdf .code { font-family: Source Code Pro, "SFMono-Regular", Menlo, Consolas, "PT Mono", "Liberation Mono", Courier, monospace, 'Twemoji', 'Noto Color Emoji', 'Noto Sans Mono CJK JP'; }
+.pdf:lang(zh-CN) .code { font-family: Source Code Pro, "SFMono-Regular", Menlo, Consolas, "PT Mono", "Liberation Mono", Courier, monospace, 'Twemoji', 'Noto Color Emoji', 'Noto Sans Mono CJK SC'; }
+.pdf:lang(zh-TW) .code { font-family: Source Code Pro, "SFMono-Regular", Menlo, Consolas, "PT Mono", "Liberation Mono", Courier, monospace, 'Twemoji', 'Noto Color Emoji', 'Noto Sans Mono CJK TC'; }
+.pdf:lang(ko-KR) .code { font-family: Source Code Pro, "SFMono-Regular", Menlo, Consolas, "PT Mono", "Liberation Mono", Courier, monospace, 'Twemoji', 'Noto Color Emoji', 'Noto Sans Mono CJK KR'; }
+.pdf .serif { font-family: PT Serif, Lyon-Text, Georgia, ui-serif, serif, 'Twemoji', 'Noto Color Emoji', 'Noto Serif CJK JP'; }
+.pdf:lang(zh-CN) .serif { font-family: PT Serif, Lyon-Text, Georgia, ui-serif, serif, 'Twemoji', 'Noto Color Emoji', 'Noto Serif CJK SC'; }
+.pdf:lang(zh-TW) .serif { font-family: PT Serif, Lyon-Text, Georgia, ui-serif, serif, 'Twemoji', 'Noto Color Emoji', 'Noto Serif CJK TC'; }
+.pdf:lang(ko-KR) .serif { font-family: PT Serif, Lyon-Text, Georgia, ui-serif, serif, 'Twemoji', 'Noto Color Emoji', 'Noto Serif CJK KR'; }
+.pdf .mono { font-family: PT Mono, iawriter-mono, Nitti, Menlo, Courier, monospace, 'Twemoji', 'Noto Color Emoji', 'Noto Sans Mono CJK JP'; }
+.pdf:lang(zh-CN) .mono { font-family: PT Mono, iawriter-mono, Nitti, Menlo, Courier, monospace, 'Twemoji', 'Noto Color Emoji', 'Noto Sans Mono CJK SC'; }
+.pdf:lang(zh-TW) .mono { font-family: PT Mono, iawriter-mono, Nitti, Menlo, Courier, monospace, 'Twemoji', 'Noto Color Emoji', 'Noto Sans Mono CJK TC'; }
+.pdf:lang(ko-KR) .mono { font-family: PT Mono, iawriter-mono, Nitti, Menlo, Courier, monospace, 'Twemoji', 'Noto Color Emoji', 'Noto Sans Mono CJK KR'; }
+.highlight-default {
+	color: rgba(44, 44, 43, 1);
+}
+.highlight-gray {
+	color: rgba(125, 122, 117, 1);
+	fill: rgba(125, 122, 117, 1);
+}
+.highlight-brown {
+	color: rgba(159, 118, 90, 1);
+	fill: rgba(159, 118, 90, 1);
+}
+.highlight-orange {
+	color: rgba(210, 123, 45, 1);
+	fill: rgba(210, 123, 45, 1);
+}
+.highlight-yellow {
+	color: rgba(203, 148, 52, 1);
+	fill: rgba(203, 148, 52, 1);
+}
+.highlight-teal {
+	color: rgba(80, 148, 110, 1);
+	fill: rgba(80, 148, 110, 1);
+}
+.highlight-blue {
+	color: rgba(56, 125, 201, 1);
+	fill: rgba(56, 125, 201, 1);
+}
+.highlight-purple {
+	color: rgba(154, 107, 180, 1);
+	fill: rgba(154, 107, 180, 1);
+}
+.highlight-pink {
+	color: rgba(193, 76, 138, 1);
+	fill: rgba(193, 76, 138, 1);
+}
+.highlight-red {
+	color: rgba(207, 81, 72, 1);
+	fill: rgba(207, 81, 72, 1);
+}
+.highlight-default_background {
+	color: rgba(44, 44, 43, 1);
+}
+.highlight-gray_background {
+	background: rgba(42, 28, 0, 0.07);
+}
+.highlight-brown_background {
+	background: rgba(139, 46, 0, 0.086);
+}
+.highlight-orange_background {
+	background: rgba(224, 101, 1, 0.129);
+}
+.highlight-yellow_background {
+	background: rgba(211, 168, 0, 0.137);
+}
+.highlight-teal_background {
+	background: rgba(0, 100, 45, 0.09);
+}
+.highlight-blue_background {
+	background: rgba(0, 124, 215, 0.094);
+}
+.highlight-purple_background {
+	background: rgba(102, 0, 178, 0.078);
+}
+.highlight-pink_background {
+	background: rgba(197, 0, 93, 0.086);
+}
+.highlight-red_background {
+	background: rgba(223, 22, 0, 0.094);
+}
+.block-color-default {
+	color: inherit;
+	fill: inherit;
+}
+.block-color-gray {
+	color: rgba(125, 122, 117, 1);
+	fill: rgba(125, 122, 117, 1);
+}
+.block-color-brown {
+	color: rgba(159, 118, 90, 1);
+	fill: rgba(159, 118, 90, 1);
+}
+.block-color-orange {
+	color: rgba(210, 123, 45, 1);
+	fill: rgba(210, 123, 45, 1);
+}
+.block-color-yellow {
+	color: rgba(203, 148, 52, 1);
+	fill: rgba(203, 148, 52, 1);
+}
+.block-color-teal {
+	color: rgba(80, 148, 110, 1);
+	fill: rgba(80, 148, 110, 1);
+}
+.block-color-blue {
+	color: rgba(56, 125, 201, 1);
+	fill: rgba(56, 125, 201, 1);
+}
+.block-color-purple {
+	color: rgba(154, 107, 180, 1);
+	fill: rgba(154, 107, 180, 1);
+}
+.block-color-pink {
+	color: rgba(193, 76, 138, 1);
+	fill: rgba(193, 76, 138, 1);
+}
+.block-color-red {
+	color: rgba(207, 81, 72, 1);
+	fill: rgba(207, 81, 72, 1);
+}
+.block-color-default_background {
+	color: inherit;
+	fill: inherit;
+}
+.block-color-gray_background {
+	background: rgba(240, 239, 237, 1);
+}
+.block-color-brown_background {
+	background: rgba(245, 237, 233, 1);
+}
+.block-color-orange_background {
+	background: rgba(251, 235, 222, 1);
+}
+.block-color-yellow_background {
+	background: rgba(249, 243, 220, 1);
+}
+.block-color-teal_background {
+	background: rgba(232, 241, 236, 1);
+}
+.block-color-blue_background {
+	background: rgba(229, 242, 252, 1);
+}
+.block-color-purple_background {
+	background: rgba(243, 235, 249, 1);
+}
+.block-color-pink_background {
+	background: rgba(250, 233, 241, 1);
+}
+.block-color-red_background {
+	background: rgba(252, 233, 231, 1);
+}
+.select-value-color-default { background-color: rgba(42, 28, 0, 0.07); }
+.select-value-color-gray { background-color: rgba(28, 19, 1, 0.11); }
+.select-value-color-brown { background-color: rgba(127, 51, 0, 0.156); }
+.select-value-color-orange { background-color: rgba(196, 88, 0, 0.203); }
+.select-value-color-yellow { background-color: rgba(209, 156, 0, 0.282); }
+.select-value-color-green { background-color: rgba(0, 96, 38, 0.156); }
+.select-value-color-blue { background-color: rgba(0, 118, 217, 0.203); }
+.select-value-color-purple { background-color: rgba(92, 0, 163, 0.141); }
+.select-value-color-pink { background-color: rgba(183, 0, 78, 0.152); }
+.select-value-color-red { background-color: rgba(206, 24, 0, 0.164); }
+
+.checkbox {
+	display: inline-flex;
+	vertical-align: text-bottom;
+	width: 16;
+	height: 16;
+	background-size: 16px;
+	margin-left: 2px;
+	margin-right: 5px;
+}
+
+.checkbox-on {
+	background-image: url("data:image/svg+xml;charset=UTF-8,%3Csvg%20width%3D%2216%22%20height%3D%2216%22%20viewBox%3D%220%200%2016%2016%22%20fill%3D%22none%22%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%3E%0A%3Crect%20width%3D%2216%22%20height%3D%2216%22%20fill%3D%22%2358A9D7%22%2F%3E%0A%3Cpath%20d%3D%22M6.71429%2012.2852L14%204.9995L12.7143%203.71436L6.71429%209.71378L3.28571%206.2831L2%207.57092L6.71429%2012.2852Z%22%20fill%3D%22white%22%2F%3E%0A%3C%2Fsvg%3E");
+}
+
+.checkbox-off {
+	background-image: url("data:image/svg+xml;charset=UTF-8,%3Csvg%20width%3D%2216%22%20height%3D%2216%22%20viewBox%3D%220%200%2016%2016%22%20fill%3D%22none%22%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%3E%0A%3Crect%20x%3D%220.75%22%20y%3D%220.75%22%20width%3D%2214.5%22%20height%3D%2214.5%22%20fill%3D%22white%22%20stroke%3D%22%2336352F%22%20stroke-width%3D%221.5%22%2F%3E%0A%3C%2Fsvg%3E");
+}
+	
+</style><style>@import url('https://cdn.jsdelivr.net/npm/katex@0.16.25/dist/katex-swap.min.css')</style></head><body><article id="3e176599-5fd1-8061-992b-caa081344306" class="page sans"><header><h1 class="page-title" dir="auto">2, 3차 개발 방향성</h1><p class="page-description" dir="auto"></p></header><div class="page-body"><details id="3e176599-5fd1-804d-887f-da408358ed38" open="" class="toggle" dir="auto"><summary><strong>+ cobot3_interfaces</strong></summary><div class="indented"><h3 id="3e176599-5fd1-8023-9768-c67677f272dc" class="" dir="auto">CarrierScan.srv</h3><script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js" integrity="sha512-7Z9J3l1+EYfeaPKcGXu3MS/7T+w19WtKQY/n+xzmw4hZhJ9tyYmcUS+4QqAlzhicE5LAfMQSF3iFTK9bQdTxXg==" crossorigin="anonymous" referrerPolicy="no-referrer"></script><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism.min.css" integrity="sha512-tN7Ec6zAFaVSG3TpNAKtk4DOHNpSwKHxxrsiw4GHKESGPs5njn/0sMCUMl2svV4wo4BK/rCP7juYz+zx+l6oeQ==" crossorigin="anonymous" referrerPolicy="no-referrer"/><script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js" integrity="sha512-AKaNmg8COK0zEbjTdMHJAPJ0z6VeNqvRvH4/d5M4sHJbQQUToMBtodq4HaV4fa+WV2UTfoperElm66c9/8cKmQ==" crossorigin="anonymous" referrerPolicy="no-referrer"></script><pre id="3e176599-5fd1-80af-b4e3-e9c39be5897a" class="code code-wrap" data-notion-code-syntax="python"><code class="language-python" style="white-space:pre-wrap;word-break:break-all">---
+bool found                    
+std_msgs/Header header 
+string payload                 
+geometry_msgs/Pose qr_pose </code></pre><h3 id="3e176599-5fd1-80e2-a288-de2f64262b3d" class="" dir="auto">NavigateTo.action</h3><pre id="3e176599-5fd1-801a-afc5-e6a657ff084e" class="code code-wrap" data-notion-code-syntax="python"><code class="language-python" style="white-space:pre-wrap;word-break:break-all"># ── goal ──
+geometry_msgs/PoseStamped pose  # frame_id = map. orientation 으로 정지 방향까지
+---
+# ── result ──
+uint8 NONE=0
+uint8 PLAN_FAIL=1               # 전역 경로 없음
+uint8 BLOCKED=2                 # 지역 회피 실패 — 사람 · 낙하물
+uint8 CANCELED=3                # task_manager 가 세웠다
+uint8 TOLERANCE_NOT_MET=4       # 도착했지만 허용오차 밖
+
+bool  success
+uint8 fail_reason
+---
+# ── feedback ──
+float32 distance_remaining_m</code></pre><h3 id="3e176599-5fd1-8016-bb19-da22736243b0" class="" dir="auto">PickCarrier.action</h3><pre id="3e176599-5fd1-80dc-83a4-caabed66caf4" class="code code-wrap" data-notion-code-syntax="python"><code class="language-python" style="white-space:pre-wrap;word-break:break-all"># ── goal ──
+string variant                          # grasp.yaml 키. 예: &quot;magazine_1_orange&quot;
+geometry_msgs/PoseStamped qr_pose       # 대략값(prior). CarrierScan 서비스 응답의
+                                        # qr_pose 를 그대로 넘긴다
+---
+# ── result ──
+uint8 NONE=0
+uint8 NO_IK=1
+uint8 COLLISION=2
+uint8 NO_FLANGE=3               # flange_topview 가 탐색 창에서 플랜지를 못 찾음
+uint8 NO_ATTACH=4               # 모든 grip_gap 에서 gripped=false
+uint8 SLIP=5                    # 붙었다가 리프트/스토우 중 떨어짐
+uint8 OFF_FLANGE=6              # 붙긴 했는데 목표에서 offset_limit 이상 빗나감
+uint8 CANCELED=7
+
+bool  success
+uint8 fail_reason
+---
+# ── feedback ──
+uint8 OBSERVE=0                 # 플랜지 상방 관측 자세로 이동 + 촬영
+uint8 APPROACH=1
+uint8 DESCEND=2
+uint8 SUCTION=3
+uint8 LIFT=4
+uint8 STOW=5
+
+uint8 phase</code></pre><h3 id="3e176599-5fd1-802f-818e-cc9cb882d3eb" class="" dir="auto">PlaceCarrier.action</h3><pre id="3e176599-5fd1-80bc-a44d-eeeb05a240e3" class="code code-wrap" data-notion-code-syntax="python"><code class="language-python" style="white-space:pre-wrap;word-break:break-all"># ── goal ──
+string variant                  
+---
+# ── result ──
+uint8 NONE=0
+uint8 NO_IK=1
+uint8 COLLISION=2
+uint8 PORT_OCCUPIED=3           # 내려놓을 자리에 이미 뭔가 있다
+uint8 NOT_GRIPPED=4             # 도착 시 이미 놓친 상태
+uint8 UNKNOWN_VARIANT=5         # place.yaml 에 이 variant 의 배치 자세가 없다
+uint8 CANCELED=6
+
+bool  success
+uint8 fail_reason
+---
+# ── feedback ──
+uint8 MOVE=0
+uint8 LOWER=1
+uint8 RELEASE=2
+uint8 RETREAT=3
+
+uint8 phase</code></pre></div></details><h1 id="3e176599-5fd1-801a-9541-e86d037c58a0" class="" dir="auto">최종 노드 구성도</h1><aside class="block-color-gray_background callout" data-notion-callout="" data-notion-callout-background="gray_background" style="white-space:pre-wrap;display:flex" id="3e176599-5fd1-808e-90b7-d2f4c02a8cc5" dir="ltr"><div style="width:100%"><p id="3e176599-5fd1-80f0-9c98-e1a3a24ad6a5" class="" dir="auto"><strong>&lt;디벨롭 사항&gt;</strong></p><ol type="1" id="3e176599-5fd1-80e0-bbcc-e61d61f46cb2" class="numbered-list" start="1" dir="auto"><li><strong>docking_server</strong> 구현</li></ol><ol type="1" id="3e176599-5fd1-8086-9c69-cf0f8a54866d" class="numbered-list" start="2" dir="auto"><li><strong>웹 + DB </strong>구현</li></ol></div></aside><figure id="3e176599-5fd1-804e-a8e9-c1d862e467e6" class="image" data-notion-image="2,%203%EC%B0%A8%20%EA%B0%9C%EB%B0%9C%20%EB%B0%A9%ED%96%A5%EC%84%B1/image.png" dir="ltr"><a href="2,%203%EC%B0%A8%20%EA%B0%9C%EB%B0%9C%20%EB%B0%A9%ED%96%A5%EC%84%B1/image.png"><img style="width:505.96875px" src="2,%203%EC%B0%A8%20%EA%B0%9C%EB%B0%9C%20%EB%B0%A9%ED%96%A5%EC%84%B1/image.png"/></a></figure><h1 id="3e176599-5fd1-80e5-bbbf-f2bf7343fd11" class="" dir="auto">최종 flowchart</h1><aside class="block-color-gray_background callout" data-notion-callout="" data-notion-callout-background="gray_background" style="white-space:pre-wrap;display:flex" id="3e176599-5fd1-80c7-a2c1-cf458a3449df" dir="ltr"><div style="width:100%"><p id="3e176599-5fd1-8024-8403-d27a51f8b076" class="" dir="auto"><strong>&lt;디벨롭 사항&gt;</strong></p><ol type="1" id="3e176599-5fd1-80e5-ad05-f4fc0b50d383" class="numbered-list" start="1" dir="auto"><li><strong>[패키징 스테이션 추가]</strong> 매거진 place 후 스택 있으면 가지러 감</li></ol><ol type="1" id="3e176599-5fd1-80f3-9199-ea8a0394fd3a" class="numbered-list" start="2" dir="auto"><li><strong>[도킹 스테이션 추가]</strong> place 마친 후 배터리 일정 수준 이하면 docking하러 이동 </li></ol><ol type="1" id="3e176599-5fd1-8041-94e8-ebe6a2786173" class="numbered-list" start="3" dir="auto"><li><strong>[웹 제어] </strong>QR코드 인식 외 pick, place, nav 등을 실패할 경우 웹에서 명령들어올 때까지 정지</li></ol></div></aside><figure id="3e176599-5fd1-80ec-857d-c0cea8610868" class="image" data-notion-image="2,%203%EC%B0%A8%20%EA%B0%9C%EB%B0%9C%20%EB%B0%A9%ED%96%A5%EC%84%B1/image%201.png" dir="ltr"><a href="2,%203%EC%B0%A8%20%EA%B0%9C%EB%B0%9C%20%EB%B0%A9%ED%96%A5%EC%84%B1/image%201.png"><img style="width:433.984375px" src="2,%203%EC%B0%A8%20%EA%B0%9C%EB%B0%9C%20%EB%B0%A9%ED%96%A5%EC%84%B1/image%201.png"/></a></figure><figure id="3e176599-5fd1-8070-a8d9-c676b6cd56d3" class="image" data-notion-image="2,%203%EC%B0%A8%20%EA%B0%9C%EB%B0%9C%20%EB%B0%A9%ED%96%A5%EC%84%B1/image%202.png" dir="ltr"><a href="2,%203%EC%B0%A8%20%EA%B0%9C%EB%B0%9C%20%EB%B0%A9%ED%96%A5%EC%84%B1/image%202.png"><img style="width:480px" src="2,%203%EC%B0%A8%20%EA%B0%9C%EB%B0%9C%20%EB%B0%A9%ED%96%A5%EC%84%B1/image%202.png"/></a></figure><figure id="3e176599-5fd1-8016-8d07-ff22e41c7931" class="image" data-notion-image="2,%203%EC%B0%A8%20%EA%B0%9C%EB%B0%9C%20%EB%B0%A9%ED%96%A5%EC%84%B1/image%203.png" dir="ltr"><a href="2,%203%EC%B0%A8%20%EA%B0%9C%EB%B0%9C%20%EB%B0%A9%ED%96%A5%EC%84%B1/image%203.png"><img style="width:433.9375px" src="2,%203%EC%B0%A8%20%EA%B0%9C%EB%B0%9C%20%EB%B0%A9%ED%96%A5%EC%84%B1/image%203.png"/></a></figure><h1 id="3e176599-5fd1-80d8-acb4-d8ea0a7507b8" class="" dir="auto">최종 로봇 상태 변화</h1><aside class="block-color-gray_background callout" data-notion-callout="" data-notion-callout-background="gray_background" style="white-space:pre-wrap;display:flex" id="3e176599-5fd1-8063-a8b1-cf7ca94be70c" dir="ltr"><div style="width:100%"><p id="3e176599-5fd1-8062-b78e-e0bfd425d3cf" class="" dir="auto"><strong>&lt;디벨롭 사항&gt;</strong></p><ol type="1" id="3e176599-5fd1-8035-b719-c9b29f78df97" class="numbered-list" start="1" dir="auto"><li><strong>DOCKING</strong> (충전중) 추가</li></ol><ol type="1" id="3e176599-5fd1-8039-a971-cd261bfe49ed" class="numbered-list" start="2" dir="auto"><li><strong>실패 시 정지되었다가, 웹에서 들어온 명령을 통해 업무 복귀</strong></li></ol></div></aside><figure id="3e176599-5fd1-80d6-ae4d-f4af02dec047" class="image" data-notion-image="2,%203%EC%B0%A8%20%EA%B0%9C%EB%B0%9C%20%EB%B0%A9%ED%96%A5%EC%84%B1/image%204.png" dir="ltr"><a href="2,%203%EC%B0%A8%20%EA%B0%9C%EB%B0%9C%20%EB%B0%A9%ED%96%A5%EC%84%B1/image%204.png"><img style="width:433.96875px" src="2,%203%EC%B0%A8%20%EA%B0%9C%EB%B0%9C%20%EB%B0%A9%ED%96%A5%EC%84%B1/image%204.png"/></a></figure><hr id="3e176599-5fd1-804b-8e95-dc6285dd9a2c" dir="auto"/><hr id="3e176599-5fd1-80f5-a214-f6d3120f0a60" dir="auto"/><h1 id="3e176599-5fd1-80da-88ed-e80e8b22338b" class="" dir="auto">cobot3_perception</h1><aside class="block-color-gray_background callout" data-notion-callout="" data-notion-callout-background="gray_background" style="white-space:pre-wrap;display:flex" id="3e176599-5fd1-8095-95a5-d6cad711afab" dir="ltr"><div style="width:100%"><p id="3e176599-5fd1-80f8-9778-ea6b010c8956" class="" dir="auto"><strong>&lt;수정할 부분&gt;</strong></p><ol type="1" id="3e176599-5fd1-80a8-9f17-d81e7f956fd3" class="numbered-list" start="1" dir="auto"><li><strong>[QR코드 위치 삭제]</strong> carrier_code_reader.py (+CarrierScan.srv): qr_pose (qr 위치) 부분 삭제<br/>→ 사유: patrol 경로로 자세 제한 + 거리로 판단하기로 했으므로</li></ol><ol type="1" id="3e176599-5fd1-80a0-96a3-c35e02e14951" class="numbered-list" start="2" dir="auto"><li><strong>[파일 수정(?)] </strong>flange_topview.py, qr_pose.py: 현재 ROS 노드에서는 단 한 번도 import되지 않음 → 수정/삭제 등 필요</li></ol></div></aside><h3 id="3e176599-5fd1-805b-b4c3-c4143f505741" class="" dir="auto">carrier_code_reader.py</h3><ul id="3e176599-5fd1-80b7-9c14-e559d56ae295" class="bulleted-list" dir="auto"><li style="list-style-type:disc">기능: <strong>patrol하며  QR코드 감지 + QR 정보 제공</strong>하는 노드</li></ul><ul id="3e176599-5fd1-80db-a4b9-cf73adc551a3" class="bulleted-list" dir="auto"><li style="list-style-type:disc">통신 구조</li></ul><pre id="3e176599-5fd1-80d8-9870-c78c5692a928" class="code code-wrap" data-notion-code-syntax="python"><code class="language-python" style="white-space:pre-wrap;word-break:break-all">1. /perception/carrier_detected: 토픽 | QR코드 감지 시 True 발행
+2. /perception/carrier_scan: 서비스 | QR코드 내용 전달
+3. /orchestrator/state: 토픽 | 로봇 현 상태 구독
+4. /robot1/amcl_pose: 토픽 | 로봇 현 위치 좌표 구독 (현재 픽업존인지 아닌지 판별용으로 씀)</code></pre><details id="3e176599-5fd1-8058-859e-cfacdb6c530a" open="" class="toggle" dir="auto"><summary>설명</summary><div class="indented"><ol type="1" id="3e176599-5fd1-8055-a556-faf2f362e663" class="numbered-list" start="1" dir="auto"><li>해당 범위를 shelf_zone으로 인식</li></ol><pre id="3e176599-5fd1-80d2-8b4c-f0d8bdc5079d" class="code code-wrap" data-notion-code-syntax="python"><code class="language-python" style="white-space:pre-wrap;word-break:break-all">SHELF_ZONE_X = (-7.10, -4.40)
+SHELF_ZONE_Y = (1.00, 1.65)</code></pre><ol type="1" id="3e176599-5fd1-803a-b193-fb739580c26f" class="numbered-list" start="2" dir="auto"><li>2층 탐색이 기본 자세</li></ol><pre id="3e176599-5fd1-808b-9df8-e9d843c5281c" class="code code-wrap" data-notion-code-syntax="python"><code class="language-python" style="white-space:pre-wrap;word-break:break-all">POSE_BY_PATROL_TARGET = {
+    1: &quot;shelf_1_top_close_centered&quot;, #2층 탐색 자세
+    0: &quot;s1_bottom_scan&quot;,             #1층 탐색 자세
+} 
+DEFAULT_POSE_NAME = &quot;shelf_1_top_close_centered&quot;</code></pre><ol type="1" id="3e176599-5fd1-80ff-83aa-ec5a87bf45b0" class="numbered-list" start="3" dir="auto"><li>_add_ros_bridge_to_syspath(): 시뮬레이터 연동 클라이언트인 <code>SimClient</code>와 <code>SimClientError</code>를 문제없이 사용할 수 있게 하는.. (기능과 직접 연관은 X)</li></ol><ol type="1" id="3e176599-5fd1-80ae-a903-fd6cf4e85e6e" class="numbered-list" start="4" dir="auto"><li>class CarrierCodeReader </li></ol><pre id="3e176599-5fd1-8098-9171-f43e2a8bb788" class="code code-wrap" data-notion-code-syntax="python"><code class="language-python" style="white-space:pre-wrap;word-break:break-all">def __init__(self):
+    super().__init__(&quot;carrier_code_reader&quot;)        
+    self.declare_parameter(&quot;decode_hz&quot;, 5.0)     #초당 QR 스캔 횟수
+    self.declare_parameter(&quot;roi_fraction&quot;, 0.6)  #QR 인식률 높이기 위한 설정값 1
+    self.declare_parameter(&quot;vote_window&quot;, 5)     #QR 인식률 높이기 위한 설정값 2
+    self.declare_parameter(&quot;vote_required&quot;, 3)   #QR 인식률 높이기 위한 설정값 3
+    self.declare_parameter(&quot;output_frame&quot;, &quot;base_link&quot;) #위치 좌표 계산 시 기준 좌표
+    self.declare_parameter(&quot;publish_debug&quot;, False) #디버그용 화면/정보 내보낼지 여부
+    
+    self.sim = SimClient() #isaac sim과 연결되는 통신 도구
+    
+    #CarrierScan.srv 받을 서버
+    self._srv = self.create_service(CarrierScan, &quot;/perception/carrier_scan&quot;, self._on_carrier_scan)
+    
+    #토픽 발생 및 구독
+    #1. QR 보인다/안보인다 신호 보내는 토픽 발행
+    self._detected_pub = self.create_publisher(Bool, &quot;/perception/carrier_detected&quot;, 10)
+    #2. 로봇 상태 알려주는 토픽 구독
+    self.create_subscription(String, &quot;/orchestrator/state&quot;, self._on_orchestrator_state, 10)
+    #3. 로봇 현재 지도상 위치 알려주는 토픽 구독
+    self.create_subscription(
+        PoseWithCovarianceStamped, &quot;/robot1/amcl_pose&quot;, self._on_amcl_pose, 10)
+    
+    #변수
+    self._orchestrator_state = None # 로봇 상태
+    self._patrol_target_idx = None  # 로봇 탐색 자세
+    self._base_pose = None # 현재 로봇 좌표
+    self._armed = False    # 로봇 팔을 관측 자세로 뻗으면 True
+    self._found = False    # QR 찾았는지
+    hz = float(self.get_parameter(&quot;decode_hz&quot;).value) 
+    self.create_timer(1.0 / hz, self._detect_tick) #위에서 정의한 decode_hz로 감지 주기 결정
+
+    self.get_logger().info(&quot;carrier_code_reader ready&quot;)
+    
+    # ── carrier_detected ────────────────────────────────────────────────
+    #로봇 위치 업데이트
+    def _on_amcl_pose(self, msg):
+        self._base_pose = (msg.pose.pose.position.x, msg.pose.pose.position.y)
+    
+    #선반 구역 진입 여부 확인
+    def _in_shelf_zone(self):
+        if self._base_pose is None:
+            return False
+        x, y = self._base_pose
+        return SHELF_ZONE_X[0] &lt;= x &lt;= SHELF_ZONE_X[1] and SHELF_ZONE_Y[0] &lt;= y &lt;= SHELF_ZONE_Y[1]
+    
+    #관측 자세 이름 선택
+    def _current_pose_name(self):
+        return POSE_BY_PATROL_TARGET.get(self._patrol_target_idx, DEFAULT_POSE_NAME)
+    
+    #patrol 모드 = 관측 자세로 팔 자세 + QR 감지
+    def _on_orchestrator_state(self, msg):
+        new_state = None
+        for part in msg.data.split(&quot;|&quot;):
+            part = part.strip()
+            if part.startswith(&quot;state=&quot;):
+                new_state = part[len(&quot;state=&quot;):]
+            elif part.startswith(&quot;patrol_target=&quot;):
+                try:
+                    self._patrol_target_idx = int(part[len(&quot;patrol_target=&quot;):])
+                except ValueError:
+                    pass
+        if new_state != self._orchestrator_state and new_state != &quot;patrol&quot;:
+            # patrol 을 벗어나면(HOLD/SCAN/PICK/NAV/PLACE) 팔이 다른 자세로
+            # 움직일 것이므로, 다음에 patrol 로 돌아오면 다시 observe_pose 부터.
+            # patrol_target 은 그대로 둔다 — HOLD~SCAN 동안 이 상태 문자열엔
+            # 그 필드가 안 실리므로(task_manager 가 patrol 에서만 채운다),
+            # 마지막으로 알던 층을 carrier_scan 서비스가 그대로 써야 한다.
+            self._armed = False
+            self._found = False
+        self._orchestrator_state = new_state
+    
+    #patrol 상태일 때 선반 앞 지나면서 QR코드 실시간 탐지하도록 하는 핵심 반복 작업 
+    def _detect_tick(self):
+        if self._orchestrator_state != &quot;patrol&quot;:
+            return
+
+        if not self._in_shelf_zone():
+            # 구역 밖이다 — 다음에 구역에 다시 들어올 때 재관측하도록 초기화.
+            self._armed = False
+            self._found = False
+            return
+
+        if self._found:
+            # 이미 이번 체류에서 감지해서 발행했다. task_manager 가 HOLD 로
+            # 넘어갈 때까지 더 폴링하지 않는다.
+            return
+
+        #patrol 상태면 팔 관측 자세로 뻗기, qr 스캔함
+        try:
+            if not self._armed:
+                self.sim.call(&quot;observe_pose&quot;, pose_name=self._current_pose_name(), timeout_s=15.0)
+                self._armed = True
+            r = self.sim.call(&quot;scan_qr&quot;, timeout_s=5.0, expected_id=None, n_frames=1)
+        except SimClientError as e:
+            self.get_logger().warn(f&quot;carrier_detected 폴링 실패: {e}&quot;)
+            return
+
+        #QR 감지 성공 시 True로 토픽 발행
+        if r.get(&quot;ok&quot;):
+            self.get_logger().info(f&quot;QR 감지: {r.get(&#x27;decoded&#x27;)}&quot;)
+            self._found = True
+            self._detected_pub.publish(Bool(data=True))
+            
+# ── ③④ /perception/carrier_scan ─────────────────────────────────────
+    #carrier_scan 서비스 호출 시 이 함수 실행됨
+    def _on_carrier_scan(self, request, response):
+        try:
+            self.sim.call(&quot;observe_pose&quot;, pose_name=self._current_pose_name())
+            r = self.sim.call(&quot;scan_qr&quot;, expected_id=None, n_frames=3) #3개 프레임 정확하게 QR읽음
+        #중간에 에러나면 False로 설정
+        except SimClientError as e:
+            response.found = False
+            self.get_logger().warn(f&quot;carrier_scan: {e}&quot;)
+            return response
+        #못 찾으면 False로 설정
+        if not r[&quot;ok&quot;]:
+            response.found = False
+            self.get_logger().warn(f&quot;carrier_scan: {r.get(&#x27;reason&#x27;, &#x27;검출 실패&#x27;)}&quot;)
+            return response
+            
+        #서비스 응답 - found, header, payload
+        response.found = True
+        response.header.stamp = self.get_clock().now().to_msg()
+        response.header.frame_id = self.get_parameter(&quot;output_frame&quot;).value
+        response.payload = r[&quot;decoded&quot;]    # gen_carrier_assets.py 의 숫자 ID (&quot;1&quot;/&quot;2&quot;)
+                                            # 를 그대로 실었다 — 실물 페이로드
+                                            # (C3.MAG.A17.9) 파싱은 아직 안 붙었다
+        #서비스 응답 - qr_pose
+        p = r[&quot;qr_pose_base_link&quot;]
+        pose = Pose()
+        pose.position.x, pose.position.y, pose.position.z = p[&quot;position&quot;]
+        # CarrierScan.qr_pose 규약: +Z = 라벨 법선(바깥). qr_pose.py 내부 규약은
+        # z = 안쪽(-법선) 이라 부호가 반대다. x(가로)는 그대로 두고 로컬 x축
+        # 기준 180도 회전(new_x=old_x, new_y=-old_y, new_z=-old_z)을 곱하면
+        # z 가 뒤집히면서 오른손 좌표계가 유지된다.
+        # q_new = q_old ⊗ (w=0,x=1,y=0,z=0) = (-x, w, z, -y)  (직접 전개해 확인)
+        w, x, y, z = p[&quot;quat_wxyz&quot;]
+        pose.orientation.w = -x
+        pose.orientation.x = w
+        pose.orientation.y = z
+        pose.orientation.z = -y
+        response.qr_pose = pose
+
+        self.get_logger().info(
+            f&quot;CarrierScan 응답: payload={response.payload} n_used={r[&#x27;n_used&#x27;]}/{r[&#x27;n_total&#x27;]}&quot;)
+        return response
+
+
+def main():
+    rclpy.init()
+    node = CarrierCodeReader()
+    try:
+        rclpy.spin(node)
+    finally:
+        node.destroy_node()
+        rclpy.shutdown()</code></pre><ol type="1" id="3e176599-5fd1-809c-b7b0-c995a373f4c2" class="numbered-list" start="1" dir="auto"><li>ㅇ</li></ol><ol type="1" id="3e176599-5fd1-80c1-a78d-c995d129fb78" class="numbered-list" start="2" dir="auto"><li>ㅇ</li></ol></div></details><h3 id="3e176599-5fd1-8095-bd97-d61b95f26c76" class="" dir="auto">carrier_scan.py</h3><ul id="3e176599-5fd1-8021-bdfe-dd091167dbe8" class="bulleted-list" dir="auto"><li style="list-style-type:disc">기능: <strong>QR코드 읽기</strong></li></ul><h3 id="3e176599-5fd1-8037-a0da-c58a155f64e9" class="" dir="auto">flange_topview.py</h3><ul id="3e176599-5fd1-8045-9300-e11854062e91" class="bulleted-list" dir="auto"><li style="list-style-type:disc">기능: qr_pose.py의 대략값을 기반으로 정밀하게 다시 재서 확정실제로 잡아야 할 부분을 계산해줌, qr_pose.py가 import해서 쓰는 중, <strong>현재 ROS 노드에서는 단 한 번도 import되지 않음. 후에 어떻게 수정?</strong></li></ul><h3 id="3e176599-5fd1-80ba-a304-d1417478b161" class="" dir="auto">qr_pose.py</h3><ul id="3e176599-5fd1-80d6-bdac-ef98b838b292" class="bulleted-list" dir="auto"><li style="list-style-type:disc">기능: 몇 번 상자이고, 대략 어디에 어떻게 놓였나 계산 (QR코드의 위치 및 각도를 정밀하게 계산). <strong>현재 ROS 노드에서는 단 한 번도 import되지 않음. 후에 어떻게 수정?</strong></li></ul><hr id="3e176599-5fd1-8074-a52b-f7a47c2fdbc1" dir="auto"/><h1 id="3e176599-5fd1-809a-85f4-f1286e319db6" class="" dir="auto">cobot3_orchestrator</h1><aside class="block-color-gray_background callout" data-notion-callout="" data-notion-callout-background="gray_background" style="white-space:pre-wrap;display:flex" id="3e176599-5fd1-8062-a8d9-cfa1aa500992" dir="ltr"><div style="width:100%"><p id="3e176599-5fd1-806a-b693-fcf1e9138165" class="" dir="auto"><strong>&lt;수정할 부분&gt;</strong></p><ol type="1" id="3e176599-5fd1-8050-86a0-d159a30d6648" class="numbered-list" start="1" dir="auto"><li><strong>[웹 - 정지 해결] </strong>현재는 SCAN 단계에서 실패 시 순찰 돌도록, 이외의 단계에서는 로봇이 정지하도록 되어 있음.<br/>→ <span style="border-bottom:0.05em solid">정지 시 웹에 표시하고, 사람이 버튼 눌러주면 다시 순찰부터 시작</span>하게 구현할 것</li></ol><ol type="1" id="3e176599-5fd1-801c-a11e-da37ed4c7d80" class="numbered-list" start="2" dir="auto"><li><strong>[PATROL 경로 수정] </strong>지금은 점 두 개 왕복하도록 돼있는데, 이건 끝에 도달하면 제자리에서 180도 돌아야 하는데 이게 가능할리가 없음. qr코드 인식 위해서 정확한 경로로 돌아야 하는 만큼 개선 필요.<br/>⇒ 아마 <span style="border-bottom:0.05em solid">네모 모양</span>으로 픽업존 바꾸고 거기 돌게 바꾸기 + 로봇 두 대인데 두 대가 같은 곳 돌면서 안 부딪히게 구현할 수 있는가? <span style="border-bottom:0.05em solid">도는 곳 다르게 할까</span> (이러면 그냥 cmd_vel로 그냥 직선으로 돌게 하다가 감지하면 멈추게 하면 되지)</li></ol><ol type="1" id="3e176599-5fd1-802c-bbcb-d616fd69a7ae" class="numbered-list" start="3" dir="auto"><li><strong>[로봇 대수 증가로 인한 인터페이스 개선] </strong><span style="border-bottom:0.05em solid">로봇이 두 대로 늘어난만큼 어떻게 명령줘야 하는지 고민</span>, 액션 보낼 때 로봇 ID도 같이?<br/><span style="border-bottom:0.05em solid">⇒ 공부가 필요한 부분인 듯</span></li></ol><ol type="1" id="3e176599-5fd1-80ac-a0da-df06fdb7d963" class="numbered-list" start="4" dir="auto"><li><strong>[QR코드 개선 및 DB 구현] </strong>QR코드에 생산 트랙킹 가능하게 내용 추가 + 인터페이스 맞게 수정 + DB 구현<br/>⇒ QR코드: F1L3-260920-STK-1 (1공장 3번 라인 26년 9월 20일 생산된 스택 1), 개수따라 조정 예정<br/>⇒ DB에 담을 내용: QR코드 고유 식별자 품목 종류(blue magazine), 이 물건을 담당한 로봇, 상태(DETECTED, IN_TRANSIT, COMPLETED, FAILED)  및 그 때 시간, 실패 사유</li></ol><ol type="1" id="3e176599-5fd1-8028-965d-e03926bd3750" class="numbered-list" start="5" dir="auto"><li><strong>[DB랑 연결되는 부분 인터페이스 생성] </strong>뭘 어떻게 저장할건지 </li></ol><ol type="1" id="3e176599-5fd1-80cc-b2c5-dc4970ff6b2d" class="numbered-list" start="6" dir="auto"><li><strong>[nav - 목적지 좌표 결정 로직 추가]</strong> 목적지 증가함에 따라 좌표 결정 로직 추가해야 함 (매거진이면 어디로, 스택이면 어디로..)</li></ol><ol type="1" id="3e176599-5fd1-80d0-9ba8-c75474d3ba80" class="numbered-list" start="7" dir="auto"><li><strong>[패키징 스테이션 + 스택 구현] </strong>place하고 명령 큐에 스택 있으면 그 스택 운반하러 가고, 없으면 RETURN </li></ol></div></aside><details id="3e176599-5fd1-80d6-8858-cf1cb4dbf2dd" open="" class="toggle" dir="auto"><summary>Behavior Tree 공부</summary><div class="indented"><p id="3e176599-5fd1-8026-b5b2-f729677c441f" class="" dir="auto"><strong>&lt;이론&gt;</strong></p><ul id="3e176599-5fd1-8010-b035-c89fa6bbb217" class="bulleted-list" dir="auto"><li style="list-style-type:disc">정의: <strong>&quot;로봇이 지금 뭘 해야 할까?&quot;를 매 순간(여기서는 0.1초마다) 다시 묻고 결정하는 의사결정 나무</strong></li></ul><ul id="3e176599-5fd1-805d-aef0-f285ab13bdfd" class="bulleted-list" dir="auto"><li style="list-style-type:disc">개념: <br/><strong>1. Tick (틱):</strong> 트리의 뿌리부터 자식 노드(leaf)들에게 &quot;너 지금 뭐 하고 있어?&quot;라고 묻는 과정<br/><strong>2. 상태 반환:</strong> <br/>• <code>SUCCESS</code>: 성공적으로 끝났어!   <br/>• <code>FAILURE</code>: 실패했어!   <br/>• <code>RUNNING</code>: <strong>아직 하는 중이야! (가장 중요)</strong></li></ul><ul id="3e176599-5fd1-803a-bb33-e8e654a340e2" class="bulleted-list" dir="auto"><li style="list-style-type:disc">핵심 제어 노드:<br/>1. <strong>Sequence (</strong><code><strong>[→]</strong></code><strong>):</strong> 자<strong>:</strong> 자식들을 왼쪽부터 차례대로 실행, 하나라도 FAILURE일시 즉시 중단 (memory=True: 저번에 RUNNING인 곳부터 실행)=<br/>2. <strong>Selector(</strong><code><strong>[?]</strong></code><strong>):</strong> 자식들을 왼쪽부터 검사하며, <strong>우선순위 결정</strong></li></ul></div></details><details id="3e176599-5fd1-8068-87e9-c402b3da2fec" open="" class="toggle" dir="auto"><summary>프로젝트 BT</summary><div class="indented"><figure id="3e176599-5fd1-80ab-bea1-dc78cf5f19c8" class="image" data-notion-image="2,%203%EC%B0%A8%20%EA%B0%9C%EB%B0%9C%20%EB%B0%A9%ED%96%A5%EC%84%B1/image%205.png" dir="ltr"><a href="2,%203%EC%B0%A8%20%EA%B0%9C%EB%B0%9C%20%EB%B0%A9%ED%96%A5%EC%84%B1/image%205.png"><img style="width:408.96875px" src="2,%203%EC%B0%A8%20%EA%B0%9C%EB%B0%9C%20%EB%B0%A9%ED%96%A5%EC%84%B1/image%205.png"/></a></figure><ol type="1" id="3e176599-5fd1-80d6-a7b8-ee4416bbe38f" class="numbered-list" start="1" dir="auto"><li><strong>로봇 처음 켰을 때</strong>: “detected?”부터 실행 → QR 신호 없어서 FAILURE 반환 → 2번 가지인 “START” 실행 → PATROL_ROUTE[0] 으로 이동 → SUCCESS 시 로봇 상태 PATROL로 바뀌고 patrol 시작</li></ol><ol type="1" id="3e176599-5fd1-80ea-841e-ce9f7cae61de" class="numbered-list" start="2" dir="auto"><li><strong>순찰 중 QR 발견</strong>: “detected?” 계속 실행 → QR 감지하여 SUCCESS 반환 → patrol 다음 목적지까지 가는 Nav2 중단시키고 HOLD 실행</li></ol><ol type="1" id="3e176599-5fd1-8025-8c22-c010bf8c1041" class="numbered-list" start="3" dir="auto"><li><strong>멈춘 후 물건 pnp</strong>: HOLD ~ RETURN 진행 후 순찰 시작</li></ol><ol type="1" id="3e176599-5fd1-80e7-a5e3-f61801dc22f2" class="numbered-list" start="4" dir="auto"><li><strong>중간에 실패</strong>: FAILURE 반환 → on_freeze 통해 바로 정지 (SCAN에서만 몇 번 재시도 후  다시 순환하도록 구현하고 있음)</li></ol></div></details><h3 id="3e176599-5fd1-80f6-8bf4-eaf1f0c1dca8" class="" dir="auto">task_manager.py</h3><ul id="3e176599-5fd1-8043-9a2f-cbe9ba98ea33" class="bulleted-list" dir="auto"><li style="list-style-type:disc">기능:<strong> 로봇 현 상태 및 명령( 저장 + 중간 통로 및 잡일</strong> 수행</li></ul><ul id="3e176599-5fd1-8043-8f70-ec86da8a5927" class="bulleted-list" dir="auto"><li style="list-style-type:disc">통신 구조<pre id="3e176599-5fd1-805e-b596-ea7a03f0f576" class="code code-wrap" data-notion-code-syntax="python"><code class="language-python" style="white-space:pre-wrap;word-break:break-all">1. /perception/carrier_detected: 토픽 | QR코드 감지 여부 구독
+2. /perception/carrier_scan: 서비스 | QR코드 정보 호출
+3. /navigation/navigate_to: 액션 | 목적지 좌표 전달해서 이동하게 함
+4. /manipulation/pick_carrier: 액션 | pick 수행
+5. /manipulation/place_carrier: 액션 | place 수행
+6. /orchestrator/state:  토픽 | 로봇 상태 발행</code></pre></li></ul><hr id="3e176599-5fd1-801e-a911-d8a77044fa68" dir="auto"/><h1 id="3e176599-5fd1-8005-bc58-ea2dc81bb029" class="" dir="auto">cobots_manipulation</h1><aside class="block-color-gray_background callout" data-notion-callout="" data-notion-callout-background="gray_background" style="white-space:pre-wrap;display:flex" id="3e176599-5fd1-80cc-a7a3-f12fe8110aea" dir="ltr"><div style="width:100%"><p id="3e176599-5fd1-80cc-85dc-e3050c784edd" class="" dir="auto"><strong>&lt;수정할 부분&gt;</strong></p><ol type="1" id="3e176599-5fd1-8045-90ec-fd2ab657e2be" class="numbered-list" start="1" dir="auto"><li><strong>[yaml 파일 수정] </strong><span style="border-bottom:0.05em solid">매거진/스택 종류 증가</span>하므로 이에 맞게 yaml 파일 및 pick_place_server.py 수정할 것</li></ol><ol type="1" id="3e176599-5fd1-8044-a867-f18ad83164fc" class="numbered-list" start="2" dir="auto"><li><strong>[pick 코드 업데이트]</strong> 현재 Q<span style="border-bottom:0.05em solid">R좌표 넘겨받아서 파지점 계산하는 옛날 버전</span>이므로 업데이트 필요함 (— Pick Carrier — 부분)</li></ol><ol type="1" id="3e176599-5fd1-8020-9dc2-e9116bf17760" class="numbered-list" start="3" dir="auto"><li><strong>[place 코드 업데이트] </strong><span style="border-bottom:0.05em solid">place 위치가 하나로 고정</span>되어 있어서 그 좌표에 무조건 놓도록 되어 있음 → 물건 종류 (action으로 쏴줌)에 맞게 고른 좌표에 놓도록 수정할 것. (yaml 파일에 물체 종류 별 좌표 넣어놓기?)</li></ol></div></aside><h3 id="3e176599-5fd1-80ef-a387-f37e1d0abc5d" class="" dir="auto">pick_place_server.py</h3><ul id="3e176599-5fd1-80c5-a9ad-d77c39e28b2f" class="bulleted-list" dir="auto"><li style="list-style-type:disc">기능: 액션으로 받은 물체 종류에 따라 <strong>pnp 수행</strong></li></ul><details id="3e176599-5fd1-809a-a17b-d89b33827e6f" open="" class="toggle" dir="auto"><summary>코드 상세 설명</summary><div class="indented"><pre id="3e176599-5fd1-8063-873e-eb3e2da934fd" class="code code-wrap" data-notion-code-syntax="python"><code class="language-python" style="white-space:pre-wrap;word-break:break-all"># PickCarrier.action, PlaceCarrier.action에 정의된 상태, 실패 원인
+_PHASE = {&quot;APPROACH&quot;: PickCarrier.Feedback.APPROACH, &quot;DESCEND&quot;: PickCarrier.Feedback.DESCEND,
+         &quot;SUCTION&quot;: PickCarrier.Feedback.SUCTION, &quot;LIFT&quot;: PickCarrier.Feedback.LIFT,
+         &quot;STOW&quot;: PickCarrier.Feedback.STOW}
+_FAIL = {&quot;NONE&quot;: PickCarrier.Result.NONE, &quot;NO_IK&quot;: PickCarrier.Result.NO_IK,
+        &quot;COLLISION&quot;: PickCarrier.Result.COLLISION, &quot;NO_FLANGE&quot;: PickCarrier.Result.NO_FLANGE,
+        &quot;NO_ATTACH&quot;: PickCarrier.Result.NO_ATTACH, &quot;SLIP&quot;: PickCarrier.Result.SLIP,
+        &quot;OFF_FLANGE&quot;: PickCarrier.Result.OFF_FLANGE, &quot;CANCELED&quot;: PickCarrier.Result.CANCELED}
+
+_PLACE_PHASE = {&quot;APPROACH&quot;: PlaceCarrier.Feedback.MOVE, &quot;DESCEND&quot;: PlaceCarrier.Feedback.LOWER,
+               &quot;RELEASE&quot;: PlaceCarrier.Feedback.RELEASE, &quot;RETRACT&quot;: PlaceCarrier.Feedback.RETREAT}
+_PLACE_FAIL = {&quot;NONE&quot;: PlaceCarrier.Result.NONE, &quot;NO_IK&quot;: PlaceCarrier.Result.NO_IK,
+              &quot;COLLISION&quot;: PlaceCarrier.Result.COLLISION,
+              &quot;PORT_OCCUPIED&quot;: PlaceCarrier.Result.PORT_OCCUPIED,
+              &quot;NOT_GRIPPED&quot;: PlaceCarrier.Result.NOT_GRIPPED,
+              &quot;UNKNOWN_VARIANT&quot;: PlaceCarrier.Result.UNKNOWN_VARIANT,
+              &quot;CANCELED&quot;: PlaceCarrier.Result.CANCELED}</code></pre><pre id="3e176599-5fd1-8012-b478-ed3e8831ebad" class="code code-wrap" data-notion-code-syntax="python"><code class="language-python" style="white-space:pre-wrap;word-break:break-all">#pick, place 공통 부분
+def __init__(self):
+    super().__init__(&quot;pick_place_server&quot;)
+    # ── PickCarrier/PlaceCarrier.action ★ 블록 — 값 출처는 모듈 독스트링 ──
+    self.declare_parameter(&quot;grasp_yaml&quot;, str(GRASP_YAML))
+    self.declare_parameter(&quot;place_yaml&quot;, str(PLACE_YAML))
+    self.declare_parameter(&quot;approach_dist_m&quot;, 0.15)          # z축으로 pre-grasp값
+    self.declare_parameter(&quot;grip_gaps_m&quot;, [0.005, 0.002, 0.0, -0.003]) #흡착 재시도 간격
+    self.declare_parameter(&quot;cup_diameter_m&quot;, 0.050)          # 그리퍼 지름
+    self.declare_parameter(&quot;offset_limit_m&quot;, 0.015)          # 허용 오차 상한
+    self.declare_parameter(&quot;coaxial_force_limit&quot;, 200.0)     # 당기는 힘 제한값
+    self.declare_parameter(&quot;shear_force_limit&quot;, 100.0)       # 미끄러지는 힘 제한값
+    self.declare_parameter(&quot;max_grip_distance&quot;, 0.03)        # 최대 파지 거리 제한값 
+    self.declare_parameter(&quot;lift_height_m&quot;, 0.10)            # 물건 잡은 후 들어 올리는 높이
+    self.declare_parameter(&quot;place_drop_m&quot;, 0.005)            # 내려놓을 때 떨구는 높이
+    self.declare_parameter(&quot;place_pos_tol_m&quot;, 0.002)         # 목표 위치와의 오차
+    self.declare_parameter(&quot;place_yaw_tol_rad&quot;, 0.017)       # 목표 각도와의 오차
+
+    grasp_path = Path(self.get_parameter(&quot;grasp_yaml&quot;).value)
+    place_path = Path(self.get_parameter(&quot;place_yaml&quot;).value)
+    self.grasp = yaml.safe_load(grasp_path.read_text(encoding=&quot;utf-8&quot;))[&quot;magazines&quot;]
+    self.place = yaml.safe_load(place_path.read_text(encoding=&quot;utf-8&quot;))[&quot;magazines&quot;]
+
+    self.sim = SimClient()
+    cb = ReentrantCallbackGroup()
+    self._server = ActionServer(
+        self, PickCarrier, &quot;/manipulation/pick_carrier&quot;,
+        execute_callback=self._execute,
+        goal_callback=self._on_goal, cancel_callback=self._on_cancel,
+        callback_group=cb)
+    self._place_server = ActionServer(
+        self, PlaceCarrier, &quot;/manipulation/place_carrier&quot;,
+        execute_callback=self._execute_place,
+        goal_callback=self._on_goal, cancel_callback=self._on_cancel,
+        callback_group=cb)
+    self.get_logger().info(
+        &quot;pick_place_server ready — /manipulation/pick_carrier, /manipulation/place_carrier&quot;)
+
+#시작 요청 수락
+def _on_goal(self, goal_request):
+    return GoalResponse.ACCEPT
+
+#취소 요청 수락
+def _on_cancel(self, goal_handle):
+    return CancelResponse.ACCEPT
+
+#현장 상황 생중계
+def _poll_until(self, thread, goal_handle, feedback, phase_map=_PHASE):
+    while thread.is_alive():
+        try:
+            status = self.sim.get_status() #지금 상태 어떤지 계속 질문
+            feedback.phase = phase_map.get(status[&quot;phase&quot;], feedback.phase)
+            goal_handle.publish_feedback(feedback) #Task Manager에 피드백 전송
+        except SimClientError as e: #통신 에러 나면 경고만 남기고 죽지 않음
+            self.get_logger().warn(f&quot;status 폴링 실패: {e}&quot;)
+        time.sleep(0.15)
+
+#QR코드 위치 통해 플랜지 위치 계산
+def _flange_pose_from_qr(self, variant, qr_pose_stamped):
+    &quot;&quot;&quot;variant + qr_pose(prior, CarrierScan 규약 +Z=바깥) -&gt; flange_pose_base_link.
+
+    task_manager._step3_compute_flange_pose 에 있던 수식을 그대로 옮긴
+    것이다(a2caf63 리팩터로 파지점 계산 책임이 여기로 넘어왔다).
+    &quot;&quot;&quot;
+    entry = self.grasp[variant]         # variant 가 없으면 KeyError -&gt; NO_FLANGE
+    p = qr_pose_stamped.pose
+    w, x, y, z = p.orientation.w, p.orientation.x, p.orientation.y, p.orientation.z
+    # CarrierScan 규약(+Z=바깥) -&gt; grasp.yaml 내부 규약(+Z=안쪽)으로 되돌린다.
+    # carrier_code_reader.py 와 같은 x축-180도 변환의 역이며, 자기 자신의
+    # 역이다(두 번 적용하면 원래로 돌아온다).
+    q_internal = np.array([-x, w, z, -y])
+    R = quat_wxyz_to_mat(*q_internal)
+    p_qr = np.array([p.position.x, p.position.y, p.position.z])
+
+    T = np.array(entry[&quot;T_QR_grasp_xyz&quot;])
+    flange_pos = p_qr + R @ T
+
+    # 로봇은 항상 수평(pitch=roll=0)이라는 전제로, base_link 프레임에서
+    # 곧장 yaw 만 뽑아 flange_pose 의 orientation(+Z=위)을 만든다.
+    yaw = float(np.arctan2(R[1, 0], R[0, 0]))
+    half = yaw / 2.0
+    return {&quot;position&quot;: flange_pos.tolist(),
+           &quot;quat_wxyz&quot;: [float(np.cos(half)), 0.0, 0.0, float(np.sin(half))]}</code></pre><pre id="3e176599-5fd1-80ae-8b15-c39803d4670a" class="code code-wrap" data-notion-code-syntax="python"><code class="language-python" style="white-space:pre-wrap;word-break:break-all"># ── PickCarrier ──
+def _execute(self, goal_handle):
+    goal = goal_handle.request
+    result = PickCarrier.Result()
+    feedback = PickCarrier.Feedback()
+    approach_dist_m = float(self.get_parameter(&quot;approach_dist_m&quot;).value)
+    grip_gaps_m = list(self.get_parameter(&quot;grip_gaps_m&quot;).value)
+    offset_limit_m = float(self.get_parameter(&quot;offset_limit_m&quot;).value)
+    lift_height_m = float(self.get_parameter(&quot;lift_height_m&quot;).value)
+
+    # ── OBSERVE: qr_pose(prior) + grasp.yaml 로 flange_pose 계산 ──
+    # ★ 알려진 갭: 액션 설계가 요구하는 손목캠 재관측(flange_topview)은
+    # 아직 없다 — 모듈 독스트링 참고.
+    feedback.phase = PickCarrier.Feedback.OBSERVE
+    goal_handle.publish_feedback(feedback)
+    try:
+        flange_pose_base_link = self._flange_pose_from_qr(goal.variant, goal.qr_pose)
+    except KeyError:
+        self.get_logger().warn(f&quot;grasp.yaml 에 없는 variant: {goal.variant}&quot;)
+        return self._abort(goal_handle, result, &quot;NO_FLANGE&quot;)
+
+    # ── APPROACH ──
+    feedback.phase = PickCarrier.Feedback.APPROACH
+    goal_handle.publish_feedback(feedback)
+    holder = {}
+    params = dict(
+       flange_pose_base_link=flange_pose_base_link,
+       approach_dist_m=approach_dist_m)
+   t = threading.Thread(target=lambda: holder.__setitem__(
+       &quot;r&quot;, self._safe_call(&quot;pick_phase1_approach&quot;, **params)))
+   t.start()
+   self._poll_until(t, goal_handle, feedback)
+   r1 = holder.get(&quot;r&quot;)
+   if r1 is None or not r1.get(&quot;success&quot;):
+       return self._abort(goal_handle, result,
+                           (r1 or {}).get(&quot;fail_reason&quot;, &quot;NO_IK&quot;))
+
+    # ── DESCEND -&gt; SUCTION -&gt; LIFT -&gt; STOW ──
+    holder2 = {}
+    t2 = threading.Thread(target=lambda: holder2.__setitem__(
+        &quot;r&quot;, self._safe_call(&quot;pick_phase2_finish&quot;, timeout_s=120.0,
+                            grip_gaps_m=grip_gaps_m, offset_limit_m=offset_limit_m,
+                            lift_height_m=lift_height_m)))
+    t2.start()
+    self._poll_until(t2, goal_handle, feedback)
+    r2 = holder2.get(&quot;r&quot;)
+    if r2 is None:
+        return self._abort(goal_handle, result, &quot;NO_ATTACH&quot;)
+
+    result.success = bool(r2.get(&quot;success&quot;, False))
+    result.fail_reason = _FAIL.get(r2.get(&quot;fail_reason&quot;, &quot;NONE&quot;), PickCarrier.Result.NONE)
+    offset_mm = float(r2.get(&quot;final_offset_m&quot;, 0.0)) * 1000
+    limit_mm = float(r2.get(&quot;offset_limit_m&quot;, offset_limit_m)) * 1000
+    if result.success:
+        goal_handle.succeed()
+        self.get_logger().info(f&quot;PICK 성공  offset {offset_mm:.1f}/{limit_mm:.1f} mm&quot;)
+    else:
+        goal_handle.abort()
+        self.get_logger().warn(
+            f&quot;PICK 실패  reason={r2.get(&#x27;fail_reason&#x27;)}  offset {offset_mm:.1f}/{limit_mm:.1f} mm&quot;)
+    return result
+</code></pre><pre id="3e176599-5fd1-80c1-87e5-cb5471b5e4cc" class="code code-wrap" data-notion-code-syntax="python"><code class="language-python" style="white-space:pre-wrap;word-break:break-all"># ── PlaceCarrier ──
+def _execute_place(self, goal_handle):
+    &quot;&quot;&quot;★ 알려진 갭: PORT_OCCUPIED 판정은 안 한다 — 씬에 슬롯 자체가
+    없어서(포트 지오메트리는 다음 범위) 항상 비어 있다고 본다.&quot;&quot;&quot;
+    goal = goal_handle.request
+    result = PlaceCarrier.Result()
+    feedback = PlaceCarrier.Feedback()
+    approach_dist_m = float(self.get_parameter(&quot;approach_dist_m&quot;).value)
+    place_drop_m = float(self.get_parameter(&quot;place_drop_m&quot;).value)
+
+    slot_pose_base_link = self.place.get(goal.variant)
+    if slot_pose_base_link is None:
+        self.get_logger().warn(f&quot;place.yaml 에 없는 variant: {goal.variant}&quot;)
+        return self._abort_place(goal_handle, result, &quot;UNKNOWN_VARIANT&quot;)
+
+    # ── MOVE ──
+    #정해진 place 좌표의 15cm 위로 이동
+    feedback.phase = PlaceCarrier.Feedback.MOVE
+    goal_handle.publish_feedback(feedback)
+    holder = {}
+    params = dict(slot_pose_base_link=slot_pose_base_link, approach_dist_m=approach_dist_m)
+    t = threading.Thread(target=lambda: holder.__setitem__(
+       &quot;r&quot;, self._safe_call_place(&quot;place_phase1_approach&quot;, **params)))
+    t.start()
+    self._poll_until(t, goal_handle, feedback, phase_map=_PLACE_PHASE)
+    r1 = holder.get(&quot;r&quot;)
+    if r1 is None or not r1.get(&quot;success&quot;):
+        return self._abort_place(goal_handle, result,
+                                (r1 or {}).get(&quot;fail_reason&quot;, &quot;NO_IK&quot;))
+
+    # ── LOWER -&gt; RELEASE -&gt; RETREAT ──
+    #수직 하강 -&gt; 흡착 끄기 -&gt; 팔 위로 빼기
+    holder2 = {}
+    t2 = threading.Thread(target=lambda: holder2.__setitem__(
+        &quot;r&quot;, self._safe_call_place(&quot;place_phase2_finish&quot;, release_height_m=place_drop_m)))
+    t2.start()
+    self._poll_until(t2, goal_handle, feedback, phase_map=_PLACE_PHASE)
+    r2 = holder2.get(&quot;r&quot;)
+    if r2 is None:
+         return self._abort_place(goal_handle, result, &quot;COLLISION&quot;)
+
+    result.success = bool(r2.get(&quot;success&quot;, False))
+    result.fail_reason = _PLACE_FAIL.get(r2.get(&quot;fail_reason&quot;, &quot;NONE&quot;), PlaceCarrier.Result.NONE)
+    if result.success:
+        goal_handle.succeed()
+        self.get_logger().info(&quot;PLACE 성공&quot;)
+    else:
+        goal_handle.abort()
+        self.get_logger().warn(f&quot;PLACE 실패  reason={r2.get(&#x27;fail_reason&#x27;)}&quot;)
+    return result
+
+#인터페이스 규격 달라서 따로 정의한 것, 그냥 안전용 하나, 실패했을 때 보고하고 액션 끝내는 애 하나
+def _safe_call_place(self, method, **kw):
+    try:
+        return self.sim.call(method, **kw)
+    except SimClientError as e:
+        self.get_logger().error(f&quot;{method} 실패: {e}&quot;)
+        return {&quot;success&quot;: False, &quot;fail_reason&quot;: &quot;NO_IK&quot;}
+
+def _abort_place(self, goal_handle, result, fail_reason):
+    result.success = False
+    result.fail_reason = _PLACE_FAIL.get(fail_reason, PlaceCarrier.Result.NO_IK)
+    goal_handle.abort()
+    return result
+
+def _safe_call(self, method, **kw):
+    try:
+        return self.sim.call(method, **kw)
+    except SimClientError as e:
+        self.get_logger().error(f&quot;{method} 실패: {e}&quot;)
+        return {&quot;success&quot;: False, &quot;fail_reason&quot;: &quot;NO_IK&quot;}
+
+def _abort(self, goal_handle, result, fail_reason):
+    result.success = False
+    result.fail_reason = _FAIL.get(fail_reason, PickCarrier.Result.NO_IK)
+    goal_handle.abort()
+    return result</code></pre></div></details><hr id="3e176599-5fd1-8032-ab6f-e2868ac3d326" dir="auto"/><h1 id="3e176599-5fd1-8059-9453-f2d3eaa7da12" class="" dir="auto">cobot3_navigation</h1><aside class="block-color-gray_background callout" data-notion-callout="" data-notion-callout-background="gray_background" style="white-space:pre-wrap;display:flex" id="3e176599-5fd1-80e4-8766-fc982edddac2" dir="ltr"><div style="width:100%"><p id="3e176599-5fd1-80cf-856c-ffc3647ff205" class="" dir="auto"><strong>&lt;수정할 부분&gt;</strong></p><ol type="1" id="3e176599-5fd1-80d1-b1ba-e9f4af6f5153" class="numbered-list" start="1" dir="auto"><li>..수정 완료 뒤 개선점 찾아보겠습니다..</li></ol></div></aside><ul id="3e176599-5fd1-80bd-b296-db9886a1fb55" class="bulleted-list" dir="auto"><li style="list-style-type:disc">통신 구조</li></ul><pre id="3e176599-5fd1-8099-9ca4-d9464f2ebd26" class="code code-wrap" data-notion-code-syntax="python"><code class="language-python" style="white-space:pre-wrap;word-break:break-all">1. /navigation/navigate_to: 액션 | 목적지 좌표 전달해서 이동하게 함</code></pre><figure id="3e176599-5fd1-8038-84b3-eacd8bcd6b13" class="image" data-notion-image="2,%203%EC%B0%A8%20%EA%B0%9C%EB%B0%9C%20%EB%B0%A9%ED%96%A5%EC%84%B1/image%206.png" dir="ltr"><a href="2,%203%EC%B0%A8%20%EA%B0%9C%EB%B0%9C%20%EB%B0%A9%ED%96%A5%EC%84%B1/image%206.png"><img style="width:446.984375px" src="2,%203%EC%B0%A8%20%EA%B0%9C%EB%B0%9C%20%EB%B0%A9%ED%96%A5%EC%84%B1/image%206.png"/></a></figure><figure id="3e176599-5fd1-801d-ae94-ea022b3bb897" class="image" data-notion-image="2,%203%EC%B0%A8%20%EA%B0%9C%EB%B0%9C%20%EB%B0%A9%ED%96%A5%EC%84%B1/image%207.png" dir="ltr"><a href="2,%203%EC%B0%A8%20%EA%B0%9C%EB%B0%9C%20%EB%B0%A9%ED%96%A5%EC%84%B1/image%207.png"><img style="width:446.96875px" src="2,%203%EC%B0%A8%20%EA%B0%9C%EB%B0%9C%20%EB%B0%A9%ED%96%A5%EC%84%B1/image%207.png"/></a></figure><h3 id="3e176599-5fd1-80c2-b061-c7ac9c3412a9" class="" dir="auto">nav_server.py</h3><ul id="3e176599-5fd1-80fa-bfee-f0729cb01a88" class="bulleted-list" dir="auto"><li style="list-style-type:disc">나중에 수정되면 읽고 공부하겠습니다….. </li></ul><hr id="3e176599-5fd1-806a-b3d2-ffb9149d6b61" dir="auto"/><h1 id="3e176599-5fd1-80c3-9aab-ca1690b249aa" class="" dir="auto">cobot3_docking</h1><aside class="block-color-gray_background callout" data-notion-callout="" data-notion-callout-background="gray_background" style="white-space:pre-wrap;display:flex" id="3e176599-5fd1-809f-94af-d20eed3d8299" dir="ltr"><div style="width:100%"><p id="3e176599-5fd1-8062-8e53-f86f4948af0e" class="" dir="auto">구현해야 함!!<br/><strong>[Doking 시스템 구현]<br/></strong>⇒ <span style="border-bottom:0.05em solid">로봇 이동 거리 or 도킹 스테이션 떠나 있던 시간 or 그냥 고정 수 (robot1은 10분, robot2는 13분..)</span></p><ul id="3e176599-5fd1-80db-bc8f-d65a7cc60983" class="bulleted-list" dir="auto"><li style="list-style-type:disc">구현 방법 ⇒ 이것 역시 로봇 2개 어떻게 명령으로 구분해야 하는지 고려 후 방법 확정할 예정</li></ul><ol type="1" id="3e176599-5fd1-8026-a4db-ef1caa145a0a" class="numbered-list" start="1" dir="auto"><li>task_manager에 로봇별 가동시간 타이머를 둠(soft/hard_threshold_s 파라미터, 이미 예약돼 있음)</li></ol><ol type="1" id="3e176599-5fd1-80dc-a0b7-f34418db5d9e" class="numbered-list" start="2" dir="auto"><li>soft 초과 → 이번 사이클 끝의 RETURN 목적지를 dock_pad 로 바꿈<br/>hard 초과 → 지금 당장 로봇이 무슨 상태이든 충전하러 감 (예외처리 힘들거같아서 soft - hard 시간 차이를 넉넉히 둘 예정)</li></ol><ol type="1" id="3e176599-5fd1-805a-add5-faf94269946d" class="numbered-list" start="3" dir="auto"><li>상태 DOCKING으로 바꾼 뒤 NavigateTo 로 도킹 좌표 전송</li></ol><ol type="1" id="3e176599-5fd1-8007-a6e8-f4183003695f" class="numbered-list" start="4" dir="auto"><li>도착(action으로 성공 결과 받음) → Dock.action goal 전송</li></ol><ol type="1" id="3e176599-5fd1-808d-939a-ed6cccf20017" class="numbered-list" start="5" dir="auto"><li>result - 성공이라고 받으면 상태 RETURN으로 바꾸고 NavigateTo 로 PATROL_ROUTE[0] 복귀 → PATROL</li></ol><p id="3e176599-5fd1-808d-a1ac-e8e7e7601f4b" class="" dir="auto">※ docking_server → task_manager 방향이 필요하면 토픽 /docking/status 하나로 (도크 점유·고장 알림)</p></div></aside><h3 id="3e176599-5fd1-809e-8369-f43c6f82593c" class="" dir="auto"> Dock.action</h3><pre id="3e176599-5fd1-804c-8091-c42e7c678e7a" class="code code-wrap" data-notion-code-syntax="python"><code class="language-python" style="white-space:pre-wrap;word-break:break-all"># ── goal ──
+string robot_name               # &quot;robot1&quot; | &quot;robot2&quot;. 패드는 로봇별 고정 배정
+---
+# ── result ──
+uint8 NONE=0
+uint8 NO_CONTACT=1              # contact_timeout_s 안에 접점이 안 붙었다
+uint8 OCCUPIED=2                # 패드에 이미 뭔가 있다
+uint8 TIMEOUT=3                 # 붙긴 했는데 charge_timeout_s 안에 목표 %에 못 닿았다
+uint8 CANCELED=4                # task_manager 가 거뒀다 (긴급 호출 등)
+
+bool  success
+uint8 fail_reason
+---
+# ── feedback ──
+float32 charge_pct              # 0.0 ~ 100.0</code></pre><p id="3e176599-5fd1-8024-87e1-c5619d74c399" class="" dir="auto">
+</p><figure id="3e176599-5fd1-8073-88e3-f7a05aa415cf" class="image" data-notion-image="2,%203%EC%B0%A8%20%EA%B0%9C%EB%B0%9C%20%EB%B0%A9%ED%96%A5%EC%84%B1/image%208.png" dir="ltr"><a href="2,%203%EC%B0%A8%20%EA%B0%9C%EB%B0%9C%20%EB%B0%A9%ED%96%A5%EC%84%B1/image%208.png"><img style="width:434px" src="2,%203%EC%B0%A8%20%EA%B0%9C%EB%B0%9C%20%EB%B0%A9%ED%96%A5%EC%84%B1/image%208.png"/></a></figure></div></article><span class="sans" style="font-size:14px;padding-top:2em"></span></body></html>

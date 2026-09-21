@@ -66,7 +66,9 @@ docs/08_ROS2_NODE_Graph.html 의 확정안(01-03)이 기준이다. 노드 5개 �
       detected     carrier_detected 신호가 와 있나
       kind         QR 원문. 이 씬에서는 "1" 또는 "2" — 물체의 종류
       variant      kind 를 grasp.yaml(어떻게집나)/place.yaml(어디에놓나) 키로 푼 것
-      carrier_id   carriers.yaml(어느개체가어느종류인가) 조회 결과. 로그·표시용
+      carrier_id   QR 원문 그대로 = 개체 ID. 로그·표시용. DB 의 qr_payload 와 같은 값
+      run_id       미션 1회를 묶는 UUID. SCAN 성공 때 발행해 사이클 끝까지 들고 간다.
+                   DB 의 magazine_log.run_id 와 같은 값이다 (docs/DB구성.md §4)
       qr_pose      PickCarrier 가 플랜지를 찾을 탐색 창 prior
       fail_stage   어느 단계에서 멈췄나
       fail_reason  왜 멈췄나
@@ -84,6 +86,9 @@ docs/08_ROS2_NODE_Graph.html 의 확정안(01-03)이 기준이다. 노드 5개 �
   액션  manipulation/pick_carrier    PickCarrier.action
   액션  manipulation/place_carrier   PlaceCarrier.action
   발행  orchestrator/state           std_msgs/String  (상태 · 실패 단계 확인용)
+  발행  /trace/event                 TraceEvent.msg   ★ 절대이름. event_logger 가
+                                     전역 1개라 로봇이 몇 대든 여기로 모인다
+  서비스 orchestrator/resume         std_srvs/SetBool (웹 복구 — 얼어붙은 단계 재시도)
 
 ★ 이름 앞에 / 가 없다 — 전부 상대이름이고, 노드가 뜬 네임스페이스가 앞에
   붙는다. robot1 로 띄우면 /robot1/navigation/navigate_to 가 된다. 그래서 이
@@ -144,29 +149,36 @@ docs/08_ROS2_NODE_Graph.html 의 확정안(01-03)이 기준이다. 노드 5개 �
                               정차점까지 더 가고 싶으면 아래 상수 하나를 끈다.
 
 알려진 갭
-  - 이 씬의 QR 은 숫자 하나("1"/"2")만 담아서 같은 종류의 여러 개체를 구분하지
-    못한다. carriers.yaml 에서 그 종류의 첫 항목을 쓴다.
+  - 씬이 아직 옛 에셋이라 QR 이 숫자 하나("1"/"2")만 담는다. 그 동안에도 돌도록
+    _variant_of() 가 새 페이로드(F1-MGZB-1)와 옛 숫자를 둘 다 받는다.
+    씬을 16종으로 바꾸면 NUMERIC_TO_VARIANT 와 그 폴백을 지운다.
   - 순찰 중이 아닐 때(START · scan · pick · nav · place · return) 들어온
     carrier_detected 는 버린다. 물건은 그 자리에 그대로 있으므로 다음 순찰에
     다시 보인다.
-  - TraceEvent 발행과 배터리·도킹 선점 가지는 아직 없다. 둘 다 트리에 가지
-    하나씩 더하는 자리가 이미 나 있다 (build_tree 참고).
+  - 배터리·도킹 선점 가지는 아직 없다. 트리에 가지 하나 더하는 자리가 이미
+    나 있다 (build_tree 참고).
+  - TraceEvent 발행은 붙었다 — Freeze.update() 한 곳에서 pick·nav·place·return
+    넷을 전부 낸다. 스키마와 그 근거는 docs/DB구성.md.
 """
 
 import math
+import sys
 import time
+import uuid
 from pathlib import Path
 
 import py_trees
 import rclpy
-import yaml
 from geometry_msgs.msg import PoseStamped
 from py_trees.common import Access, Status
 from rclpy.action import ActionClient
+from rclpy.clock import Clock, ClockType
 from rclpy.node import Node
 from std_msgs.msg import Bool, String
+from std_srvs.srv import SetBool
 
 from cobot3_interfaces.action import NavigateTo, PickCarrier, PlaceCarrier
+from cobot3_interfaces.msg import TraceEvent
 from cobot3_interfaces.srv import CarrierScan
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -229,9 +241,20 @@ NAV = "nav"
 PLACE = "place"
 RETURN = "return"
 
-# QR payload -> grasp.yaml / place.yaml 의 variant 키.
-# 이 씬의 QR 은 "1" 또는 "2" 한 글자만 담고 있다.
-NUMERIC_TO_VARIANT = {"1": "magazine_1_orange", "2": "magazine_2_blue"}
+# ── 생산 트래킹 (docs/DB구성.md) ──────────────────────────────────────────
+# DB 에 행이 남는 단계. scan 은 없다 — 판독 실패는 미션이 시작되지도 않은 것이라
+# 남길 행이 없고, 판독 성공 시각은 pick 행의 started_at 이 곧 그것이다 (§4-6).
+LOGGED_STAGES = (PICK, NAV, PLACE, RETURN)
+
+# 실패 사유는 '단계' 가 정한다. return 은 같은 NavigateTo 액션이라 nav_error 다.
+# 그래서 액션 enum 에 없는 실패(TIMEOUT · SERVER_UNAVAILABLE · GOAL_REJECTED)도
+# 갈 곳이 있다. DB 의 fail_reason ENUM 네 값과 같아야 한다.
+STAGE_TO_REASON = {PICK: "pick_error", NAV: "nav_error",
+                   PLACE: "place_error", RETURN: "nav_error"}
+
+# 어디서 일어난 일인가. 순찰 중 발견 방식이라 슬롯 번호를 모르므로 place 만 채워진다.
+PORT_BY_STAGE = {PLACE: "test_loader"}
+
 
 # 각 단계를 이만큼 기다려도 안 끝나면 실패로 본다. 단위 초.
 # SCAN 은 재시도(SCAN_RETRIES)까지 포함해서 이 시간 안에 끝나야 한다 — 시도
@@ -289,7 +312,41 @@ def _find_ws_root():
 
 
 WS_ROOT = _find_ws_root()
-CARRIERS_YAML = WS_ROOT / "src/cobot3_bringup/config/carriers.yaml"
+
+# isaacpjt 는 ament 패키지가 아니라 그냥으로는 import 되지 않는다. carrier_code.py 는
+# 의존성 없는 순수 파이썬이고 QR 코드 규칙의 유일한 주인이라, 복사본을 만드는 대신
+# 경로를 열어 그 파일 하나를 쓴다 — cobot3_perception/carrier_code_reader.py 가
+# sim_client 를 집어 오는 방식과 같은 관례다.
+sys.path.insert(0, str(WS_ROOT / "isaacpjt" / "assets"))
+import carrier_code  # noqa: E402
+
+# ── QR 원문 -> grasp.yaml / place.yaml 의 variant 키 ──────────────────────
+# 옛 씬의 QR 은 "1" 또는 "2" 한 글자만 담았다. 16종 에셋으로 바꾸면
+# "F1-MGZB-1" 이 온다. 씬 교체가 끝나기 전까지 둘 다 받는다 — 그래야 씬을
+# 언제 바꾸든 로봇이 멈추지 않는다. 교체가 끝나면 이 표와 아래 폴백을 지운다.
+NUMERIC_TO_VARIANT = {"1": "magazine_1_orange", "2": "magazine_2_blue"}
+
+
+def _variant_of(payload):
+    """QR 원문 -> variant 키. 못 풀면 None.
+
+    새 페이로드는 carrier_code 가 푼다. 거기서 나오는 base_asset 의 확장자만
+    떼면 지금 grasp.yaml / place.yaml 의 키와 그대로 맞는다:
+
+        "F1-MGZB-1" -> base_asset "magazine_2_blue.usda" -> "magazine_2_blue"
+
+    덕분에 yaml 키 이름 바꾸기를 씬 교체와 분리할 수 있다. 나중에 yaml 키를
+    carrier_type(magazine_blue)으로 바꾸면 아래 한 줄만 고치면 된다:
+
+        return f"{info.family}_{info.color}"
+
+    자리를 보지 않고 아는 품목 코드를 찾는 방식이라, 로트 날짜가 끼어도
+    (F1-260921-MGZO-1) 그대로 읽힌다.
+    """
+    info = carrier_code.parse_code(payload)
+    if info is not None:
+        return info.base_asset[:-len(".usda")]
+    return NUMERIC_TO_VARIANT.get(payload)          # 옛 씬용 폴백
 
 
 def _reason_name(result_cls, code):
@@ -372,6 +429,9 @@ class ActionLeaf(py_trees.behaviour.Behaviour):
         now = time.monotonic()
         self.server_deadline = now + SERVER_WAIT_S
         self.deadline = now + self.timeout_s
+        # 생산 트래킹 — 이 단계가 시작된 시각. Freeze 가 끝날 때 읽어 간다.
+        # 시뮬과 벽시계를 둘 다 찍는 이유는 docs/DB구성.md §4-2.
+        self.started_stamp, self.started_wall = self.node.now_pair()
 
     def update(self):
         if time.monotonic() > self.deadline:
@@ -458,7 +518,10 @@ class ScanLeaf(py_trees.behaviour.Behaviour):
 
     def initialise(self):
         self.future = None
-        self.soft = False
+        # ★ SCAN 은 어떤 실패도 로봇을 얼리지 않는다 — soft 를 처음부터 True 로 둔다.
+        #   판독이 안 되면 무조건 순찰로 돌아간다. SCAN 은 에러가 아니다.
+        #   (docs/DB구성.md §4-6 — 그래서 DB 에도 scan 행이 없다)
+        self.soft = True
         self.attempt = 0
         now = time.monotonic()
         self.server_deadline = now + SERVER_WAIT_S
@@ -466,12 +529,14 @@ class ScanLeaf(py_trees.behaviour.Behaviour):
 
     def update(self):
         if time.monotonic() > self.deadline:
+            self.node.on_scan_not_found()      # 쿨다운. 없으면 곧바로 또 시도한다
             self.feedback_message = f"TIMEOUT({SCAN_TIMEOUT_S:.0f}s)"
             return Status.FAILURE
 
         if self.future is None:
             if not self.node.carrier_scan.service_is_ready():
                 if time.monotonic() > self.server_deadline:
+                    self.node.on_scan_not_found()
                     self.feedback_message = "SERVICE_UNAVAILABLE(/perception/carrier_scan)"
                     return Status.FAILURE
                 self.feedback_message = "서비스 대기"
@@ -500,8 +565,9 @@ class ScanLeaf(py_trees.behaviour.Behaviour):
                 f"NOT_FOUND(found=false) x{self.attempt} — patrol 로 돌아간다")
             return Status.FAILURE
 
-        variant = NUMERIC_TO_VARIANT.get(res.payload)
+        variant = _variant_of(res.payload)
         if variant is None:
+            self.node.on_scan_not_found()
             self.feedback_message = f"UNKNOWN_PAYLOAD({res.payload!r})"
             return Status.FAILURE
 
@@ -510,7 +576,7 @@ class ScanLeaf(py_trees.behaviour.Behaviour):
         qr_pose.pose = res.qr_pose           # 위치 및 방향 정보
         self.bb.kind = res.payload
         self.bb.variant = variant
-        self.bb.carrier_id = self.node.lookup_carrier_id(variant)
+        self.bb.carrier_id = res.payload      # 페이로드 자체가 개체 ID 다
         self.bb.qr_pose = qr_pose
         self.node.on_scan_ok()
         self.node.get_logger().info(
@@ -596,7 +662,7 @@ class CycleDone(py_trees.behaviour.Behaviour):
         super().__init__(name)
         self.node = node
         self.waypoints = waypoints
-        self.bb = _blackboard(name, ("kind", "variant", "carrier_id", "qr_pose"))
+        self.bb = _blackboard(name, ("kind", "variant", "carrier_id", "qr_pose", "run_id"))
 
     def update(self):
         self.node.get_logger().info(
@@ -605,6 +671,7 @@ class CycleDone(py_trees.behaviour.Behaviour):
         self.bb.variant = ""
         self.bb.carrier_id = ""
         self.bb.qr_pose = None
+        self.bb.run_id = ""          # 다음 미션은 새 run_id 를 받는다
         # RETURN 이 PATROL_ROUTE[0] 까지 데려다 놨다. 순찰은 그 다음 점부터
         # 이어가면 된다 — 되감지 않으면 이미 서 있는 자리로 goal 을 한 번 더 보낸다.
         self.waypoints.idx = 1
@@ -652,6 +719,19 @@ class Freeze(py_trees.decorators.Decorator):
 
     def update(self):
         child = self.decorated
+
+        if child.status == Status.SUCCESS:
+            # ★ 생산 트래킹의 발행 지점이다. pick · nav · place · return 넷이 전부
+            #   이 데코레이터를 지나가므로 여기 한 곳만 고치면 네 단계가 다 걸린다.
+            if self.stage == SCAN:
+                # 페이로드를 처음 확보한 순간 = 미션 하나의 시작. run_id 를 발행한다.
+                # (scan 자체는 행을 만들지 않는다 — LOGGED_STAGES 에 없다)
+                self.node.new_run()
+            elif self.stage in LOGGED_STAGES:
+                self.node.emit_trace(self.stage, child, ok=True)
+            self.feedback_message = child.feedback_message
+            return child.status
+
         if child.status != Status.FAILURE:
             self.feedback_message = child.feedback_message
             return child.status
@@ -661,8 +741,13 @@ class Freeze(py_trees.decorators.Decorator):
             self.feedback_message = reason
             return Status.FAILURE
 
+        if self.stage in LOGGED_STAGES:
+            self.node.emit_trace(self.stage, child, ok=False, fail_detail=reason)
+
         self.frozen = True
-        self.node.on_freeze(self.stage, reason)
+        # self 를 넘기는 이유: /orchestrator/resume 이 얼어붙은 이 잎을 찾아
+        # frozen=False 로 되돌려야 한다 (TaskManager._on_resume).
+        self.node.on_freeze(self.stage, reason, self)
         self.feedback_message = f"FROZEN: {reason}"
         return Status.RUNNING
 
@@ -790,7 +875,6 @@ class TaskManager(Node):
 
     def __init__(self):
         super().__init__("task_manager")
-        self.carriers = yaml.safe_load(CARRIERS_YAML.read_text(encoding="utf-8"))
 
         self.failed = False
         self.patrolling = False
@@ -801,12 +885,14 @@ class TaskManager(Node):
 
         self.bb = _blackboard("task_manager", (
             "detected", "kind", "variant", "carrier_id", "qr_pose",
-            "fail_stage", "fail_reason", "scan_fail_streak", "patrol_target"))
+            "fail_stage", "fail_reason", "scan_fail_streak", "patrol_target",
+            "run_id"))
         self.bb.detected = START_DETECTED_FOR_TEST
         self.bb.kind = ""
         self.bb.variant = ""
         self.bb.carrier_id = ""
         self.bb.qr_pose = None
+        self.bb.run_id = ""
         self.bb.fail_stage = ""
         self.bb.fail_reason = ""
         self.bb.scan_fail_streak = 0
@@ -820,6 +906,17 @@ class TaskManager(Node):
         self.create_subscription(
             Bool, "perception/carrier_detected", self._on_carrier_detected, 10)
         self._state_pub = self.create_publisher(String, "orchestrator/state", 10)
+
+        # ── 생산 트래킹 (docs/DB구성.md §9) ──────────────────────────────
+        # /trace/event 만 절대이름이다. event_logger 는 전역 1개라, 상대이름이면
+        # 로봇마다 다른 토픽이 되어 로봇을 늘릴 때마다 로거를 고쳐야 한다.
+        self.robot_id = self.get_namespace().strip("/") or "robot1"
+        self._trace_pub = self.create_publisher(TraceEvent, "/trace/event", 50)
+        # use_sim_time 이 켜져 있어도 벽시계를 따로 읽는다 — 둘 다 DB 에 들어간다(§4-2)
+        self._wall_clock = Clock(clock_type=ClockType.SYSTEM_TIME)
+        self._attempts = {}          # stage -> 시도 횟수. new_run() 이 비운다
+        self._frozen_node = None     # 얼어붙은 Freeze. _on_resume 이 푼다
+        self.create_service(SetBool, "orchestrator/resume", self._on_resume)
 
         self.patrol_node = None          # build_tree 가 채운다
         self.tree = py_trees.trees.BehaviourTree(build_tree(self))
@@ -840,15 +937,101 @@ class TaskManager(Node):
                 "task_manager.py 상단에 좌표를 넣어라.")
 
     # ── 트리가 부르는 것들 ────────────────────────────────────────────────
-    def on_freeze(self, stage, reason):
+    def on_freeze(self, stage, reason, node=None):
         """Freeze 가 얼어붙을 때 한 번 부른다."""
         self.failed = True
+        self._frozen_node = node
         self.bb.fail_stage = stage
         self.bb.fail_reason = reason
         self.get_logger().error(
             f"[실패] {stage} 단계에서 멈췄다. 이유: {reason} — "
-            f"그 자리에서 정지한다. 자동 복귀하지 않는다.")
+            f"그 자리에서 정지한다. 자동 복귀하지 않는다. 복구하려면 "
+            f"/{self.robot_id}/orchestrator/resume 에 true 를 보낸다.")
         self._publish_state()
+
+    # ── 생산 트래킹 (docs/DB구성.md §4-7 · §9) ────────────────────────────
+    def now_pair(self):
+        """(시뮬 시각, 벽시계) 한 쌍. 둘 다 builtin_interfaces/Time.
+
+        use_sim_time 이 켜져 있으면 get_clock() 은 /clock 을 따른다 — GPU 머신의
+        Isaac 이 발행하는 값이다. 두 머신 사이 DDS 가 안 뚫려 /clock 이 안 오면
+        0 이 나오고, DB 의 duration_sec 이 전부 0 이 된다. 에러는 안 난다.
+        """
+        return (self.get_clock().now().to_msg(), self._wall_clock.now().to_msg())
+
+    def new_run(self):
+        """SCAN 이 성공한 순간 = 미션 하나의 시작. run_id 를 새로 발행한다."""
+        self.bb.run_id = str(uuid.uuid4())
+        self._attempts = {}          # 미션이 바뀌면 attempt 도 1 로 돌아간다
+        self.get_logger().info(
+            f"미션 시작 run={self.bb.run_id[:8]} carrier={self.bb.kind}")
+        return self.bb.run_id
+
+    def attempt_of(self, stage):
+        return self._attempts.get(stage, 1)
+
+    def _status_of(self, stage, ok):
+        """그 시점 '물체' 의 상태. 단계의 성패(success)와는 다른 값이다.
+
+        return 은 place 뒤라 실패해도 물체는 이미 배달됐다 — 그래서
+        success=false 인데 status=COMPLETED 인 행이 나온다(docs/DB구성.md §4-3).
+        """
+        if stage == RETURN:
+            return "COMPLETED"
+        if not ok:
+            return "FAILED"
+        return "COMPLETED" if stage == PLACE else "IN_TRANSIT"
+
+    def emit_trace(self, stage, leaf, ok, fail_detail=""):
+        """단계 하나가 끝날 때마다 한 건. Freeze 가 부른다."""
+        sim_now, wall_now = self.now_pair()
+        msg = TraceEvent()
+        msg.started_stamp = getattr(leaf, "started_stamp", sim_now)
+        msg.stamp = sim_now
+        msg.started_wall = getattr(leaf, "started_wall", wall_now)
+        msg.wall_stamp = wall_now
+        msg.carrier_id = self.bb.kind or ""          # QR 원문 그대로. 가공하지 않는다
+        msg.robot_id = self.robot_id
+        msg.run_id = self.bb.run_id or ""
+        msg.stage = stage
+        msg.attempt = self.attempt_of(stage)
+        msg.success = bool(ok)
+        msg.status = self._status_of(stage, ok)
+        msg.fail_reason = "" if ok else STAGE_TO_REASON.get(stage, "nav_error")
+        msg.fail_detail = "" if ok else (fail_detail or "UNKNOWN")
+        msg.port = PORT_BY_STAGE.get(stage, "")
+        self._trace_pub.publish(msg)
+
+    def _on_resume(self, req, res):
+        """웹 복구 — 얼어붙은 그 단계를 다시 시도한다.
+
+        새 미션이 아니다. Freeze 가 얼어 있는 동안 RUNNING 을 돌려주므로
+        memory=True 인 mission Sequence 가 그 잎을 붙들고 있고, frozen 을 풀면
+        자식이 initialise() 부터 다시 돌아 goal 이 새로 나간다 — pick·nav 는
+        재실행되지 않는다. 그래서 run_id 는 그대로 두고 attempt 만 올린다
+        (docs/DB구성.md §4-7).
+        """
+        if not req.data:
+            res.success = False
+            res.message = "포기(false)는 미구현 — true 로 재개만 된다"
+            return res
+        node = self._frozen_node
+        if node is None:
+            res.success = False
+            res.message = "얼어붙은 단계가 없다"
+            return res
+
+        self._attempts[node.stage] = self.attempt_of(node.stage) + 1
+        node.frozen = False
+        self._frozen_node = None
+        self.failed = False
+        self.bb.fail_stage = ""
+        self.bb.fail_reason = ""
+        self._publish_state()
+        res.success = True
+        res.message = f"{node.stage} 재개 (attempt={self.attempt_of(node.stage)})"
+        self.get_logger().warning(f"[복구] {res.message}")
+        return res
 
     def begin_cancel(self, goal_handle, who):
         """진행 중인 goal 을 거둔다.
@@ -907,16 +1090,6 @@ class TaskManager(Node):
     def on_scan_ok(self):
         self._scan_fail_streak = 0
         self.bb.scan_fail_streak = 0
-
-    def lookup_carrier_id(self, variant):
-        """carriers.yaml 에서 그 variant 의 첫 항목.
-
-        QR 이 종류만 담아서 개체는 못 가린다.
-        """
-        for cid, info in self.carriers.items():
-            if isinstance(info, dict) and info.get("variant") == variant:
-                return cid
-        return ""
 
     def log_phase(self, label):
         return lambda fb: self.get_logger().info(f"  {label} phase={fb.feedback.phase}")
@@ -997,6 +1170,9 @@ class TaskManager(Node):
             parts.append(f"scan_fail={self.bb.scan_fail_streak}")
         if self.bb.carrier_id:
             parts.append(f"carrier={self.bb.carrier_id}")
+        if self.bb.run_id:
+            # 사람이 보는 용도. DB 의 run_id 앞 8자와 같아서 로그와 표를 맞춰볼 수 있다
+            parts.append(f"run={self.bb.run_id[:8]}")
         if self.bb.variant:
             parts.append(f"variant={self.bb.variant}")
         if self.failed:
