@@ -569,8 +569,10 @@ def Xform "World"
             custom string flow:blueStackPayload = "../assets/F3_STKO_1.usda"
             custom string flow:orangeStackPayload = "../assets/F3_STKB_1.usda"
             custom string flow:runtimeScript = "packaging_flow.py"
-            asset[] omni:scripting:scripts = [@../scripts/packaging_flow.py@]
-
+            asset[] omni:scripting:scripts = [
+                @../scripts/packaging_flow.py@,
+                @../scripts/zone_labels.py@
+            ]
             def Cube "ConveyorFrame" (
                 prepend apiSchemas = ["PhysicsCollisionAPI"]
             )
