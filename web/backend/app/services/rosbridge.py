@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import math
 import threading
 from typing import Any, Awaitable, Callable
 
@@ -215,9 +216,18 @@ class RclpyBridge(Bridge):
         self._last_pose_sent[robot] = now
         p = msg.pose.pose.position
         q = msg.pose.pose.orientation
+        # ★ theta 까지 여기서 만든다. 화면이 쓰는 것은 yaw 하나이고, 쿼터니언을
+        #   푸는 것은 ROS 를 아는 쪽의 일이다 — dispatcher 가 q 를 알 이유가 없다.
+        #   (qz·qw 도 같이 남긴다. 평면 주행이라 yaw 로 충분하지만, 원본을 버리면
+        #    나중에 3D 자세가 필요해질 때 여기까지 다시 와야 한다.)
+        theta = math.atan2(
+            2.0 * (q.w * q.z + q.x * q.y),
+            1.0 - 2.0 * (q.y * q.y + q.z * q.z),
+        )
         self._emit(
             "robot.pose",
-            {"x": p.x, "y": p.y, "qz": q.z, "qw": q.w, "frame": msg.header.frame_id},
+            {"x": p.x, "y": p.y, "theta": theta, "qz": q.z, "qw": q.w,
+             "frame": msg.header.frame_id},
             robot,
         )
 
