@@ -169,14 +169,15 @@ def main():
     check(all(st in busy_set for st in capped),
           f"PEER_LEAVING_STAGES {capped} 가 전부 양보 목록 안에 있다 — "
           f"양보하지 않는 단계에 반경 판정을 둬도 의미가 없다")
-    approaching = list(ns["PEER_APPROACHING_STAGES"])
-    check(all(st in busy_set for st in approaching),
-          f"PEER_APPROACHING_STAGES {approaching} 가 전부 양보 목록 안에 있다")
-    check(not (set(approaching) & set(capped)),
-          f"다가오는 단계와 떠나는 단계가 겹치지 않는다 "
-          f"{sorted(set(approaching) & set(capped))}")
-    check(ns["PLACE"] not in approaching and ns["PLACE"] not in capped,
-          "place 는 어느 쪽도 아니다 — 로더에 멈춰 있는 상태라 반경이 직접 잡는다")
+    holdback = list(ns["HOLD_BACK_STAGES"])
+    check(all(st in busy_set for st in holdback),
+          f"HOLD_BACK_STAGES {holdback} 가 전부 양보 목록 안에 있다")
+    check(ns["PLACE"] not in holdback,
+          "place 는 HOLD_BACK 대상이 아니다 — 상대가 멈춰 있는 그때가 대기 "
+          "장소로 올라갈 유일한 때다. 넣으면 대기 장소가 쓸모없어진다")
+    check(set(holdback) | {ns["PLACE"]} == set(busy_set),
+          f"HOLD_BACK_STAGES + place == 양보 목록 — 빠진 단계가 있으면 그 동안 "
+          f"구역에 들어간다 (차이 {sorted(set(busy_set) ^ (set(holdback)|{ns['PLACE']}))})")
     check(float(ns["DEFAULT_LOADER_CLEAR_RADIUS_M"]) > 0,
           f"loader_clear_radius_m 기본값 {ns['DEFAULT_LOADER_CLEAR_RADIUS_M']} m > 0")
     src = io.open(LAUNCH, encoding="utf-8").read()
