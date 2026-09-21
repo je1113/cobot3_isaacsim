@@ -55,6 +55,9 @@ CREATE TABLE IF NOT EXISTS magazine_log (
     robot_id     TEXT        NOT NULL,        -- 'robot1'
 
     stage        TEXT        NOT NULL,        -- pick | nav | place | return  (소문자)
+    attempt      INT         NOT NULL DEFAULT 1,
+                                              -- 같은 (run_id, stage) 의 몇 번째 시도인가.
+                                              -- 웹 복구(/orchestrator/resume)로 재시도하면 2, 3 ...
     started_at   TIMESTAMPTZ NOT NULL,        -- 단계 시작 (벽시계)
     ended_at     TIMESTAMPTZ NOT NULL,        -- 단계 끝  (벽시계) ← 표시하는 값
     started_sim  DOUBLE PRECISION,            -- 같은 순간의 시뮬 시각
@@ -72,8 +75,12 @@ CREATE TABLE IF NOT EXISTS magazine_log (
         CHECK (succeeded = (fail_reason IS NULL)),
     CONSTRAINT mag_detail_needs_reason
         CHECK (fail_detail IS NULL OR fail_reason IS NOT NULL),
+    -- ★ attempt 를 키에 넣는다. event_logger 가 ON CONFLICT (run_id, stage, attempt)
+    --   로 INSERT 하는데, 제약이 (run_id, stage) 뿐이면 두 가지가 동시에 깨진다:
+    --     · ON CONFLICT 가 매칭될 제약을 못 찾아 PostgreSQL 이 INSERT 자체를 거부한다
+    --     · 재시도 2회차 행이 1회차와 충돌해 기록을 잃는다 (docs/DB구성.md §4-7)
     CONSTRAINT mag_run_stage_once
-        UNIQUE (run_id, stage)
+        UNIQUE (run_id, stage, attempt)
 );
 
 CREATE INDEX IF NOT EXISTS idx_mag_carrier ON magazine_log (qr_payload, ended_at DESC);
@@ -92,6 +99,7 @@ CREATE TABLE IF NOT EXISTS stack_log (
     robot_id     TEXT        NOT NULL,
 
     stage        TEXT        NOT NULL,
+    attempt      INT         NOT NULL DEFAULT 1,   -- magazine_log 와 같은 이유
     started_at   TIMESTAMPTZ NOT NULL,
     ended_at     TIMESTAMPTZ NOT NULL,
     started_sim  DOUBLE PRECISION,
@@ -110,7 +118,7 @@ CREATE TABLE IF NOT EXISTS stack_log (
     CONSTRAINT stk_detail_needs_reason
         CHECK (fail_detail IS NULL OR fail_reason IS NOT NULL),
     CONSTRAINT stk_run_stage_once
-        UNIQUE (run_id, stage)
+        UNIQUE (run_id, stage, attempt)
 );
 
 CREATE INDEX IF NOT EXISTS idx_stk_carrier ON stack_log (qr_payload, ended_at DESC);
