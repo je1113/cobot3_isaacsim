@@ -7,8 +7,8 @@
                 double radius = 5
             }
             dictionary Perspective = {
-                double3 position = (-0.2569924906897127, 0.5295020164651373, 1.7468988548371722)
-                double3 target = (56.309296356564886, 6.630190206258069, -27.848188463926967)
+                double3 position = (4.875940955373279, -9.612578199630772, 4.008359071995757)
+                double3 target = (19.314628805440087, 31.181163418640008, -46.698516998476656)
             }
             dictionary Right = {
                 double3 position = (0, -5, 0)
@@ -569,10 +569,8 @@ def Xform "World"
             custom string flow:blueStackPayload = "../assets/F3_STKO_1.usda"
             custom string flow:orangeStackPayload = "../assets/F3_STKB_1.usda"
             custom string flow:runtimeScript = "packaging_flow.py"
-            asset[] omni:scripting:scripts = [
-                @../scripts/packaging_flow.py@,
-                @../scripts/zone_labels.py@
-            ]
+            asset[] omni:scripting:scripts = [@../scripts/packaging_flow.py@, @../scripts/zone_labels.py@]
+
             def Cube "ConveyorFrame" (
                 prepend apiSchemas = ["PhysicsCollisionAPI"]
             )
@@ -994,9 +992,9 @@ def Xform "World"
                 doc = "Namespace of the prim in Isaac Sim"
             )
             token visibility = "inherited"
-            quatd xformOp:orient = (1, 0, 0, 0)
+            quatd xformOp:orient = (6.123233995736766e-17, 0, 0, 1)
             double3 xformOp:scale = (1, 1, 1)
-            double3 xformOp:translate = (5.757674604268158, -6.591442953894261, 0.07963398335074101)
+            double3 xformOp:translate = (5.5, -6.591442953894261, 0.07963398335074101)
             uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
 
             over "differential_drive"
@@ -1516,9 +1514,9 @@ def Xform "World"
                 displayName = "Namespace"
                 doc = "Namespace of the prim in Isaac Sim"
             )
-            quatd xformOp:orient = (1, 0, 0, 0)
+            quatd xformOp:orient = (6.123233995736766e-17, 0, 0, 1)
             double3 xformOp:scale = (1, 1, 1)
-            double3 xformOp:translate = (5.757674604268158, -7.574740272404805, 0.07963398335074101)
+            double3 xformOp:translate = (5.5, -7.574740272404805, 0.07963398335074101)
             uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
 
             over "differential_drive"
@@ -2092,13 +2090,13 @@ def "Render" (
                 token omni:rtx:post:dlss:execMode = "performance"
                 bool omni:rtx:post:registeredCompositing:invertColorCorrection = 1
                 bool omni:rtx:post:registeredCompositing:invertToneMap = 1
-                int omni:rtx:pt:clampSpp = 64
+                int omni:rtx:pt:clampSpp
                 bool omni:rtx:pt:lightcache:cached:dontResolveConflicts = 1
                 int omni:rtx:pt:maxSamplesPerLaunch = 2073600
                 int omni:rtx:pt:maxVolumeBounces = 4
                 int omni:rtx:pt:mgpu:maxPixelsPerRegionExponent = 12
-                int omni:rtx:pt:samplesPerIteration = 64
-                int omni:rtx:pt:samplesPerPixel = 64
+                int omni:rtx:pt:samplesPerIteration
+                int omni:rtx:pt:samplesPerPixel
                 color3f omni:rtx:rt:ambientLight:color = (0.1, 0.1, 0.1)
                 bool omni:rtx:rt:demoire = 0
                 bool omni:rtx:rt:ecoMode:enabled
@@ -2581,6 +2579,44 @@ def "Render" (
                 custom bool overrideClipRange = 0
                 uniform int2 resolution = (1280, 720)
             }
+
+            def RenderProduct "Replicator_29" (
+                prepend apiSchemas = ["OmniRtxSettingsCommonAdvancedAPI_1", "OmniRtxSettingsRtAdvancedAPI_1", "OmniRtxSettingsPtAdvancedAPI_1", "OmniRtxPostColorGradingAPI_1", "OmniRtxPostChromaticAberrationAPI_1", "OmniRtxPostBloomPhysicalAPI_1", "OmniRtxPostMatteObjectAPI_1", "OmniRtxPostCompositingAPI_1", "OmniRtxPostDofAPI_1", "OmniRtxPostMotionBlurAPI_1", "OmniRtxPostTvNoiseAPI_1", "OmniRtxPostTonemapIrayReinhardAPI_1", "OmniRtxPostDebugSettingsAPI_1", "OmniRtxDebugSettingsAPI_1"]
+                hide_in_stage_window = true
+                no_delete = true
+            )
+            {
+                rel camera = </World/Robots/nova_carter1/chassis_link/sensors/XT_32/PandarXT_32_10hz>
+                custom string ogPostProcessPath = "/Render/OmniverseKit/HydraTextures/Replicator_29/PostRender"
+                bool omni:rtx:material:db:syncLoads = 1
+                bool omni:rtx:rt:ecoMode:enabled = 0
+                bool omni:rtx:scene:hydra:materialSyncLoads = 1
+                rel orderedVars = [
+                    </Render/Vars/GenericModelOutput>,
+                    </Render/Vars/RtxSensorMetadata>,
+                ]
+                custom bool overrideClipRange = 0
+                uniform int2 resolution = (1280, 720)
+            }
+
+            def RenderProduct "Replicator_30" (
+                prepend apiSchemas = ["OmniRtxSettingsCommonAdvancedAPI_1", "OmniRtxSettingsRtAdvancedAPI_1", "OmniRtxSettingsPtAdvancedAPI_1", "OmniRtxPostColorGradingAPI_1", "OmniRtxPostChromaticAberrationAPI_1", "OmniRtxPostBloomPhysicalAPI_1", "OmniRtxPostMatteObjectAPI_1", "OmniRtxPostCompositingAPI_1", "OmniRtxPostDofAPI_1", "OmniRtxPostMotionBlurAPI_1", "OmniRtxPostTvNoiseAPI_1", "OmniRtxPostTonemapIrayReinhardAPI_1", "OmniRtxPostDebugSettingsAPI_1", "OmniRtxDebugSettingsAPI_1"]
+                hide_in_stage_window = true
+                no_delete = true
+            )
+            {
+                rel camera = </World/Robots/nova_carter2/chassis_link/sensors/XT_32/PandarXT_32_10hz>
+                custom string ogPostProcessPath = "/Render/OmniverseKit/HydraTextures/Replicator_30/PostRender"
+                bool omni:rtx:material:db:syncLoads = 1
+                bool omni:rtx:rt:ecoMode:enabled = 0
+                bool omni:rtx:scene:hydra:materialSyncLoads = 1
+                rel orderedVars = [
+                    </Render/Vars/GenericModelOutput>,
+                    </Render/Vars/RtxSensorMetadata>,
+                ]
+                custom bool overrideClipRange = 0
+                uniform int2 resolution = (1280, 720)
+            }
         }
     }
 
@@ -2620,6 +2656,8 @@ def "Render" (
             </Render/OmniverseKit/HydraTextures/Replicator_26>,
             </Render/OmniverseKit/HydraTextures/Replicator_27>,
             </Render/OmniverseKit/HydraTextures/Replicator_28>,
+            </Render/OmniverseKit/HydraTextures/Replicator_29>,
+            </Render/OmniverseKit/HydraTextures/Replicator_30>,
         ]
     }
 
