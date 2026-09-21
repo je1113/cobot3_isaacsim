@@ -88,16 +88,25 @@ CREATE TABLE carrier_pair (
 
 `carriers.yaml`의 `produced_from`이 하던 일을 이 표가 가져간다. 그 파일은 삭제한다(§8-5).
 
-### 시드 — ⚠️ 미정
+### 시드 — 확정
 
 ```sql
--- TODO: 8쌍 확정 후 채운다. 아래는 '색 + 순서' 로 맞춘 추정값이다.
-INSERT INTO carrier_pair VALUES
-  ('F1-MGZO-1', 'F3-STKO-1'), ('F1-MGZO-2', 'F3-STKO-2'),
-  ('F2-MGZO-1', 'F3-STKO-3'), ('F2-MGZO-2', 'F3-STKO-4'),
-  ('F1-MGZB-1', 'F3-STKB-1'), ('F1-MGZB-2', 'F3-STKB-2'),
-  ('F2-MGZB-1', 'F3-STKB-3'), ('F2-MGZB-2', 'F3-STKB-4');
+INSERT INTO carrier_pair (magazine_payload, stack_payload) VALUES
+  ('F1-MGZB-1', 'F3-STKB-1'),   -- 파랑
+  ('F1-MGZB-2', 'F3-STKB-2'),
+  ('F2-MGZB-1', 'F3-STKB-3'),
+  ('F2-MGZB-2', 'F3-STKB-4'),
+  ('F1-MGZO-1', 'F3-STKO-1'),   -- 주황
+  ('F1-MGZO-2', 'F3-STKO-2'),
+  ('F2-MGZO-1', 'F3-STKO-3'),
+  ('F2-MGZO-2', 'F3-STKO-4');
 ```
+
+`carrier_code.py` 의 `CODES` 16개와 대조해 확인한 것 — 매거진 8개·스택 8개가 **각각 한 번씩만** 나오고,
+모든 쌍에서 **매거진 색 == 스택 색**이다 (파랑 4쌍 · 주황 4쌍).
+
+> 📌 저장하는 값은 **페이로드 형태**(`F1-MGZB-1`)다. 파일명(`F1_MGZB_1.usda`)은
+> `carrier_code.usd_name()` 이 `-` 를 `_` 로 바꾼 것이고, QR 에 구워진 문자열은 페이로드 쪽이다.
 
 > 이 표가 비어 있어도 **표 2·3은 정상으로 채워진다.** `production_tracking` 뷰만 빈 결과를 낸다.
 
@@ -619,7 +628,7 @@ JOIN carrier_pair cp ON cp.magazine_payload = ml.qr_payload
 WHERE pp.pending_id = …;
 ```
 
-> ⚠️ 이 조인은 §11 미정 #1(`carrier_pair` 8쌍)이 정해져야 결과가 나온다. 그때까지 회수는 *"가서 보고 판단"* 이다.
+> 📌 이 조인은 §3의 `carrier_pair` 8쌍이 확정돼 바로 결과가 나온다 — 회수하러 가기 전에 무엇이 나올지 안다.
 
 ② `retry_count`가 이 표를 못 없애는 이유다. *"언제 회수 가능한가"* 만이면 `magazine_latest`에서 파생할 수 있지만,
 **비전으로 확인했더니 아직 없어서 재예약** 한 횟수는 어디에도 파생할 근거가 없다.
@@ -686,8 +695,7 @@ lock을 칸으로 들면 **해제를 잊은 행(고아 lock)** 이 생기고 청
 
 | # | 내용 | 막히는 것 |
 |---|---|---|
-| 1 | **`carrier_pair` 8쌍** — §3의 시드는 추정값이다 | `002_seed.sql`. 표 2·3은 무관하게 채워지지만, **§10-3의 산출물 예측 조인도 같이 막힌다** |
-| 2 | `SCAN` hard 실패 3종을 어디에 남길지 (`robot_log`) | `DOCK` 구현 때 같이 정한다. **일시정지·비상정지도 payload가 없어 같은 표를 필요로 한다** — 만들면 표가 7개가 된다 |
-| 3 | 웹 복구(`/orchestrator/resume`) 후 같은 `run_id`를 이어갈지 새로 발행할지 | 이어가면 `UNIQUE(run_id, stage)`를 `(run_id, stage, attempt)`로 바꿔야 한다. 기본은 **새 `run_id`**. `task.resume_*`(§10-2 ③)의 의미도 여기 걸려 있다 |
-| 4 | **화면이 yaml을 고쳤을 때 떠 있는 노드가 어떻게 아는가** — reload 신호 vs 미션 시작마다 재독 | §10-6 전체. 이게 정해져야 화면의 설정 편집이 실제로 동작한다 |
-| 5 | 페이로드에 **라인** 이 없다 (`F1-MGZB-1` 은 공장만 갖는다) | 라인별 조회 화면. 정말 필요한지부터 |
+| 1 | `SCAN` hard 실패 3종을 어디에 남길지 (`robot_log`) | `DOCK` 구현 때 같이 정한다. **일시정지·비상정지도 payload가 없어 같은 표를 필요로 한다** — 만들면 표가 7개가 된다 |
+| 2 | 웹 복구(`/orchestrator/resume`) 후 같은 `run_id`를 이어갈지 새로 발행할지 | 이어가면 `UNIQUE(run_id, stage)`를 `(run_id, stage, attempt)`로 바꿔야 한다. 기본은 **새 `run_id`**. `task.resume_*`(§10-2 ③)의 의미도 여기 걸려 있다 |
+| 3 | **화면이 yaml을 고쳤을 때 떠 있는 노드가 어떻게 아는가** — reload 신호 vs 미션 시작마다 재독 | §10-6 전체. 이게 정해져야 화면의 설정 편집이 실제로 동작한다 |
+| 4 | 페이로드에 **라인** 이 없다 (`F1-MGZB-1` 은 공장만 갖는다) | 라인별 조회 화면. 정말 필요한지부터 |
