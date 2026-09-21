@@ -77,6 +77,17 @@ def _setup(context):
                 namespace=ns,
                 output="screen",
             ))
+
+    # ★ event_logger 만 네임스페이스 없이 전역 1개다.
+    #   /trace/event 가 절대이름이라 로봇이 몇 대든 여기로 모이고,
+    #   DB 커넥션을 가진 노드는 이것 하나뿐이다 (docs/DB구성.md §1).
+    #   DB 가 안 떠 있어도 무해하다 — 스풀 파일로 흘리고 로봇은 그대로 돈다.
+    nodes.append(Node(
+        package="cobot3_orchestrator",
+        executable="event_logger",
+        name="event_logger",
+        output="screen",
+    ))
     return nodes
 
 

@@ -602,15 +602,19 @@ append-only면 셋 다 없다. 정정은 **삭제가 아니라 정정 행 추가
 
 | 고칠 것 | 내용 |
 |---|---|
-| `msg/TraceEvent.msg` | `robot_id` · `run_id` · `status` · `attempt` · `wall_stamp` **5필드** 추가. `CMakeLists.txt`는 이미 등록돼 있어 안 고친다 |
-| `task_manager.py` | ⓐ `initialise()` 두 곳에 `started_at`/`started_sim` ⓑ `ScanLeaf` 성공부에 `new_run()` ⓒ **`Freeze.update()`에서 발행** ⓓ `__init__`에 publisher·`robot_id` ⓔ `emit_trace()` / `_status()` / `attempt_of()` 추가, `lookup_carrier_id()` 삭제 ⓕ `ScanLeaf.initialise():461` 을 soft 로(§4-6) ⓖ `on_freeze()`에 인자 하나 + `/orchestrator/resume` 서비스(§4-7) |
-| `carrier_code.py` 용어 | `line=parts[0]` → `plant=parts[0]`, docstring `라인 코드` → `공장 코드`. **라인은 페이로드에 없다**(§11) |
+| `msg/TraceEvent.msg` | **8필드** 추가 — 시각 3개(`started_stamp`·`started_wall`·`wall_stamp`) + `robot_id`·`run_id`·`status`·`attempt`·`fail_detail`. 기존 `stamp`는 "단계가 끝난 시뮬 시각"으로 의미가 굳는다. `CMakeLists.txt`는 이미 등록돼 있어 안 고친다 |
+| `task_manager.py` | ⓐ `ActionLeaf.initialise()`에 `started_stamp`/`started_wall` ⓑ **`Freeze.update()`의 SCAN 분기에서 `new_run()`** — `ScanLeaf`는 건드리지 않는다 ⓒ **`Freeze.update()`에서 발행** ⓓ `__init__`에 publisher·`robot_id`·벽시계·resume 서비스 ⓔ `now_pair()`/`new_run()`/`attempt_of()`/`_status_of()`/`emit_trace()` 추가 ⓕ `on_freeze()`에 인자 하나 + `_on_resume()`(§4-7) |
+| `carrier_code.py` | **옮기지 않는다.** 로거가 파서 대신 `carrier_kind` 4행을 읽어 "원문에 그 코드가 들어 있는가"로 표를 고른다 — 자리를 안 보므로 로트 날짜가 끼어도 동작하고, 코드 목록이 DB 한 곳에만 있다. 용어(`line` → `plant`)만 나중에 정리 |
 | `carrier_code.py` | `isaacpjt/assets/` → `cobot3_orchestrator/` (ament 패키지가 아니라 노드가 import 못 한다) |
 | `setup.py` · `package.xml` · `mission_nodes.launch.py` | 엔트리포인트 · 의존성 · **네임스페이스 없이 전역 1개**로 로거 추가 |
 
 | 지울 것 |
 |---|
 | `src/cobot3_bringup/config/carriers.yaml` · `task_manager.py`의 `CARRIERS_YAML` · `self.carriers` · `lookup_carrier_id()` |
+
+> 🔧 **위 '지울 것'과 `ScanLeaf`를 soft 로 바꾸는 것(§4-6)은 `ScanLeaf.update()`의
+> `NUMERIC_TO_VARIANT` 교체와 같은 함수에 있다.** 그 교체가 끝난 뒤에 함께 정리한다 —
+> 트레이스 발행은 그 함수를 건드리지 않고 `Freeze` 쪽에서만 붙였다.
 
 **발행 지점이 `Freeze` 하나인 것이 핵심이다.** `pick` · `nav` · `place` · `return` 넷이 전부 `Freeze`로 감싸져 있고
 (`:704` `:711` `:717` `:728`), 이 데코레이터가 자식의 SUCCESS도 FAILURE도 다 보며 `self.stage`를 이미 들고 있다.
