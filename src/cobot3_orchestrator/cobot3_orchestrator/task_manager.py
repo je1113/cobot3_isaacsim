@@ -76,13 +76,24 @@ docs/08_ROS2_NODE_Graph.html 의 확정안(01-03)이 기준이다. 노드 5개 �
     ros2 run py_trees_ros_tutorials 없이도 아래로 볼 수 있다:
         ros2 topic echo /orchestrator/state
 
-사용하는 인터페이스 — 08 문서에서 확정된 것만 쓴다. 이전 판과 동일하다.
-  구독  /perception/carrier_detected  std_msgs/Bool
-  호출  /perception/carrier_scan      CarrierScan.srv
-  액션  /navigation/navigate_to       NavigateTo.action
-  액션  /manipulation/pick_carrier    PickCarrier.action
-  액션  /manipulation/place_carrier   PlaceCarrier.action
-  발행  /orchestrator/state           std_msgs/String  (상태 · 실패 단계 확인용)
+사용하는 인터페이스 — 08 문서에서 확정된 것만 쓴다. 메시지 타입은 이전 판과
+동일하고, 이름만 상대이름이 됐다.
+  구독  perception/carrier_detected  std_msgs/Bool
+  호출  perception/carrier_scan      CarrierScan.srv
+  액션  navigation/navigate_to       NavigateTo.action
+  액션  manipulation/pick_carrier    PickCarrier.action
+  액션  manipulation/place_carrier   PlaceCarrier.action
+  발행  orchestrator/state           std_msgs/String  (상태 · 실패 단계 확인용)
+
+★ 이름 앞에 / 가 없다 — 전부 상대이름이고, 노드가 뜬 네임스페이스가 앞에
+  붙는다. robot1 로 띄우면 /robot1/navigation/navigate_to 가 된다. 그래서 이
+  노드는 자기가 어느 로봇인지 모르고, 알 필요도 없다 — /robot1 의 task_manager
+  에게는 /robot1 의 서버만 보인다. "본 놈이 가는 것" 이 코드가 아니라 배선으로
+  보장된다(docs/02 §2). 로봇을 늘릴 때 이 파일에서 고칠 것은 아래 좌표 상수뿐이다.
+
+  예외가 하나 생길 예정이다: docking_server 는 도크가 공용 자원이라 전역 1개로
+  두므로 /docking/dock 만 절대이름이고, 대신 Dock.action 의 robot_name 필드로
+  어느 로봇인지 말한다(docs/02 §2). 아직 미구현.
 
 ★ /orchestrator/state 는 디버그 토픽이 아니라 계약이다
   cobot3_perception/carrier_code_reader 가 이걸 구독해서 두 가지를 판정한다.
@@ -691,20 +702,20 @@ def build_tree(node):
     scan = Freeze("SCAN", ScanLeaf(SCAN, node), node, SCAN)
 
     pick = Freeze("PICK", ActionLeaf(
-        PICK, node, node.pick, "/manipulation/pick_carrier", PickCarrier.Result,
+        PICK, node, node.pick, "manipulation/pick_carrier", PickCarrier.Result,
         make_goal=lambda: PickCarrier.Goal(variant=bb.variant, qr_pose=bb.qr_pose),
         timeout_s=PICK_TIMEOUT_S,
         feedback_cb=node.log_phase("PICK")), node, PICK)
 
     # 목적지 좌표로 주행. 지금은 매거진 1 · 2 전부 test_loader 로 간다.
     nav = Freeze("NAV", ActionLeaf(
-        NAV, node, node.nav, "/navigation/navigate_to", NavigateTo.Result,
+        NAV, node, node.nav, "navigation/navigate_to", NavigateTo.Result,
         make_goal=lambda: NavigateTo.Goal(pose=_to_pose(TEST_LOADER)),
         timeout_s=NAV_TIMEOUT_S, moves_base=True), node, NAV)
 
     # 놓을 자리는 종류로 정해진다 — 좌표를 넘기지 않는다.
     place = Freeze("PLACE", ActionLeaf(
-        PLACE, node, node.place, "/manipulation/place_carrier", PlaceCarrier.Result,
+        PLACE, node, node.place, "manipulation/place_carrier", PlaceCarrier.Result,
         make_goal=lambda: PlaceCarrier.Goal(variant=bb.variant),
         timeout_s=PLACE_TIMEOUT_S,
         feedback_cb=node.log_phase("PLACE")), node, PLACE)
@@ -715,7 +726,7 @@ def build_tree(node):
     # 나중에 배터리 검사를 끼울 자리가 생긴다 — NavigateTo.action 의
     # "넘으면 다음 RETURN 에서 dock_pad 로" 가 여기다.
     ret = Freeze("RETURN", ActionLeaf(
-        RETURN, node, node.nav, "/navigation/navigate_to", NavigateTo.Result,
+        RETURN, node, node.nav, "navigation/navigate_to", NavigateTo.Result,
         make_goal=lambda: NavigateTo.Goal(pose=_to_pose(PATROL_ROUTE[0])),
         timeout_s=NAV_TIMEOUT_S, moves_base=True), node, RETURN)
 
@@ -735,7 +746,7 @@ def build_tree(node):
     #
     # patrol = Freeze("PATROL", py_trees.decorators.SuccessIsRunning(
     #     name="순찰", child=ActionLeaf(
-    #         PATROL, node, node.nav, "/navigation/navigate_to",
+    #         PATROL, node, node.nav, "navigation/navigate_to",
     #         NavigateTo.Result, make_goal=waypoints, timeout_s=NAV_TIMEOUT_S,
     #         ok_fail_reasons=(NavigateTo.Result.CANCELED,),
     #         moves_base=True)), node, PATROL)
@@ -743,7 +754,7 @@ def build_tree(node):
     # start = py_trees.decorators.OneShot(
     #     "START(1회)",
     #     child=Freeze("START", ActionLeaf(
-    #         START, node, node.nav, "/navigation/navigate_to", NavigateTo.Result,
+    #         START, node, node.nav, "navigation/navigate_to", NavigateTo.Result,
     #         make_goal=lambda: NavigateTo.Goal(pose=_to_pose(PATROL_ROUTE[0])),
     #         timeout_s=NAV_TIMEOUT_S, moves_base=True), node, START),
     #     policy=py_trees.common.OneShotPolicy.ON_SUCCESSFUL_COMPLETION)
@@ -802,13 +813,13 @@ class TaskManager(Node):
         self.bb.patrol_target = None
 
         # 콜백 그룹도 스레드도 없다. 잎이 블로킹하지 않아서 단일 스레드로 충분하다.
-        self.carrier_scan = self.create_client(CarrierScan, "/perception/carrier_scan")
-        self.nav = ActionClient(self, NavigateTo, "/navigation/navigate_to")
-        self.pick = ActionClient(self, PickCarrier, "/manipulation/pick_carrier")
-        self.place = ActionClient(self, PlaceCarrier, "/manipulation/place_carrier")
+        self.carrier_scan = self.create_client(CarrierScan, "perception/carrier_scan")
+        self.nav = ActionClient(self, NavigateTo, "navigation/navigate_to")
+        self.pick = ActionClient(self, PickCarrier, "manipulation/pick_carrier")
+        self.place = ActionClient(self, PlaceCarrier, "manipulation/place_carrier")
         self.create_subscription(
-            Bool, "/perception/carrier_detected", self._on_carrier_detected, 10)
-        self._state_pub = self.create_publisher(String, "/orchestrator/state", 10)
+            Bool, "perception/carrier_detected", self._on_carrier_detected, 10)
+        self._state_pub = self.create_publisher(String, "orchestrator/state", 10)
 
         self.patrol_node = None          # build_tree 가 채운다
         self.tree = py_trees.trees.BehaviourTree(build_tree(self))

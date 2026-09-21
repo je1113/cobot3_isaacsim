@@ -12,9 +12,19 @@ cmd_vel 직접 주행으로 처리한다. 원래는 Nav2(navigate_to_pose)에 �
 
     ros2 run cobot3_navigation nav_server
 
-씬(isaacpjt/worlds/simple_factory_layout.usda)의 nova_carter1 은 Isaac 쪽에서
-isaac:namespace = "robot1" 로 떠 있다. 다른 로봇에 붙이려면
-    ros2 run cobot3_navigation nav_server --ros-args -p robot_namespace:=robot2
+★ 이 노드는 자기가 어느 로봇인지 모른다. 이름을 전부 상대이름으로 쓰므로
+(navigation/navigate_to · amcl_pose · cmd_vel) 노드가 뜬 네임스페이스가 곧
+로봇 식별자다. 씬(isaacpjt/worlds/simple_factory_layout.usda)의 nova_carter1 ·
+nova_carter2 가 Isaac 쪽에서 isaac:namespace = "robot1" · "robot2" 로 떠 있고,
+Nav2(multi_navigation.launch.py)도 같은 이름을 쓰므로 그 이름에 맞춰 띄운다:
+    ros2 launch cobot3_bringup mission_nodes.launch.py            # robot1
+    ros2 launch cobot3_bringup mission_nodes.launch.py robots:=robot1,robot2
+
+    # launch 없이 하나만 띄울 때 (네임스페이스를 직접 준다)
+    ros2 run cobot3_navigation nav_server --ros-args -r __ns:=/robot1
+
+이전 판의 robot_namespace 파라미터는 없앴다 — 로봇 식별자가 파라미터와
+네임스페이스 두 군데 있으면 어긋날 수 있어서, 네임스페이스 한 곳으로 모았다.
 
 ★ 트레이드오프: Nav2 의 costmap 기반 장애물 회피·전역 경로계획을 이제 전혀
 안 쓴다 — amcl_pose 로컬라이제이션만 계속 쓰고(그래서 multi_navigation.
@@ -97,27 +107,25 @@ class NavServer(Node):
 
     def __init__(self):
         super().__init__("nav_server")
-        self.declare_parameter("robot_namespace", "robot1")
-        ns = self.get_parameter("robot_namespace").value
-        self._ns = ns
-
         amcl_qos = QoSProfile(depth=1)
         amcl_qos.reliability = ReliabilityPolicy.RELIABLE
         amcl_qos.durability = DurabilityPolicy.TRANSIENT_LOCAL
         self._amcl_pose = None
         self.create_subscription(
-            PoseWithCovarianceStamped, f"/{ns}/amcl_pose", self._on_amcl_pose, amcl_qos)
-        self._cmd_vel_pub = self.create_publisher(Twist, f"/{ns}/cmd_vel", 10)
+            PoseWithCovarianceStamped, "amcl_pose", self._on_amcl_pose, amcl_qos)
+        self._cmd_vel_pub = self.create_publisher(Twist, "cmd_vel", 10)
 
         cb = ReentrantCallbackGroup()
         self._server = ActionServer(
-            self, NavigateTo, "/navigation/navigate_to",
+            self, NavigateTo, "navigation/navigate_to",
             execute_callback=self._execute,
             goal_callback=self._on_goal, cancel_callback=self._on_cancel,
             callback_group=cb)
 
+        ns = self.get_namespace().rstrip("/")
         self.get_logger().info(
-            "nav_server ready — /navigation/navigate_to (cmd_vel 직접 주행, Nav2 위임 없음)")
+            f"nav_server ready — {ns}/navigation/navigate_to "
+            f"(cmd_vel 직접 주행, Nav2 위임 없음)")
 
     def _on_amcl_pose(self, msg):
         self._amcl_pose = msg.pose.pose

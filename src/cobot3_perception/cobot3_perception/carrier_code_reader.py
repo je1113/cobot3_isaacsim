@@ -1,9 +1,18 @@
 """
 carrier_code_reader — QR 판독 노드. docs/08_ROS2_NODE_Graph.html 확정안
-(§01/§03)의 carrier_code_reader 그대로 — /perception/carrier_detected 발행과
-/perception/carrier_scan 서비스를 같은 노드 하나가 맡는다.
+(§01/§03)의 carrier_code_reader 그대로 — perception/carrier_detected 발행과
+perception/carrier_scan 서비스를 같은 노드 하나가 맡는다.
 
-    ros2 run cobot3_perception carrier_code_reader
+    ros2 run cobot3_perception carrier_code_reader --ros-args -r __ns:=/robot1
+
+★ 이름이 전부 상대이름이다 — perception/… · orchestrator/state · amcl_pose 에
+  / 가 앞에 없고, 노드가 뜬 네임스페이스가 붙는다. robot1 로 띄우면 구독처가
+  /robot1/amcl_pose · /robot1/orchestrator/state 가 되고, 발행처가
+  /robot1/perception/carrier_detected 가 된다. 이 노드는 자기가 어느 로봇인지
+  모르고, 알 필요도 없다 — 이전 판이 /robot1/amcl_pose 를 소스에 박아 두는
+  바람에 로봇을 늘릴 수 없었던 자리가 여기다(docs/02 §2 "carrier_code_reader
+  의 /robot1/amcl_pose 하드코딩"). 보통은 launch 가 네임스페이스를 준다:
+    ros2 launch cobot3_bringup mission_nodes.launch.py robots:=robot1,robot2
 
 qr_pose 계산은 cobot3_perception.qr_pose(깊이 평면 기반, docs/08 §5 검증:
 위치 0.43mm, yaw 0.25도)를 그대로 쓴다 — sim_backend.scan_qr() 가 이미
@@ -27,7 +36,7 @@ found·header·payload·qr_pose 가 그대로 실려 나가므로, scan_now 트�
 sweep_scan.py 가 검증한 것과 같다 — 팔을 관측 자세(observe_pose)로 고정해
 두고 베이스가 지나가는 동안 손목 카메라를 계속 디코드 시도한다. QR 판독
 가능 거리가 0.45m 안쪽뿐이라(frames.yaml qr.measured_1280x720), 이 자세는
-patrol 이 실제로 선반 앞(SHELF_ZONE, /robot1/amcl_pose 로 판정)을 지날
+patrol 이 실제로 선반 앞(SHELF_ZONE, amcl_pose 로 판정)을 지날
 때만 잡는다 — 그 전까지 팔을 건드리면 개활지 회전 구간과 간섭할 수 있고,
 PICK/PLACE 중(HOLD~PLACE, /orchestrator/state 로 판정)에는 pick_place_server
 가 같은 팔을 쓰고 있어 절대 건드리면 안 된다. 한 번 감지해서 발행하면 그
@@ -126,13 +135,13 @@ class CarrierCodeReader(Node):
         self.declare_parameter("output_frame", "base_link")
         self.declare_parameter("publish_debug", False)
         self.sim = SimClient()
-        self._srv = self.create_service(CarrierScan, "/perception/carrier_scan", self._on_carrier_scan)
+        self._srv = self.create_service(CarrierScan, "perception/carrier_scan", self._on_carrier_scan)
 
         # ── ① /perception/carrier_detected — patrol 중 선반 구역 실시간 감시 ──
-        self._detected_pub = self.create_publisher(Bool, "/perception/carrier_detected", 10)
-        self.create_subscription(String, "/orchestrator/state", self._on_orchestrator_state, 10)
+        self._detected_pub = self.create_publisher(Bool, "perception/carrier_detected", 10)
+        self.create_subscription(String, "orchestrator/state", self._on_orchestrator_state, 10)
         self.create_subscription(
-            PoseWithCovarianceStamped, "/robot1/amcl_pose", self._on_amcl_pose, 10)
+            PoseWithCovarianceStamped, "amcl_pose", self._on_amcl_pose, 10)
         self._orchestrator_state = None
         self._patrol_target_idx = None  # task_manager 가 지금 향하는 PATROL_ROUTE 인덱스
         self._base_pose = None
@@ -141,7 +150,8 @@ class CarrierCodeReader(Node):
         hz = float(self.get_parameter("decode_hz").value)
         self.create_timer(1.0 / hz, self._detect_tick)
 
-        self.get_logger().info("carrier_code_reader ready")
+        self.get_logger().info(
+            f"carrier_code_reader ready [{self.get_namespace()}]")
 
     # ── carrier_detected ────────────────────────────────────────────────
     def _on_amcl_pose(self, msg):
