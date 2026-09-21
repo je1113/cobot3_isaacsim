@@ -17,3 +17,22 @@ EOF
 install/local_setup.sh
 
 *.log
+
+
+# React / Vite frontend
+web/frontend/node_modules/
+web/frontend/dist/
+web/frontend/.vite/
+
+# Local environment files
+web/frontend/.env
+web/frontend/.env.local
+web/frontend/.env.*.local
+
+# Keep example env file
+!web/frontend/.env.example
+
+# Backup files
+web/frontend/**/*.before-*
+web/frontend/**/*.bak
+web/frontend/**/*.backup
