@@ -1,9 +1,10 @@
-# 🗄 생산 트래킹 DB 구성 — 표 4개
+# 🗄 생산 트래킹 DB 구성 — 트레이스 4표 + 관제 2표
 
 > Isaac Sim_협동3 / 24.04+5.x / Development Process
 > 상위: [04_Backend_Carrier_Research.md](04_Backend_Carrier_Research.md) §12-1 「바코드/QR 기반 캐리어 추적」
 > 관련: [05_QR_Traceability.md](05_QR_Traceability.md) §2-8 · [02_2, 3차 목표 설계도.html](02_2,%203차%20목표%20설계도.html) FIG.2
-> 상태: **스키마 확정 · 미구현**
+> 그림: [ERD.md](ERD.md) — 표 6개 관계도 한 장. **이 문서가 원본이고 그쪽은 그림만 갖는다**
+> 상태: **트레이스 4표 스키마 확정 · 미구현** / **관제 2표(§10) 제안**
 
 ---
 
@@ -50,6 +51,11 @@ task_manager (robot2) ─┘          │
 | **표 2** `magazine_log` | N | **append-only** | 매거진 이송 로그 |
 | **표 3** `stack_log` | N | **append-only** | 스택 이송 로그 (표 2와 구조 동일) |
 | **표 4** `carrier_kind` | 4 | 정적 · 시드 | 종류별 규격 |
+| **표 5** `task` | N | **가변 · 공유** | 작업 큐 — 화면이 쓰고 orchestrator가 읽는다 (§10) |
+| **표 6** `pending_pickup` | N | **가변 · 공유** | 산출물 회수 대기 타이머 (§10) |
+
+표 1~4는 **로거만 쓴다.** 표 5·6은 성격이 반대다 — 웹 백엔드와 orchestrator가 **양쪽에서 UPDATE 한다.**
+그래서 append-only 원칙(§8-1)은 표 1~4에만 적용된다. 왜 이 둘만 표가 되었는지는 §10-1.
 
 **DB 커넥션을 가진 노드가 `event_logger` 하나뿐인 것이 설계의 핵심이다.**
 `task_manager`는 토픽에 던지고 끝이라, 로거가 안 떠 있어도 DB가 죽어도 로봇은 평소대로 돈다.
@@ -453,6 +459,8 @@ append-only면 셋 다 없다. 정정은 **삭제가 아니라 정정 행 추가
 1. 전체 집계가 `UNION ALL`이 된다 → `carrier_log` 뷰가 갚는다
 2. **"한 로봇이 동시에 하나만 든다"를 DB가 못 막는다.** UNIQUE INDEX는 한 테이블 안에서만 유효하다.
    다만 BT의 `mission` 가지가 하나뿐이고 로봇당 `task_manager`가 하나라 **애플리케이션이 이미 보장**한다.
+   → 표 5가 들어오면 `task`의 부분 UNIQUE INDEX가 **작업 단위로는** 이것을 DB 레벨로 끌어올린다(§10-4).
+   표 2·3 사이는 여전히 못 막지만, 미션을 만드는 쪽이 하나로 좁혀지므로 실질적으로 같은 보장이 된다.
 
 ## 8-3. 왜 파서를 SQL에 두지 않았나
 
@@ -516,10 +524,170 @@ append-only면 셋 다 없다. 정정은 **삭제가 아니라 정정 행 추가
 
 ---
 
-# 10. 미정
+# 10. 관제 화면이 추가로 요구하는 표 2개
+
+웹 관제 UI(2대 운용 · 작업 배정 · 산출물 자동 회수)를 얹을 때 **DB에 새로 들어가는 것은 두 표뿐**이다.
+선반 좌표 · 스테이션 place 자세 · 라우팅 규칙은 §8-5의 경계선 그대로 **파일이 주인으로 남는다.**
+
+## 10-1. ⭐ 판정 기준
+
+> **여러 곳이 동시에 쓰거나 · 프로세스가 죽어도 남아야 하거나 · 집계 질의의 대상인 것만 DB.**
+> 한 주인이 시작할 때 한 번 읽는 값은 **파일**. 매 틱 바뀌고 지나가면 그만인 값은 **아무 데도 저장하지 않는다.**
+
+§8-5의 *"로봇이 움직이는 데 필요한 것은 파일, 무슨 일이 있었는지 남기는 것은 DB"* 를 화면 요구사항까지 넓힌 것이다.
+
+📌 **화면에서 편집한다는 사실 자체는 DB 사유가 아니다.** 편집기는 파일도 쓴다 —
+`isaacpjt/tools/capture_pose.py`가 이미 `taught_poses.yaml`에 그렇게 쓰고 있다.
+
+| 화면이 요구한 것 | 판정 | 왜 |
+|---|---|---|
+| 선반 좌표 · 층별 티칭 자세 | **파일** | 주인이 하나(엔지니어), 미션 시작 때 한 번 읽는다 |
+| 스테이션 place 자세 | **파일** | `place.yaml`을 `pick_place_server`가 매 동작마다 읽는다. DB로 옮기면 §8-5가 경고한 *"DB가 죽으면 로봇이 못 움직인다"* 에 정확히 걸린다 |
+| 라우팅 규칙 | **파일** | 선형 체인 3홉짜리 상수. 바뀌는 빈도가 배포 주기보다 낮다 |
+| 로봇 위치 · 배터리 · 현재 상태 | **저장 안 함** | 초당 수십 번 바뀌고 과거값을 아무도 안 본다. ROS 토픽 → WebSocket 패스스루로 끝. DB에 쓰면 쓰기 부하만 남는다 |
+| 작업 큐 · 순서 | **표 5** | 화면이 쓰고 orchestrator가 읽는 **공유 가변 상태**. 웹이 재시작해도 배정이 남아야 하고 두 로봇 큐의 순서에 트랜잭션이 필요하다 |
+| 산출물 회수 대기 | **표 6** | *"n초 뒤에 큐잉"* 은 **타이머가 도는 중에 프로세스가 죽으면 사라지는** 상태다 |
+| 중단 지점(`resume_point`) | **표 5의 칸** | 중단 지점은 로봇의 속성이 아니라 *"그 작업을 어디까지 했나"* 다. → 별도 `robot` 표가 필요 없어진다 |
+| 선반 점유 lock | **칸 없음** | 표 5에서 파생된다(§10-4) |
+
+> 이 기준을 적용하면 `shelf` · `station` · `routing_rule` · `robot` 표가 전부 사라진다.
+> 특히 **`robot` 표에 남을 칸이 `resume_point` 하나뿐**이었고, 그게 작업의 속성으로 옮겨가면서 표 자체가 없어졌다.
+
+## 10-2. 표 5 — `task` (작업 큐)
+
+```sql
+CREATE TYPE task_kind   AS ENUM ('SCAN', 'RECOVER');
+CREATE TYPE task_status AS ENUM ('QUEUED', 'RUNNING', 'DONE', 'FAILED');
+
+CREATE TABLE task (
+    task_id         BIGSERIAL PRIMARY KEY,
+    robot_id        TEXT        NOT NULL,      --   'robot1' · 표 2·3과 같은 값
+    kind            task_kind   NOT NULL,
+    target_ref      TEXT        NOT NULL,      -- ① 'shelf_01' | 'test_loader' — yaml 키 (FK 아님)
+    queue_order     INT         NOT NULL,      --   화면 드래그 재정렬
+    status          task_status NOT NULL DEFAULT 'QUEUED',
+
+    run_id          UUID,                      -- ② ScanLeaf 성공 순간 stamp → 표 2·3과 공유
+    resume_pass     INT,                       -- ③ 중단한 층
+    resume_progress DOUBLE PRECISION,          -- ③
+
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+    started_at      TIMESTAMPTZ,
+    ended_at        TIMESTAMPTZ
+);
+
+CREATE INDEX idx_task_run ON task (run_id);
+```
+
+| # | 칸 | 왜 이 모양인가 |
+|---|---|---|
+| ① | `target_ref` | **FK가 아니다.** 설정의 주인이 파일이라 DB가 참조 무결성을 걸 수 없다. *"티칭 미완료 선반은 배정 불가"* 는 배정 시점에 백엔드가 yaml을 읽어서 검사한다 |
+| ② | `run_id` | 배정 시점에는 NULL이다. **QR을 읽어야 미션이 시작**되므로(§4-6) `ScanLeaf` 성공 순간 발행된 값을 여기에 찍는다 |
+| ③ | `resume_*` | 웹 복구용. §11 미정 #3(같은 `run_id`를 이어갈지)이 정해지면 이 둘의 의미도 같이 고정된다 |
+
+**큐는 별도 표가 아니다** — `robot_id` + `queue_order`가 큐이고, 드래그 재정렬은 UPDATE 한 번이다.
+회수 우선순위도 `priority` 칸 없이 `kind='RECOVER'` 를 앞으로 정렬하면 된다.
+
+## 10-3. 표 6 — `pending_pickup` (회수 대기)
+
+```sql
+CREATE TYPE pickup_status AS ENUM ('WAITING', 'QUEUED', 'DONE', 'GAVE_UP');
+
+CREATE TABLE pending_pickup (
+    pending_id    BIGSERIAL PRIMARY KEY,
+    station_ref   TEXT          NOT NULL,      --   'test_loader' — yaml 키
+    source_run_id UUID          NOT NULL,      -- ① 이 산출물을 만든 미션 (표 2의 run_id)
+    ready_at      TIMESTAMPTZ   NOT NULL,      --   place 완료 + stations.yaml 의 process_sec
+    retry_count   INT           NOT NULL DEFAULT 0,   -- ② 가 보니 없더라 → 재예약
+    status        pickup_status NOT NULL DEFAULT 'WAITING',
+    task_id       BIGINT REFERENCES task(task_id),    --   큐잉된 회수 작업
+
+    CONSTRAINT pickup_task_when_queued
+        CHECK (status IN ('WAITING', 'GAVE_UP') OR task_id IS NOT NULL)
+);
+
+CREATE INDEX idx_pickup_due ON pending_pickup (ready_at) WHERE status = 'WAITING';
+```
+
+① **`expected_payload` 를 두지 않았다.** 복사하지 않아도 조인으로 나온다 — §5-2의 *"같은 숫자가 두 곳에 있으면 반드시 갈라진다"* 와 같은 이유다.
+
+```sql
+SELECT cp.stack_payload                        -- 이 스테이션에서 나올 산출물
+FROM pending_pickup pp
+JOIN magazine_log ml ON ml.run_id = pp.source_run_id AND ml.stage = 'place'
+JOIN carrier_pair cp ON cp.magazine_payload = ml.qr_payload
+WHERE pp.pending_id = …;
+```
+
+> ⚠️ 이 조인은 §11 미정 #1(`carrier_pair` 8쌍)이 정해져야 결과가 나온다. 그때까지 회수는 *"가서 보고 판단"* 이다.
+
+② `retry_count`가 이 표를 못 없애는 이유다. *"언제 회수 가능한가"* 만이면 `magazine_latest`에서 파생할 수 있지만,
+**비전으로 확인했더니 아직 없어서 재예약** 한 횟수는 어디에도 파생할 근거가 없다.
+
+## 10-4. 🔧 선반 lock을 칸으로 두지 않는 이유
+
+*"두 로봇이 같은 선반에 동시에 진입하지 않는다"* 는 `locked_by` 같은 칸 없이 인덱스가 거부한다.
+
+```sql
+-- 한 선반을 동시에 두 작업이 RUNNING 할 수 없다
+CREATE UNIQUE INDEX task_one_running_per_ref
+    ON task (target_ref) WHERE status = 'RUNNING';
+
+-- 한 로봇이 동시에 두 작업을 RUNNING 할 수 없다   ← §8-2 의 '대가 2' 를 부분적으로 갚는다
+CREATE UNIQUE INDEX task_one_running_per_robot
+    ON task (robot_id) WHERE status = 'RUNNING';
+
+-- 같은 로봇 큐 안에서 순서가 겹치지 않는다
+CREATE UNIQUE INDEX task_queue_order
+    ON task (robot_id, queue_order) WHERE status = 'QUEUED';
+```
+
+lock을 칸으로 들면 **해제를 잊은 행(고아 lock)** 이 생기고 청소기가 필요해진다 — §8-1이 `IN_TRANSIT` UPDATE 안을 버린 이유와 정확히 같다.
+파생으로 두면 작업이 끝나는 순간 lock도 같이 사라진다.
+
+## 10-5. `run_id` — 두 세계를 잇는 칸
+
+| 시점 | 일어나는 일 | `run_id` |
+|---|---|---|
+| 화면에서 배정 | `task` 행 생성 · `QUEUED` | NULL |
+| QR 판독 성공 | `ScanLeaf`가 `uuid4()` 발행 → `task`에 stamp | **발행** |
+| `pick`·`nav`·`place`·`return` | `magazine_log`에 같은 값으로 최대 4행 | 공유 |
+| 사이클 완료 | `task.status = DONE` | 고정 |
+
+*"이 작업이 어떻게 됐나"* 가 `task` → `run_id` → `carrier_log` 조인 한 번이다. **로그 화면의 작업별 필터가 새 표 없이 성립한다.**
+
+## 10-6. 파일이 계속 주인인 것
+
+| 파일 | 담는 것 | 화면이 고치는 법 |
+|---|---|---|
+| `taught_poses.yaml` | 선반 좌표 + 층별 티칭 자세 | *"현재 자세로 저장"* 이 append. `capture_pose.py`가 이미 하는 일 |
+| `place.yaml` | 스테이션 place 6D | 화면이 값만 덮어쓴다 |
+| `grasp.yaml` | 종류별 파지 레시피 | 편집 대상 아님 (§8-5) |
+| `frames.yaml` | `measure_layout.py` 생성물 | 손대지 않는다 (§8-5) |
+| **`stations.yaml`** (신설) | 처리시간 · 산출물 종류 · 완료 신호 · capacity · 라우팅 체인 | 지금 `task_manager.py:210`의 `TEST_LOADER` 상수가 하던 일을 여기로 옮긴다 |
+
+> 🔧 **남은 구멍: 화면이 파일을 고쳤을 때 떠 있는 노드는 모른다.**
+> 저장 시 reload 신호(토픽/서비스)를 보낼지, 미션 시작마다 다시 읽게 할지 정해야 *"화면에서 place 좌표 변경"* 이 실제로 반영된다. → §11 미정 #4
+
+## 10-7. 배선 (§9에 더해지는 것)
+
+| 만들 것 | 내용 |
+|---|---|
+| `sql/003_task.sql` | ENUM 3 · 표 5·6 · 부분 UNIQUE INDEX 3 |
+| 웹 백엔드 | 표 5·6에 대한 **유일한 writer이자 스케줄러.** `ready_at` 도래 → `task` 행 생성 |
+| `task_manager.py` | 큐 소비 — `QUEUED` 중 `queue_order` 최소를 `RUNNING`으로. `ScanLeaf`에서 이미 만드는 `run_id`를 `task`에도 stamp |
+
+📌 **`event_logger`는 손대지 않는다.** 표 5·6은 트레이스가 아니라 제어 상태라 `/trace/event` 경로를 타지 않는다.
+§1의 *"DB 커넥션을 가진 노드가 하나뿐"* 은 **로깅 경로에 한해** 유지되고, 큐 소비는 별도 커넥션이 된다.
+
+---
+
+# 11. 미정
 
 | # | 내용 | 막히는 것 |
 |---|---|---|
-| 1 | **`carrier_pair` 8쌍** — §3의 시드는 추정값이다 | `002_seed.sql`. 표 2·3은 무관하게 채워진다 |
-| 2 | `SCAN` hard 실패 3종을 어디에 남길지 (`robot_log`) | `DOCK` 구현 때 같이 정한다 |
-| 3 | 웹 복구(`/orchestrator/resume`) 후 같은 `run_id`를 이어갈지 새로 발행할지 | 이어가면 `UNIQUE(run_id, stage)`를 `(run_id, stage, attempt)`로 바꿔야 한다. 기본은 **새 `run_id`** |
+| 1 | **`carrier_pair` 8쌍** — §3의 시드는 추정값이다 | `002_seed.sql`. 표 2·3은 무관하게 채워지지만, **§10-3의 산출물 예측 조인도 같이 막힌다** |
+| 2 | `SCAN` hard 실패 3종을 어디에 남길지 (`robot_log`) | `DOCK` 구현 때 같이 정한다. **일시정지·비상정지도 payload가 없어 같은 표를 필요로 한다** — 만들면 표가 7개가 된다 |
+| 3 | 웹 복구(`/orchestrator/resume`) 후 같은 `run_id`를 이어갈지 새로 발행할지 | 이어가면 `UNIQUE(run_id, stage)`를 `(run_id, stage, attempt)`로 바꿔야 한다. 기본은 **새 `run_id`**. `task.resume_*`(§10-2 ③)의 의미도 여기 걸려 있다 |
+| 4 | **화면이 yaml을 고쳤을 때 떠 있는 노드가 어떻게 아는가** — reload 신호 vs 미션 시작마다 재독 | §10-6 전체. 이게 정해져야 화면의 설정 편집이 실제로 동작한다 |
+| 5 | 페이로드에 **라인** 이 없다 (`F1-MGZB-1` 은 공장만 갖는다) | 라인별 조회 화면. 정말 필요한지부터 |
