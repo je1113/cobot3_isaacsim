@@ -29,7 +29,7 @@ Isaac Sim 라이브러리에는 반도체 트레이/매거진이 없어서 규�
     몸체   같은 트레이 8장(칩 7 + 뚜껑 1), 높이 61.0, z 3.0 ~ 64.0
     손잡이 클립 캐리어 — 갈고리 15x20x3 x2, 스트랩 3x20x69.0 x2,
            덮개판 328.6x135.9x4 (z 65.0~69.0), 색 회색
-           로보틱 플랜지 — 기둥 20x20x18 (z 69.0~87.0), 판 100x60x10 (z 87.0~97.0)
+           로보틱 플랜지 — 기둥 20x20x18 (z 69.0~87.0), 판 80x80x10 (z 87.0~97.0)
            색 파랑 (0.15, 0.40, 0.90)
 
  3) magazine_1_orange.usda  주황 손잡이 매거진 1      전체 250 x 140 x 142
@@ -47,11 +47,12 @@ Isaac Sim 라이브러리에는 반도체 트레이/매거진이 없어서 규�
            1번보다 넓고 낮다. 색 동일
     QR     내용 "F1-260921-MGZB-1", 50x50, 양쪽 측벽 바깥면 왼쪽 위 (z 10~60)
              y=-100 면 x -140~-90 / y=+100 면 x +90~+140  (둘 다 바깥에서 보면 왼쪽 위)
-    손잡이 로보틱 플랜지 — 기둥 20x20x18 (z 78~96), 판 100x60x10 (z 96~106)
+    손잡이 로보틱 플랜지 — 기둥 20x20x18 (z 78~96), 판 80x80x10 (z 96~106)
            색 파랑
 
  플랜지 기둥 높이 18 = 그리퍼 핑거 두께 8 + 여유 10. 흡착 팁이 50x50 이라
- 판은 그보다 크게 잡는다. 파란 판은 흡착면을 넓히려고 길고 두껍게 했다.
+ 판은 그보다 크게 잡는다. 네 에셋 모두 판 한 변이 80 mm 로 같고,
+ 파란 손잡이만 두께가 10 mm 로 더 두껍다 (주황 6 mm).
 
  QR 내용은 carrier_code.py 가 정하는 캐리어 코드다.
 
@@ -106,7 +107,7 @@ FLANGE_STEM   = 0.020    # 기둥 한 변
 FLANGE_STEM_H = 0.018    # 기둥 높이 = 핑거 두께 8 + 여유 10
 
 FLANGE_ORANGE = {"plate": (0.080, 0.080, 0.006), "color": COLOR_ORANGE}
-FLANGE_BLUE   = {"plate": (0.100, 0.060, 0.010), "color": COLOR_BLUE}
+FLANGE_BLUE   = {"plate": (0.080, 0.080, 0.010), "color": COLOR_BLUE}
 
 # ──────────────────────────────────────────────────────────────
 #  JEDEC 트레이 규격 (m)
@@ -177,13 +178,13 @@ TRAYS = [
     {"file": "tray_1_orange.usda", "kind": "STKO", "count": 6, "flange": FLANGE_ORANGE,
      "doc": "JEDEC 2-inch tray stack, 6 trays (5 loaded + 1 cover) with clip carrier, orange flange 80x80x6"},
     {"file": "tray_2_blue.usda",   "kind": "STKB", "count": 8, "flange": FLANGE_BLUE,
-     "doc": "JEDEC 2-inch tray stack, 8 trays (7 loaded + 1 cover) with clip carrier, blue flange 100x60x10"},
+     "doc": "JEDEC 2-inch tray stack, 8 trays (7 loaded + 1 cover) with clip carrier, blue flange 80x80x10"},
 ]
 MAGAZINES = [
     {"file": "magazine_1_orange.usda", "kind": "MGZO", "L": 0.250, "W": 0.140, "H": 0.110, "slots": 20, "flange": FLANGE_ORANGE,
      "doc": "Lead-frame magazine 250x140x110, 20 slots @5 mm, orange flange 80x80x6"},
     {"file": "magazine_2_blue.usda",   "kind": "MGZB", "L": 0.300, "W": 0.200, "H": 0.070, "slots": 12, "flange": FLANGE_BLUE,
-     "doc": "Lead-frame magazine 300x200x70 (wider, lower), 12 slots @5 mm, blue flange 100x60x10"},
+     "doc": "Lead-frame magazine 300x200x70 (wider, lower), 12 slots @5 mm, blue flange 80x80x10"},
 ]
 
 #  품목 코드 -> 바탕 스펙. QR 붙은 개체 16 종은 여기서 형상을 가져다 쓴다
