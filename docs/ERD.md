@@ -49,8 +49,10 @@ erDiagram
         uuid run_id "미션 1회"
         text qr_payload "원문 그대로"
         text kind_code FK
+        text plant_code "생성열 · 공장 F1 F2 F3"
         text robot_id
         text stage "pick nav place return"
+        int attempt "resume 재시도 · 기본 1"
         timestamptz started_at "벽시계"
         timestamptz ended_at "벽시계 · 표시값"
         float8 started_sim
@@ -67,8 +69,10 @@ erDiagram
         uuid run_id "구조는 magazine_log 와 동일"
         text qr_payload
         text kind_code FK
+        text plant_code
         text robot_id
         text stage
+        int attempt
         timestamptz started_at
         timestamptz ended_at
         float8 started_sim
@@ -141,7 +145,7 @@ erDiagram
 
 ---
 
-# 3. 뷰 4개가 덮는 것
+# 3. 뷰 5개가 덮는 것
 
 append-only의 유일한 비용이 *"지금 상태가 뭐냐"* 를 바로 못 읽는 것이고, 뷰가 그것을 갚는다(§6).
 
@@ -151,7 +155,8 @@ magazine_log ──┬─→ magazine_latest ──┐
                │                      ├─→ production_tracking
 stack_log ─────┼─→ stack_latest ──────┘   (carrier_pair 가 잇는다 · 로트 한 줄)
                │
-               └─→ carrier_log        (표 2 UNION ALL 표 3 · 전체 집계용)
+               └─→ carrier_log ──────────→ run_outcome
+                   (표 2 UNION ALL 표 3)     (run_id 별 마지막 행)
 ```
 
 | 뷰 | 답하는 질문 |
@@ -159,6 +164,7 @@ stack_log ─────┼─→ stack_latest ──────┘   (carrier
 | `magazine_latest` · `stack_latest` | 이 캐리어 지금 어디 있나 |
 | `production_tracking` | 이 로트(매거진 + 스택)가 어디까지 갔나 |
 | `carrier_log` | 어느 단계·사유에 실패가 몰리나 / 단계별 평균 소요 |
+| `run_outcome` | **이 미션이 최종적으로 성공했나 · 사람이 몇 번 살렸나.** 미션 단위 집계는 전부 이걸로 (§4-7) |
 
 `task` · `pending_pickup` 은 뷰를 더 만들지 않는다 — **현재 상태가 행에 그대로 들어 있다.**
 
@@ -185,9 +191,14 @@ flowchart LR
 
 # 5. 막혀 있는 것
 
-전부 [DB구성.md §11](DB구성.md)에 있다. 그림에 영향을 주는 것만 옮기면:
+**그림을 바꾸는 것은 없다.** [DB구성.md §11](DB구성.md)의 열려 있던 넷이 전부 닫혔고,
+그 중 둘은 *"표를 만들지 않는다"* 로 끝나서 **표는 6개 그대로**다.
 
-| # | 내용 | 그림에서 |
-|---|---|---|
-| 1 | payload 없는 로봇 사건(`SCAN` hard 실패 · 일시정지 · 비상정지) | **`robot_log` 가 생기면 표가 7개**가 된다 |
-| 3 | 화면이 yaml을 고쳤을 때 노드가 어떻게 아나 | §2-1의 "yaml로 보낸 것"들이 실제로 동작할지를 가른다 |
+| 닫힌 것 | 그림에 준 영향 |
+|---|---|
+| `robot_log` 를 만들지 않기로 | **표가 7개로 늘지 않는다.** SCAN 은 전부 soft 가 되어 DB 는 판독 성공 이후만 본다 |
+| 같은 `run_id` + `attempt` | 로그 2표에 `attempt` 칸, 뷰에 `run_outcome` 하나가 붙었다 |
+| reload 신호 없음 | §2-1의 "yaml로 보낸 것"들은 **뜰 때 한 번 읽는다.** 배선이 늘지 않는다 |
+| 공장만 쓰기 | 로그 2표에 `plant_code` 생성열 하나 |
+
+남은 것은 전부 뒤 단계다 — resume 의 포기 처리 · `DOCK` · 표 5·6 확정([DB구성.md §11](DB구성.md)).
