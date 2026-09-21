@@ -21,6 +21,12 @@ Isaac Sim 쪽 실행 백엔드 — 진짜 rclpy 노드들이 이 파일을 로�
 실행:
     isaac_python isaacpjt/ros_bridge/sim_backend.py
     SIM_BACKEND_PORT=8765 isaac_python isaacpjt/ros_bridge/sim_backend.py
+
+머신이 둘일 때 (ROS 는 일반 PC, Isaac 은 GPU PC):
+    GPU PC   isaac_python isaacpjt/ros_bridge/sim_backend.py     # 0.0.0.0 에 바인드한다
+             hostname -I                                        # 이 IP 를
+    ROS PC   export SIM_BACKEND_HOST=<그 IP>                      # 여기에 준다
+             nc -vz <그 IP> 8765                                 # succeeded 면 연결 OK
 """
 
 import json
@@ -1493,7 +1499,10 @@ class Backend:
 def main():
     port = int(os.environ.get("SIM_BACKEND_PORT", "8765"))
     backend = Backend()
-    threading.Thread(target=_rpc_serve, args=("127.0.0.1", port), daemon=True).start()
+    # 0.0.0.0 = 다른 머신에서도 받는다. ROS 노드를 일반 PC 에서, Isaac 을 GPU PC 에서
+    # 돌리는 구성이라 127.0.0.1 이면 sim_client 가 붙지 못한다(Connection refused).
+    # 클라이언트 쪽은 SIM_BACKEND_HOST 로 이 머신의 IP 를 준다(sim_client.py:24).
+    threading.Thread(target=_rpc_serve, args=("0.0.0.0", port), daemon=True).start()
     _set_status(phase="IDLE", message="ready")
 
     print("=" * 70)
