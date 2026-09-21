@@ -1,5 +1,3 @@
-cd ~/cobot3_ws
-cat > .gitignore << 'EOF'
 build/
 install/
 log/
@@ -11,7 +9,6 @@ __pycache__/
 *.pt
 *.pth
 
-EOF
 !./isaacpjt/M0609/Collected_m0609_camera
 !./isaacpjt/M0609/Collected_m0609_camera/m0609_camera.usd
 install/local_setup.sh
@@ -36,3 +33,25 @@ web/frontend/.env.*.local
 web/frontend/**/*.before-*
 web/frontend/**/*.bak
 web/frontend/**/*.backup
+
+
+# ── FastAPI backend (web/backend) ────────────────────────────────────
+# __pycache__/ · *.pyc · *.log 은 위에서 이미 전역으로 잡힌다. 여기는
+# 백엔드에서만 생기는 것들이다.
+
+# 가상환경. README 가 web/backend 안에 만들라고 안내한다
+# (rclpy 를 쓰려면 --system-site-packages 가 필요해서 리포 밖에 두기 어렵다).
+web/backend/.venv/
+web/backend/venv/
+
+# 접속 정보가 들어간다 — DSN 에 DB 비밀번호가 실린다.
+web/backend/.env
+web/backend/.env.*
+!web/backend/.env.example
+
+# 파이썬 도구 캐시
+web/backend/.pytest_cache/
+web/backend/.ruff_cache/
+web/backend/.mypy_cache/
+web/backend/.coverage
+web/backend/htmlcov/

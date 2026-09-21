@@ -557,7 +557,7 @@ append-only면 셋 다 없다. 정정은 **삭제가 아니라 정정 행 추가
 | 작업 큐 · 순서 | **표 5** | 화면이 쓰고 orchestrator가 읽는 **공유 가변 상태**. 웹이 재시작해도 배정이 남아야 하고 두 로봇 큐의 순서에 트랜잭션이 필요하다 |
 | 산출물 회수 대기 | **표 6** | *"n초 뒤에 큐잉"* 은 **타이머가 도는 중에 프로세스가 죽으면 사라지는** 상태다 |
 | 중단 지점(`resume_point`) | **표 5의 칸** | 중단 지점은 로봇의 속성이 아니라 *"그 작업을 어디까지 했나"* 다. → 별도 `robot` 표가 필요 없어진다 |
-| 선반 점유 lock | **칸 없음** | 표 5에서 파생된다(§10-4) |
+| 선반 점유 lock | **없음** | 두 로봇이 같은 선반에서 같이 일한다(§10-4) |
 
 > 이 기준을 적용하면 `shelf` · `station` · `routing_rule` · `robot` 표가 전부 사라진다.
 > 특히 **`robot` 표에 남을 칸이 `resume_point` 하나뿐**이었고, 그게 작업의 속성으로 옮겨가면서 표 자체가 없어졌다.
@@ -633,26 +633,30 @@ WHERE pp.pending_id = …;
 ② `retry_count`가 이 표를 못 없애는 이유다. *"언제 회수 가능한가"* 만이면 `magazine_latest`에서 파생할 수 있지만,
 **비전으로 확인했더니 아직 없어서 재예약** 한 횟수는 어디에도 파생할 근거가 없다.
 
-## 10-4. 🔧 선반 lock을 칸으로 두지 않는 이유
+## 10-4. 🔧 선반을 잠그지 않는 이유
 
-*"두 로봇이 같은 선반에 동시에 진입하지 않는다"* 는 `locked_by` 같은 칸 없이 인덱스가 거부한다.
+*"두 로봇이 같은 선반에 진입하지 않는다"* 는 **제약이 아니다.**
+선반에 매거진이 여러 개면 두 대가 같이 붙어 나눠 빼는 편이 빠르다.
+그래서 `shelf.locked_by` 같은 칸도, 그걸 파생시킬 인덱스도 두지 않는다.
+
+`task` 에 남는 배타는 하나뿐이다 — **한 로봇이 동시에 두 작업을 실행하지 못한다.**
 
 ```sql
--- 한 선반을 동시에 두 작업이 RUNNING 할 수 없다
-CREATE UNIQUE INDEX task_one_running_per_ref
-    ON task (target_ref) WHERE status = 'RUNNING';
-
--- 한 로봇이 동시에 두 작업을 RUNNING 할 수 없다   ← §8-2 의 '대가 2' 를 부분적으로 갚는다
 CREATE UNIQUE INDEX task_one_running_per_robot
     ON task (robot_id) WHERE status = 'RUNNING';
 
--- 같은 로봇 큐 안에서 순서가 겹치지 않는다
 CREATE UNIQUE INDEX task_queue_order
     ON task (robot_id, queue_order) WHERE status = 'QUEUED';
 ```
 
-lock을 칸으로 들면 **해제를 잊은 행(고아 lock)** 이 생기고 청소기가 필요해진다 — §8-1이 `IN_TRANSIT` UPDATE 안을 버린 이유와 정확히 같다.
-파생으로 두면 작업이 끝나는 순간 lock도 같이 사라진다.
+> ⚠️ **대신 두 로봇이 같은 캐리어를 노릴 수 있다.**
+> `task.target_ref` 는 선반까지만 가리키고 그 선반에 무엇이 있는지는 scan 해야 알기 때문에,
+> 배정 시점에는 막을 방법이 없다. 실제로 부딪히면 배타를 선반이 아니라 **캐리어(`qr_payload`)**
+> 수준에 걸어야 한다 — `ExecuteTask` feedback 의 `carrier_id` 로 이미 올라오므로,
+> *"그 payload 로 다른 로봇이 RUNNING 중"* 을 웹이 감지하는 데 새 인터페이스는 필요 없다.
+
+lock 을 칸으로 들지 않는 원칙 자체는 유지된다 — 해제를 잊은 행(고아 lock)이 생기고
+청소기가 필요해지기 때문이고, 이는 §8-1 이 `IN_TRANSIT` UPDATE 안을 버린 이유와 같다.
 
 ## 10-5. `run_id` — 두 세계를 잇는 칸
 

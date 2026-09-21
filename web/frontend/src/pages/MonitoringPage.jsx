@@ -10,11 +10,7 @@ import {
 } from '../api/robots'
 
 import useWebSocket from '../hooks/useWebSocket'
-
-const ROBOT_IDS = [
-  'AMR-01',
-  'AMR-02',
-]
+import { useRobots } from '../contexts/MetaContext'
 
 function formatPosition(position) {
   if (!position) {
@@ -99,9 +95,12 @@ function getStateClass(state) {
 function MonitoringPage({
   robotStates = {},
   setRobotStates = () => {},
-  robot1Queue = [],
-  robot2Queue = [],
+  queues = {},
 }) {
+  // 로봇 목록은 서버가 준다. 예전에는 이 파일 맨 위에 ROBOT_IDS 상수가 있었고,
+  // 그것과 백엔드 설정이 어긋나도 아무도 알아채지 못했다.
+  const robots = useRobots()
+
   const {
     connectionStatus,
     lastMessage,
@@ -111,23 +110,22 @@ function MonitoringPage({
   const [
     selectedRobotId,
     setSelectedRobotId,
-  ] = useState('AMR-01')
+  ] = useState('')
 
-  const [
-    lastGoals,
-    setLastGoals,
-  ] = useState({
-    'AMR-01': null,
-    'AMR-02': null,
-  })
+  // 고른 것이 없거나 목록에서 사라졌으면 첫 번째로 떨어진다.
+  const activeRobotId =
+    robots.includes(selectedRobotId)
+      ? selectedRobotId
+      : (robots[0] ?? '')
+
+  // 로봇별 map 은 전부 목록에서 만든다 — 대수가 늘어도 이 파일은 안 바뀐다.
+  const [lastGoals, setLastGoals] =
+    useState({})
 
   const [
     pendingControl,
     setPendingControl,
-  ] = useState({
-    'AMR-01': null,
-    'AMR-02': null,
-  })
+  ] = useState({})
 
   const [
     controlError,
@@ -211,7 +209,7 @@ function MonitoringPage({
         incomingRobots.forEach(
           (robot) => {
             if (
-              !ROBOT_IDS.includes(
+              !robots.includes(
                 robot.robot_id,
               )
             ) {
@@ -262,9 +260,7 @@ function MonitoringPage({
   ])
 
   function getQueue(robotId) {
-    return robotId === 'AMR-01'
-      ? robot1Queue
-      : robot2Queue
+    return queues[robotId] ?? []
   }
 
   function getRobot(robotId) {
@@ -307,31 +303,31 @@ function MonitoringPage({
 
     setLastGoals((prev) => ({
       ...prev,
-      [selectedRobotId]: goal,
+      [activeRobotId]: goal,
     }))
 
     setControlError('')
 
     addEvent(
-      `${selectedRobotId} 지도 목표 지점 선택`,
+      `${activeRobotId} 지도 목표 지점 선택`,
     )
 
     setPendingControl(
       (prev) => ({
         ...prev,
-        [selectedRobotId]:
+        [activeRobotId]:
           'goal',
       }),
     )
 
     try {
       await requestRobotGoal(
-        selectedRobotId,
+        activeRobotId,
         goal,
       )
 
       addEvent(
-        `${selectedRobotId} 이동 명령 전송`,
+        `${activeRobotId} 이동 명령 전송`,
       )
     } catch (error) {
       setControlError(
@@ -341,13 +337,13 @@ function MonitoringPage({
       )
 
       addEvent(
-        `${selectedRobotId} 이동 명령 전송 실패`,
+        `${activeRobotId} 이동 명령 전송 실패`,
       )
     } finally {
       setPendingControl(
         (prev) => ({
           ...prev,
-          [selectedRobotId]:
+          [activeRobotId]:
             null,
         }),
       )
@@ -508,7 +504,7 @@ function MonitoringPage({
             </div>
 
             <div className="monitor-robot-selector">
-              {ROBOT_IDS.map(
+              {robots.map(
                 (robotId) => (
                   <button
                     key={
@@ -516,7 +512,7 @@ function MonitoringPage({
                     }
                     type="button"
                     className={
-                      selectedRobotId ===
+                      activeRobotId ===
                       robotId
                         ? 'active'
                         : ''
@@ -548,12 +544,12 @@ function MonitoringPage({
 
               <span>
                 지도 클릭 →
-                {selectedRobotId}
+                {activeRobotId}
                 목표 위치 전송
               </span>
             </div>
 
-            {ROBOT_IDS.map(
+            {robots.map(
               (robotId) => {
                 const goal =
                   lastGoals[
@@ -570,10 +566,15 @@ function MonitoringPage({
                       robotId
                     }
                     className={
-                      robotId ===
-                      'AMR-01'
-                        ? 'monitor-goal-marker robot-one'
-                        : 'monitor-goal-marker robot-two'
+                      // 색은 목록 순서로 정한다. 이름에 묶어 두면
+                      // 로봇 이름이 바뀌는 순간 마커가 회색이 된다.
+                      `monitor-goal-marker ${
+                        robots.indexOf(
+                          robotId,
+                        ) === 0
+                          ? 'robot-one'
+                          : 'robot-two'
+                      }`
                     }
                     style={{
                       left:
@@ -601,7 +602,7 @@ function MonitoringPage({
             </span>
 
             <strong>
-              {selectedRobotId}
+              {activeRobotId}
             </strong>
 
             <span>
@@ -613,7 +614,7 @@ function MonitoringPage({
         </section>
 
         <aside className="monitor-robot-column">
-          {ROBOT_IDS.map(
+          {robots.map(
             (robotId) => {
               const robot =
                 getRobot(robotId)
@@ -649,12 +650,13 @@ function MonitoringPage({
                   <div className="monitor-robot-control-header">
                     <div>
                       <span
-                        className={
-                          robotId ===
-                          'AMR-01'
-                            ? 'monitor-robot-dot one'
-                            : 'monitor-robot-dot two'
-                        }
+                        className={`monitor-robot-dot ${
+                          robots.indexOf(
+                            robotId,
+                          ) === 0
+                            ? 'one'
+                            : 'two'
+                        }`}
                       />
 
                       <h3>

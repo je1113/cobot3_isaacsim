@@ -1,168 +1,95 @@
 import {
   Fragment,
-  useEffect,
+  useCallback,
   useState,
 } from 'react'
 import { NavLink } from 'react-router-dom'
 
-const ROUTING_RULES_STORAGE_KEY =
-  'magazine-ops:routingRules'
+import {
+  fetchRouting,
+  saveRouting as putRouting,
+} from '../api/config'
+import { useConfigResource } from '../hooks/useConfigResource'
+import {
+  useEnum,
+  useMeta,
+} from '../contexts/MetaContext'
 
-const LEGACY_ROUTING_STEPS_KEY =
-  'magazine-ops:routingSteps'
+// ★ 라우팅은 이제 서버(src/cobot3_bringup/config/routing.yaml)가 갖는다.
+//   localStorage 판(ROUTING_RULES_STORAGE_KEY / LEGACY_ROUTING_STEPS_KEY)과
+//   기본 규칙 시드, 그리고 옛 routingSteps 마이그레이션 코드를 여기서 지웠다.
+//   브라우저마다 다른 값을 들고 있으면 "어느 화면에서 본 흐름이 진짜인가" 에
+//   답할 수 없고, 로봇은 어차피 파일을 읽는다(docs/DB구성.md §8-5).
+//
+//   ⚠️ 예전 브라우저에 남아 있는 localStorage 값은 자동으로 옮겨가지 않는다.
+//      필요하면 그 화면에서 규칙을 다시 입력하고 저장할 것.
 
-const DEFAULT_ROUTING_RULES = [
-  {
-    rule_id: 'rule-1',
-    from: 'SHELF',
-    to: 'PKG-01',
-    description:
-      '매거진 스캔 후 이동',
-  },
-  {
-    rule_id: 'rule-2',
-    from: 'PKG-01',
-    to: 'TEST-01',
-    description:
-      '패키징 완료 후 검사 이동',
-  },
-]
-
-function createRuleId() {
-  return [
-    'rule',
-    Date.now(),
-    Math.random()
-      .toString(36)
-      .slice(2, 8),
-  ].join('-')
+// 규칙과 최종 목적지는 한 리소스다 — "완성됐는가" 판정이 둘을 같이 보기 때문에
+// 따로 저장하면 반쪽만 반영된 상태가 생긴다.
+const EMPTY_ROUTING = {
+  rules: [],
+  final_destination: '',
 }
 
-function migrateLegacySteps(
-  steps,
-) {
-  if (
-    !Array.isArray(steps) ||
-    steps.length < 2
-  ) {
-    return null
+function pickRouting(res) {
+  return {
+    rules: res.rules ?? [],
+    final_destination:
+      res.final_destination ?? '',
   }
-
-  const rules = []
-
-  for (
-    let index = 0;
-    index < steps.length - 1;
-    index += 1
-  ) {
-    const current =
-      steps[index]
-
-    const next =
-      steps[index + 1]
-
-    if (!current || !next) {
-      continue
-    }
-
-    const legacyDescription =
-      typeof current
-        .rule_description ===
-        'string'
-        ? current
-            .rule_description
-            .trim()
-        : ''
-
-    const label =
-      typeof current.label ===
-      'string'
-        ? current.label.trim()
-        : ''
-
-    rules.push({
-      rule_id:
-        `legacy-rule-${index + 1}`,
-      from:
-        current.station_id ?? '',
-      to:
-        next.station_id ?? '',
-      description:
-        legacyDescription ||
-        label,
-    })
-  }
-
-  return rules.length > 0
-    ? rules
-    : null
-}
-
-function loadRoutingRules() {
-  try {
-    const storedRules =
-      localStorage.getItem(
-        ROUTING_RULES_STORAGE_KEY,
-      )
-
-    if (storedRules) {
-      const parsed =
-        JSON.parse(
-          storedRules,
-        )
-
-      if (Array.isArray(parsed)) {
-        return parsed
-      }
-    }
-
-    const legacySteps =
-      localStorage.getItem(
-        LEGACY_ROUTING_STEPS_KEY,
-      )
-
-    if (legacySteps) {
-      const parsedLegacy =
-        JSON.parse(
-          legacySteps,
-        )
-
-      const migrated =
-        migrateLegacySteps(
-          parsedLegacy,
-        )
-
-      if (migrated) {
-        return migrated
-      }
-    }
-  } catch {
-    return DEFAULT_ROUTING_RULES
-  }
-
-  return DEFAULT_ROUTING_RULES
 }
 
 function ProcessFlowPage({
   stations = [],
-  finalDestination,
-  setFinalDestination,
 }) {
-  const [
-    routingRules,
-    setRoutingRules,
-  ] = useState(
-    loadRoutingRules,
+  // 체인의 시작 센티널. 스테이션이 아니라 '선반에서 출발' 이라는 뜻이라
+  // 등록된 station_id 검사에서 예외로 빠진다. 서버의 shapes.ROUTE_START 와
+  // 같은 값이어야 해서 화면에 적지 않는다.
+  const { route_start: routeStart } =
+    useMeta()
+
+  const finalDestinations = useEnum(
+    'final_destinations',
   )
 
-  useEffect(() => {
-    localStorage.setItem(
-      ROUTING_RULES_STORAGE_KEY,
-      JSON.stringify(
-        routingRules,
+  const saver = useCallback(
+    (value, revision) =>
+      putRouting(
+        value.rules,
+        value.final_destination,
+        revision,
       ),
-    )
-  }, [routingRules])
+    [],
+  )
+
+  const resource = useConfigResource(
+    fetchRouting,
+    saver,
+    pickRouting,
+    EMPTY_ROUTING,
+  )
+
+  const routing =
+    resource.value ?? EMPTY_ROUTING
+
+  const routingRules = routing.rules
+  const finalDestination =
+    routing.final_destination
+
+  const setRoutingRules = (updater) =>
+    resource.setValue((prev) => ({
+      ...prev,
+      rules:
+        typeof updater === 'function'
+          ? updater(prev.rules)
+          : updater,
+    }))
+
+  const setFinalDestination = (value) =>
+    resource.setValue((prev) => ({
+      ...prev,
+      final_destination: value,
+    }))
 
   const registeredStationIds =
     new Set(
@@ -184,7 +111,7 @@ function ProcessFlowPage({
     stationId,
   ) {
     return (
-      stationId === 'SHELF' ||
+      stationId === routeStart ||
       isRegisteredStation(
         stationId,
       )
@@ -205,7 +132,7 @@ function ProcessFlowPage({
   const validStart =
     rulesExist &&
     routingRules[0].from ===
-      'SHELF'
+      routeStart
 
   const stationLinksValid =
     rulesExist &&
@@ -228,7 +155,7 @@ function ProcessFlowPage({
         if (index === 0) {
           return (
             rule.from ===
-            'SHELF'
+            routeStart
           )
         }
 
@@ -377,7 +304,7 @@ function ProcessFlowPage({
         const from =
           lastRule
             ? lastRule.to
-            : 'SHELF'
+            : routeStart
 
         return [
           ...prev,
@@ -424,7 +351,7 @@ function ProcessFlowPage({
         ) {
           const newFrom =
             removeIndex === 0
-              ? 'SHELF'
+              ? routeStart
               : next[
                   removeIndex -
                     1
@@ -445,7 +372,11 @@ function ProcessFlowPage({
     )
   }
 
-  function saveRouting() {
+  async function saveRouting() {
+    // 화면에서 먼저 막는다 — 누르자마자 이유를 알 수 있어서다.
+    // 서버도 같은 규칙으로 다시 검사한다(백엔드 settings.py `_check_chain`).
+    // 둘 중 하나만 있으면 안 된다: 화면만 있으면 API 를 직접 부르는 경로가
+    // 뚫리고, 서버만 있으면 사람이 저장을 눌러 봐야 이유를 안다.
     if (!routingComplete) {
       window.alert(
         '라우팅 규칙의 연결 상태, 규칙 설명, 최종 목적지를 확인하세요.',
@@ -453,9 +384,13 @@ function ProcessFlowPage({
       return
     }
 
-    window.alert(
-      '라우팅 저장은 Backend 연동 단계에서 연결합니다.',
-    )
+    try {
+      await resource.save()
+
+      window.alert('공정 흐름을 저장했습니다.')
+    } catch (err) {
+      window.alert(err.message)
+    }
   }
 
   const lastProcess =
@@ -648,17 +583,18 @@ function ProcessFlowPage({
                       )
                     }
                   >
-                    <option value="">
-                      선택
-                    </option>
-
-                    <option value="SHELF">
-                      SHELF
-                    </option>
-
-                    <option value="출하">
-                      출하
-                    </option>
+                    {/* 선택지는 서버가 준다(GET /api/meta).
+                        화면에만 적어 두면 저장할 때 422 를 받는다. */}
+                    {finalDestinations.map(
+                      (dest) => (
+                        <option
+                          key={dest}
+                          value={dest}
+                        >
+                          {dest || '선택'}
+                        </option>
+                      ),
+                    )}
                   </select>
                 </div>
               </article>
@@ -956,17 +892,16 @@ function ProcessFlowPage({
                 )
               }
             >
-              <option value="">
-                선택
-              </option>
-
-              <option value="SHELF">
-                SHELF
-              </option>
-
-              <option value="출하">
-                출하
-              </option>
+              {finalDestinations.map(
+                (dest) => (
+                  <option
+                    key={dest}
+                    value={dest}
+                  >
+                    {dest || '선택'}
+                  </option>
+                ),
+              )}
             </select>
           </label>
         </section>

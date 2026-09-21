@@ -1,15 +1,39 @@
 import { useState } from 'react'
 import { NavLink } from 'react-router-dom'
 
-function createScanPass(level) {
+import { captureShelfPose } from '../api/config'
+import {
+  useEnum,
+  useMeta,
+} from '../contexts/MetaContext'
+
+/**
+ * 새 층 하나.
+ *
+ * ★ `directions` 와 `joints` 는 서버가 준다(GET /api/meta).
+ *   방향 목록은 **홀수 층부터** 순서대로다 — 훑는 방향이 층마다 번갈아 서고,
+ *   1층이 FORWARD 다. 서버의 shapes.DIRECTIONS 와 같은 순서여야 한다.
+ *
+ * ★ 층을 지운 뒤에는 방향을 다시 계산하지 않는다. 그래서 레벨이 띄엄띄엄해질
+ *   수 있고, 저장된 방향이 패리티와 안 맞을 수 있다 — 그건 정상이다.
+ *   (서버도 저장된 값이 있으면 그대로 믿는다)
+ */
+function createScanPass(
+  level,
+  directions,
+  joints,
+) {
   return {
     pass_id: level,
     level,
     direction:
-      level % 2 === 1
-        ? 'FORWARD'
-        : 'BACKWARD',
-    arm_teach_pose: ['', '', '', '', '', ''],
+      directions[
+        (level - 1) % directions.length
+      ],
+    arm_teach_pose: Array.from(
+      { length: joints },
+      () => '',
+    ),
   }
 }
 
@@ -74,18 +98,37 @@ function formatTeachingTime(value) {
 function ShelfSettingsPage({
   shelves,
   setShelves,
+  resource,
 }) {
   const [
     selectedShelfId,
     setSelectedShelfId,
-  ] = useState('SHELF-A')
+  ] = useState('')
 
+  const [busy, setBusy] =
+    useState(false)
+
+  const directions = useEnum(
+    'scan_directions',
+  )
+
+  const { joints } = useMeta()
+
+  // ★ 선반 목록이 서버에서 오므로 특정 id('SHELF-A')를 기본값으로 박아 둘 수
+  //   없다. 그 선반이 없으면 페이지가 통째로 빈 화면이 된다.
+  //   고른 것이 없거나 사라졌으면 첫 번째로 떨어진다.
   const selectedShelf =
     shelves.find(
       (shelf) =>
         shelf.shelf_id ===
         selectedShelfId,
-    )
+    ) ?? shelves[0]
+
+  // 실제로 화면에 떠 있는 선반의 id. selectedShelfId 는 사용자가 '누른' 값이고,
+  // 이쪽은 '지금 보고 있는' 값이다 — 처음 열었을 때나 방금 지운 뒤에는 둘이 다르다.
+  // 편집·강조는 전부 이 값을 기준으로 해야 한다.
+  const activeShelfId =
+    selectedShelf?.shelf_id ?? ''
 
   function updateSelectedShelf(
     updater,
@@ -93,7 +136,7 @@ function ShelfSettingsPage({
     setShelves((prev) =>
       prev.map((shelf) =>
         shelf.shelf_id ===
-        selectedShelfId
+        activeShelfId
           ? updater(shelf)
           : shelf,
       ),
@@ -204,6 +247,8 @@ function ShelfSettingsPage({
             ...shelf.scan_passes,
             createScanPass(
               nextLevel,
+              directions,
+              joints,
             ),
           ],
         }
@@ -299,22 +344,58 @@ function ShelfSettingsPage({
     )
   }
 
-  function saveCurrentPose(level) {
-    window.alert(
-      `Level ${level} 현재 자세 저장은 ROS2 연동 단계에서 연결합니다.`,
-    )
+  /**
+   * 로봇의 지금 관절값을 그 층에 채운다.
+   *
+   * ★ 이건 서버가 파일에 직접 쓴다 — 관절값의 주인은 로봇이지 화면이 아니다.
+   *   그래서 저장 안 한 다른 편집이 있으면 먼저 막는다. 서버가 파일을 쓰면
+   *   revision 이 바뀌고, 그 편집은 다음 저장에서 412 로 거절되기 때문이다.
+   */
+  async function saveCurrentPose(level) {
+    if (resource?.dirty) {
+      window.alert(
+        '저장하지 않은 변경이 있습니다. 먼저 저장한 뒤 현재 자세를 가져오세요.',
+      )
+
+      return
+    }
+
+    setBusy(true)
+
+    try {
+      await captureShelfPose(
+        selectedShelf.shelf_id,
+        level,
+      )
+
+      await resource?.reload()
+    } catch (err) {
+      window.alert(err.message)
+    } finally {
+      setBusy(false)
+    }
   }
 
   function testDrive() {
     window.alert(
-      `${selectedShelfId} 시험 주행은 ROS2 연동 단계에서 연결합니다.`,
+      `${selectedShelf.shelf_id} 시험 주행은 ROS2 연동 단계에서 연결합니다.`,
     )
   }
 
-  function saveShelf() {
-    window.alert(
-      `${selectedShelfId} 저장 기능은 Backend 연동 단계에서 연결합니다.`,
-    )
+  async function saveShelf() {
+    setBusy(true)
+
+    try {
+      await resource.save()
+
+      window.alert('선반 설정을 저장했습니다.')
+    } catch (err) {
+      // 백엔드 메시지를 그대로 보여준다. 서버가 아는 맥락(어느 선반, 어느
+      // revision)이 화면이 지어낼 수 있는 어떤 문장보다 구체적이다.
+      window.alert(err.message)
+    } finally {
+      setBusy(false)
+    }
   }
 
   if (!selectedShelf) {
@@ -416,7 +497,7 @@ function ShelfSettingsPage({
                     type="button"
                     className={
                       shelf.shelf_id ===
-                      selectedShelfId
+                      activeShelfId
                         ? 'shelf-list-item active'
                         : 'shelf-list-item'
                     }

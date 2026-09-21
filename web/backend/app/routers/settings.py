@@ -1,0 +1,258 @@
+"""설정 — 선반 / 스테이션 / 공정 흐름 (화면 3탭).
+
+★ 화면이 들고 있는 모양 그대로 주고받는다. 필드 이름도, 숫자를 문자열로
+  싣는 것도 전부 프론트 기준이다(app/shapes.py 가 번역한다).
+
+★ **컬렉션 통째로** PUT 한다. 화면이 배열 하나를 통째로 쥐고 항목을
+  추가·삭제·수정하기 때문이다 — 부분 PATCH 를 만들면 화면 쪽에 없는
+  개념(어느 항목이 바뀌었는지 추적)을 새로 만들어야 한다.
+
+★ 설정의 주인은 DB 가 아니라 파일이다(docs/DB구성.md §10-1 · §8-5).
+  그래서 이 라우터는 DB 없이도 전부 동작한다.
+
+★ 동시 편집은 revision(파일 내용 해시)으로 막는다. GET 이 준 revision 을
+  PUT 이 If-Match 로 되돌려주지 않으면 428, 그 사이 파일이 바뀌었으면 412.
+"""
+
+from __future__ import annotations
+
+import logging
+from pathlib import Path
+from typing import Any
+
+from fastapi import APIRouter, Body, Header, Response
+
+from .. import shapes, yamlstore
+from ..config import settings
+from ..errors import ApiError, NotFound, Unprocessable
+from ..services import configstore
+from ..services.rosbridge import bridge
+from ..ws import hub
+
+log = logging.getLogger(__name__)
+router = APIRouter(tags=["settings"])
+
+
+class MissingIfMatch(ApiError):
+    status, code = 428, "if_match_required"
+
+
+async def _save(path: Path, doc: Any, if_match: str | None, scope: str) -> str:
+    if not if_match:
+        raise MissingIfMatch(
+            "If-Match 헤더에 GET 으로 받은 revision 을 실어야 한다. "
+            "없이 저장하면 남의 편집을 덮어쓴다."
+        )
+    rev = yamlstore.save(path, doc, if_match.strip('"'))
+    configstore.invalidate(path)
+    await hub.publish("config_changed", {"scope": scope, "revision": rev})
+
+    # 떠 있는 노드에 "다시 읽어라" 를 보낸다. 못 보내도 실패로 치지 않는다 —
+    # 반영 방식이 아직 열려 있고(§11 #3), 다음 미션에서 어차피 다시 읽는다.
+    for robot in settings().robots:
+        try:
+            res = await bridge.reload_config(settings().to_ns(robot), scope)
+            if not res.get("reloaded"):
+                log.info("%s reload 미반영: %s", robot, res.get("rejected_because"))
+        except ApiError as e:
+            log.info("%s 에 reload 를 못 보냈다: %s", robot, e.message)
+    return rev
+
+
+def _unique_ids(items: list[dict], key: str) -> list[str]:
+    """화면과 **같은 규칙**으로 검사한다: trim 후 비어 있지 않고, 중복 없음."""
+    ids = []
+    for i, item in enumerate(items):
+        raw = str(item.get(key) or "").strip()
+        if not raw:
+            raise Unprocessable(f"{i + 1}번째 항목에 {key} 가 없다", index=i)
+        if raw in ids:
+            raise Unprocessable(f"{key} 가 중복된다: {raw}", duplicate=raw)
+        ids.append(raw)
+    return ids
+
+
+# ── 선반 ─────────────────────────────────────────────────────────────
+@router.get("/shelves")
+async def get_shelves(response: Response):
+    doc, rev = configstore.doc(settings().shelves_yaml)
+    response.headers["ETag"] = rev
+    items = doc.get("shelves") or []
+    return {
+        "revision": rev,
+        "shelves": [shapes.shelf_out(s.get("shelf_id", ""), s) for s in items],
+    }
+
+
+@router.put("/shelves")
+async def put_shelves(
+    body: dict = Body(...), if_match: str | None = Header(None, alias="If-Match")
+):
+    incoming = body.get("shelves")
+    if not isinstance(incoming, list):
+        raise Unprocessable("shelves 는 배열이어야 한다", got=type(incoming).__name__)
+    ids = _unique_ids(incoming, "shelf_id")
+
+    path = settings().shelves_yaml
+    doc, _ = yamlstore.load(path)
+    kept = {str(s.get("shelf_id")): s for s in (doc.get("shelves") or [])}
+
+    merged = []
+    for shelf_id, item in zip(ids, incoming):
+        target = kept.get(shelf_id)
+        converted = {"shelf_id": shelf_id, **shapes.shelf_in(item)}
+        if target is not None:
+            # 제자리 병합 — 갈아끼우면 항목에 붙은 주석이 날아간다(yamlstore 참고)
+            merged.append(yamlstore.merge_into(target, converted))
+        else:
+            merged.append(converted)
+    doc["shelves"] = merged
+
+    rev = await _save(path, doc, if_match, "shelves")
+    return {"revision": rev, "shelves": [shapes.shelf_out(s["shelf_id"], s) for s in merged]}
+
+
+@router.post("/shelves/{shelf_id}/capture")
+async def capture_pose(shelf_id: str, body: dict = Body(...)):
+    """'현재 자세로 저장' — 로봇의 지금 관절값을 그 층(level)에 채운다.
+
+    화면은 층 단위로 티칭하므로(`arm_teach_pose` 6칸), 여기서도 층을 받는다.
+    ROS 브리지가 꺼져 있으면 503 이고, 화면은 그 메시지를 그대로 띄운다.
+    """
+    level = body.get("level")
+    robot = body.get("robot_id") or (settings().robots[0] if settings().robots else "")
+    if level is None:
+        raise Unprocessable("level 이 필요하다")
+
+    snap = await bridge.capture_pose(settings().to_ns(robot))   # 없으면 503
+    positions = list(snap.get("position") or [])[: shapes.JOINTS]
+
+    path = settings().shelves_yaml
+    doc, rev = yamlstore.load(path)
+    shelf = next((s for s in (doc.get("shelves") or []) if str(s.get("shelf_id")) == shelf_id), None)
+    if shelf is None:
+        raise NotFound(f"그런 선반이 없다: {shelf_id}")
+
+    target = next((p for p in (shelf.get("scan_passes") or []) if int(p.get("level", 0)) == int(level)), None)
+    if target is None:
+        raise NotFound(f"{shelf_id} 에 {level}층이 없다")
+
+    target["arm_teach_pose"] = shapes.joints_in(positions)
+    # 화면과 같은 규칙: 티칭이 처음 완성된 순간에만 찍고, 이후엔 안 건드린다.
+    if not shelf.get("first_taught_at") and shapes.shelf_is_taught(shelf):
+        from datetime import datetime
+        shelf["first_taught_at"] = datetime.now().astimezone().isoformat()
+
+    new_rev = await _save(path, doc, rev, "shelves")
+    return {"revision": new_rev, "shelf": shapes.shelf_out(shelf_id, shelf)}
+
+
+# ── 스테이션 ─────────────────────────────────────────────────────────
+@router.get("/stations")
+async def get_stations(response: Response):
+    doc, rev = configstore.doc(settings().stations_yaml)
+    response.headers["ETag"] = rev
+    items = doc.get("stations") or []
+    return {
+        "revision": rev,
+        "stations": [shapes.station_out(s.get("station_id", ""), s) for s in items],
+    }
+
+
+@router.put("/stations")
+async def put_stations(
+    body: dict = Body(...), if_match: str | None = Header(None, alias="If-Match")
+):
+    incoming = body.get("stations")
+    if not isinstance(incoming, list):
+        raise Unprocessable("stations 는 배열이어야 한다", got=type(incoming).__name__)
+    ids = _unique_ids(incoming, "station_id")
+
+    for item in incoming:
+        st = item.get("station_type") or ""
+        if st not in shapes.STATION_TYPES:
+            raise Unprocessable(f"모르는 스테이션 유형: {st}", allowed=list(shapes.STATION_TYPES))
+        cs = item.get("completion_signal") or ""
+        if cs not in shapes.COMPLETION_SIGNALS:
+            raise Unprocessable(f"모르는 완료 신호: {cs}", allowed=list(shapes.COMPLETION_SIGNALS))
+
+    path = settings().stations_yaml
+    doc, _ = yamlstore.load(path)
+    kept = {str(s.get("station_id")): s for s in (doc.get("stations") or [])}
+
+    merged = []
+    for station_id, item in zip(ids, incoming):
+        target = kept.get(station_id)
+        converted = {"station_id": station_id, **shapes.station_in(item)}
+        merged.append(yamlstore.merge_into(target, converted) if target is not None else converted)
+    doc["stations"] = merged
+
+    rev = await _save(path, doc, if_match, "stations")
+    return {"revision": rev, "stations": [shapes.station_out(s["station_id"], s) for s in merged]}
+
+
+# ── 공정 흐름 ────────────────────────────────────────────────────────
+@router.get("/routing")
+async def get_routing(response: Response):
+    doc, rev = configstore.doc(settings().routing_yaml)
+    response.headers["ETag"] = rev
+    return {"revision": rev, **shapes.routing_out(doc)}
+
+
+@router.put("/routing")
+async def put_routing(
+    body: dict = Body(...), if_match: str | None = Header(None, alias="If-Match")
+):
+    parsed = shapes.routing_in(body)
+    _check_chain(parsed)
+
+    path = settings().routing_yaml
+    doc, _ = yamlstore.load(path)
+    yamlstore.merge_into(doc, parsed)
+
+    rev = await _save(path, doc, if_match, "routing")
+    return {"revision": rev, **shapes.routing_out(doc)}
+
+
+def _check_chain(parsed: dict) -> None:
+    """화면의 routingComplete 와 **같은 규칙**으로 검사한다.
+
+    규칙이 어긋나면 화면은 "저장 가능" 이라 하고 서버는 422 를 낸다 —
+    그런 불일치가 가장 고치기 어려운 종류의 버그다. 그래서 조건을 그대로 옮겼다:
+
+        validStart        rules[0].from === 'SHELF'
+        continuityValid   rules[i].from === rules[i-1].to
+        stationLinksValid from/to 가 비어 있지 않고 등록된 스테이션일 것
+        descriptions      description.trim() !== ''
+    """
+    rules = parsed["rules"]
+    if not rules:
+        return   # 빈 라우팅은 '아직 안 만든 것' 이지 잘못된 것이 아니다
+
+    known = {str(s.get("station_id")) for s in (configstore.stations_list())}
+
+    if rules[0]["from"] != shapes.ROUTE_START:
+        raise Unprocessable(
+            f"첫 규칙의 출발지는 '{shapes.ROUTE_START}' 여야 한다 (지금 '{rules[0]['from']}')."
+        )
+    for i, rule in enumerate(rules):
+        if not rule["to"].strip():
+            raise Unprocessable(f"{i + 1}번째 규칙에 도착지가 없다", index=i)
+        if rule["to"] not in known:
+            raise Unprocessable(
+                f"등록되지 않은 스테이션이다: {rule['to']}", index=i, known=sorted(known)
+            )
+        if not rule["description"].strip():
+            raise Unprocessable(f"{i + 1}번째 규칙에 설명이 없다", index=i)
+        if i > 0 and rule["from"] != rules[i - 1]["to"]:
+            raise Unprocessable(
+                f"체인이 끊겼다: {i}번째가 '{rules[i - 1]['to']}' 에서 끝났는데 "
+                f"{i + 1}번째는 '{rule['from']}' 에서 시작한다.",
+                index=i,
+            )
+
+    fd = parsed["final_destination"]
+    if fd not in shapes.FINAL_DESTINATIONS:
+        raise Unprocessable(
+            f"모르는 최종 목적지: {fd}", allowed=list(shapes.FINAL_DESTINATIONS)
+        )

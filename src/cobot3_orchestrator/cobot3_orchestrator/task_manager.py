@@ -766,7 +766,7 @@ def build_tree(node):
 
     # 가지를 더한다면 여기다. 위에 있을수록 먼저 기회를 받는다 —
     # 배터리 선점(NavigateTo.action ★ hard_threshold_s)은 mission 위에,
-    # 외부 작업 지시(RegisterTask.srv) 처리는 mission 과 patrol_branch 사이에 온다.
+    # 외부 작업 지시(ExecuteTask.action) 처리는 mission 과 patrol_branch 사이에 온다.
     return py_trees.composites.Selector(
         "우선순위", memory=False, children=[mission])
 

@@ -1,10 +1,20 @@
-import { useState } from 'react'
+import {
+  useEffect,
+  useState,
+} from 'react'
 import {
   NavLink,
   useNavigate,
 } from 'react-router-dom'
 
-function createStation(stationId) {
+import { fetchRouting } from '../api/config'
+import {
+  useEnum,
+  useMeta,
+} from '../contexts/MetaContext'
+
+/** 새 스테이션. `joints` 는 서버가 준다 — 팔 축 수를 화면이 정할 일이 아니다. */
+function createStation(stationId, joints) {
   return {
     station_id: stationId,
     station_type: '',
@@ -13,7 +23,10 @@ function createStation(stationId) {
       y: '',
       theta: '',
     },
-    place_arm_pose: ['', '', '', '', '', ''],
+    place_arm_pose: Array.from(
+      { length: joints },
+      () => '',
+    ),
     process_time: '',
     output_type: '',
     completion_signal: '',
@@ -46,44 +59,98 @@ function formatDateTime(value) {
   ].join(' ')
 }
 
-function getCompletionDescription(signal) {
-  if (signal === 'TIMER') {
-    return '설정한 처리 시간이 지나면 공정 완료로 판단합니다.'
-  }
-
-  if (signal === 'VISION') {
-    return '비전 인식 결과를 기준으로 공정 완료를 판단합니다.'
-  }
-
-  if (signal === 'TIMER + VISION') {
-    return '처리 시간과 비전 확인 조건을 함께 사용해 공정 완료를 판단합니다.'
-  }
-
-  if (signal === 'EXTERNAL') {
-    return '외부 완료 신호를 수신하면 공정 완료로 판단합니다.'
-  }
-
-  return '완료 신호를 선택하면 공정 완료 판단 방식이 여기에 표시됩니다.'
+/**
+ * 완료 신호가 뜻하는 바. 설명은 서버가 준다(GET /api/meta).
+ *
+ * ★ 어휘와 설명을 한곳에 두기 위해서다. 값만 서버가 주고 설명을 화면이 들고
+ *   있으면, 신호를 하나 더할 때 두 곳을 고쳐야 하고 한쪽을 잊으면 빈 설명이 뜬다.
+ */
+function getCompletionDescription(
+  signal,
+  help,
+) {
+  return (
+    help[signal] ??
+    '완료 신호를 선택하면 공정 완료 판단 방식이 여기에 표시됩니다.'
+  )
 }
 
 function StationSettingsPage({
   stations,
   setStations,
+  resource,
 }) {
   const navigate =
     useNavigate()
 
+  // ★ 목록이 서버에서 오므로 특정 id('PKG-01')를 기본값으로 박아 둘 수 없다.
+  //   그 스테이션이 없으면 페이지가 통째로 빈 화면이 된다.
   const [
     selectedStationId,
     setSelectedStationId,
-  ] = useState('PKG-01')
+  ] = useState('')
 
+  const [busy, setBusy] =
+    useState(false)
+
+  const {
+    joints,
+    completion_signal_help:
+      completionHelp,
+  } = useMeta()
+
+  const stationTypes = useEnum(
+    'station_types',
+  )
+
+  const completionSignals = useEnum(
+    'completion_signals',
+  )
+
+  // 공정 흐름에서 "이 스테이션 다음" 을 찾는다.
+  // 읽기만 하므로 useConfigResource(저장·revision·dirty) 는 과하다.
+  const [routingRules, setRoutingRules] =
+    useState([])
+
+  useEffect(() => {
+    let alive = true
+
+    fetchRouting()
+      .then((res) => {
+        if (alive) {
+          setRoutingRules(
+            res.rules ?? [],
+          )
+        }
+      })
+      .catch(() => {
+        // 못 읽으면 '미설정' 으로 보인다. 이 패널 하나 때문에
+        // 스테이션 편집 전체를 막을 이유는 없다.
+      })
+
+    return () => {
+      alive = false
+    }
+  }, [])
+
+  // 고른 것이 없거나 방금 지웠으면 첫 번째로 떨어진다.
   const selectedStation =
     stations.find(
       (station) =>
         station.station_id ===
         selectedStationId,
-    )
+    ) ?? stations[0]
+
+  // 실제로 화면에 떠 있는 스테이션의 id. 편집·강조는 이 값을 기준으로 한다.
+  const activeStationId =
+    selectedStation?.station_id ?? ''
+
+  // 이 스테이션에서 나가는 규칙의 도착지. 선형 체인이라 최대 하나다.
+  const nextStationId =
+    routingRules.find(
+      (rule) =>
+        rule.from === activeStationId,
+    )?.to || null
 
   function updateSelectedStation(
     updater,
@@ -91,7 +158,7 @@ function StationSettingsPage({
     setStations((prev) =>
       prev.map((station) =>
         station.station_id ===
-        selectedStationId
+        activeStationId
           ? updater(station)
           : station,
       ),
@@ -187,6 +254,7 @@ function StationSettingsPage({
       ...prev,
       createStation(
         trimmedStationId,
+        joints,
       ),
     ])
 
@@ -228,26 +296,36 @@ function StationSettingsPage({
 
   function redefinePlacePosition() {
     window.alert(
-      `${selectedStationId} Place 위치 재지정은 ROS2 위치 연동 단계에서 연결합니다.`,
+      `${activeStationId} Place 위치 재지정은 ROS2 위치 연동 단계에서 연결합니다.`,
     )
   }
 
   function saveCurrentArmPose() {
     window.alert(
-      `${selectedStationId} 현재 팔 자세 지정은 ROS2 연동 단계에서 연결합니다.`,
+      `${activeStationId} 현재 팔 자세 지정은 ROS2 연동 단계에서 연결합니다.`,
     )
   }
 
   function testPlace() {
     window.alert(
-      `${selectedStationId} 시험 배치는 ROS2 연동 단계에서 연결합니다.`,
+      `${activeStationId} 시험 배치는 ROS2 연동 단계에서 연결합니다.`,
     )
   }
 
-  function saveStation() {
-    window.alert(
-      `${selectedStationId} 저장 기능은 Backend 연동 단계에서 연결합니다.`,
-    )
+  async function saveStation() {
+    setBusy(true)
+
+    try {
+      await resource.save()
+
+      window.alert('스테이션 설정을 저장했습니다.')
+    } catch (err) {
+      // 백엔드 메시지를 그대로 — 어떤 값이 왜 거절됐는지가 거기 적혀 있다
+      // (예: 완료 신호는 'TIMER + VISION' 처럼 공백까지 맞아야 한다).
+      window.alert(err.message)
+    } finally {
+      setBusy(false)
+    }
   }
 
   function goToProcessFlow() {
@@ -338,7 +416,7 @@ function StationSettingsPage({
                   type="button"
                   className={
                     station.station_id ===
-                    selectedStationId
+                    activeStationId
                       ? 'station-list-item active'
                       : 'station-list-item'
                   }
@@ -403,18 +481,19 @@ function StationSettingsPage({
                     )
                   }
                 >
-                  <option value="">
-                    선택
-                  </option>
-                  <option value="PACKAGING">
-                    PACKAGING
-                  </option>
-                  <option value="TEST">
-                    TEST
-                  </option>
-                  <option value="STORAGE">
-                    STORAGE
-                  </option>
+                  {/* 선택지는 서버가 준다(GET /api/meta ← shapes.STATION_TYPES).
+                      화면에만 적어 두면 서버가 모르는 값을 고를 수 있게 되고,
+                      저장할 때 422 를 받는다. */}
+                  {stationTypes.map(
+                    (type) => (
+                      <option
+                        key={type}
+                        value={type}
+                      >
+                        {type || '선택'}
+                      </option>
+                    ),
+                  )}
                 </select>
               </label>
 
@@ -598,21 +677,18 @@ function StationSettingsPage({
                     )
                   }
                 >
-                  <option value="">
-                    선택
-                  </option>
-                  <option value="TIMER">
-                    TIMER
-                  </option>
-                  <option value="VISION">
-                    VISION
-                  </option>
-                  <option value="TIMER + VISION">
-                    TIMER + VISION
-                  </option>
-                  <option value="EXTERNAL">
-                    EXTERNAL
-                  </option>
+                  {/* 'TIMER + VISION' 은 공백까지 서버 값과 같아야 한다.
+                      손으로 적으면 언젠가 'TIMER+VISION' 이 된다. */}
+                  {completionSignals.map(
+                    (signal) => (
+                      <option
+                        key={signal}
+                        value={signal}
+                      >
+                        {signal || '선택'}
+                      </option>
+                    ),
+                  )}
                 </select>
               </label>
             </div>
@@ -628,6 +704,7 @@ function StationSettingsPage({
                 {getCompletionDescription(
                   selectedStation
                     .completion_signal,
+                  completionHelp,
                 )}
               </span>
             </div>
@@ -639,8 +716,10 @@ function StationSettingsPage({
                 다음 공정
               </span>
 
+              {/* 라우팅에서 유도한다. 예전에는 'TEST-01' 이 적혀 있어서,
+                  어느 스테이션을 보고 있든 항상 같은 이름이 나왔다. */}
               <strong>
-                TEST-01
+                {nextStationId ?? '미설정'}
               </strong>
             </div>
 

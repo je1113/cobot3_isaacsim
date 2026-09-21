@@ -137,7 +137,7 @@ erDiagram
 | `routing_rule` | `stations.yaml`(신설) |
 | `robot` (위치 · 배터리 · 상태) | **아무 데도 저장 안 함** — WebSocket 패스스루 |
 | `robot.resume_point` | `task.resume_pass` / `resume_progress` 칸 |
-| 선반 점유 lock | 칸 없음 — `task`의 부분 UNIQUE INDEX가 파생 (§10-4) |
+| 선반 점유 lock | **애초에 없다** — 두 로봇이 같은 선반에서 같이 일한다 (§10-4) |
 
 ---
 

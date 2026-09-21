@@ -1,0 +1,42 @@
+# ══════════════════════════════════════════════════════════════════════
+#  보내는 노드 : web backend (cobot3_web)
+#  받는 노드   : cobot3_orchestrator / task_manager
+#  종류        : 서비스  /{robot}/orchestrator/command
+#  역할        : 화면의 제어 버튼 4개. 작업 내용이 아니라 '진행 여부' 만 바꾼다.
+#  전달 내용   : req: command · reason  /  res: accepted · rejected_because · state
+# ══════════════════════════════════════════════════════════════════════
+
+# ★ WBS 7단계. 서비스인 이유: 결과가 즉시 나오고 취소할 일이 없다.
+#   오래 걸리는 것은 명령이 아니라 '작업' 이고 그건 ExecuteTask.action 이다.
+#
+# ★ STOP 은 비상정지가 아니다.
+#   화면 라벨도 "전체 정지" 로 쓴다(WBS 7.4). 이 명령은 소프트웨어 경로로
+#   goal 을 거두는 것이라, 노드가 죽어 있거나 DDS 가 끊기면 듣지 못한다.
+#   사람을 지키는 정지는 하드웨어 E-Stop 이어야 하고, 이 서비스는 그것이 아니다.
+#   그렇게 쓰이도록 이름에 EMERGENCY 를 넣지 않았다.
+#
+# ★ PAUSE 와 STOP 의 차이는 '지금 작업을 버리는가' 다.
+#     PAUSE  — 현재 goal 을 유지한 채 선다. RESUME 이면 그 자리에서 이어간다.
+#     STOP   — 현재 goal 을 cancel 한다. 작업은 FAILED(CANCELED) 로 끝나고,
+#              웹이 그 행을 다시 QUEUED 로 되돌릴지 정한다.
+#   둘을 한 명령으로 합치지 않은 이유는 복구 비용이 다르기 때문이다 —
+#   PAUSE 는 공짜지만 STOP 은 이송 중이던 캐리어를 팔에 든 채 멈춘다.
+#
+# ★ SKIP 은 '이번 작업만' 버린다. 큐의 다음 작업으로 넘어간다.
+#   STOP 과 달리 로봇은 계속 일한다.
+
+string PAUSE=PAUSE              # 현재 작업 유지하고 정지
+string RESUME=RESUME            # PAUSE 해제
+string SKIP=SKIP                # 현재 작업만 취소하고 다음으로
+string STOP=STOP                # 현재 작업 취소하고 대기 (소프트 정지)
+
+string command
+string reason                   # 화면이 남기는 메모. 로봇은 쓰지 않고 그대로 되돌려준다.
+                                # payload 없는 사건이라 DB 에 남을 곳이 아직 없다(§11 #1) —
+                                # 지금은 웹이 alert 채널로 흘려보내는 것이 전부다.
+---
+bool   accepted
+string rejected_because         # accepted=false 일 때만. 사람이 읽는 문장이다.
+                                # 예: "PAUSE 중이 아니라 RESUME 할 게 없다"
+string state                    # 명령 처리 직후의 /orchestrator/state 값 그대로.
+                                # 화면이 토픽을 기다리지 않고 바로 버튼을 갱신할 수 있다.

@@ -5,6 +5,10 @@ import {
 } from '../api/logs'
 
 import useApiRequest from '../hooks/useApiRequest'
+import {
+  useEnum,
+  useRobots,
+} from '../contexts/MetaContext'
 
 function getLogSummary(logs) {
   const total = logs.length
@@ -12,13 +16,13 @@ function getLogSummary(logs) {
   const completed =
     logs.filter(
       (log) =>
-        log.result === 'SUCCESS',
+        log.result === successValue,
     ).length
 
   const failed =
     logs.filter(
       (log) =>
-        log.result === 'FAILED',
+        log.result === failedValue,
     ).length
 
   const durations =
@@ -48,6 +52,12 @@ function getLogSummary(logs) {
 }
 
 function LogsPage() {
+  const robots = useRobots()
+
+  // 'SUCCESS' / 'FAILED' 는 백엔드가 만드는 값이다(shapes.log_row_out).
+  // 이름을 바꾸려면 한 곳만 고치면 되도록 여기서도 서버 것을 쓴다.
+  const [successValue, failedValue] =
+    useEnum('task_results')
   const [logs, setLogs] =
     useState([])
 
@@ -306,46 +316,38 @@ function LogsPage() {
               전체
             </button>
 
-            <button
-              type="button"
-              className={
-                robotFilter === 'AMR-01'
-                  ? 'active'
-                  : ''
-              }
-              onClick={() =>
-                setRobotFilter('AMR-01')
-              }
-            >
-              AMR-01
-            </button>
+            {/* 로봇 버튼은 서버가 준 목록에서 만든다.
+                예전에는 AMR-01 / AMR-02 두 개가 통째로 적혀 있어서,
+                로봇이 늘어도 그 로그를 걸러 볼 방법이 없었다. */}
+            {robots.map((robotId) => (
+              <button
+                key={robotId}
+                type="button"
+                className={
+                  robotFilter === robotId
+                    ? 'active'
+                    : ''
+                }
+                onClick={() =>
+                  setRobotFilter(robotId)
+                }
+              >
+                {robotId}
+              </button>
+            ))}
 
             <button
               type="button"
               className={
-                robotFilter === 'AMR-02'
-                  ? 'active'
-                  : ''
-              }
-              onClick={() =>
-                setRobotFilter('AMR-02')
-              }
-            >
-              AMR-02
-            </button>
-
-            <button
-              type="button"
-              className={
-                resultFilter === 'FAILED'
+                resultFilter === failedValue
                   ? 'failed active'
                   : 'failed'
               }
               onClick={() =>
                 setResultFilter(
-                  resultFilter === 'FAILED'
+                  resultFilter === failedValue
                     ? 'ALL'
-                    : 'FAILED',
+                    : failedValue,
                 )
               }
             >
@@ -382,7 +384,7 @@ function LogsPage() {
                   <tr
                     key={log.id}
                     className={
-                      log.result === 'FAILED'
+                      log.result === failedValue
                         ? 'failed'
                         : ''
                     }
@@ -394,9 +396,9 @@ function LogsPage() {
                     <td>
                       <span
                         className={
-                          log.result === 'SUCCESS'
+                          log.result === successValue
                             ? 'logs-result-badge success'
-                            : log.result === 'FAILED'
+                            : log.result === failedValue
                               ? 'logs-result-badge failed'
                               : 'logs-result-badge neutral'
                         }

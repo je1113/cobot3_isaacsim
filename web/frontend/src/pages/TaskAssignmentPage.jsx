@@ -3,6 +3,10 @@ import {
 } from '../api/tasks'
 
 import useApiRequest from '../hooks/useApiRequest'
+import {
+  useMeta,
+  useRobots,
+} from '../contexts/MetaContext'
 
 function isTeachingComplete(shelf) {
   return (
@@ -18,36 +22,49 @@ function isTeachingComplete(shelf) {
 function TaskAssignmentPage({
   shelves,
   stations = [],
-  robot1Queue,
-  setRobot1Queue,
-  robot2Queue,
-  setRobot2Queue,
+  queues,
+  setQueues,
 }) {
+  // ★ 로봇 목록은 서버가 준다(GET /api/meta ← COBOT3_ROBOTS).
+  //   예전에는 'AMR-01' / 'AMR-02' 가 이 파일에만 12곳 박혀 있었고,
+  //   큐도 robot1Queue / robot2Queue 두 개의 useState 였다. 그러면 로봇이
+  //   3대가 되는 날 화면 전체를 다시 훑어야 한다.
+  const robots = useRobots()
+
+  const {
+    scan_direction_arrows:
+      directionArrows,
+  } = useMeta()
+
   const {
     loading: taskStartLoading,
     error: taskStartError,
     execute,
   } = useApiRequest()
+
+  const queueOf = (robotId) =>
+    queues[robotId] ?? []
+
+  const updateQueue = (
+    robotId,
+    updater,
+  ) =>
+    setQueues((prev) => ({
+      ...prev,
+      [robotId]: updater(
+        prev[robotId] ?? [],
+      ),
+    }))
+
   function getAssignedRobot(shelfId) {
-    if (
-      robot1Queue.some(
-        (shelf) =>
-          shelf.shelf_id === shelfId,
-      )
-    ) {
-      return 'AMR-01'
-    }
-
-    if (
-      robot2Queue.some(
-        (shelf) =>
-          shelf.shelf_id === shelfId,
-      )
-    ) {
-      return 'AMR-02'
-    }
-
-    return null
+    return (
+      robots.find((robotId) =>
+        queueOf(robotId).some(
+          (shelf) =>
+            shelf.shelf_id === shelfId,
+        ),
+      ) ?? null
+    )
   }
 
   function assignShelf(shelf, robotId) {
@@ -68,42 +85,22 @@ function TaskAssignmentPage({
       return
     }
 
-    if (robotId === 'AMR-01') {
-      setRobot1Queue((prev) => [
-        ...prev,
-        shelf,
-      ])
-    }
-
-    if (robotId === 'AMR-02') {
-      setRobot2Queue((prev) => [
-        ...prev,
-        shelf,
-      ])
-    }
+    updateQueue(robotId, (prev) => [
+      ...prev,
+      shelf,
+    ])
   }
 
   function removeShelf(
     robotId,
     shelfId,
   ) {
-    if (robotId === 'AMR-01') {
-      setRobot1Queue((prev) =>
-        prev.filter(
-          (shelf) =>
-            shelf.shelf_id !== shelfId,
-        ),
-      )
-    }
-
-    if (robotId === 'AMR-02') {
-      setRobot2Queue((prev) =>
-        prev.filter(
-          (shelf) =>
-            shelf.shelf_id !== shelfId,
-        ),
-      )
-    }
+    updateQueue(robotId, (prev) =>
+      prev.filter(
+        (shelf) =>
+          shelf.shelf_id !== shelfId,
+      ),
+    )
   }
 
   function moveQueueItem(
@@ -111,12 +108,7 @@ function TaskAssignmentPage({
     index,
     direction,
   ) {
-    const setQueue =
-      robotId === 'AMR-01'
-        ? setRobot1Queue
-        : setRobot2Queue
-
-    setQueue((prev) => {
+    updateQueue(robotId, (prev) => {
       const nextIndex =
         index + direction
 
@@ -142,6 +134,7 @@ function TaskAssignmentPage({
     })
   }
 
+  /** 가장 적게 맡은 로봇에게 하나씩 — 대수와 무관하게 같은 규칙이다. */
   function autoDistribute() {
     const unassignedShelves =
       shelves.filter(
@@ -152,70 +145,59 @@ function TaskAssignmentPage({
           ),
       )
 
-    let nextRobot1Queue = [
-      ...robot1Queue,
-    ]
-
-    let nextRobot2Queue = [
-      ...robot2Queue,
-    ]
+    const next = Object.fromEntries(
+      robots.map((robotId) => [
+        robotId,
+        [...queueOf(robotId)],
+      ]),
+    )
 
     unassignedShelves.forEach(
       (shelf) => {
-        if (
-          nextRobot1Queue.length <=
-          nextRobot2Queue.length
-        ) {
-          nextRobot1Queue = [
-            ...nextRobot1Queue,
-            shelf,
-          ]
-        } else {
-          nextRobot2Queue = [
-            ...nextRobot2Queue,
-            shelf,
-          ]
-        }
+        // 동점이면 robots 순서가 앞선 쪽. 결과가 매번 같아야 사람이 예측한다.
+        const target = robots.reduce(
+          (best, robotId) =>
+            next[robotId].length <
+            next[best].length
+              ? robotId
+              : best,
+          robots[0],
+        )
+
+        next[target].push(shelf)
       },
     )
 
-    setRobot1Queue(
-      nextRobot1Queue,
-    )
-
-    setRobot2Queue(
-      nextRobot2Queue,
-    )
+    setQueues((prev) => ({
+      ...prev,
+      ...next,
+    }))
   }
 
   async function startTasks() {
-    if (
-      robot1Queue.length === 0 &&
-      robot2Queue.length === 0
-    ) {
+    const isEmpty = robots.every(
+      (robotId) =>
+        queueOf(robotId).length === 0,
+    )
+
+    if (isEmpty) {
       window.alert(
         '작업 Queue가 비어 있습니다.',
       )
       return
     }
 
+    // 큐가 빈 로봇도 실어 보낸다 — 서버는 이 목록으로 대기 큐를 **교체**하므로,
+    // 빠뜨리면 그 로봇의 기존 대기 작업이 그대로 남는다.
     const taskRequest = {
-      robots: [
-        {
-          robot_id: 'AMR-01',
-          queue: robot1Queue.map(
-            (shelf) =>
-              shelf.shelf_id,
+      robots: robots.map(
+        (robotId) => ({
+          robot_id: robotId,
+          queue: queueOf(robotId).map(
+            (shelf) => shelf.shelf_id,
           ),
-        },
-        {
-          robot_id: 'AMR-02',
-          queue: robot2Queue.map(
-            (shelf) =>
-              shelf.shelf_id,
-          ),
-        },
-      ],
+        }),
+      ),
     }
 
     try {
@@ -240,7 +222,7 @@ function TaskAssignmentPage({
           <h1>작업 할당</h1>
 
           <p>
-            선반을 AMR-01 / AMR-02 작업 큐에 배정합니다.
+            선반을 {robots.join(' / ')} 작업 큐에 배정합니다.
           </p>
         </div>
 
@@ -320,10 +302,9 @@ function TaskAssignmentPage({
                               Level {pass.level}
 
                               <b>
-                                {pass.direction ===
-                                'BACKWARD'
-                                  ? '←'
-                                  : '→'}
+                                {directionArrows[
+                                  pass.direction
+                                ] ?? '→'}
                               </b>
                             </span>
                           ))
@@ -447,29 +428,22 @@ function TaskAssignmentPage({
                       </span>
                     ) : (
                       <div className="assign-buttons">
-                        <button
-                          type="button"
-                          onClick={() =>
-                            assignShelf(
-                              shelf,
-                              'AMR-01',
-                            )
-                          }
-                        >
-                          AMR-01
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() =>
-                            assignShelf(
-                              shelf,
-                              'AMR-02',
-                            )
-                          }
-                        >
-                          AMR-02
-                        </button>
+                        {robots.map(
+                          (robotId) => (
+                            <button
+                              key={robotId}
+                              type="button"
+                              onClick={() =>
+                                assignShelf(
+                                  shelf,
+                                  robotId,
+                                )
+                              }
+                            >
+                              {robotId}
+                            </button>
+                          ),
+                        )}
                       </div>
                     )}
                   </div>
@@ -480,19 +454,15 @@ function TaskAssignmentPage({
         </div>
 
         <div className="robot-queue-column">
-          <RobotQueue
-            robotId="AMR-01"
-            queue={robot1Queue}
-            onRemove={removeShelf}
-            onMove={moveQueueItem}
-          />
-
-          <RobotQueue
-            robotId="AMR-02"
-            queue={robot2Queue}
-            onRemove={removeShelf}
-            onMove={moveQueueItem}
-          />
+          {robots.map((robotId) => (
+            <RobotQueue
+              key={robotId}
+              robotId={robotId}
+              queue={queueOf(robotId)}
+              onRemove={removeShelf}
+              onMove={moveQueueItem}
+            />
+          ))}
         </div>
       </div>
     </section>

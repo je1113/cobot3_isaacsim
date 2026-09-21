@@ -1,0 +1,52 @@
+# ══════════════════════════════════════════════════════════════════════
+#  선반 정의 — 웹 관제 UI 「설정 > 선반」 탭이 읽고 쓴다.
+#
+#  왜 DB 가 아니라 파일인가: docs/DB구성.md §10-1.
+#    "주인이 하나(엔지니어), 미션 시작 때 한 번 읽는다."
+#  화면에서 편집한다는 사실 자체는 DB 사유가 아니다 — 편집기는 파일도 쓴다.
+#
+#  ★ 구조는 화면(ShelfSettingsPage)의 상태 모양을 그대로 따른다. 순서도 화면
+#    순서라서 map 이 아니라 **리스트**다.
+#
+#  ★ 여기 숫자는 숫자로 적는다. 화면은 <input type="number"> 라 값을 문자열로
+#    들고 있지만, 이 파일은 로봇도 읽는다 — task_manager 가 "-4.85" 를 좌표로
+#    쓸 수는 없다. 문자열↔숫자 변환은 web/backend/app/shapes.py 한 곳에서 한다.
+#    미입력은 null 이고, 화면에는 '' 로 나간다.
+#
+#  ★ 티칭 완료 판정: scan_passes 가 하나 이상 있고, 모든 층의 arm_teach_pose
+#    6칸이 전부 채워져 있을 것. 하나라도 비면 작업 배정이 422 로 거절된다.
+#    (판정 규칙의 원본은 shapes.shelf_is_taught — 화면과 같은 규칙이어야 한다)
+# ══════════════════════════════════════════════════════════════════════
+meta:
+  units: m, rad
+  joints: 6            # arm_teach_pose 는 항상 J1..J6 여섯 칸
+
+shelves:
+  - shelf_id: SHELF-A
+    # 선반을 훑기 시작하는 자리와 끝내는 자리 (map 프레임, theta 는 rad).
+    # standoff_distance 는 선반 면에서 떨어져 서는 거리다.
+    waypoint_start: {x: -4.85, y: 1.55, theta: 0.0}
+    waypoint_end: {x: -4.85, y: 1.55, theta: 0.0}
+    standoff_distance:
+    # 층마다 한 줄. direction 은 화면이 레벨 홀짝으로 정하지만(홀수 FORWARD),
+    # 층을 지운 뒤에는 다시 계산하지 않으므로 저장된 값을 그대로 믿는다.
+    scan_passes:
+      - pass_id: 1
+        level: 1
+        direction: FORWARD
+        arm_teach_pose: [0, 90, 0, 0, 90, 0]
+      - pass_id: 2
+        level: 2
+        direction: BACKWARD
+        arm_teach_pose: [0, 80, 10, 0, 90, 0]
+    # 티칭이 처음 완성된 순간에만 찍힌다. 이후 수정해도 안 바뀐다.
+    first_taught_at:
+
+  # ── 아래 둘은 PATROL_ROUTE(task_manager.py:198) 의 두 정차점이다. ───
+  # 층을 만들지 않아 scan_passes 가 비어 있고, 그래서 배정하면 422 가 난다.
+  - shelf_id: SHELF-B
+    waypoint_start: {x: -2.674, y: 1.613, theta: 0.0}
+    waypoint_end: {x: -2.674, y: 1.613, theta: 0.0}
+    standoff_distance:
+    scan_passes: []
+    first_taught_at:
