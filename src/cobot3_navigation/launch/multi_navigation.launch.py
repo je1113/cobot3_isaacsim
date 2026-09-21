@@ -62,11 +62,14 @@ def generate_launch_description():
         "robot2_nav2_params.yaml"
     )
 
+    workspace_dir = os.path.expanduser("~/cobot3_ws")
+
     robot_urdf_file = os.path.join(
-        package_dir,
+        workspace_dir,
+        "isaacpjt",
+        "cobot3",
         "urdf",
-        "carter",
-        "carter.urdf"
+        "cobot3.urdf"
     )
 
     robot1_rviz_config = os.path.join(
@@ -142,21 +145,21 @@ def generate_launch_description():
     # ROBOT 1 JOINT STATE PUBLISHER
     # ==========================================================
 
-    robot1_joint_state_publisher = Node(
-        package="joint_state_publisher",
-        executable="joint_state_publisher",
+    # robot1_joint_state_publisher = Node(
+    #     package="joint_state_publisher",
+    #     executable="joint_state_publisher",
 
-        namespace="robot1",
+    #     namespace="robot1",
 
-        name="joint_state_publisher",
+    #     name="joint_state_publisher",
 
-        output="screen",
+    #     output="screen",
 
-        parameters=[{
-            "robot_description": robot_description,
-            "use_sim_time": use_sim_time,
-        }],
-    )
+    #     parameters=[{
+    #         "robot_description": robot_description,
+    #         "use_sim_time": use_sim_time,
+    #     }],
+    # )
 
 
     # ==========================================================
@@ -236,21 +239,21 @@ def generate_launch_description():
     # ROBOT 2 JOINT STATE PUBLISHER
     # ==========================================================
 
-    robot2_joint_state_publisher = Node(
-        package="joint_state_publisher",
-        executable="joint_state_publisher",
+    # robot2_joint_state_publisher = Node(
+    #     package="joint_state_publisher",
+    #     executable="joint_state_publisher",
 
-        namespace="robot2",
+    #     namespace="robot2",
 
-        name="joint_state_publisher",
+    #     name="joint_state_publisher",
 
-        output="screen",
+    #     output="screen",
 
-        parameters=[{
-            "robot_description": robot_description,
-            "use_sim_time": use_sim_time,
-        }],
-    )
+    #     parameters=[{
+    #         "robot_description": robot_description,
+    #         "use_sim_time": use_sim_time,
+    #     }],
+    # )
 
 
     # ==========================================================
@@ -626,7 +629,7 @@ def generate_launch_description():
 
         robot1_state_publisher,
 
-        robot1_joint_state_publisher,
+        # robot1_joint_state_publisher,
 
         robot1_base_to_chassis,
 
@@ -642,7 +645,7 @@ def generate_launch_description():
 
         robot2_state_publisher,
 
-        robot2_joint_state_publisher,
+        # robot2_joint_state_publisher,
 
         robot2_base_to_chassis,
 
