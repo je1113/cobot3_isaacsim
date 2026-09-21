@@ -192,19 +192,7 @@ PATROL_ROUTE = [
 # place 하러 갈 목적지 — 테스트 스테이션 로더 앞 주차 위치.
 # 지금은 매거진 1 · 2 를 전부 여기로 가져다 놓는다. (08 문서의 "매거진은 패키징
 # 로더로" 규칙은 지금 적용하지 않는다 — pkg_loader 는 나중에 추가한다.)
-# ★ isaacpjt/M0609/lula_ik/12_place_test.py 의 WP_PLACE 와 반드시 같은 값이어야
-# 한다 — place.yaml 의 PLACE_SLOT_POSE_BASE_LINK(그 노드가 여기 도착했다는
-# 전제로 만든 base_link 상대 오프셋)가 이 좌표 기준이다. 원래 4.0 이었는데
-# 컨베이어 회전-여유 문제로 3.85 로 뺐다(nav_server.py 조향 버그 이력 참고).
-TEST_LOADER = (3.85, 0.0, 0.0)
-
-# ★ 순찰 가지를 주석처리해 둔 동안 쓰는 임시 스위치 — carrier_detected 는
-# "순찰 중"에만 받아들이는데(patrolling 게이트), 순찰이 없으니 그 경로로는
-# 영원히 안 들어온다. True 면 노드가 뜨자마자 detected 를 강제로 세워서
-# 캐리어 처리 가지(SCAN 부터)가 바로 돈다 — simple_factory_layout.usda 의
-# nova_carter1 스폰을 이미 pick 위치로 옮겨 둔 것과 짝이다. 순찰을 다시
-# 살리면 False 로 되돌리고 이 강제 설정도 지운다.
-START_DETECTED_FOR_TEST = True
+TEST_LOADER = (4.0, 0.0, 0.0)
 
 # ── 단계 이름 ─────────────────────────────────────────────────────────────
 # 이전 판의 "상태" 다. 지금은 상태가 아니라 라벨이다 — 트리의 어느 노드인지,
@@ -223,10 +211,7 @@ RETURN = "return"
 NUMERIC_TO_VARIANT = {"1": "magazine_1_orange", "2": "magazine_2_blue"}
 
 # 각 단계를 이만큼 기다려도 안 끝나면 실패로 본다. 단위 초.
-# SCAN 은 재시도(SCAN_RETRIES)까지 포함해서 이 시간 안에 끝나야 한다 — 시도
-# 한 번(observe_pose 재정렬 + n_frames 캡처)이 GUI/렌더 모드에서 몇 초씩
-# 걸리므로 재시도 여유를 넉넉히 둔다.
-SCAN_TIMEOUT_S = 40.0
+SCAN_TIMEOUT_S = 10.0
 NAV_TIMEOUT_S = 300.0
 PICK_TIMEOUT_S = 120.0
 PLACE_TIMEOUT_S = 120.0
@@ -241,14 +226,6 @@ SCAN_COOLDOWN_S = 30.0
 # 연속 이만큼 실패하면 경고를 낸다. 쿨다운만 두면 로봇이 조용히 계속 도는데,
 # 그건 "안 보이는 실패" 라 더 나쁘다. 멈추지는 않는다 — 다른 라벨은 처리해야 한다.
 SCAN_FAIL_WARN = 3
-
-# SCAN 이 found=false 를 받아도 바로 patrol 로 돌아가지 않고 이 횟수만큼
-# carrier_scan 을 다시 부른다(최초 시도 포함 총 SCAN_RETRIES+1 번). 매 시도가
-# observe_pose 로 팔을 다시 정렬하고 카메라를 새로 캡처하므로, 렌더링 워밍업
-# 부족이나 그 한 프레임의 일시적 디코드 실패 같은 걸 재시도로 걸러낸다.
-# 그래도 계속 실패하면(라벨이 진짜 시야 밖이거나 판독거리 밖) 기존 정책대로
-# soft 실패로 patrol 로 돌아간다.
-SCAN_RETRIES = 2
 
 # carrier_detected 가 오면 주행을 그 자리에서 끊을지, 정차점까지 가고 나서
 # 처리할지.
@@ -431,10 +408,9 @@ class ScanLeaf(py_trees.behaviour.Behaviour):
     멈춘 뒤에 읽어야 정확하다 (05 §12-1 정지 상태에서 근접 판독). 앞의 HOLD 잎이
     로봇이 실제로 설 때까지 RUNNING 을 돌려주므로 여기 올 때는 이미 서 있다.
 
-    found=false 는 SCAN_RETRIES 번 재시도한 뒤에도 안 되면 soft 실패다 — Freeze
-    가 얼리지 않고 FAILURE 를 그대로 올려서 캐리어 처리 가지가 통째로 FAILURE
-    가 되고, Selector 가 순찰로 넘어간다. CarrierScan.srv 응답 주석이 정한
-    거동이다.
+    found=false 는 soft 실패다 — Freeze 가 얼리지 않고 FAILURE 를 그대로 올려서
+    캐리어 처리 가지가 통째로 FAILURE 가 되고, Selector 가 순찰로 넘어간다.
+    CarrierScan.srv 응답 주석이 정한 거동이다.
     """
 
     def __init__(self, name, node):
@@ -443,12 +419,10 @@ class ScanLeaf(py_trees.behaviour.Behaviour):
         self.bb = _blackboard(name, ("kind", "variant", "carrier_id", "qr_pose"))
         self.soft = False
         self.future = None
-        self.attempt = 0
 
     def initialise(self):
         self.future = None
         self.soft = False
-        self.attempt = 0
         now = time.monotonic()
         self.server_deadline = now + SERVER_WAIT_S
         self.deadline = now + SCAN_TIMEOUT_S
@@ -472,21 +446,11 @@ class ScanLeaf(py_trees.behaviour.Behaviour):
 
         res = self.future.result()
         if not res.found:
-            self.attempt += 1
-            if self.attempt <= SCAN_RETRIES:
-                # 재시도 — observe_pose 부터 다시 걸어 팔을 재정렬하고 카메라를
-                # 새로 캡처한다. future 를 비우면 다음 tick 에 새 요청이 나간다.
-                self.node.get_logger().info(
-                    f"SCAN 미판독 — 재시도 {self.attempt}/{SCAN_RETRIES}")
-                self.future = None
-                return Status.RUNNING
-            # 재시도까지 다 썼다 — 세우는 사이 라벨이 시야에서 벗어났거나
-            # 다수결을 못 채웠다고 본다. 멈추지 않고 순찰로 돌아간다 — 물건은
-            # 그 자리에 그대로 있다.
+            # 세우는 사이 라벨이 시야에서 벗어났거나 다수결을 못 채웠다.
+            # 멈추지 않고 순찰로 돌아간다 — 물건은 그 자리에 그대로 있다.
             self.soft = True
             self.node.on_scan_not_found()
-            self.feedback_message = (
-                f"NOT_FOUND(found=false) x{self.attempt} — patrol 로 돌아간다")
+            self.feedback_message = "NOT_FOUND(found=false) — patrol 로 돌아간다"
             return Status.FAILURE
 
         variant = NUMERIC_TO_VARIANT.get(res.payload)
@@ -725,39 +689,43 @@ def build_tree(node):
                   scan, pick, nav, place, ret,
                   CycleDone("사이클 완료", node, waypoints)])
 
-    # ★ 순찰 가지 통째로 주석처리 — patrol 좌표/전환 로직이 아직 이상해서
-    # (task_manager.py 상단 PATROL_ROUTE 주석 참고), task_manager 를
-    # 이식/검증하는 동안은 순찰 없이 SCAN 부터 바로 돈다(TaskManager.__init__
-    # 의 self.bb.detected = True 강제 설정과 짝이다 — 씬이 이미 pick 위치에서
-    # 시작하도록 simple_factory_layout.usda 의 nova_carter1 스폰도 옮겨 뒀다).
-    # 나중에 patrol 로직을 다시 정리하면 이 블록을 풀고 Selector children 에
-    # patrol_branch 를 되돌린다.
-    #
-    # patrol = Freeze("PATROL", py_trees.decorators.SuccessIsRunning(
-    #     name="순찰", child=ActionLeaf(
-    #         PATROL, node, node.nav, "/navigation/navigate_to",
-    #         NavigateTo.Result, make_goal=waypoints, timeout_s=NAV_TIMEOUT_S,
-    #         ok_fail_reasons=(NavigateTo.Result.CANCELED,),
-    #         moves_base=True)), node, PATROL)
-    #
-    # start = py_trees.decorators.OneShot(
-    #     "START(1회)",
-    #     child=Freeze("START", ActionLeaf(
-    #         START, node, node.nav, "/navigation/navigate_to", NavigateTo.Result,
-    #         make_goal=lambda: NavigateTo.Goal(pose=_to_pose(PATROL_ROUTE[0])),
-    #         timeout_s=NAV_TIMEOUT_S, moves_base=True), node, START),
-    #     policy=py_trees.common.OneShotPolicy.ON_SUCCESSFUL_COMPLETION)
-    #
-    # patrol_branch = py_trees.composites.Sequence(
-    #     "순찰 가지", memory=True, children=[start, patrol])
-    #
-    # node.patrol_node = patrol
+    # 순찰 — 도착(SUCCESS)을 RUNNING 으로 바꿔서 끝나지 않게 만든다. 다음 tick 에
+    # 잎이 다시 initialise() 되면서 _NextWaypoint 가 다음 정차점을 낸다.
+    # SuccessIsRunning 덕분에 이 Freeze 는 정차점에 도착하는 순간에도 RUNNING 을
+    # 유지한다 — _on_carrier_detected 가 "지금 순찰 중인가" 를 이걸로 판단하므로
+    # 도착하는 tick 에 신호를 흘리지 않으려면 그래야 한다.
+    # CANCELED 는 의도된 중단이라 실패로 치지 않는다 (NavigateTo.action 주석).
+    patrol = Freeze("PATROL", py_trees.decorators.SuccessIsRunning(
+        name="순찰", child=ActionLeaf(
+            PATROL, node, node.nav, "/navigation/navigate_to",
+            NavigateTo.Result, make_goal=waypoints, timeout_s=NAV_TIMEOUT_S,
+            ok_fail_reasons=(NavigateTo.Result.CANCELED,),
+            moves_base=True)), node, PATROL)
+
+    # 시작 자리에서 순찰 첫 정차점까지. 노드가 뜬 자리는 순찰 경로 위가 아니다.
+    # OneShot 이라 성공하면 그 뒤로는 자식을 tick 하지 않는다 — goal 은 평생 한 번
+    # 나간다. 성공 전에 끊기면(그럴 일은 아래 참고) 기억하지 않으므로 다시 시도한다.
+    start = py_trees.decorators.OneShot(
+        "START(1회)",
+        child=Freeze("START", ActionLeaf(
+            START, node, node.nav, "/navigation/navigate_to", NavigateTo.Result,
+            make_goal=lambda: NavigateTo.Goal(pose=_to_pose(PATROL_ROUTE[0])),
+            timeout_s=NAV_TIMEOUT_S, moves_base=True), node, START),
+        policy=py_trees.common.OneShotPolicy.ON_SUCCESSFUL_COMPLETION)
+
+    patrol_branch = py_trees.composites.Sequence(
+        "순찰 가지", memory=True, children=[start, patrol])
+
+    # 바깥에서 "지금 순찰 중인가" 를 물을 수 있게 해 둔다. START 중에는 patrol 이
+    # 아직 tick 되지 않아 INVALID 다 — 그래서 START 중에 들어온 carrier_detected 는
+    # 이전 판이 "상태가 patrol 이 아니면 버린다" 로 하던 것과 같이 버려진다.
+    node.patrol_node = patrol
 
     # 가지를 더한다면 여기다. 위에 있을수록 먼저 기회를 받는다 —
     # 배터리 선점(NavigateTo.action ★ hard_threshold_s)은 mission 위에,
     # 외부 작업 지시(RegisterTask.srv) 처리는 mission 과 patrol_branch 사이에 온다.
     return py_trees.composites.Selector(
-        "우선순위", memory=False, children=[mission])
+        "우선순위", memory=False, children=[mission, patrol_branch])
 
 
 def current_stage(root):
@@ -791,7 +759,7 @@ class TaskManager(Node):
         self.bb = _blackboard("task_manager", (
             "detected", "kind", "variant", "carrier_id", "qr_pose",
             "fail_stage", "fail_reason", "scan_fail_streak", "patrol_target"))
-        self.bb.detected = START_DETECTED_FOR_TEST
+        self.bb.detected = False
         self.bb.kind = ""
         self.bb.variant = ""
         self.bb.carrier_id = ""
@@ -934,31 +902,7 @@ class TaskManager(Node):
 
     # ── 표시 ──────────────────────────────────────────────────────────────
     def _on_post_tick(self, tree):
-        # patrol_branch 를 주석처리해 둔 동안은 patrol_node 가 None 이다.
-        self.patrolling = (self.patrol_node is not None
-                            and self.patrol_node.status == Status.RUNNING)
-
-        # ★ 임시 — patrol 가지가 없는 동안의 재시도 흉내.
-        # SCAN 이 found=false 로 soft 실패하면 mission Sequence 가 FAILURE 로
-        # 끝나고, patrol 가지가 없으니 Selector 도 그대로 FAILURE 다 — 아무
-        # 리프도 RUNNING 이 아닌 "완전 정지" 상태가 된다. patrol 이 있었다면
-        # 자연히 거기로 빠져 순찰하다 다시 carrier_detected 를 받았을 자리인데,
-        # 지금은 그 경로가 없다. bb.detected 는 Hold 가 한 번 쓰고 지우는
-        # 값이라(START_DETECTED_FOR_TEST 는 노드 시작 시 딱 한 번만 세운다)
-        # 아무도 다시 세워주지 않으면 로봇이 영원히 멈춘 채로 남는다.
-        # 여기서 그 자리를 대신한다: 완전 정지 상태를 감지하면 detected 를
-        # 다시 세워 SCAN 부터 재시도한다. SCAN_COOLDOWN_S(on_scan_not_found
-        # 가 세우는 값)로 재시도 폭주를 막는다 — hard 실패(self.failed=True)는
-        # Freeze 가 RUNNING 을 계속 돌려주므로 이 조건에 안 걸린다.
-        # patrol 을 다시 살리면 patrol_node 가 None 이 아니게 되어 이 블록은
-        # 저절로 꺼진다 — 그때 지워도 되고 안 지워도 무해하다.
-        if (self.patrol_node is None and not self.failed
-                and tree.root.status == Status.FAILURE
-                and time.monotonic() >= self._scan_cooldown_until):
-            self.get_logger().info(
-                "완전 정지 상태(patrol 없음) — detected 재설정, SCAN 재시도")
-            self.bb.detected = True
-
+        self.patrolling = self.patrol_node.status == Status.RUNNING
         snapshot = py_trees.display.unicode_tree(tree.root, show_status=True)
         if snapshot != self._last_snapshot:
             self._last_snapshot = snapshot
