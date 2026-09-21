@@ -164,13 +164,13 @@ def main():
     check(ns["RETURN"] in busy_set,
           "LANE_STAGES 에 return 이 있다 — 빼면 이탈하는 로봇과 정면으로 만난다")
 
-    print("\n── 7. 거리 기반 진입 설정 ──")
-    capped = list(ns["PEER_CAPPED_STAGES"])
+    print("\n── 7. 로더 반경 진입 설정 ──")
+    capped = list(ns["PEER_LEAVING_STAGES"])
     check(all(st in busy_set for st in capped),
-          f"PEER_CAPPED_STAGES {capped} 가 전부 양보 목록 안에 있다 — "
-          f"양보하지 않는 단계에 상한을 둬도 의미가 없다")
-    check(float(ns["DEFAULT_LANE_CLEAR_DIST_M"]) > 0,
-          f"lane_clear_dist_m 기본값 {ns['DEFAULT_LANE_CLEAR_DIST_M']} m > 0")
+          f"PEER_LEAVING_STAGES {capped} 가 전부 양보 목록 안에 있다 — "
+          f"양보하지 않는 단계에 반경 판정을 둬도 의미가 없다")
+    check(float(ns["DEFAULT_LOADER_CLEAR_RADIUS_M"]) > 0,
+          f"loader_clear_radius_m 기본값 {ns['DEFAULT_LOADER_CLEAR_RADIUS_M']} m > 0")
     src = io.open(LAUNCH, encoding="utf-8").read()
     check(("peer_pose_topic" in src) and ("amcl_pose" in src),
           "launch 가 peer_pose_topic 을 넘긴다 — 없으면 거리 판정을 못 하고 "

@@ -409,64 +409,64 @@ TICK_PERIOD_S = 0.1
 # 곧 교착 부재의 근거다. isaacpjt/tools/test_peer_yield.py 가 이걸 검사한다.
 DEFAULT_PEER_BUSY_STAGES = [NAV, PUSH, PLACE, RETURN]
 
-# ── 대기를 푸는 기준은 시간이 아니라 거리다 ───────────────────────────────
+# ── 대기를 푸는 기준: 로더 반경 ───────────────────────────────────────────
 # ★ 시간으로 재지 않는 이유
 #   이 파일의 타임아웃은 전부 time.monotonic() 즉 벽시계다. 그런데 Isaac 을 GUI
 #   렌더로 돌리면 시뮬이 실시간보다 느려서, 벽시계로 본 이동 속도가 nav_server 의
 #   지령 상한(개활지 1.2 m/s)과 전혀 다르고 머신·렌더 설정마다 또 다르다.
 #   TraceEvent.msg §4-2 가 사이클 타임을 시뮬 시각으로 재는 이유가 같은 것이다.
+#   그래서 "상대가 나간 뒤 N 초" 로 두면 N 을 정할 근거가 없다. 대신 상대가 로더
+#   주차점에서 얼마나 떨어져 있는지를 보면 속도와 무관하다.
 #
-#   그래서 "상대가 나간 뒤 N 초" 로 두면 N 을 정할 근거가 없다. 낮게 잡으면 상대가
-#   아직 차선에 있는데 들어가고, 높게 잡으면 상대가 이미 비켰는데 계속 서 있는다.
-#   대신 상대가 실제로 얼마나 멀어졌는지를 보면 속도와 무관하다.
-# 상대가 로더 주차점에서 이만큼 멀어지면 차선을 비웠다고 보고 진입한다.
-# 파라미터다 — 시뮬에서 보면서 조정할 값이라 소스 상수로 두지 않았다.
-#     ros2 param set /robot2/task_manager lane_clear_dist_m 2.0
+# 판정은 로더 주차점(stations.yaml PKG-01 place_pose, 코드에서는 TEST_LOADER)을
+# 중심으로 한 반경이다. 상대의 amcl_pose 와 그 점의 거리를 잰다.
+DEFAULT_LOADER_CLEAR_RADIUS_M = 1.0
+# ★ 파라미터다 — 시뮬에서 보면서 조정할 값이라 소스 상수로 두지 않았다.
+#       ros2 param set /robot2/task_manager loader_clear_radius_m 2.0
 #
-# ★ 1.0 은 시작값이고 낙관적인 쪽이다. 기하로 따지면 더 커야 한다.
-#     3.05 m  상대가 이쪽 대기 자리(x=0.80)의 x 를 지나가는 거리
-#     4.15 m  이탈 궤적이 접근선을 1.35 m 따라 나온 뒤 14도로 흐르는 것을 감안해,
-#             이쪽 진입선과의 횡간격이 차체 폭 합(0.50 m) + 여유 0.20 m 를
-#             넘는 지점까지의 거리
-#   1.0 m 시점의 상대는 아직 접근선 위에(y≈0) 있고, 그때 출발하면 둘이 차선
-#   중간에서 마주칠 수 있다. 그래서 시뮬에서 볼 첫 번째 증상이 "차선에서 만난다"
-#   이고, 그러면 이 값을 올리면 된다. 반대로 여유가 많아 보이면 내린다.
-#
-# ★ 이탈 궤적 자체가 nav_server 코드에서 유도한 근사다(실측 아님). 위 3.05 ·
-#   4.15 도 그 근사의 산물이니 절대값으로 믿지 말 것.
-DEFAULT_LANE_CLEAR_DIST_M = 1.0
+# ★ 1.0 은 시작값이고 낙관적인 쪽이다. 상대가 로더에서 후진해 나오는 경로가
+#   이쪽 진입 경로와 같은 선이라, 기하로 따지면 더 커야 한다.
+#       3.05 m  상대가 이쪽 대기 자리의 x 를 지나가는 거리
+#       4.15 m  이탈 궤적이 접근선을 1.35 m 따라 나온 뒤 14도로 흐르는 것을
+#               감안해, 이쪽 진입선과의 횡간격이 차체 폭 합(0.50 m) + 여유
+#               0.20 m 를 넘는 지점까지의 거리
+#   1.0 m 시점의 상대는 아직 접근선 위(y≈0)에 있다. 그때 출발하면 둘이 중간에서
+#   마주칠 수 있다. 시뮬에서 볼 첫 증상이 그것이고, 그러면 이 값을 올린다.
+#   ★ 위 3.05 · 4.15 도 nav_server 코드에서 유도한 이탈 궤적 근사의 산물이다
+#     (실측 아님). 절대값으로 믿지 말 것.
 
-# 대기 자리에서 이만큼 기다려도 차선이 안 비면 실패로 본다. 넘으면 다른 실패와
-# 똑같이 Freeze 되어 웹에 뜬다.
+# 대기 자리에서 이만큼 기다려도 안 비면 실패로 본다. 넘으면 다른 실패와 똑같이
+# Freeze 되어 웹에 뜬다.
 #
 # ★ 이건 "성능" 문턱이 아니라 "아무도 안 온다" 문턱이다. 정상 대기의 상한은 상대
-#   한 사이클인데, 시뮬 속도에 따라 몇 분이 될 수 있으므로 넉넉히 둔다. 상대가
+#   한 사이클인데 시뮬 속도에 따라 몇 분이 될 수 있으므로 넉넉히 둔다. 상대가
 #   얼어붙은 경우는 이 타임아웃이 아니라 PEER_FROZEN 이 먼저 잡으므로, 이 값이
 #   커도 실패가 늦게 드러나지는 않는다.
 PEER_WAIT_TIMEOUT_S = 1800.0
 
-# 상대가 양보 목록을 벗어난 뒤 이만큼 더 서 있는다.
+# 조건이 풀린 뒤 이만큼 더 서 있는다.
 #
-# ★ 지금은 형식적인 값이다. 'return' 이 양보 목록에 있고 거기서도 거리로 풀기
-#   때문에, 이 잎이 SUCCESS 를 낼 때 상대는 이미 lane_clear_dist_m 밖이다.
-#   상태가 예상 밖으로 건너뛸 때의 최소 여유로만 남긴다.
+# ★ 지금은 형식적인 값이다. 풀리는 경로가 전부 위치나 완료 상태를 보기 때문에,
+#   이 잎이 SUCCESS 를 낼 때 상대는 이미 반경 밖이다. 상태가 예상 밖으로 건너뛸
+#   때의 최소 여유로만 남긴다.
 PEER_CLEAR_DWELL_S = 2.0
 
-# 상대가 아래 단계에 있을 때는 그 단계가 끝날 때까지 기다리지 않고, 로더에서
-# lane_clear_dist_m 파라미터 넘게 멀어졌는지만 본다.
+# ── 상대 단계를 두 종류로 가른다 ─────────────────────────────────────────
+# 반경만으로 전부 판정할 수는 없다. 거리가 같아도 방향이 다르기 때문이다.
 #
-# 왜 갈라 두나
-#   이 단계들은 "로더를 점유하는 중" 이 아니라 "비우는 중" 이다. return 은 순찰
-#   시작점까지 6.5 m 를 가는데, 차선을 비우는 데 필요한 거리는 그보다 훨씬 짧다.
-#   그 차이만큼 기다릴 이유가 없다.
+#   다가오는 중 (nav · push · place)
+#       상대가 로더로 향하고 있거나 붙어 있다. 지금 반경 밖이어도 곧 들어온다.
+#       거리를 보면 "멀다" 는 오답이 나온다. 그래서 단계가 끝날 때까지 기다린다.
 #
-# ★ 앞으로 더 들어올 자리다. docs/03 의 "매거진 place 후 스택 있으면 가지러 감"
-#   이 붙으면 그 단계도 여기에 넣어야 한다 — 상대가 패키징 스테이션에서
-#   stations.yaml 의 process_time(PKG-01 은 60 초) 만큼 머물기 때문에, 끝날 때까지
-#   기다리면 이쪽이 그만큼 통째로 선다.
-#   ★ 다만 그쪽은 "멀어지는" 게 아니라 "머무는" 것이라 거리로는 안 풀린다.
-#     그 단계를 넣을 때는 이 목록이 아니라 별도 처리가 필요하다.
-PEER_CAPPED_STAGES = [RETURN]
+#   떠나는 중 (return)  ← PEER_LEAVING_STAGES
+#       상대가 로더에서 멀어지고 있다. 여기서만 거리가 답을 준다. 반경을 벗어난
+#       순간 진입해도 되므로, return 이 순찰 시작점까지 6.5 m 를 다 가는 것을
+#       기다리지 않는다.
+#
+# ★ 앞으로 들어올 자리다. docs/03 의 "매거진 place 후 스택 있으면 가지러 감" 이
+#   붙으면 그 단계도 갈라 넣어야 한다 — 다만 그건 "머무는" 동작이라 다가오는
+#   쪽도 떠나는 쪽도 아니다. 반경으로는 안 풀리고 별도 처리가 필요하다.
+PEER_LEAVING_STAGES = [RETURN]
 
 # 상태 발행 주기. 이 값이 상대가 보는 정보의 최대 지연이다 — 1 초로 두면
 # 상대가 1 초 묵은 값으로 출발 판단을 한다. 메시지가 짧은 문자열이라
@@ -880,10 +880,11 @@ class WaitForPeer(py_trees.behaviour.Behaviour):
       상태 변화  상대가 양보 목록을 벗어나면 PEER_CLEAR_DWELL_S 뒤에 진입한다.
                  상한 단계로 이미 세고 있었으면 그 시각을 기준으로 쓰므로,
                  상대가 상한보다 빨리 끝내면 추가 대기 없이 바로 간다.
-      거리       상대가 PEER_CAPPED_STAGES 의 단계(차선을 비우는 중)에 있고
-                 로더에서 lane_clear_dist_m 파라미터 넘게 멀어졌으면, 아직 그
-                 단계여도 진입한다. 상대 위치를 못 받으면 이 경로는 쓰지 않고
-                 상태 변화만 기다린다.
+      반경       상대가 로더에서 멀어지는 중인 단계(PEER_LEAVING_STAGES)에
+                 있고, 로더 주차점에서 loader_clear_radius_m 밖으로 나갔으면
+                 아직 그 단계여도 진입한다. 상대 위치를 못 받으면 이 경로는
+                 쓰지 않고 상태 변화만 기다린다.
+    어느 경로든 상대가 로더 반경 안에 있으면 먼저 막힌다 — 상태와 무관하다.
 
     상대를 한 번도 본 적이 없으면(peer_busy 가 "상대 없음") 즉시 통과한다 —
     한 대만 띄웠을 때 영원히 기다리는 걸 막는다.
@@ -917,20 +918,29 @@ class WaitForPeer(py_trees.behaviour.Behaviour):
         busy, why = self.node.peer_busy()
         stage = self.node.peer_stage()
 
-        # 상대가 차선을 '비우는 중' 인 단계라면, 끝날 때까지 기다리지 않고
-        # 실제로 얼마나 멀어졌는지를 본다. 거리로 보면 시뮬 속도와 무관하다.
-        if busy and stage in PEER_CAPPED_STAGES:
-            gone = self.node.peer_lane_distance()
-            if gone is None:
+        dist = self.node.peer_dist_to_loader()
+        need = self.node.loader_clear_radius_m
+
+        # ① 위치가 먼저다. 상대가 로더 반경 안에 있으면 상태와 무관하게 기다린다.
+        #    상태 목록이 못 잡는 경우(엉뚱한 단계인데 물리적으로 로더에 붙어 있다)
+        #    까지 덮는 안전망이고, 실제로 로더에 들어가려는 이 순간이 그 안전망이
+        #    의미를 갖는 유일한 자리다.
+        if dist is not None and dist < need:
+            self._clear_since = None
+            self.feedback_message = f"대기 — 상대가 로더 {dist:.2f}/{need:.2f} m"
+            return Status.RUNNING
+
+        # ② 상대가 로더에서 멀어지는 중이면, 반경을 벗어난 것으로 충분하다.
+        #    단계가 끝날 때까지(return 이면 6.5 m 를 다 갈 때까지) 기다리지 않는다.
+        if busy and stage in PEER_LEAVING_STAGES:
+            if dist is None:
                 # 위치를 못 받는다. 거리 판정을 포기하고 상태 변화를 기다린다.
                 self.feedback_message = f"대기 — 상대 {why} (위치 모름)"
                 return Status.RUNNING
-            need = self.node.lane_clear_dist_m
-            if gone < need:
-                self.feedback_message = f"대기 — 상대 이탈 중 {gone:.2f}/{need:.2f} m"
-                return Status.RUNNING
-            busy, why = False, f"상대 {gone:.2f} m 밖"
+            busy, why = False, f"로더 {dist:.2f} m 밖"
 
+        # ③ 상대가 로더로 다가오는 중이면 거리와 무관하게 기다린다. 지금 멀어도
+        #    곧 들어오므로, 거리를 보면 "멀다" 는 오답이 나온다.
         if busy:
             self._clear_since = None
             self.feedback_message = f"대기 — 상대 {why}"
@@ -938,12 +948,12 @@ class WaitForPeer(py_trees.behaviour.Behaviour):
 
         if self._clear_since is None:
             self._clear_since = now
-            self.node.get_logger().info(f"차선이 비었다 — {why}")
+            self.node.get_logger().info(f"로더가 비었다 — {why}")
         if now - self._clear_since < PEER_CLEAR_DWELL_S:
-            self.feedback_message = f"차선 비었음 — 여유 대기 ({why})"
+            self.feedback_message = f"로더 비었음 — 여유 대기 ({why})"
             return Status.RUNNING
 
-        self.feedback_message = f"차선 비었음 — 진입 ({why})"
+        self.feedback_message = f"로더 비었음 — 진입 ({why})"
         return Status.SUCCESS
 
 
@@ -1255,11 +1265,11 @@ class TaskManager(Node):
         # ★ build_tree 가 self.staging_pose 를 읽으므로 트리 조립보다 먼저다.
         self.declare_parameter("peer_state_topic", "")
         self.declare_parameter("peer_pose_topic", "")
-        self.declare_parameter("lane_clear_dist_m", DEFAULT_LANE_CLEAR_DIST_M)
+        self.declare_parameter("loader_clear_radius_m", DEFAULT_LOADER_CLEAR_RADIUS_M)
         self.declare_parameter("peer_busy_stages", DEFAULT_PEER_BUSY_STAGES)
         self.declare_parameter("staging_pose", DEFAULT_STAGING_POSE)
         self.staging_pose = tuple(self.get_parameter("staging_pose").value)
-        self.lane_clear_dist_m = float(self.get_parameter("lane_clear_dist_m").value)
+        self.loader_clear_radius_m = float(self.get_parameter("loader_clear_radius_m").value)
         # 빈 문자열은 걸러낸다 — rclpy 는 빈 리스트의 타입을 못 정해서 [""] 로
         # 넘기는 경우가 있고, 그게 그대로 들어오면 아무 단계에도 안 맞는다.
         self._peer_busy_stages = tuple(
@@ -1277,7 +1287,7 @@ class TaskManager(Node):
                 f"로더 차선 조율 켜짐 — 구독 {peer_topic}, "
                 f"양보 대상 {list(self._peer_busy_stages)}, "
                 f"대기 자리 {tuple(round(v, 3) for v in self.staging_pose)}, "
-                f"이탈 판정 거리 {self.lane_clear_dist_m:.2f} m")
+                f"이탈 판정 거리 {self.loader_clear_radius_m:.2f} m")
         # ★ 이 노드가 위치를 구독하는 유일한 자리다. 원래 task_manager 는 로봇
         #   위치를 모른다(기하는 navigation·manipulation 담당). 예외를 둔 이유는
         #   "상대가 차선을 비켰나" 를 시뮬 속도와 무관하게 판정하려면 시간이 아니라
@@ -1553,8 +1563,13 @@ class TaskManager(Node):
     def peer_stage(self):
         return self._peer_stage
 
-    def peer_lane_distance(self):
-        """상대가 로더 주차점에서 얼마나 떨어져 있나. 위치를 모르면 None."""
+    def peer_dist_to_loader(self):
+        """상대 베이스와 로더 주차점의 거리. 위치를 모르면 None.
+
+        중심이 TEST_LOADER 다 — stations.yaml PKG-01 place_pose 와 같은 점이고,
+        로봇이 place 하려고 서는 자리다. WaitForPeer 가 이 거리를
+        loader_clear_radius_m 과 비교한다.
+        """
         if self._peer_xy is None:
             return None
         return math.hypot(self._peer_xy[0] - TEST_LOADER[0],
