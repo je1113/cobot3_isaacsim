@@ -178,7 +178,10 @@ docs/08_ROS2_NODE_Graph.html 의 확정안(01-03)이 기준이다. 노드 5개 �
     peer_busy_stages 를 넓힌다(예: 상대의 pick 도 넣으면 상대가 출발하기까지
     SCAN·PICK 을 거쳐야 하므로 겹칠 틈이 줄어든다).
   - 조율은 로봇 두 대를 전제로 한 배선이다. 상대가 하나라고 보고 토픽 하나를
-    구독한다. 세 대 이상이면 도크처럼 전역 조정 노드를 두는 편이 낫다
+    구독하고, 양쪽이 같은 규칙을 쓴다. 그래서 순서를 정하는 장치가 없다 —
+    둘이 같은 순간에 대기 자리를 떠나면 차선에서 만난다. 막으려면 판단 지점을
+    대기 자리 한 곳으로 모으고(무조건 경유) 거기서 순서를 정해야 한다.
+    세 대 이상이면 도크처럼 전역 조정 노드를 두는 편이 낫다
     (docs/02 §2 의 docking_server 논리와 같다).
   - 대기 자리 좌표가 아직 launch 상수다. pkg_loader 가 씬에 들어오면 로더마다
     대기 자리가 따로 필요하고, 그때 frames.yaml 이 아니라 사람이 관리하는
@@ -372,10 +375,10 @@ TICK_PERIOD_S = 0.1
 #   push    대기 자리에서 로더로 들어가는 중
 #   place   로더에 붙어서 내려놓는 중
 #   return  로더에서 후진으로 차선을 빠져나오는 중 — 접근선과 같은 선이다
-# 'approach'(차선 밖 대기 자리로 가는 중)는 일부러 뺐다. 차선 밖이라 방해되지
-# 않는다. 'wait' 도 기본에는 없다 — 우선순위가 없는 쪽만 launch 에서 이 값에
-# 'wait' 를 더한다. 그 한 칸이 동순위를 깨는 장치다(양쪽이 서로의 대기를
-# 기다리면 둘 다 멈춘다).
+# 'approach'(대기 자리로 가는 중)와 'wait'(대기 자리에 정차)는 넣지 않는다.
+# 둘 다 차선 밖이라 방해되지 않고, ★ 넣으면 교착이다 — 양쪽이 서로의 대기를
+# 기다리면 아무도 안 움직인다. 두 로봇이 이 목록을 똑같이 쓰므로 이 규칙이
+# 곧 교착 부재의 근거다. isaacpjt/tools/test_peer_yield.py 가 이걸 검사한다.
 DEFAULT_PEER_BUSY_STAGES = [NAV, PUSH, PLACE, RETURN]
 
 # 대기 자리에서 이만큼 기다려도 차선이 안 비면 실패로 본다. 상대가 제
@@ -1433,12 +1436,8 @@ class TaskManager(Node):
         RUNNING 만 돌려주고 자동 복귀가 없으므로, 사람이 상대를 풀어야 한다.
         그래서 기다리지 않고 이쪽도 실패로 올려 같이 웹에 뜨게 한다.
         """
-        # WAIT 은 제외한다. 그건 차선 점유가 아니라 우선순위 토큰이고(상대가
-        # 대기 자리에 서 있다는 뜻이다), 대기 자리는 차선 밖이다. 거기서
-        # 얼어붙었으면 차선은 비어 있으므로 이쪽이 같이 멈출 이유가 없다.
         return bool(self._peer_failed
-                    and self._peer_stage in self._peer_busy_stages
-                    and self._peer_stage != WAIT)
+                    and self._peer_stage in self._peer_busy_stages)
 
     def peer_busy(self):
         """(양보해야 하나, 사람이 읽을 이유) 한 쌍.
@@ -1455,11 +1454,6 @@ class TaskManager(Node):
         age = time.monotonic() - self._peer_last_rx
         if age > PEER_STALE_S:
             return True, f"소식 끊김 {age:.1f}s"
-        if self._peer_failed and self._peer_stage == WAIT:
-            # 상대가 대기 자리에서 얼어붙었다. 그 자리는 차선 밖이고 상대는
-            # 사람이 풀어 주기 전까지 움직이지 않는다 — 우선순위를 계속
-            # 지켜 줄 이유가 없으므로 양보를 푼다. peer_frozen 과 짝이다.
-            return False, "상대 대기 중 정지 — 차선은 비었다"
         if self._peer_stage in self._peer_busy_stages:
             return True, f"state={self._peer_stage}"
         return False, f"state={self._peer_stage}"

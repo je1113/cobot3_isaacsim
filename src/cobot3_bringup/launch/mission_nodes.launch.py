@@ -70,19 +70,20 @@ MISSION_NODES = [
 #  DEFAULT_STAGING_POSE 주석, 검증은 isaacpjt/tools/check_staging_poses.py.
 #  그래서 두 대를 띄울 때는 서로의 orchestrator/state 를 보고 차선을 양보한다.
 #
-#  ★ 우선순위는 고정이다. PRIORITY_ROBOT 만 상대의 'wait' 에 양보하지 않는다.
-#    이 한 칸이 동순위를 깨는 장치다 — 양쪽이 서로의 대기를 기다리면 둘 다
-#    멈추고, 양쪽이 서로의 대기를 무시하면 동시에 출발해 부딪힌다.
+#  ★ 두 로봇이 똑같은 규칙을 쓴다. 상대가 차선을 쓰고 있으면 대기 자리로
+#    가서 기다리고, 아니면 바로 간다. 순서를 정하는 장치는 없다 — 둘이 같은
+#    순간에 대기 자리를 떠나면 차선에서 만난다. task_manager.py 의 "알려진 갭"
+#    참고.
 #
-#  ★ 기본값을 "양보한다" 쪽으로 둔 이유: 두 로봇에 같은 값이 잘못 들어갔을 때
-#    둘 다 우선순위를 가지면 충돌하고, 둘 다 양보하면 대기 자리에서 멈춘다.
-#    멈추는 쪽이 안전하다. 그래서 PRIORITY_ROBOT 에 해당하는 한 대만 예외다.
-PRIORITY_ROBOT = "robot1"
-
 # 상대가 차선을 쓰고 있다고 보는 단계. task_manager.py 의
-# DEFAULT_PEER_BUSY_STAGES 와 같은 값이고, 여기서 로봇별로 한 칸만 달라진다.
-#   return 이 들어 있는 이유: 로더에서 후진해 나오는 경로가 접근선과 같은 선이다.
-#   approach 가 없는 이유: 차선 밖 대기 자리로 가는 중이라 방해되지 않는다.
+# DEFAULT_PEER_BUSY_STAGES 와 같은 값이어야 한다.
+#   nav     로더로 바로 가는 중
+#   push    대기 자리에서 로더로 들어가는 중. 이름만 다른 "목적지로 가는 중" 이다
+#   place   로더에 붙어서 내려놓는 중
+#   return  로더에서 후진으로 나오는 중. 이탈선이 접근선과 같은 선이라,
+#           이걸 빼면 대기하던 로봇이 출발하는 순간 정면으로 만난다
+# ★ 'approach' 와 'wait' 은 넣지 말 것. 둘 다 차선 밖이고, 넣으면 양쪽이 서로의
+#   대기를 기다려 교착이다.
 LANE_STAGES = ["nav", "push", "place", "return"]
 
 # ★ 대기 자리는 로봇마다 달라야 한다 — 같은 점을 쓰면 대기 자리에서 부딪힌다.
@@ -99,20 +100,24 @@ PEER_OF = {"robot1": "robot2", "robot2": "robot1"}
 
 
 def _task_manager_params(ns, namespaces):
-    """task_manager 하나에 넘길 파라미터. 조율이 필요 없으면 좌표만 넘긴다."""
-    params = {"staging_pose": STAGING_BY_ROBOT.get(ns, [0.80, -0.60, 0.0])}
+    """task_manager 하나에 넘길 파라미터. 조율이 필요 없으면 빈 dict."""
+    # ★ 모르는 네임스페이스에는 조율을 켜지 않는다. 검증된 대기 자리가 없는데
+    #   아무 좌표나 기본값으로 물려 주면, 그 자리가 장애물 안이어도 로봇이
+    #   그리로 간다. 지도가 바뀌면서 실제로 좌표 하나가 장애물 안으로 들어간
+    #   적이 있다(check_staging_poses.py 가 그래서 있다). 좌표가 없으면 조율
+    #   없이 직행만 하게 두는 편이 안전하다.
+    if ns not in STAGING_BY_ROBOT:
+        return {}
 
+    params = {"staging_pose": STAGING_BY_ROBOT[ns]}
     peer = PEER_OF.get(ns)
     if not peer or peer not in namespaces:
         # 상대가 같이 안 뜨면 구독하지 않는다. 안 뜨는 토픽을 구독해 둬도
         # 동작은 같지만(한 번도 못 받으면 통과), 로그에서 헷갈린다.
         return params
 
-    busy = list(LANE_STAGES)
-    if ns != PRIORITY_ROBOT:
-        busy.append("wait")          # 우선순위 없는 쪽만 상대의 대기에도 양보
     params["peer_state_topic"] = f"/{peer}/orchestrator/state"
-    params["peer_busy_stages"] = busy
+    params["peer_busy_stages"] = list(LANE_STAGES)
     return params
 
 

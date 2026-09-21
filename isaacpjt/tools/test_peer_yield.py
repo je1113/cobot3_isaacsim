@@ -14,12 +14,12 @@ task_manager.py 의 peer_busy() · peer_frozen() 에 들어 있다. py_trees 와
   3. 상대 소식이 묵으면 안전한 쪽(양보)으로 넘어간다
   4. 상대가 차선 안에서 얼어붙으면 즉시 실패로 올리고, 차선 밖(대기 자리)에서
      얼어붙으면 양보를 푼다
-  5. 둘 다 대기 상태로 서로를 기다리는 교착 조합이 없다
-  6. mission_nodes.launch.py 의 로봇별 설정이 소스 기본값과 어긋나지 않는다
+  5. 둘 다 줄 서 있는 상태로 서로를 기다리는 교착 조합이 없다
+  6. mission_nodes.launch.py 의 설정이 소스 기본값과 어긋나지 않는다
 
-5번이 이 설계의 핵심 성질이다. 우선순위가 있는 쪽(PRIORITY_ROBOT)만 상대의
-'wait' 를 무시하기 때문에, 양쪽이 서로의 대기를 기다리는 고리가 만들어지지
-않는다. 그 한 칸을 양쪽에 다 주거나 양쪽에서 다 빼면 이 테스트가 깨진다.
+5번이 이 설계의 핵심 성질이다. 두 로봇이 같은 목록을 쓰므로, 줄 서 있는 상태
+('approach' · 'wait')를 목록에 넣는 순간 양쪽이 서로의 대기를 기다려 아무도
+움직이지 않는다. 그 둘이 목록 밖에 있다는 것이 교착 부재의 근거다.
 """
 
 import ast
@@ -89,8 +89,8 @@ def main():
                   ns["APPROACH"], WAIT] + lane_like
 
     launch_ns = _top_level_consts(ast.parse(io.open(LAUNCH, encoding="utf-8").read()))
-    r1_set = list(launch_ns["LANE_STAGES"])            # 우선순위 있는 쪽
-    r2_set = r1_set + [WAIT]                           # 우선순위 없는 쪽
+    # 두 로봇이 같은 목록을 쓴다. 순서를 정하는 장치는 없다.
+    busy_set = list(launch_ns["LANE_STAGES"])
 
     def make(busy_stages, seen=None, failed=False, age=0.0):
         """상대 상태를 주입한 판단기. seen=None 이면 한 번도 못 받은 상태."""
@@ -114,50 +114,52 @@ def main():
             failures.append(label)
 
     print("── 1. 상대를 한 번도 못 받았으면 직행 ──")
-    check(make(r2_set).peer_busy()[0] is False, "미수신 -> 직행")
+    check(make(busy_set).peer_busy()[0] is False, "미수신 -> 직행")
 
     print("\n── 2. 단계별 양보 판단 ──")
     for st in all_stages:
-        b1 = make(r1_set, seen=st).peer_busy()[0]
-        b2 = make(r2_set, seen=st).peer_busy()[0]
-        check(b1 == (st in r1_set) and b2 == (st in r2_set),
-              f"state={st:9s} robot1={b1!s:5s} robot2={b2!s:5s}")
+        got = make(busy_set, seen=st).peer_busy()[0]
+        want = st in busy_set
+        check(got == want, f"state={st:9s} 양보={got!s:5s} (기대 {want!s:5s})")
 
     print("\n── 3. 소식이 묵으면 안전 쪽(양보) ──")
     stale = ns["PEER_STALE_S"] + 1.0
-    check(make(r2_set, seen=ns["PATROL"], age=stale).peer_busy()[0] is True,
+    check(make(busy_set, seen=ns["PATROL"], age=stale).peer_busy()[0] is True,
           f"patrol 이지만 {stale:.0f}s 묵음 -> 양보")
-    check(make(r2_set, seen=ns["PATROL"]).peer_busy()[0] is False,
+    check(make(busy_set, seen=ns["PATROL"]).peer_busy()[0] is False,
           "patrol 이고 신선 -> 직행")
 
     print("\n── 4. 상대가 얼어붙은 경우 ──")
     for st in lane_like:
-        check(make(r2_set, seen=st, failed=True).peer_frozen() is True,
+        check(make(busy_set, seen=st, failed=True).peer_frozen() is True,
               f"차선({st}) 에서 정지 -> 즉시 실패")
-    check(make(r2_set, seen=WAIT, failed=True).peer_frozen() is False,
+    check(make(busy_set, seen=WAIT, failed=True).peer_frozen() is False,
           "대기 자리에서 정지 -> 실패 아님 (차선은 비었다)")
-    check(make(r2_set, seen=WAIT, failed=True).peer_busy()[0] is False,
-          "대기 자리에서 정지 -> 양보 풀림 (헛기다림 방지)")
-    check(make(r2_set, seen=ns["PICK"], failed=True).peer_frozen() is False,
+    check(make(busy_set, seen=WAIT, failed=True).peer_busy()[0] is False,
+          "대기 자리에서 정지 -> 양보 안 함 (차선은 비었다)")
+    check(make(busy_set, seen=ns["PICK"], failed=True).peer_frozen() is False,
           "차선 밖(pick) 에서 정지 -> 실패 아님")
 
     print("\n── 5. 교착 조합이 없어야 한다 ──")
-    dead = [(a, b) for a, b in itertools.product(all_stages, repeat=2)
-            if a == WAIT and b == WAIT
-            and make(r1_set, seen=b).peer_busy()[0]
-            and make(r2_set, seen=a).peer_busy()[0]]
-    check(not dead, f"둘 다 대기 상태로 서로 양보하는 조합 없음 {dead}")
+    # 줄 서 있는 두 상태의 모든 조합에서, 양쪽이 동시에 양보하면 교착이다.
+    queued = [ns["APPROACH"], WAIT]
+    dead = [(a, b) for a, b in itertools.product(queued, repeat=2)
+            if make(busy_set, seen=b).peer_busy()[0]
+            and make(busy_set, seen=a).peer_busy()[0]]
+    check(not dead, f"둘 다 줄 서 있는데 서로 양보하는 조합 없음 {dead}")
 
     print("\n── 6. launch 설정이 소스 기본값과 어긋나지 않는가 ──")
-    check(r1_set == list(ns["DEFAULT_PEER_BUSY_STAGES"]),
-          f"LANE_STAGES == DEFAULT_PEER_BUSY_STAGES {r1_set}")
+    check(busy_set == list(ns["DEFAULT_PEER_BUSY_STAGES"]),
+          f"LANE_STAGES == DEFAULT_PEER_BUSY_STAGES {busy_set}")
     staging = launch_ns["STAGING_BY_ROBOT"]
     check(staging["robot1"] != staging["robot2"],
           f"대기 자리가 로봇별로 다름 {staging}")
-    check(list(ns["DEFAULT_STAGING_POSE"]) == staging[launch_ns["PRIORITY_ROBOT"]],
-          "소스 기본 대기자리 == 우선순위 로봇의 launch 값")
-    check(WAIT not in r1_set,
-          "LANE_STAGES 에 wait 이 없다 — 있으면 5번 교착이 생긴다")
+    check(list(ns["DEFAULT_STAGING_POSE"]) in staging.values(),
+          "소스 기본 대기자리가 launch 값 중 하나와 같다")
+    check(WAIT not in busy_set and ns["APPROACH"] not in busy_set,
+          "LANE_STAGES 에 wait · approach 가 없다 — 있으면 5번 교착이 생긴다")
+    check(ns["RETURN"] in busy_set,
+          "LANE_STAGES 에 return 이 있다 — 빼면 이탈하는 로봇과 정면으로 만난다")
 
     print()
     if failures:
