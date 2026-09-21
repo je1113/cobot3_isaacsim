@@ -758,7 +758,12 @@ def Xform "World"
             token visibility = "inherited"
             quatd xformOp:orient = (1, 0, 0, 0)
             double3 xformOp:scale = (1, 1, 1)
-            double3 xformOp:translate = (3.490373703049795, -4.243819003153972, 0.07963398335074101)
+            # ★ 원래 스폰(3.490373703049795, -4.243819003153972, ...)에서 WP_PICK
+            # (isaacpjt/M0609/lula_ik/12_place_test.py, REACHABILITY CHECK로
+            # 검증된 값)으로 옮겼다 — task_manager 를 patrol 없이 SCAN 부터
+            # 바로 테스트하려면 로봇이 씬 로드 시점에 이미 선반 pick 자리에
+            # 서 있어야 한다. yaw=0 은 원래 스폰과 같아 orient 는 그대로 둔다.
+            double3 xformOp:translate = (-4.85, 1.55, 0.07963398335074101)
             uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
 
             over "differential_drive"
@@ -1032,7 +1037,7 @@ def Xform "World"
             }
 
             over "m0609" (
-                prepend references = @file:/home/rokey/cobot3_ws/isaacpjt/M0609/doosan-robot2/urdf/m0609_isaac_sim/m0609_isaac_sim.usd@
+                prepend references = @../M0609/doosan-robot2/urdf/m0609_isaac_sim/m0609_isaac_sim.usd@
             )
             {
                 string isaac:namespace (
@@ -1519,7 +1524,7 @@ def Xform "World"
             }
 
             over "m0609" (
-                prepend references = @file:/home/rokey/cobot3_ws/isaacpjt/M0609/doosan-robot2/urdf/m0609_isaac_sim/m0609_isaac_sim.usd@
+                prepend references = @../M0609/doosan-robot2/urdf/m0609_isaac_sim/m0609_isaac_sim.usd@
             )
             {
                 string isaac:namespace (

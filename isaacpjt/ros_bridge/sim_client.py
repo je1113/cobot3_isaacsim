@@ -40,21 +40,36 @@ class SimClient:
     def call(self, method, timeout_s=60.0, **params):
         """블로킹 호출 — 결과가 올 때까지 기다린다. 오래 걸리는 호출
         (pick_phase1_approach 등) 은 진행 중 get_status() 를 별도 연결로
-        폴링해서 액션 feedback 을 만든다."""
+        폴링해서 액션 feedback 을 만든다.
+
+        ★ 연결 자체가 안 되는 경우(sim_backend 가 아직 안 떴거나 재시작
+        중이라 ConnectionRefusedError 등)를 SimClientError 로 감싸지 않고
+        그냥 흘려보냈었다 — 호출하는 쪽(carrier_code_reader/nav_server/
+        pick_place_server)은 전부 SimClientError 만 잡고 있어서, 원시
+        OSError 가 그대로 서비스 콜백 밖으로 튀어나가 rclpy executor 가
+        그 예외를 못 삼키고 노드 자체가 죽었다(실측 재현: carrier_code_reader
+        가 "ConnectionRefusedError" 로 process died). sim_backend 를
+        재시작하는 동안 터미널을 다시 실행해도 안전하려면 이 클라이언트가
+        연결 실패를 "그 한 번의 SimClientError" 로 통일해서 돌려줘야 한다."""
         with self._lock:
             self._next_id += 1
             req_id = self._next_id
-        f = self._new_conn(read_timeout_s=timeout_s + 5.0)
         try:
-            f.write((json.dumps({"id": req_id, "method": method, "params": params,
-                                 "timeout_s": timeout_s}) + "\n").encode())
-            f.flush()
-            line = f.readline()
-            if not line:
-                raise SimClientError(f"{method}: 연결이 끊겼다 (응답 없음)")
-            resp = json.loads(line)
-        finally:
-            f.close()
+            f = self._new_conn(read_timeout_s=timeout_s + 5.0)
+            try:
+                f.write((json.dumps({"id": req_id, "method": method, "params": params,
+                                     "timeout_s": timeout_s}) + "\n").encode())
+                f.flush()
+                line = f.readline()
+                if not line:
+                    raise SimClientError(f"{method}: 연결이 끊겼다 (응답 없음)")
+                resp = json.loads(line)
+            finally:
+                f.close()
+        except OSError as e:
+            raise SimClientError(f"{method}: sim_backend 와 통신할 수 없다 ({e})") from e
+        except json.JSONDecodeError as e:
+            raise SimClientError(f"{method}: 응답을 파싱할 수 없다 ({e})") from e
         if "error" in resp and resp["error"] is not None:
             raise SimClientError(f"{method}: {resp['error']}")
         return resp.get("result")

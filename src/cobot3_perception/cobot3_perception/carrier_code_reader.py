@@ -76,12 +76,12 @@ from geometry_msgs.msg import Pose, PoseWithCovarianceStamped
 from std_msgs.msg import Bool, String
 
 # taught_poses.yaml 의 shelf_1_top_close_centered 가 전제하는 베이스 위치
-# (x=-6.498, y=1.45) 주변. x 는 frames.yaml observation_poses.shelf_1_top 의
-# scan_x_range([-6.75,-4.75])에 여유를 조금 더 줬다. y 는 선반 앞 정차선
-# (1.45) 근처로 좁혀서, 개활지 회전 구간(y=0.30, task_manager.py PATROL_ROUTE)
-# 은 확실히 빠지게 했다.
-SHELF_ZONE_X = (-6.85, -4.65)
-SHELF_ZONE_Y = (1.10, 1.80)
+# (x=-6.498, y=1.45) 주변. QR 감지가 잘 안 걸린다는 실측 피드백으로 원래
+# ((-6.85,-4.65) / (1.10,1.80))보다 넓혔다 — nav_server.py 의 같은 이름
+# 상수와 반드시 같은 값이어야 한다. 개활지(y=0.30, task_manager.py
+# PATROL_ROUTE)는 여전히 확실히 빠지게 Y 하한을 1.0 으로 잡았다.
+SHELF_ZONE_X = (-7.10, -4.40)
+SHELF_ZONE_Y = (1.00, 1.65)
 
 # task_manager 가 /orchestrator/state 로 알려주는 patrol_target(지금 향하는
 # PATROL_ROUTE 인덱스)과 층별 관측 자세를 잇는다. PATROL_ROUTE[1](끝점, 선반
