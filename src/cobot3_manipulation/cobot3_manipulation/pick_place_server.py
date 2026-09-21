@@ -1,7 +1,18 @@
 """
 pick_place_server — PickCarrier · PlaceCarrier 액션 서버.
 
-    ros2 run cobot3_manipulation pick_place_server
+    ros2 run cobot3_manipulation pick_place_server --ros-args -r __ns:=/robot1
+
+★ 액션 이름이 상대이름이다 — manipulation/pick_carrier · manipulation/
+  place_carrier 에 / 가 앞에 없고, 노드가 뜬 네임스페이스가 붙는다. robot1 로
+  띄우면 /robot1/manipulation/pick_carrier 가 된다. 그래서 이 노드는 자기가
+  어느 로봇인지 모른다 — 같은 네임스페이스의 task_manager 만 이 서버를 부른다.
+  보통은 launch 가 네임스페이스를 준다:
+    ros2 launch cobot3_bringup mission_nodes.launch.py robots:=robot1,robot2
+
+  ★ 아직 남은 것: self.sim(SimClient)은 sim_backend 의 단일 로봇
+  (nova_carter1)에 붙는다. 두 번째 로봇의 pick/place 를 실제로 돌리려면
+  sim_backend 가 로봇을 구분해야 한다 — ROS 배선과 별개의 작업이다.
 
 시뮬 실행 방법 (실제 Isaac API 호출은 전부 sim_backend.py 프로세스가 한다.
 이유는 isaacpjt/ros_bridge/sim_backend.py 상단 주석 참고):
@@ -168,17 +179,19 @@ class PickPlaceServer(Node):
         self.sim = SimClient()
         cb = ReentrantCallbackGroup()
         self._server = ActionServer(
-            self, PickCarrier, "/manipulation/pick_carrier",
+            self, PickCarrier, "manipulation/pick_carrier",
             execute_callback=self._execute,
             goal_callback=self._on_goal, cancel_callback=self._on_cancel,
             callback_group=cb)
         self._place_server = ActionServer(
-            self, PlaceCarrier, "/manipulation/place_carrier",
+            self, PlaceCarrier, "manipulation/place_carrier",
             execute_callback=self._execute_place,
             goal_callback=self._on_goal, cancel_callback=self._on_cancel,
             callback_group=cb)
+        ns = self.get_namespace().rstrip("/")
         self.get_logger().info(
-            "pick_place_server ready — /manipulation/pick_carrier, /manipulation/place_carrier")
+            f"pick_place_server ready — {ns}/manipulation/pick_carrier, "
+            f"{ns}/manipulation/place_carrier")
 
     def _on_goal(self, goal_request):
         return GoalResponse.ACCEPT
