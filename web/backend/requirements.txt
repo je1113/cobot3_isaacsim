@@ -1,0 +1,10 @@
+# AMR 매거진 이송 관제 — 웹 백엔드
+#   pip install -r requirements.txt
+#
+# rclpy 는 여기 없다. apt 로 설치된 ROS2 Jazzy 의 것을 쓴다 —
+# venv 를 만들 때 --system-site-packages 가 필요한 이유다(README 참고).
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+psycopg[binary,pool]==3.2.3
+pydantic==2.10.4
+ruamel.yaml==0.18.6

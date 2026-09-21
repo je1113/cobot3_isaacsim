@@ -1,0 +1,27 @@
+# ══════════════════════════════════════════════════════════════════════
+#  공정 흐름 — 웹 관제 UI 「설정 > 공정 흐름」 탭이 읽고 쓴다.
+#
+#  ★ 리스트지만 **순서가 곧 내용**이다. 선형 체인을 평평하게 편 것이라:
+#      rules[0].from 은 항상 'SHELF' (시작 센티널)
+#      rules[i].from == rules[i-1].to
+#    분기를 허용하지 않는 이유: "이 매거진이 어디로 가야 하나" 에 답이 둘이
+#    되는데, 그 선택을 할 주체가 아무 데도 없다. 분기가 정말 필요해지면
+#    선택 규칙(캐리어 종류? 부하?)부터 정해야 한다.
+#
+#  ★ to 는 stations.yaml 에 등록된 station_id 여야 한다. 저장할 때 서버가
+#    화면(ProcessFlowPage.routingComplete)과 같은 규칙으로 검사한다.
+#
+#  ★ final_destination : '' | SHELF | 출하
+# ══════════════════════════════════════════════════════════════════════
+rules:
+  - rule_id: rule-1
+    from: SHELF
+    to: PKG-01
+    description: 매거진 스캔 후 이동
+
+  - rule_id: rule-2
+    from: PKG-01
+    to: TEST-01
+    description: 패키징 완료 후 검사 이동
+
+final_destination: '출하'
