@@ -37,9 +37,12 @@ docs/08_ROS2_NODE_Graph.html 의 확정안(01-03)이 기준이다. 노드 5개 �
      │   │   │   │                     고르는 기준" 참고
      │   │   │   └─ NAV                로더로 바로 주행
      │   │   └─ [→] 우회               상대 state 가 그 넷 중 하나면 이쪽
-     │   │       ├─ APPROACH           차선 밖 대기 자리로 주행
-     │   │       ├─ WAIT               상대가 차선을 비우기를 기다린다
-     │   │       └─ PUSH               차선이 비면 로더로 주행
+     │   │       ├─ HOLD_BACK          픽업존에서 — 상대가 로더에 도착할
+     │   │       │                     때까지. 대기 장소가 로더 앞이라 그
+     │   │       │                     구역에 둘이 같이 들어가면 안 된다
+     │   │       ├─ APPROACH           대기 장소로 주행
+     │   │       ├─ WAIT               대기 장소에서 — 상대가 로더를 비울 때까지
+     │   │       └─ PUSH               로더로 주행
      │   ├─ PLACE                      배치
      │   ├─ RETURN                     순찰 시작 좌표로 복귀
      │   └─ 사이클 완료
@@ -81,6 +84,13 @@ docs/08_ROS2_NODE_Graph.html 의 확정안(01-03)이 기준이다. 노드 5개 �
   ★ approach 와 wait 을 목록에 넣으면 교착이다 — 두 로봇이 같은 목록을 쓰므로
     양쪽이 서로의 대기를 기다리고 아무도 움직이지 않는다. 이 둘이 목록 밖에
     있다는 것이 교착 부재의 근거이고, test_peer_yield.py 가 그걸 검사한다.
+
+  ★ 우회 가지는 두 번 기다린다. 대기 장소가 로더 바로 앞이라 거기로 가는 것
+    자체가 로더 구역에 들어가는 것이기 때문이다.
+        HOLD_BACK  픽업존에서. 상대가 로더로 오는 중(nav · push)이면 움직이지
+                   않는다. 움직이면 둘이 같은 구역으로 동시에 들어간다.
+        WAIT       대기 장소에서. 상대가 로더를 비울 때까지 기다린다.
+    앞의 것이 구역 진입을 막고, 뒤의 것이 로더 진입을 막는다.
 
   예외 하나: 상대 상태를 한 번도 못 받았으면 상대가 안 떠 있다고 보고 직행한다
   (peer_state_topic 이 비었거나 한 대만 띄운 경우). 한 번이라도 받은 뒤 소식이
@@ -329,7 +339,8 @@ NAV = "nav"
 PLACE = "place"
 RETURN = "return"
 # 우회 경로(로더 차선 조율)에서만 지나가는 단계들. 직행이면 NAV 하나로 끝난다.
-APPROACH = "approach"   # 차선 밖 대기 자리로 주행
+HOLD_BACK = "hold_back" # 픽업존에서 상대가 로더에 도착하기를 기다린다
+APPROACH = "approach"   # 대기 장소로 주행
 WAIT = "wait"           # 대기 자리에서 상대가 차선을 비우기를 기다린다
 PUSH = "push"           # 차선이 비면 대기 자리에서 로더로 주행
 
@@ -339,7 +350,7 @@ PUSH = "push"           # 차선이 비면 대기 자리에서 로더로 주행
 # 우회 경로의 네 단계도 넣는다 — 대기 시간이 두 대 시연의 핵심 지표이고,
 # docs/DB구성.md §4 가 stage 를 TEXT 로 둔 이유가 "가지가 늘어날 자리" 다.
 # 값을 더하는 데 마이그레이션이 필요 없다.
-LOGGED_STAGES = (PICK, APPROACH, WAIT, PUSH, NAV, PLACE, RETURN)
+LOGGED_STAGES = (PICK, HOLD_BACK, APPROACH, WAIT, PUSH, NAV, PLACE, RETURN)
 
 # 실패 사유는 '단계' 가 정한다. return 은 같은 NavigateTo 액션이라 nav_error 다.
 # 그래서 액션 enum 에 없는 실패(TIMEOUT · SERVER_UNAVAILABLE · GOAL_REJECTED)도
@@ -347,8 +358,8 @@ LOGGED_STAGES = (PICK, APPROACH, WAIT, PUSH, NAV, PLACE, RETURN)
 STAGE_TO_REASON = {PICK: "pick_error", NAV: "nav_error",
                    PLACE: "place_error", RETURN: "nav_error",
                    # 우회 세 단계는 전부 주행/대기라 nav_error 로 모인다.
-                   APPROACH: "nav_error", WAIT: "nav_error",
-                   PUSH: "nav_error"}
+                   HOLD_BACK: "nav_error", APPROACH: "nav_error",
+                   WAIT: "nav_error", PUSH: "nav_error"}
 
 # 어디서 일어난 일인가. 순찰 중 발견 방식이라 슬롯 번호를 모르므로 place 만 채워진다.
 PORT_BY_STAGE = {PLACE: "test_loader", PUSH: "test_loader"}
@@ -467,6 +478,18 @@ PEER_CLEAR_DWELL_S = 2.0
 #   붙으면 그 단계도 갈라 넣어야 한다 — 다만 그건 "머무는" 동작이라 다가오는
 #   쪽도 떠나는 쪽도 아니다. 반경으로는 안 풀리고 별도 처리가 필요하다.
 PEER_LEAVING_STAGES = [RETURN]
+
+# 상대가 로더 쪽으로 오고 있는 단계.
+#
+# ★ 이 동안은 대기 장소로도 가지 않는다.
+#   대기 장소가 로더 바로 앞이라, 상대가 로더로 오는 동안 이쪽이 거기로 가면
+#   둘이 같은 구역으로 동시에 들어간다. nav_server 에 회피가 없으므로 그게 곧
+#   충돌이다. 상대가 로더에 도착해 멈춘 뒤(place)에야 대기 장소로 올라간다.
+#
+#   그래서 우회 가지가 두 번 기다린다 — HOLD_BACK(픽업존에서, 상대가 도착할
+#   때까지)과 WAIT(대기 장소에서, 상대가 로더를 비울 때까지). 앞의 것은 구역
+#   진입을 막고, 뒤의 것은 로더 진입을 막는다.
+PEER_APPROACHING_STAGES = [NAV, PUSH]
 
 # 상태 발행 주기. 이 값이 상대가 보는 정보의 최대 지연이다 — 1 초로 두면
 # 상대가 1 초 묵은 값으로 출발 판단을 한다. 메시지가 짧은 문자열이라
@@ -890,10 +913,29 @@ class WaitForPeer(py_trees.behaviour.Behaviour):
     한 대만 띄웠을 때 영원히 기다리는 걸 막는다.
     """
 
-    def __init__(self, name, node):
+    def __init__(self, name, node, stages=None, use_radius=True, arrive_log=""):
+        """stages      기다릴 상대 단계. None 이면 peer_busy_stages 전체.
+        use_radius  로더 반경으로도 판정할지. 로더에서 멀리 떨어져 기다리는
+                    자리(픽업존)에서는 반경이 의미가 없어서 끈다.
+        arrive_log  이 잎에 처음 들어갈 때 남길 로그 한 줄.
+        """
         super().__init__(name)
         self.node = node
+        self.stages = stages
+        self.use_radius = use_radius
+        self.arrive_log = arrive_log
         self.soft = False
+
+    def _busy(self):
+        """(기다려야 하나, 이유). stages 가 있으면 그 목록으로만 본다."""
+        if self.stages is None:
+            return self.node.peer_busy()
+        stage = self.node.peer_stage()
+        if stage is None:
+            return False, "상대 없음"
+        if stage in self.stages:
+            return True, f"state={stage}"
+        return False, f"state={stage}"
 
     def initialise(self):
         self.deadline = time.monotonic() + PEER_WAIT_TIMEOUT_S
@@ -904,7 +946,8 @@ class WaitForPeer(py_trees.behaviour.Behaviour):
         # 즉시 알린다 — 상대가 이 값을 보고 자기 차례를 판단한다.
         # set_patrol_target 이 같은 이유로 즉시 발행하는 것과 같다.
         self.node.publish_state()
-        self.node.get_logger().info("대기 자리 도착 — 로더 차선이 비기를 기다린다")
+        if self.arrive_log:
+            self.node.get_logger().info(self.arrive_log)
 
     def update(self):
         if self.node.peer_frozen():
@@ -915,10 +958,9 @@ class WaitForPeer(py_trees.behaviour.Behaviour):
             return Status.FAILURE
 
         now = time.monotonic()
-        busy, why = self.node.peer_busy()
         stage = self.node.peer_stage()
-
-        dist = self.node.peer_dist_to_loader()
+        busy, why = self._busy()
+        dist = self.node.peer_dist_to_loader() if self.use_radius else None
         need = self.node.loader_clear_radius_m
 
         # ① 위치가 먼저다. 상대가 로더 반경 안에 있으면 상태와 무관하게 기다린다.
@@ -1128,7 +1170,17 @@ def build_tree(node):
         make_goal=lambda: NavigateTo.Goal(pose=_to_pose(node.staging_pose)),
         timeout_s=NAV_TIMEOUT_S, moves_base=True), node, APPROACH)
 
-    wait = Freeze("WAIT", WaitForPeer(WAIT, node), node, WAIT)
+    # ★ 대기 장소가 로더 바로 앞이라, 거기로 가는 것 자체가 로더 구역에 들어가는
+    #   것이다. 상대가 로더로 오는 중이면 그 구역에 둘이 동시에 들어간다.
+    #   그래서 픽업존에서 먼저 기다린다 — 상대가 로더에 도착해 멈춘 뒤에 올라간다.
+    hold_back = Freeze("HOLD_BACK", WaitForPeer(
+        HOLD_BACK, node, stages=PEER_APPROACHING_STAGES, use_radius=False,
+        arrive_log="상대가 로더로 오는 중 — 픽업존에서 기다린다"),
+        node, HOLD_BACK)
+
+    wait = Freeze("WAIT", WaitForPeer(
+        WAIT, node, arrive_log="대기 장소 도착 — 로더가 비기를 기다린다"),
+        node, WAIT)
 
     push = Freeze("PUSH", ActionLeaf(
         PUSH, node, node.nav, "navigation/navigate_to", NavigateTo.Result,
@@ -1136,7 +1188,7 @@ def build_tree(node):
         timeout_s=NAV_TIMEOUT_S, moves_base=True), node, PUSH)
 
     detour = py_trees.composites.Sequence(
-        "우회", memory=True, children=[approach, wait, push])
+        "우회", memory=True, children=[hold_back, approach, wait, push])
 
     to_loader = py_trees.composites.Selector(
         "배송", memory=True, children=[direct, detour])
