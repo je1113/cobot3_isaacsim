@@ -36,10 +36,12 @@
   아직 미구현이라 이 launch 에 없다.
 
 ★ 기본값이 robot1 하나인 이유 — robots:=robot1,robot2 로 켜기 전에 할 일
-  1) task_manager.py 의 PATROL_ROUTE · TEST_LOADER 가 아직 모듈 전역 상수다.
-     지금 그대로 두 대를 띄우면 두 로봇이 같은 좌표로 가서 부딪힌다.
-     로봇별 순찰 구역(docs/03 "도는 곳 다르게")을 잡아 파라미터나
-     frames.yaml 로 갈라야 한다.
+  1) PATROL_ROUTE 가 아직 task_manager.py 의 모듈 전역 상수다. 두 대가 같은
+     순찰 경로를 돌면 선반 앞에서 부딪힌다. 로봇별 순찰 구역(docs/03
+     "도는 곳 다르게")을 잡아 파라미터나 frames.yaml 로 갈라야 한다.
+     TEST_LOADER 쪽은 아래 "로더 차선 조율" 이 처리한다 — 한 대만 차선에
+     들어가고 나머지는 대기 자리에서 기다린다. 다만 그건 출발 시점 판단으로
+     커밋하므로 사각지대가 남아 있다(task_manager.py "알려진 갭" 참고).
   2) sim_backend 가 nova_carter1 하나만 안다(ROBOT_PRIM_PATH 하드코딩).
      robot2 의 scan · pick · place 는 sim_backend 를 손보기 전까지 실패한다.
      주행(nav_server)은 sim_backend 를 쓰지 않으므로 robot2 도 지금 바로 된다.
@@ -60,6 +62,59 @@ MISSION_NODES = [
 ]
 
 
+# ══════════════════════════════════════════════════════════════════════════
+#  로더 차선 조율 — 두 대가 같은 로더로 갈 때
+#
+#  로더 주차점에는 제자리회전 여유가 1 cm 뿐이고, 접근선과 이탈선이 같은 단일
+#  차선이다(근거와 실측은 task_manager.py 의 DEFAULT_STAGING_POSE 주석).
+#  그래서 두 대를 띄울 때는 서로의 orchestrator/state 를 보고 차선을 양보한다.
+#
+#  ★ 우선순위는 고정이다. PRIORITY_ROBOT 만 상대의 'wait' 에 양보하지 않는다.
+#    이 한 칸이 동순위를 깨는 장치다 — 양쪽이 서로의 대기를 기다리면 둘 다
+#    멈추고, 양쪽이 서로의 대기를 무시하면 동시에 출발해 부딪힌다.
+#
+#  ★ 기본값을 "양보한다" 쪽으로 둔 이유: 두 로봇에 같은 값이 잘못 들어갔을 때
+#    둘 다 우선순위를 가지면 충돌하고, 둘 다 양보하면 대기 자리에서 멈춘다.
+#    멈추는 쪽이 안전하다. 그래서 PRIORITY_ROBOT 에 해당하는 한 대만 예외다.
+PRIORITY_ROBOT = "robot1"
+
+# 상대가 차선을 쓰고 있다고 보는 단계. task_manager.py 의
+# DEFAULT_PEER_BUSY_STAGES 와 같은 값이고, 여기서 로봇별로 한 칸만 달라진다.
+#   return 이 들어 있는 이유: 로더에서 후진해 나오는 경로가 접근선과 같은 선이다.
+#   approach 가 없는 이유: 차선 밖 대기 자리로 가는 중이라 방해되지 않는다.
+LANE_STAGES = ["nav", "push", "place", "return"]
+
+# ★ 대기 자리는 로봇마다 달라야 한다 — 같은 점을 쓰면 대기 자리에서 부딪힌다.
+#   두 좌표 다 점유격자에서 반경 0.80 m 자유공간을 확인했고, 로더 도착각이
+#   지금 동작하는 경로(-10.1도)와 같은 10도대다. 근거는 task_manager.py 주석.
+STAGING_BY_ROBOT = {
+    "robot1": [0.80, -0.60, 0.0],    # 도착각 +11.1도
+    "robot2": [-0.80, -1.10, 0.0],   # 도착각 +13.3도
+}
+
+# 상대가 누구인가. 세 대 이상이 되면 이 표로는 안 되고, 도크처럼 전역 조정
+# 노드를 두는 편이 낫다(docs/02 §2 의 docking_server 논리와 같다).
+PEER_OF = {"robot1": "robot2", "robot2": "robot1"}
+
+
+def _task_manager_params(ns, namespaces):
+    """task_manager 하나에 넘길 파라미터. 조율이 필요 없으면 좌표만 넘긴다."""
+    params = {"staging_pose": STAGING_BY_ROBOT.get(ns, [0.80, -0.60, 0.0])}
+
+    peer = PEER_OF.get(ns)
+    if not peer or peer not in namespaces:
+        # 상대가 같이 안 뜨면 구독하지 않는다. 안 뜨는 토픽을 구독해 둬도
+        # 동작은 같지만(한 번도 못 받으면 통과), 로그에서 헷갈린다.
+        return params
+
+    busy = list(LANE_STAGES)
+    if ns != PRIORITY_ROBOT:
+        busy.append("wait")          # 우선순위 없는 쪽만 상대의 대기에도 양보
+    params["peer_state_topic"] = f"/{peer}/orchestrator/state"
+    params["peer_busy_stages"] = busy
+    return params
+
+
 def _setup(context):
     raw = LaunchConfiguration("robots").perform(context)
     namespaces = [ns.strip().strip("/") for ns in raw.split(",") if ns.strip()]
@@ -70,12 +125,15 @@ def _setup(context):
     nodes = []
     for ns in namespaces:
         for package, executable in MISSION_NODES:
+            params = (_task_manager_params(ns, namespaces)
+                      if executable == "task_manager" else {})
             nodes.append(Node(
                 package=package,
                 executable=executable,
                 name=executable,
                 namespace=ns,
                 output="screen",
+                parameters=[params] if params else [],
             ))
 
     # ★ event_logger 만 네임스페이스 없이 전역 1개다.
