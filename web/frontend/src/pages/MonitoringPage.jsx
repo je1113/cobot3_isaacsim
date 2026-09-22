@@ -57,6 +57,25 @@ function midpoint(a, b) {
   }
 }
 
+// 선반 실제 크기(m) — simple_factory_layout.usda Shelf_01/02 의 Level_2
+// 큐브 스케일(2.5 x 1 x 0.05)을 그대로 쓴다.
+const SHELF_WIDTH_M = 2.5
+const SHELF_DEPTH_M = 1.0
+// 선반 슬롯 구분선 — 매거진 4개 자리를 3개 선으로 나눈다(중앙 기준 오프셋).
+const SHELF_SLOT_OFFSETS = [
+  -SHELF_WIDTH_M / 4,
+  0,
+  SHELF_WIDTH_M / 4,
+]
+
+// 컨베이어(스테이션) 실제 크기(m) — PackagingZone/ConveyorFrame 큐브
+// 스케일(4.4 x 1.35 x 0.45)을 그대로 쓴다. 세 구역(PKG-01 계열) 모두 같은
+// 스케일이라 station_type 과 무관하게 동일 크기를 쓴다.
+const STATION_LENGTH_M = 4.4
+const STATION_WIDTH_M = 1.35
+// 롤러 표시선 — 길이 방향으로 고르게 나눈 7개.
+const STATION_ROLLER_OFFSETS = [-1.8, -1.2, -0.6, 0, 0.6, 1.2, 1.8]
+
 /**
  * Top View — 실제 지도 이미지 대신 선반·스테이션·로봇 위치로 그리는
  * 개략도. 격자 점유 지도(simple_factory_layout.png)는 흑백회색 3색뿐인
@@ -135,17 +154,31 @@ function FactoryTopView({
             key={shelf.shelf_id}
             className="monitor-topview-shelf"
           >
+            {/* 선반 프레임 — 실제 크기(2.5 x 1.0 m) */}
             <rect
-              x={p.x - 0.6}
-              y={p.y - 0.35}
-              width={1.2}
-              height={0.7}
-              rx={0.08}
+              className="shelf-frame"
+              x={p.x - SHELF_WIDTH_M / 2}
+              y={p.y - SHELF_DEPTH_M / 2}
+              width={SHELF_WIDTH_M}
+              height={SHELF_DEPTH_M}
+              rx={0.05}
             />
+
+            {/* 매거진 슬롯 구분선 */}
+            {SHELF_SLOT_OFFSETS.map((dx) => (
+              <line
+                key={dx}
+                className="shelf-slot"
+                x1={p.x + dx}
+                y1={p.y - SHELF_DEPTH_M / 2 + 0.08}
+                x2={p.x + dx}
+                y2={p.y + SHELF_DEPTH_M / 2 - 0.08}
+              />
+            ))}
 
             <text
               x={p.x}
-              y={p.y}
+              y={p.y + SHELF_DEPTH_M / 2 + 0.32}
             >
               {shelf.shelf_id}
             </text>
@@ -178,17 +211,40 @@ function FactoryTopView({
               }`
             }
           >
+            {/* 컨베이어 프레임 — 실제 크기(4.4 x 1.35 m) */}
             <rect
-              x={p.x - 0.5}
-              y={p.y - 0.5}
-              width={1}
-              height={1}
-              rx={0.15}
+              className="conveyor-frame"
+              x={p.x - STATION_LENGTH_M / 2}
+              y={p.y - STATION_WIDTH_M / 2}
+              width={STATION_LENGTH_M}
+              height={STATION_WIDTH_M}
+              rx={0.1}
             />
+
+            {/* 벨트 중심선 */}
+            <line
+              className="conveyor-belt-line"
+              x1={p.x - STATION_LENGTH_M / 2 + 0.15}
+              y1={p.y}
+              x2={p.x + STATION_LENGTH_M / 2 - 0.15}
+              y2={p.y}
+            />
+
+            {/* 롤러 표시 */}
+            {STATION_ROLLER_OFFSETS.map((dx) => (
+              <line
+                key={dx}
+                className="conveyor-roller"
+                x1={p.x + dx}
+                y1={p.y - STATION_WIDTH_M / 2 + 0.1}
+                x2={p.x + dx}
+                y2={p.y + STATION_WIDTH_M / 2 - 0.1}
+              />
+            ))}
 
             <text
               x={p.x}
-              y={p.y}
+              y={p.y + STATION_WIDTH_M / 2 + 0.32}
             >
               {
                 station.station_id

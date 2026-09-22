@@ -33,6 +33,7 @@ import json
 import math
 import os
 import queue
+import signal
 import socket
 import sys
 import threading
@@ -132,6 +133,12 @@ GRASP_YAML = WS_ROOT / "src/cobot3_bringup/config/grasp.yaml"
 CARRIERS_YAML = WS_ROOT / "src/cobot3_bringup/config/carriers.yaml"
 MEASURED = ISAACPJT / "tools/out/layout_measured.yaml"
 
+# ★ 정지(SIGINT/SIGTERM) 시 save_state() 가 쓰고, 다음 기동에서 __init__ 의
+#   _restore_state() 가 읽는다. 소스 관리 대상이 아니라(.gitignore) 세션마다
+#   갈아치우는 런타임 파일이다 — 씬을 SIM_WORLD_USD 로 바꿔도 경로가 안
+#   섞이게, 그 파일 이름을 스냅샷 파일명에 넣는다.
+STATE_SNAPSHOT_PATH = ISAACPJT / f"ros_bridge/.state_snapshot.{Path(WORLD_USD).stem}.json"
+
 EE_LINK_NAME = "link_6"
 ARM_JOINTS = ["joint_1", "joint_2", "joint_3", "joint_4", "joint_5", "joint_6"]
 
@@ -215,6 +222,18 @@ READY_JOINTS_DEG = [0.0, 0.0, 90.0, 0.0, 90.0, 0.0]
 #   이름을 주면 예전처럼 그 자세까지 옮긴다 — 2단계 부팅의 1단계(READY 로
 #   스냅)는 그대로 남으므로, 되돌리고 싶으면 값만 다시 넣으면 된다.
 BOOT_POSE_NAME = ""
+
+# ★ 팔은 언제나 홈(READY_JOINTS_DEG)에서 시작한다.
+#
+#   왜 따로 두는가 — _restore_state() 가 이전 종료 시점의 팔 관절값까지
+#   되살린다(892daab). 베이스와 씬 오브젝트는 그게 맞지만 팔은 아니다:
+#   미션이 실패하면 팔이 뻗은 채로 남는데, 그 자세를 그대로 복원하면 다음
+#   기동에서도 뻗은 채 주행을 시작한다. 팔은 Nav2 코스트맵에 안 들어가므로
+#   (footprint 는 차체 사각형뿐) 아무도 막아 주지 않는다.
+#   실측: robot1 은 패트롤 자세로, robot2 는 픽 자세로 시작했다.
+#
+#   False 로 두면 _restore_state() 가 되살린 팔 자세를 그대로 쓴다.
+BOOT_ARM_HOME = True
 
 # 12_pick_test.py / grasp.yaml 검증값 — 새로 지어내지 않는다.
 SUCTION_FACE_Z = 0.161
@@ -483,13 +502,17 @@ class SurfaceGripperCtl:
             return None
 
 
-def holding(gripped):
+def _flatten_gripped_paths(gripped):
     if not gripped:
-        return False
+        return []
     flat = []
     for item in gripped:
         flat.extend(item) if isinstance(item, (list, tuple)) else flat.append(item)
-    return any(str(x).strip() not in ("", "None") for x in flat)
+    return [str(x) for x in flat if str(x).strip() not in ("", "None")]
+
+
+def holding(gripped):
+    return bool(_flatten_gripped_paths(gripped))
 
 
 # ══════════════════════════════════════════════════════════════
@@ -731,6 +754,22 @@ class Backend:
         # ★ 공용 기본값. 실제 IK 에는 로봇별 _target_quat(robot_id) 를 쓴다 —
         #   이 값은 차체 yaw 0 인 경우와 같고, 남겨 두는 건 참고용이다.
         self.target_quat = make_target_quat(APPROACH_ROLL_DEG, APPROACH_PITCH_DEG, GRIPPER_YAW_DEG)
+
+        # 이전 종료 시점의 로봇/씬 상태가 있으면 위 기본 스폰 배치를 덮어쓴다.
+        self._restore_state()
+
+        # ★ 팔만 다시 홈으로. _restore_state() 가 팔 관절값까지 되살리므로
+        #   여기서 덮어써야 한다 — 이유는 BOOT_ARM_HOME 주석.
+        #   베이스 pose 와 씬 오브젝트는 복원된 그대로 둔다.
+        if BOOT_ARM_HOME:
+            for rig in self.rigs.values():
+                q = rig.robot.get_joint_positions()
+                for name, deg in zip(ARM_JOINTS, READY_JOINTS_DEG):
+                    q[rig.robot.get_dof_index(name)] = np.deg2rad(deg)
+                rig.robot.set_joint_positions(q)
+            for _ in range(SETTLE_STEPS):
+                self.world.step(render=not HEADLESS)
+            print(f"  팔 시작 자세: 홈 {READY_JOINTS_DEG} (로봇 {len(self.rigs)}대)")
 
         st = self.frames["static_transforms"]
         self.R_l6_cam = quat_xyzw_to_mat(st["m0609_tool0__camera_link"]["quat_xyzw"])
@@ -1032,6 +1071,102 @@ class Backend:
             self.world.step(render=not HEADLESS)
         rig.gripper.reinit()
         return {"ok": True}
+
+    def save_state(self):
+        """정지 시(main() 의 SIGINT/SIGTERM 처리) 로봇 베이스 pose·팔 관절값·
+        그리퍼 흡착 대상과, 매거진/캐리어(스택) 배치를 스냅샷으로 남긴다.
+        다음 기동에서 __init__ 이 _restore_state() 로 그대로 되돌린다.
+
+        ★ 왜 필요한가: 이 프로세스가 재시작되면 stage 를 처음부터 다시 열어
+        USD 에 박힌 스폰 배치로 돌아간다. 그런데 Nav2/AMCL 은 이 프로세스와
+        별개로 죽지 않고 계속 도는 게 보통이라(운영 편의상 sim_backend 만
+        재기동하는 경우), 시뮬레이터 쪽 로봇 위치가 스폰으로 되돌아가면
+        AMCL 이 믿는 위치와 실제 위치가 어긋난다 — 이 스냅샷이 그 어긋남을
+        없앤다.
+
+        ★ SIGKILL(-9) 은 어떤 프로세스도 못 잡는다 — 그 경우엔 마지막
+        정상 종료 시점의 스냅샷으로 복원된다(그 뒤 상태는 유실)."""
+        try:
+            robots = {}
+            for robot_id, rig in self.rigs.items():
+                base_p, base_q = get_world_pose(rig.base_xform_path)
+                idx = [rig.robot.get_dof_index(j) for j in ARM_JOINTS]
+                arm_deg = np.degrees(rig.robot.get_joint_positions()[idx]).tolist()
+                robots[robot_id] = {
+                    "base_pos": base_p.tolist(),
+                    "base_quat_wxyz": base_q.tolist(),
+                    "arm_joints_deg": arm_deg,
+                    "gripped_paths": _flatten_gripped_paths(rig.gripper.gripped()),
+                }
+
+            magazines = {}
+            for path in self._all_magazine_prims:
+                pos, quat = get_world_pose(path)
+                magazines[path] = {"pos": pos.tolist(), "quat_wxyz": quat.tolist()}
+
+            snapshot = {
+                "world_usd": WORLD_USD,
+                "saved_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
+                "robots": robots,
+                "magazines": magazines,
+            }
+            tmp = STATE_SNAPSHOT_PATH.with_suffix(".json.tmp")
+            tmp.write_text(json.dumps(snapshot, indent=2), encoding="utf-8")
+            tmp.replace(STATE_SNAPSHOT_PATH)   # 원자적 교체 — 쓰다 죽어도 이전 스냅샷이 남는다
+            print(f"   상태 스냅샷 저장: {STATE_SNAPSHOT_PATH}")
+        except Exception as e:      # noqa: BLE001 — 저장 실패해도 종료 자체는 막지 않는다
+            print(f"   !! 상태 스냅샷 저장 실패({e}) — 다음 기동은 기본 배치로 시작한다")
+
+    def _restore_state(self):
+        """save_state() 스냅샷이 있으면 __init__ 의 기본 스폰 배치 위에 덮어
+        씌운다. rig.lula/rig.gripper 가 이미 만들어진 뒤(그 바로 다음 줄)
+        불러야 한다 — 재흡착엔 gripper 가, 베이스 이동 뒤 IK 보정엔 lula 가
+        필요하다.
+
+        ★ world_usd 가 지금 WORLD_USD 와 다르면(씬을 바꿔 실행) 통째로
+        건너뛴다 — 다른 씬의 프림 경로/좌표를 이 씬에 그대로 적용하면
+        엉뚱한 곳으로 텔레포트하거나 존재하지 않는 prim 경로로 조용히
+        아무 일도 안 하게 된다."""
+        if not STATE_SNAPSHOT_PATH.exists():
+            return
+        try:
+            snapshot = json.loads(STATE_SNAPSHOT_PATH.read_text(encoding="utf-8"))
+        except Exception as e:
+            print(f"   !! 상태 스냅샷을 못 읽었다({e}) — 기본 배치로 시작한다")
+            return
+        if snapshot.get("world_usd") != WORLD_USD:
+            print(f"   상태 스냅샷이 다른 씬 것이다({snapshot.get('world_usd')}) — 건너뛴다")
+            return
+
+        for path, m in (snapshot.get("magazines") or {}).items():
+            if not self.stage.GetPrimAtPath(path).IsValid():
+                continue    # 이 씬에는 이제 없는 매거진/스택 — 조용히 건너뛴다
+            SingleRigidPrim(prim_path=path).set_world_pose(
+                position=np.array(m["pos"]), orientation=np.array(m["quat_wxyz"]))
+
+        for robot_id, r in (snapshot.get("robots") or {}).items():
+            rig = self.rigs.get(robot_id)
+            if rig is None:
+                continue
+            rig.robot.set_world_pose(
+                position=np.array(r["base_pos"]), orientation=np.array(r["base_quat_wxyz"]))
+            self._sync_ik_base(robot_id)   # 베이스를 옮겼으니 lula 도 그 pose 를 다시 알아야 한다
+            self._set_joint_deg(robot_id, r["arm_joints_deg"])
+
+        for _ in range(SETTLE_STEPS):
+            self.world.step(render=not HEADLESS)
+
+        for robot_id, r in (snapshot.get("robots") or {}).items():
+            rig = self.rigs.get(robot_id)
+            if rig is None or not r.get("gripped_paths"):
+                continue
+            rig.gripper.close()
+            for _ in range(GRIP_WAIT):
+                self.world.step(render=not HEADLESS)
+            if not holding(rig.gripper.gripped()):
+                print(f"   !! [{robot_id}] 재흡착 복원 실패 — 스냅샷엔 흡착 중이었는데 지금은 안 붙는다")
+
+        print(f"   상태 스냅샷 복원 완료 ({snapshot.get('saved_at', '?')} 저장분)")
 
     def observe_pose(self, pose_name=None, joints_deg=None, robot_id=DEFAULT_ROBOT_ID):
         """관측 자세로 이동한다. 두 가지 중 하나로 목표를 준다:
@@ -1837,9 +1972,26 @@ class Backend:
         }
 
 
+def _request_shutdown(signum, frame):
+    # ★ 여기서 바로 save_state() 를 부르지 않는다 — 시그널 핸들러는 메인
+    # 스레드가 어느 bytecode 를 실행 중이든 끼어들어 실행되므로, world.step()
+    # 이나 PhysX 호출 도중일 수도 있다(스레드 세이프하지 않음). 플래그만
+    # 세워 두고 main() 의 루프가 다음 반복 시작 지점(안전한 지점)에서 보고
+    # 빠져나가게 한다.
+    global _shutdown_requested
+    _shutdown_requested = True
+
+
+_shutdown_requested = False
+
+
 def main():
     port = int(os.environ.get("SIM_BACKEND_PORT", "8765"))
     backend = Backend()
+    # SIGKILL(-9) 은 못 잡는다 — 그 경우 상태 저장 없이 죽고, 다음 기동은
+    # 마지막으로 저장된(또는 아예 없는) 스냅샷으로 시작한다.
+    signal.signal(signal.SIGINT, _request_shutdown)
+    signal.signal(signal.SIGTERM, _request_shutdown)
     # 0.0.0.0 = 다른 머신에서도 받는다. ROS 노드를 일반 PC 에서, Isaac 을 GPU PC 에서
     # 돌리는 구성이라 127.0.0.1 이면 sim_client 가 붙지 못한다(Connection refused).
     # 클라이언트 쪽은 SIM_BACKEND_HOST 로 이 머신의 IP 를 준다(sim_client.py:24).
@@ -1873,7 +2025,7 @@ def main():
         "debug_capture_aov": backend.debug_capture_aov,
     }
 
-    while simulation_app.is_running():
+    while simulation_app.is_running() and not _shutdown_requested:
         backend.world.step(render=not HEADLESS)
         try:
             while True:
@@ -1892,6 +2044,9 @@ def main():
         except queue.Empty:
             pass
 
+    if _shutdown_requested:
+        print("   종료 신호 수신 — 상태 스냅샷 저장 후 닫는다")
+    backend.save_state()
     simulation_app.close()
 
 

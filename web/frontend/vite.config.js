@@ -14,6 +14,11 @@ const BACKEND = process.env.COBOT3_BACKEND ?? 'http://localhost:8000'
 export default defineConfig({
   plugins: [react()],
   server: {
+    // ★ 기본값(host 미지정)은 Vite 가 localhost 에만 bind 한다 — 스위치로
+    //   연결된 다른 PC 에서는 이 머신 IP 로 아예 접속이 안 된다(연결 거부).
+    //   true 로 두면 0.0.0.0 에 bind 해서 같은 네트워크의 다른 PC 도
+    //   http://<이 머신 IP>:5173 으로 들어올 수 있다.
+    host: true,
     proxy: {
       '/api': { target: BACKEND, changeOrigin: true },
       '/ws': { target: BACKEND, ws: true, changeOrigin: true },

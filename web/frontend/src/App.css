@@ -5534,7 +5534,7 @@
 
 .monitor-map-surface {
   position: relative;
-  min-height: 560px;
+  height: 480px;
   overflow: hidden;
   background: #faf9f6;
 }
@@ -5544,7 +5544,6 @@
   align-items: center;
   justify-content: center;
   height: 100%;
-  min-height: 560px;
   color: #999086;
   font-size: 13px;
 }
@@ -5553,7 +5552,6 @@
   display: block;
   width: 100%;
   height: 100%;
-  min-height: 560px;
 }
 
 .monitor-topview-floor {
@@ -5562,32 +5560,51 @@
   stroke-width: 0.03;
 }
 
-.monitor-topview-shelf rect {
+/* ── 선반 아이콘 ─────────────────────────────────────────────────── */
+.monitor-topview-shelf .shelf-frame {
   fill: #efeae2;
+  stroke: #a89c8c;
+  stroke-width: 0.05;
+}
+
+.monitor-topview-shelf .shelf-slot {
   stroke: #c6bfb5;
   stroke-width: 0.03;
 }
 
 .monitor-topview-shelf text {
   fill: #756f67;
-  font-size: 0.28px;
+  font-size: 0.26px;
   font-weight: 600;
   text-anchor: middle;
-  dominant-baseline: central;
+  dominant-baseline: hanging;
 }
 
-.monitor-topview-station rect {
-  stroke-width: 0.04;
+/* ── 컨베이어(스테이션) 아이콘 ───────────────────────────────────── */
+.monitor-topview-station .conveyor-frame {
+  stroke-width: 0.05;
 }
 
-.monitor-topview-station.packaging rect {
+.monitor-topview-station.packaging .conveyor-frame {
   fill: #fde9d9;
   stroke: #e8a45c;
 }
 
-.monitor-topview-station.test rect {
+.monitor-topview-station.test .conveyor-frame {
   fill: #dcedf5;
   stroke: #6badd1;
+}
+
+.monitor-topview-station .conveyor-belt-line {
+  stroke: #fff;
+  stroke-width: 0.06;
+  opacity: 0.7;
+}
+
+.monitor-topview-station .conveyor-roller {
+  stroke: #fff;
+  stroke-width: 0.04;
+  opacity: 0.55;
 }
 
 .monitor-topview-station text {
@@ -5595,7 +5612,7 @@
   font-size: 0.22px;
   font-weight: 600;
   text-anchor: middle;
-  dominant-baseline: central;
+  dominant-baseline: hanging;
 }
 
 .monitor-topview-robot .robot-body {
@@ -5879,9 +5896,8 @@
   }
 
   .monitor-map-surface,
-  .monitor-topview-svg,
   .monitor-topview-empty {
-    min-height: 420px;
+    height: 380px;
   }
 
   .monitor-robot-column {

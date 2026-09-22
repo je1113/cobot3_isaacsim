@@ -121,7 +121,7 @@ app.add_middleware(
 app.add_exception_handler(ApiError, api_error_handler)
 
 # ── API 는 전부 /api 아래 ─────────────────────────────────────────────
-# 프론트(web/frontend)가 src/api/robots.js 에서 "/api/robots/{id}/goal" 을
+# 프론트(web/frontend)가 src/api/robots.js 에서 "/api/robots/{id}/pause|resume" 을
 # 하드코딩하고 있어 그 접두사에 맞춘다. 덤으로 "/" 를 SPA 에 통째로 내줄 수
 # 있게 된다 — 라우트 이름과 화면 경로가 겹칠 걱정이 없어진다.
 api = APIRouter(prefix="/api")
