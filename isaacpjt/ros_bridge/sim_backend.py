@@ -21,6 +21,12 @@ Isaac Sim 쪽 실행 백엔드 — 진짜 rclpy 노드들이 이 파일을 로�
 실행:
     isaac_python isaacpjt/ros_bridge/sim_backend.py
     SIM_BACKEND_PORT=8765 isaac_python isaacpjt/ros_bridge/sim_backend.py
+
+머신이 둘일 때 (ROS 는 일반 PC, Isaac 은 GPU PC):
+    GPU PC   isaac_python isaacpjt/ros_bridge/sim_backend.py     # 0.0.0.0 에 바인드한다
+             hostname -I                                        # 이 IP 를
+    ROS PC   export SIM_BACKEND_HOST=<그 IP>                      # 여기에 준다
+             nc -vz <그 IP> 8765                                 # succeeded 면 연결 OK
 """
 
 import json
@@ -826,19 +832,27 @@ class Backend:
         self.gripper.reinit()
         return {"ok": True}
 
-    def observe_pose(self, pose_name="shelf_1_top_close_centered"):
-        """관측 자세로 이동한다. taught_poses.yaml 에 있는 아무 키나 받는다 —
-        층별로 다른 관절값을 쓰려면(2층 shelf_1_top_close_centered, 1층
-        s1_bottom_scan) 호출하는 쪽에서 pose_name 을 바꿔서 넘기면 된다.
+    def observe_pose(self, pose_name=None, joints_deg=None):
+        """관측 자세로 이동한다. 두 가지 중 하나로 목표를 준다:
+          pose_name    taught_poses.yaml 에 있는 키 (예: shelf_1_top_close_centered)
+          joints_deg   J1..J6 목록 (도). shelves.yaml 의
+                       scan_passes.arm_teach_pose 는 rad 단위(meta.units)니
+                       호출하는 쪽(carrier_code_reader)이 도로 바꿔 넘긴다.
+        둘 다 주어지면 joints_deg 가 우선한다. 둘 다 없으면 ValueError.
         carrier_code_reader.scan_qr() 전에 부른다."""
         self._set_arm_stiffness(DRIVE_STIFFNESS)   # QR 디코드가 깨지지 않는 값으로
-        taught = yaml.safe_load((ISAACPJT / "tools/out/taught_poses.yaml").read_text(encoding="utf-8"))
-        pose = taught[pose_name]
-        self._set_joint_deg(pose["joints_deg"])
+        if joints_deg is not None:
+            self._set_joint_deg(list(joints_deg))
+        elif pose_name is not None:
+            taught = yaml.safe_load((ISAACPJT / "tools/out/taught_poses.yaml").read_text(encoding="utf-8"))
+            pose = taught[pose_name]
+            self._set_joint_deg(pose["joints_deg"])
+        else:
+            raise ValueError("observe_pose: pose_name 또는 joints_deg 가 필요하다")
         for _ in range(SETTLE_STEPS):
             self.world.step(render=not HEADLESS)
         self._ensure_camera_warm()
-        return {"ok": True, "pose": pose_name}
+        return {"ok": True, "pose": pose_name or "joints(deg): %s" % joints_deg}
 
     def _ensure_camera_warm(self, force=False):
         """관측 자세에 이미 도착한 뒤, 뷰포트를 손목 카메라로 돌리고 depth
@@ -1493,7 +1507,10 @@ class Backend:
 def main():
     port = int(os.environ.get("SIM_BACKEND_PORT", "8765"))
     backend = Backend()
-    threading.Thread(target=_rpc_serve, args=("127.0.0.1", port), daemon=True).start()
+    # 0.0.0.0 = 다른 머신에서도 받는다. ROS 노드를 일반 PC 에서, Isaac 을 GPU PC 에서
+    # 돌리는 구성이라 127.0.0.1 이면 sim_client 가 붙지 못한다(Connection refused).
+    # 클라이언트 쪽은 SIM_BACKEND_HOST 로 이 머신의 IP 를 준다(sim_client.py:24).
+    threading.Thread(target=_rpc_serve, args=("0.0.0.0", port), daemon=True).start()
     _set_status(phase="IDLE", message="ready")
 
     print("=" * 70)

@@ -28,22 +28,18 @@ shelves:
     waypoint_start: {x: -4.85, y: 1.55, theta: 0.0}
     waypoint_end: {x: -4.85, y: 1.55, theta: 0.0}
     standoff_distance:
-    # 층마다 한 줄. direction 은 화면이 레벨 홀짝으로 정하지만(홀수 FORWARD),
-    # 층을 지운 뒤에는 다시 계산하지 않으므로 저장된 값을 그대로 믿는다.
+    # ★ 층은 하나로 고정해서 운용한다. 화면에는 '층 추가' 버튼이 남아 있고
+    #   백엔드도 N개를 받는다 — 운용을 한 층으로 정한 것이지 구조를 막은 것은 아니다.
+    # ★ 관절값은 전부 null(미티칭)이다. 실측 전까지 숫자를 채워 두지 않는다 —
+    #   채워 두면 화면이 "티칭 완료 · 작업 할당 가능" 이라 말하고 로봇이 그
+    #   가짜 자세로 팔을 뻗는다.
     scan_passes:
       - pass_id: 1
         level: 1
         direction: FORWARD
-        arm_teach_pose: [0, 90, 0, 0, 90, 0]
-      - pass_id: 2
-        level: 2
-        direction: BACKWARD
-        arm_teach_pose: [0, 80, 10, 0, 90, 0]
+        arm_teach_pose: [null, null, null, null, null, null]
     # 티칭이 처음 완성된 순간에만 찍힌다. 이후 수정해도 안 바뀐다.
     first_taught_at:
-
-  # ── 아래 둘은 PATROL_ROUTE(task_manager.py:198) 의 두 정차점이다. ───
-  # 층을 만들지 않아 scan_passes 가 비어 있고, 그래서 배정하면 422 가 난다.
   - shelf_id: SHELF-B
     waypoint_start: {x: -2.674, y: 1.613, theta: 0.0}
     waypoint_end: {x: -2.674, y: 1.613, theta: 0.0}

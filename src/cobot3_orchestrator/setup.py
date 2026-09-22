@@ -25,6 +25,7 @@ setup(
     entry_points={
         'console_scripts': [
             'task_manager = cobot3_orchestrator.task_manager:main',
+            'event_logger = cobot3_orchestrator.event_logger:main',
         ],
     },
 )
