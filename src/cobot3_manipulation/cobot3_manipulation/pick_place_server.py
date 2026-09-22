@@ -302,6 +302,24 @@ class PickPlaceServer(Node):
         self._poll_until(t, goal_handle, feedback)
         r1 = holder.get("r")
         if r1 is None or not r1.get("success"):
+            # ★ 실패를 그냥 올리지 말고 어디서 왜인지 남긴다. OBSERVE 쪽이
+            #   이유를 버려서 "팔이 못 닿는다" 로 오진하고 좌표를 몇 시간
+            #   튜닝한 적이 있다(진짜 원인은 IK 베이스 동기화 누락이었다).
+            #   여기 찍는 값의 뜻:
+            #     phase        sim_backend 가 어느 단계에서 죽었나
+            #     flange       손목캠이 실제로 잰 파지점 (base_link 기준)
+            #     approach     그 위 몇 m 로 올라가려 했나
+            #   APPROACH 목표는 flange + [0,0,approach] 이므로, 이 둘이면
+            #   팔이 어디로 가려다 실패했는지 그대로 재현할 수 있다.
+            pos = (flange_pose_base_link or {}).get("position") or []
+            where = (f"({pos[0]:+.3f}, {pos[1]:+.3f}, {pos[2]:+.3f})"
+                     if len(pos) == 3 else "?")
+            self.get_logger().warn(
+                f"PICK APPROACH 실패: "
+                f"reason={(r1 or {}).get('fail_reason', '응답 없음')} "
+                f"phase={(r1 or {}).get('phase', '?')} "
+                f"[variant={goal.variant}, flange(base_link)={where}, "
+                f"approach={approach_dist_m:.3f} m]")
             return self._abort(goal_handle, result,
                                (r1 or {}).get("fail_reason", "NO_IK"))
 
@@ -315,6 +333,9 @@ class PickPlaceServer(Node):
         self._poll_until(t2, goal_handle, feedback)
         r2 = holder2.get("r")
         if r2 is None:
+            self.get_logger().warn(
+                "PICK DESCEND~STOW 응답 없음 — sim_backend 가 결과를 안 줬다 "
+                "(타임아웃 120 s 또는 통신 끊김)")
             return self._abort(goal_handle, result, "NO_ATTACH")
 
         result.success = bool(r2.get("success", False))
@@ -356,6 +377,15 @@ class PickPlaceServer(Node):
         self._poll_until(t, goal_handle, feedback, phase_map=_PLACE_PHASE)
         r1 = holder.get("r")
         if r1 is None or not r1.get("success"):
+            pos = (slot_pose_base_link or {}).get("position") or []
+            where = (f"({pos[0]:+.3f}, {pos[1]:+.3f}, {pos[2]:+.3f})"
+                     if len(pos) == 3 else "?")
+            self.get_logger().warn(
+                f"PLACE MOVE 실패: "
+                f"reason={(r1 or {}).get('fail_reason', '응답 없음')} "
+                f"phase={(r1 or {}).get('phase', '?')} "
+                f"[variant={goal.variant}, slot(base_link)={where}, "
+                f"approach={approach_dist_m:.3f} m]")
             return self._abort_place(goal_handle, result,
                                      (r1 or {}).get("fail_reason", "NO_IK"))
 
@@ -367,6 +397,8 @@ class PickPlaceServer(Node):
         self._poll_until(t2, goal_handle, feedback, phase_map=_PLACE_PHASE)
         r2 = holder2.get("r")
         if r2 is None:
+            self.get_logger().warn(
+                "PLACE LOWER~RETREAT 응답 없음 — sim_backend 가 결과를 안 줬다")
             return self._abort_place(goal_handle, result, "COLLISION")
 
         result.success = bool(r2.get("success", False))
