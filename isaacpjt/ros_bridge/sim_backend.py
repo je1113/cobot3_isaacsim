@@ -591,6 +591,9 @@ class RobotRig:
         self.gripper = None            # SurfaceGripperCtl
         self.capture_ready = False     # _ensure_camera_warm() 이 한 번 세팅하면 True
         self.pending_capture = None    # _capture_frame() 이 진행 중인 캡쳐를 GC 로부터 붙잡아두는 자리
+        self.viewport = None           # 이 로봇 전담 뷰포트(ViewportAPI) — _get_or_create_viewport() 가 채운다
+        self.viewport_window = None    # 로봇용으로 새로 만든 창이면 그 객체(GC 방지). 기존 활성 뷰포트를
+                                        # 쓰는 로봇(보통 robot1)은 만든 창이 없으니 None 으로 둔다.
 
         self.current_magazine_path = MAGAZINE_XFORM_PATH  # PICK 전 기본값(레거시 메서드용)
         self.flange_world = None       # pick APPROACH -> FINISH 로 넘기는 목표
@@ -986,9 +989,56 @@ class Backend:
         self._ensure_camera_warm(robot_id)
         return {"ok": True, "pose": pose_name or "joints(deg): %s" % joints_deg}
 
+    def _get_or_create_viewport(self, robot_id):
+        """이 로봇 전담 뷰포트(ViewportAPI). 첫 로봇(ROBOT_CARTER_NAME 의
+        첫 항목 — 지금은 robot1)은 기존 GUI 메인 뷰포트를 그대로 쓰고,
+        나머지 로봇은 각자 독립된 뷰포트 창을 새로 만든다.
+
+        ★ 예전 판은 뷰포트가 하나뿐이라 카메라를 로봇마다 돌려썼다 —
+        patrol 중 로봇 둘이 동시에 scan_qr 을 폴링하면(carrier_code_reader
+        decode_hz) 서로 밀어냈다. debug_dual_viewport_capture() 로 실측
+        확인: create_viewport_window() 로 만든 두 번째 뷰포트에서도 같은
+        omni.kit.widget.viewport.capture 방식(annotator/FabricReader 를
+        안 거침, _ensure_camera_warm 독스트링 참고)이 그대로 통하고, 두
+        뷰포트가 같은 world.step() 루프 안에서 독립적으로(같은 프레임에)
+        완료된다 — 그래서 로봇마다 하나씩 전담시킬 수 있다.
+
+        ★ 실측 함정: create_viewport_window() 는 창을 만들기만 하고
+        visible 을 안 켜 준다. omni.kit.viewport.window.ViewportWindow 의
+        `self.viewport_api.updates_enabled = self.visible` 때문에, 안 보이는
+        창은 렌더 자체가 안 돌아 캡쳐가 전부 검은 화면(버퍼 크기는 맞는데
+        내용이 0)으로 나온다 — 그래서 여기서 명시적으로 visible/updates_enabled
+        를 켠다."""
+        rig = self.rigs[robot_id]
+        if rig.viewport is not None:
+            return rig.viewport
+
+        first_robot_id = next(iter(self.rigs))
+        if robot_id == first_robot_id:
+            from omni.kit.viewport.utility import get_active_viewport
+            viewport = get_active_viewport()
+            if viewport is None:
+                raise RuntimeError(
+                    "활성 뷰포트를 찾을 수 없다 — headless 모드에서는 이 우회가 안 통한다")
+            rig.viewport = viewport
+            return rig.viewport
+
+        from omni.kit.viewport.utility import create_viewport_window
+        window = create_viewport_window(
+            name=f"Viewport-{robot_id}", width=1280, height=720,
+            camera_path=rig.camera_prim)
+        if window is None:
+            raise RuntimeError(
+                f"{robot_id} 전담 뷰포트 생성 실패 — create_viewport_window() 가 None 을 반환했다")
+        window.visible = True
+        window.viewport_api.updates_enabled = True
+        rig.viewport_window = window   # GC 방지 — 창 객체를 안 붙잡으면 사라진다
+        rig.viewport = window.viewport_api
+        return rig.viewport
+
     def _ensure_camera_warm(self, robot_id, force=False):
-        """관측 자세에 이미 도착한 뒤, 뷰포트를 손목 카메라로 돌리고 depth
-        AOV 를 등록한다.
+        """관측 자세에 이미 도착한 뒤, 이 로봇 전담 뷰포트를 손목 카메라로
+        돌리고 depth AOV 를 등록한다.
 
         ★★★ 이전 판은 rep.create.render_product() + AnnotatorRegistry 로
         새 render_product 를 만들었는데, 이 세션(Isaac Sim 5.1.0 rc.19)에서
@@ -1023,22 +1073,17 @@ class Backend:
         (0,0)으로 끝까지 안 채워짐 — SD 이름이라야 R32_SFLOAT/1280x720 로
         실제 채워진다).
 
-        부작용: 이 호출 이후 GUI 뷰포트에는 씬 전체가 아니라 이 robot_id 의
-        손목 카메라 시야가 보인다 — 감수한다. 뷰포트(및 그 render_product)는
-        Isaac 프로세스에 하나뿐이라 두 로봇이 동시에 캡쳐할 수는 없다 —
-        하지만 RPC 큐가 호출을 한 번에 하나씩만 처리하므로(main() 참고)
-        실제로 동시 호출이 겹칠 일이 없다. capture_ready 는 로봇별로
-        따로 추적한다 — 다른 로봇으로 넘어갔다가 돌아오면 그 로봇 카메라로
-        다시 한 번 워밍업 검증을 한다.
+        ★ 로봇마다 전담 뷰포트를 쓴다(_get_or_create_viewport) — 첫
+        로봇(robot1)은 GUI 메인 화면을 그대로 보여주고, 나머지는 각자
+        독립 창이라 두 로봇이 동시에 관측해도 서로 안 밀어낸다(실측:
+        debug_dual_viewport_capture). capture_ready 는 로봇별로 따로
+        추적한다 — 그 로봇 뷰포트에서 처음 한 번만 AOV 를 등록하면 된다.
         """
         rig = self.rigs[robot_id]
-        from omni.kit.viewport.utility import get_active_viewport, add_aov_to_viewport
+        from omni.kit.viewport.utility import add_aov_to_viewport
         import carb.settings
 
-        viewport = get_active_viewport()
-        if viewport is None:
-            raise RuntimeError(
-                "활성 뷰포트를 찾을 수 없다 — headless 모드에서는 이 우회가 안 통한다")
+        viewport = self._get_or_create_viewport(robot_id)
         viewport.camera_path = rig.camera_prim
         if force or not rig.capture_ready:
             carb.settings.get_settings().set(
@@ -1053,18 +1098,15 @@ class Backend:
         rig.capture_ready = True
 
     def _capture_frame(self, robot_id, timeout_frames=180):
-        """뷰포트의 render_product 에서 RGB(BGR 로 변환해서 반환)+depth 를
-        raw 바이트 콜백으로 한 프레임 받는다. _ensure_camera_warm() 독스트링
-        참고 — Replicator/AnnotatorRegistry(FabricReader)를 아예 안 거친다.
-        호출 전에 _ensure_camera_warm(robot_id) 로 뷰포트가 이미 이 로봇의
-        카메라를 보고 있어야 한다."""
+        """이 로봇 전담 뷰포트의 render_product 에서 RGB(BGR 로 변환해서
+        반환)+depth 를 raw 바이트 콜백으로 한 프레임 받는다.
+        _ensure_camera_warm() 독스트링 참고 — Replicator/AnnotatorRegistry
+        (FabricReader)를 아예 안 거친다. 호출 전에 _ensure_camera_warm(robot_id)
+        로 그 뷰포트가 이미 이 로봇의 카메라를 보고 있어야 한다."""
         rig = self.rigs[robot_id]
-        from omni.kit.viewport.utility import get_active_viewport
         from omni.kit.widget.viewport.capture import MultiAOVByteCapture
 
-        viewport = get_active_viewport()
-        if viewport is None:
-            raise RuntimeError("활성 뷰포트를 찾을 수 없다")
+        viewport = self._get_or_create_viewport(robot_id)
 
         result = {}
 
@@ -1659,6 +1701,74 @@ class Backend:
         return {"saved": path, "chassis_world": base_p.tolist(),
                "link6_world": l6_p.tolist()}
 
+    def debug_dual_viewport_capture(self, timeout_frames=240):
+        """실험 전용 — 뷰포트를 하나 더 만들어(create_viewport_window) 로봇
+        둘의 손목캠을 각자 전담시키고, 두 캡쳐를 **같은 프레임 루프에서
+        동시에 스케줄**해서 둘 다 독립적으로 완료되는지 본다.
+
+        목적: annotator(FabricReader) 경로 없이(_ensure_camera_warm 독스트링
+        참고 — 그 경로는 이 세션에서 항상 빈 프레임을 준다) 뷰포트 캡쳐
+        방식을 두 개로 늘릴 수 있는지 확인 — patrol 중 로봇 둘이 동시에
+        scan_qr 을 폴링하면 뷰포트 하나로는 서로 밀어낸다(carrier_code_reader
+        decode_hz 폴링 참고)."""
+        from omni.kit.viewport.utility import (
+            get_active_viewport, create_viewport_window, add_aov_to_viewport,
+        )
+        from omni.kit.widget.viewport.capture import MultiAOVByteCapture
+        import carb.settings
+
+        vp1 = get_active_viewport()
+        vp1.camera_path = self.rigs["robot1"].camera_prim
+
+        if getattr(self, "_second_viewport_window", None) is None:
+            self._second_viewport_window = create_viewport_window(
+                name="SecondCam", width=640, height=480,
+                camera_path=self.rigs["robot2"].camera_prim)
+            if self._second_viewport_window is None:
+                return {"ok": False, "reason": "create_viewport_window() 이 None 을 반환했다"}
+        vp2 = self._second_viewport_window.viewport_api
+        vp2.camera_path = self.rigs["robot2"].camera_prim
+
+        carb.settings.get_settings().set("/app/hydra/renderSettings/saveUsdAttributes", False)
+        add_aov_to_viewport(vp1, DEPTH_AOV_NAME)
+        add_aov_to_viewport(vp2, DEPTH_AOV_NAME)
+        for _ in range(30):
+            self.world.step(render=True)
+
+        result = {"vp1": {}, "vp2": {}}
+
+        def _make_cb(tag, key):
+            def _cb(buffer, buffer_size, width, height, byte_format):
+                result[tag][key] = [height, width]
+            return _cb
+
+        cap1 = MultiAOVByteCapture(
+            ["", DEPTH_AOV_NAME], [_make_cb("vp1", "rgb"), _make_cb("vp1", "depth")])
+        cap2 = MultiAOVByteCapture(
+            ["", DEPTH_AOV_NAME], [_make_cb("vp2", "rgb"), _make_cb("vp2", "depth")])
+        self._pending_dual_capture = (cap1, cap2)   # GC 방지
+        vp1.schedule_capture(cap1)
+        vp2.schedule_capture(cap2)
+
+        frames_to_vp1 = None
+        frames_to_vp2 = None
+        for i in range(1, timeout_frames + 1):
+            self.world.step(render=True)
+            if frames_to_vp1 is None and "rgb" in result["vp1"] and "depth" in result["vp1"]:
+                frames_to_vp1 = i
+            if frames_to_vp2 is None and "rgb" in result["vp2"] and "depth" in result["vp2"]:
+                frames_to_vp2 = i
+            if frames_to_vp1 is not None and frames_to_vp2 is not None:
+                break
+        self._pending_dual_capture = None
+        return {
+            "vp1": result["vp1"], "vp2": result["vp2"],
+            "frames_to_vp1": frames_to_vp1, "frames_to_vp2": frames_to_vp2,
+            "both_ok": bool(
+                result["vp1"].get("rgb") and result["vp1"].get("depth") and
+                result["vp2"].get("rgb") and result["vp2"].get("depth")),
+        }
+
 
 def main():
     port = int(os.environ.get("SIM_BACKEND_PORT", "8765"))
@@ -1687,6 +1797,7 @@ def main():
         "get_place_slot_pose_base_link": backend.get_place_slot_pose_base_link,
         "get_flange_pose_world": backend.get_flange_pose_world,
         "debug_capture": backend.debug_capture,
+        "debug_dual_viewport_capture": backend.debug_dual_viewport_capture,
         "debug_state": backend.debug_state,
         "debug_check_camera_prim": backend.debug_check_camera_prim,
         "debug_list_cameras": backend.debug_list_cameras,

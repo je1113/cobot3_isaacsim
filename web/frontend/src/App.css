@@ -68,7 +68,7 @@
 .settings-page-header h1 {
   margin: 0 0 6px;
   font-size: 30px;
-  font-weight: 500;
+  font-weight: 700;
 }
 
 .settings-page-header p {
@@ -3735,7 +3735,8 @@
 .assignment-header h1 {
   margin: 0 0 7px;
   color: #171717;
-  font-size: 26px;
+  font-size: 28px;
+  font-weight: 700;
   letter-spacing: -0.04em;
 }
 
@@ -5113,7 +5114,8 @@
 .logs-page-header h1 {
   margin: 0 0 6px;
   color: #171717;
-  font-size: 26px;
+  font-size: 28px;
+  font-weight: 700;
   letter-spacing: -0.04em;
 }
 
@@ -5429,6 +5431,7 @@
   margin: 0;
   color: #181714;
   font-size: 28px;
+  font-weight: 700;
 }
 
 .monitor-control-page-header p {
@@ -5529,127 +5532,98 @@
   font-size: 11px;
 }
 
-.monitor-robot-selector {
-  display: flex;
-  gap: 6px;
-}
-
-.monitor-robot-selector button {
-  min-height: 30px;
-  padding: 0 11px;
-  border: 1px solid #dbd5cd;
-  border-radius: 8px;
-  background: #fff;
-  color: #756f67;
-  font-size: 11px;
-}
-
-.monitor-robot-selector button.active {
-  border-color: #20201d;
-  background: #20201d;
-  color: #fff;
-}
-
 .monitor-map-surface {
   position: relative;
   min-height: 560px;
   overflow: hidden;
-  cursor: crosshair;
-  background:
-    linear-gradient(
-      rgba(198, 191, 181, 0.18)
-      1px,
-      transparent 1px
-    ),
-    linear-gradient(
-      90deg,
-      rgba(198, 191, 181, 0.18)
-      1px,
-      transparent 1px
-    ),
-    #faf9f6;
-  background-size: 28px 28px;
+  background: #faf9f6;
 }
 
-.monitor-map-guide {
-  position: absolute;
-  top: 20px;
-  left: 20px;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 10px 12px;
-  border: 1px solid #e0dad2;
-  border-radius: 9px;
-  background:
-    rgba(255, 255, 255, 0.92);
-  pointer-events: none;
-}
-
-.monitor-map-guide strong {
-  color: #464039;
-  font-size: 12px;
-}
-
-.monitor-map-guide span {
-  color: #999086;
-  font-size: 10px;
-}
-
-.monitor-goal-marker {
-  position: absolute;
-  z-index: 5;
-  transform:
-    translate(-50%, -50%);
-  pointer-events: none;
-}
-
-.monitor-goal-marker > span {
-  display: block;
-  width: 22px;
-  height: 22px;
-  border: 3px solid;
-  border-radius: 50%;
-  background: #fff;
-}
-
-.monitor-goal-marker.robot-one > span {
-  border-color: #3476d4;
-}
-
-.monitor-goal-marker.robot-two > span {
-  border-color: #22a6a4;
-}
-
-.monitor-goal-marker strong {
-  position: absolute;
-  top: 26px;
-  left: 50%;
-  padding: 3px 6px;
-  transform:
-    translateX(-50%);
-  border: 1px solid #ddd7cf;
-  border-radius: 6px;
-  background: #fff;
-  color: #4b4640;
-  white-space: nowrap;
-  font-size: 9px;
-}
-
-.monitor-map-footer {
+.monitor-topview-empty {
   display: flex;
   align-items: center;
-  gap: 7px;
-  min-height: 42px;
-  padding: 0 16px;
-  border-top: 1px solid #ece7e0;
-  background: #fff;
-  color: #908980;
-  font-size: 11px;
+  justify-content: center;
+  height: 100%;
+  min-height: 560px;
+  color: #999086;
+  font-size: 13px;
 }
 
-.monitor-map-footer strong {
-  color: #26231f;
+.monitor-topview-svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  min-height: 560px;
+}
+
+.monitor-topview-floor {
+  fill: #faf9f6;
+  stroke: #e0dad2;
+  stroke-width: 0.03;
+}
+
+.monitor-topview-shelf rect {
+  fill: #efeae2;
+  stroke: #c6bfb5;
+  stroke-width: 0.03;
+}
+
+.monitor-topview-shelf text {
+  fill: #756f67;
+  font-size: 0.28px;
+  font-weight: 600;
+  text-anchor: middle;
+  dominant-baseline: central;
+}
+
+.monitor-topview-station rect {
+  stroke-width: 0.04;
+}
+
+.monitor-topview-station.packaging rect {
+  fill: #fde9d9;
+  stroke: #e8a45c;
+}
+
+.monitor-topview-station.test rect {
+  fill: #dcedf5;
+  stroke: #6badd1;
+}
+
+.monitor-topview-station text {
+  fill: #4b4640;
+  font-size: 0.22px;
+  font-weight: 600;
+  text-anchor: middle;
+  dominant-baseline: central;
+}
+
+.monitor-topview-robot .robot-body {
+  stroke: #fff;
+  stroke-width: 0.04;
+}
+
+.monitor-topview-robot .robot-wheel {
+  fill: #2b2a28;
+}
+
+.monitor-topview-robot .robot-heading {
+  fill: #fff;
+}
+
+.monitor-topview-robot.robot-one .robot-body {
+  fill: #3476d4;
+}
+
+.monitor-topview-robot.robot-two .robot-body {
+  fill: #22a6a4;
+}
+
+.monitor-topview-robot text {
+  fill: #26231f;
+  font-size: 0.32px;
+  font-weight: 600;
+  text-anchor: middle;
 }
 
 .monitor-robot-column {
@@ -5904,15 +5878,9 @@
     align-items: stretch;
   }
 
-  .monitor-robot-selector {
-    width: 100%;
-  }
-
-  .monitor-robot-selector button {
-    flex: 1;
-  }
-
-  .monitor-map-surface {
+  .monitor-map-surface,
+  .monitor-topview-svg,
+  .monitor-topview-empty {
     min-height: 420px;
   }
 
@@ -5922,12 +5890,5 @@
 
   .monitor-camera-card-light {
     grid-column: auto;
-  }
-
-  .monitor-map-footer {
-    align-items: flex-start;
-    flex-wrap: wrap;
-    padding-top: 10px;
-    padding-bottom: 10px;
   }
 }

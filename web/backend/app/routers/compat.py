@@ -4,10 +4,10 @@
 
     POST {VITE_TASK_START_PATH}      TaskAssignmentPage  '작업 시작'
     GET  {VITE_LOGS_PATH}            LogsPage            '로그 불러오기'
-    POST /api/robots/{id}/goal|pause|resume   MonitoringPage  지도 클릭 · 일시정지 · 재개
+    POST /api/robots/{id}/pause|resume        MonitoringPage  일시정지 · 재개
 
-앞의 둘은 경로를 .env 로 바꿀 수 있지만 **로봇 제어 셋은 경로가 코드에
-하드코딩**돼 있다(src/api/robots.js). 그래서 그 셋은 이름을 맞춰 준다.
+앞의 둘은 경로를 .env 로 바꿀 수 있지만 **로봇 제어 둘은 경로가 코드에
+하드코딩**돼 있다(src/api/robots.js). 그래서 그 둘은 이름을 맞춰 준다.
 
 ★ 화면이 응답 본문을 **전부 무시한다.** 성공/실패만 본다(`API 요청 실패: {status}`).
   그래도 본문을 제대로 채운다 — 화면이 나중에 읽게 되고, 그전에도
@@ -17,11 +17,12 @@
 from __future__ import annotations
 
 import logging
+import struct
 from typing import Any
 
 from fastapi import APIRouter, Body, Query
 
-from .. import db, shapes
+from .. import db, shapes, yamlstore
 from ..config import settings
 from ..errors import Unprocessable
 from ..services import configstore, dispatcher, queue
@@ -133,6 +134,48 @@ async def start_tasks(body: dict = Body(...)):
     await hub.publish("task_changed", {"started": started})
     log.info("작업 시작 — %s", started)
     return {"accepted": True, "robots": started}
+
+
+# ── 지도 범위 (MonitoringPage Top View) ────────────────────────────────
+def _png_size(path) -> tuple[int, int]:
+    """PNG IHDR 청크에서 폭·높이만 읽는다. Pillow 를 새 의존성으로 안 넣으려고
+    직접 파싱한다 — PNG 시그니처(8B) + IHDR 길이(4B) + "IHDR"(4B) 다음
+    8바이트가 width, height(둘 다 big-endian uint32)다."""
+    with open(path, "rb") as fh:
+        header = fh.read(24)
+    if header[:8] != b"\x89PNG\r\n\x1a\n" or header[12:16] != b"IHDR":
+        raise ValueError(f"PNG 형식이 아니다: {path}")
+    width, height = struct.unpack(">II", header[16:24])
+    return width, height
+
+
+@router.get("/map")
+async def map_info():
+    """Top View 가 좌표계를 맞출 지도 **범위**(원점·해상도·크기). Nav2
+    map_server 가 쓰는 것과 같은 파일(config.py nav_map_yaml 주석 참고)에서
+    읽는다 — 화면이 다른 범위를 쓰면 선반·스테이션·로봇 위치가 실제 배치와
+    어긋난다.
+
+    ★ 지도 **이미지 자체는 안 낸다.** 점유격자 PNG 가 흑백회색 3색뿐인
+    단순 도형이라 그대로 보여줘도 못 알아봤다 — Top View 는 이 범위 안에
+    선반·스테이션·로봇 위치(shelves.yaml/stations.yaml/실시간 pose)를 직접
+    그린다(MonitoringPage.jsx FactoryTopView). 지도 클릭 → 로봇 이동도 없다
+    (ExecuteTask.action 이 좌표를 안 받는 것과 같은 이유로, 좌표의 주인은
+    항상 yaml 이어야 한다).
+
+    origin 은 ROS map_server 규약대로 이미지 **왼쪽 아래** 모서리의 map
+    프레임 좌표다 — FactoryTopView 가 이 값으로 map(y 위로 증가) → 화면
+    (y 아래로 증가) 변환을 한다.
+    """
+    yaml_path = settings().nav_map_yaml
+    data, _rev = yamlstore.load(yaml_path)
+    width_px, height_px = _png_size(yaml_path.parent / data["image"])
+    return {
+        "resolution": float(data["resolution"]),
+        "origin": [float(v) for v in data["origin"]],
+        "width_px": width_px,
+        "height_px": height_px,
+    }
 
 
 # ── 로그 (LogsPage) ──────────────────────────────────────────────────
