@@ -230,8 +230,20 @@ shelves:
   #
   #  ☞ 웹 「설정 > 선반」 탭에 선반 하나로 더 뜬다. 스캔 작업을 배정하지 말 것.
   - shelf_id: PKG-OUT
-    waypoint_start: {x: 3.46, y: 1.70, theta: 0.0}
-    waypoint_end: {x: 3.46, y: 1.70, theta: 0.0}
+    # ★ theta = -pi/2 (-90°). 스택을 집으러 갈 때 이 방향으로 서야 한다
+    #   (2026-09-22, 시뮬을 보고 정함). 순찰(SHELF-A theta 0°)과 90° 차이이고
+    #   로더 주차 자세(TEST_LOADER theta 0°)와도 90° 다르다 — 0° 로 두면
+    #   로더에 설 때와 같은 방향이 되어 스택을 등지고 선다.
+    #
+    #   ☞ taught_poses.yaml 의 packaging_output_scan 은 베이스 yaw +2.4° 에서
+    #     티칭된 값이라 이 방향과 다르다. 그 자세의 J1 이 -93° 로 팔을 옆으로
+    #     돌려 놓는데, 베이스를 -90° 돌리면 그만큼 또 돌아간다 — 스캔이 안
+    #     맞으면 관측 자세를 이 방향에서 다시 티칭해야 한다.
+    #
+    #   STACK_NAV 가 이 좌표와 방향으로 Nav2 goal 을 낸다
+    #   (task_manager._resolve_stack_pose -> _to_pose).
+    waypoint_start: {x: 3.46, y: 1.70, theta: -1.570796}
+    waypoint_end: {x: 3.46, y: 1.70, theta: -1.570796}
     standoff_distance: 0.35
     scan_passes:
       - pass_id: 1

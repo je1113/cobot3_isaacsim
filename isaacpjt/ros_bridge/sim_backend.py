@@ -204,7 +204,17 @@ READY_JOINTS_DEG = [0.0, 0.0, 90.0, 0.0, 90.0, 0.0]
 # Backend.__init__ 이 아래에서 다시 명시적으로 덮어쓰므로 실제 동작을
 # 좌우하는 건 이 상수 쪽이고, USD 값은 "씬만 열었을 때"도 같은 자세로
 # 보이게 하기 위한 것).
-BOOT_POSE_NAME = "shelf_1_top_close_centered"
+# ★ 2026-09-22: 빈 문자열로 바꿨다 — 부팅 자세를 READY_JOINTS_DEG(홈/이송
+#   자세)에서 멈춘다. 위 문단이 적은 "노드가 뜨자마자 SCAN 이 바로 도는 지금
+#   배선" 은 task_manager.py 의 START_DETECTED_FOR_TEST 인데, 그 값은 지금
+#   False 다 — 순찰부터 도는 판으로 바뀌면서 그 과도기 자체가 없어졌다.
+#   그런데 부팅 자세만 SCAN 관측 자세로 남아 있어서, 로봇이 팔을 뻗은 채로
+#   주행을 시작했다(사용자 지적: "시작 자세부터 이상해, 홈 위치로 시작해야").
+#   팔은 Nav2 코스트맵에 안 들어가므로 뻗은 채 도는 것은 그대로 위험이다.
+#
+#   이름을 주면 예전처럼 그 자세까지 옮긴다 — 2단계 부팅의 1단계(READY 로
+#   스냅)는 그대로 남으므로, 되돌리고 싶으면 값만 다시 넣으면 된다.
+BOOT_POSE_NAME = ""
 
 # 12_pick_test.py / grasp.yaml 검증값 — 새로 지어내지 않는다.
 SUCTION_FACE_Z = 0.161
@@ -667,10 +677,15 @@ class Backend:
         for _ in range(SETTLE_STEPS):
             self.world.step(render=not HEADLESS)
 
-        taught = yaml.safe_load((ISAACPJT / "tools/out/taught_poses.yaml").read_text(encoding="utf-8"))
-        for rig in self.rigs.values():
-            self._servo_joint_deg(rig.robot_id, taught[BOOT_POSE_NAME]["joints_deg"],
-                                  n_steps=SETTLE_STEPS)
+        if BOOT_POSE_NAME:
+            taught = yaml.safe_load((ISAACPJT / "tools/out/taught_poses.yaml").read_text(encoding="utf-8"))
+            for rig in self.rigs.values():
+                self._servo_joint_deg(rig.robot_id, taught[BOOT_POSE_NAME]["joints_deg"],
+                                      n_steps=SETTLE_STEPS)
+            print(f"  팔 부팅 자세: {BOOT_POSE_NAME}")
+        else:
+            # READY_JOINTS_DEG 그대로 둔다 — 위 스냅이 이미 그 자세다.
+            print(f"  팔 부팅 자세: READY(홈) {READY_JOINTS_DEG}")
 
         self.magazine_spawn_pos, self.magazine_spawn_quat = self.magazine.get_world_pose()
 

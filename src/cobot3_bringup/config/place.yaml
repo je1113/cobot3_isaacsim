@@ -43,21 +43,26 @@ meta:
   source: 씬에서 직접 잰 벨트 윗면(0.5407) + 캐리어 높이. 정차점은 task_manager.py
     TEST_LOADER / DEFAULT_STACK_DELIVER_ROUTE.
 
+# ★ 2026-09-22: x 를 +0.30 옮겼다 (0.5 -> 0.8, 트레이 0.55 -> 0.85).
+#   사용자가 시뮬에서 배치 자리가 어긋나는 것을 보고 정한 값이다.
+#   이 position 은 base_link 기준 상대라, 로더 주차점(task_manager TEST_LOADER
+#   x=3.70)에 서면 월드 배치점이 4.20 -> 4.50 (트레이 4.25 -> 4.55)이 된다.
+#   참고: 벨트 근처 가장자리 ≈ 4.05, 12_place_test2.py BELT_PLACE_X = 4.30.
 magazines:
   # ── 매거진 → 포장 투입 벨트 (정차점 3.75, 4.60) ──────────────────────
   magazine_orange:
-    position: [0.50, 0.0, 0.603094]
+    position: [0.8, 0.0, 0.603094]
     quat_wxyz: [1.0, 0.0, 0.0, 0.0]
   magazine_blue:
-    position: [0.50, 0.0, 0.567094]
+    position: [0.8, 0.0, 0.567094]
     quat_wxyz: [1.0, 0.0, 0.0, 0.0]
 
   # ── 트레이 스택 → 검사 투입 벨트 (정차점 3.85, -2.705) ───────────────
   # ★ 미실측. 에셋(isaacpjt/assets/F3_STKO_1.usda / F3_STKB_1.usda)의 전체
   #   높이에서 위 식으로 계산했다. Isaac 에서 확인하지 않았다.
   tray_orange:
-    position: [0.55, 0.0, 0.538794]
+    position: [0.85, 0.0, 0.538794]
     quat_wxyz: [1.0, 0.0, 0.0, 0.0]
   tray_blue:
-    position: [0.55, 0.0, 0.558094]
+    position: [0.85, 0.0, 0.558094]
     quat_wxyz: [1.0, 0.0, 0.0, 0.0]
