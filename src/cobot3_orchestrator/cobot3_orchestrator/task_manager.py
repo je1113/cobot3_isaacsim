@@ -286,6 +286,7 @@ docs/08_ROS2_NODE_Graph.html 의 확정안(01-03)이 기준이다. 노드 5개 �
 
 import hashlib
 import math
+import re
 import sys
 import threading
 import time
@@ -692,28 +693,44 @@ import carrier_code  # noqa: E402
 # 옛 씬의 QR 은 "1" 또는 "2" 한 글자만 담았다. 16종 에셋으로 바꾸면
 # "F1-MGZB-1" 이 온다. 씬 교체가 끝나기 전까지 둘 다 받는다 — 그래야 씬을
 # 언제 바꾸든 로봇이 멈추지 않는다. 교체가 끝나면 이 표와 아래 폴백을 지운다.
-NUMERIC_TO_VARIANT = {"1": "magazine_1_orange", "2": "magazine_2_blue"}
+NUMERIC_TO_VARIANT = {"1": "magazine_orange", "2": "magazine_blue"}
+
+
+def _strip_slot_number(asset_name):
+    """magazine_1_orange -> magazine_orange,  tray_2_blue -> tray_blue.
+
+    에셋 이름에는 슬롯 번호가 들어 있지만 grasp.yaml / place.yaml 의 키는
+    품목 종류만 쓴다. 번호가 없는 이름은 그대로 돌려준다.
+    """
+    return re.sub(r"_\d+_", "_", asset_name)
 
 
 def _variant_of(payload):
     """QR 원문 -> variant 키. 못 풀면 None.
 
-    새 페이로드는 carrier_code 가 푼다. 거기서 나오는 base_asset 의 확장자만
-    떼면 지금 grasp.yaml / place.yaml 의 키와 그대로 맞는다:
+    새 페이로드는 carrier_code 가 푼다. 거기서 나오는 base_asset 의 확장자를
+    떼고 슬롯 번호를 지우면 grasp.yaml / place.yaml 의 키와 맞는다:
 
-        "F1-MGZB-1" -> base_asset "magazine_2_blue.usda" -> "magazine_2_blue"
+        "F1-MGZB-1" -> base_asset "magazine_2_blue.usda" -> "magazine_blue"
 
-    덕분에 yaml 키 이름 바꾸기를 씬 교체와 분리할 수 있다. 나중에 yaml 키를
-    carrier_type(magazine_blue)으로 바꾸면 아래 한 줄만 고치면 된다:
+    ★ 2026-09-22: yaml 키가 magazine_1_orange 에서 magazine_orange 로 바뀌었다
+      (품목 종류만 남기고 슬롯 번호를 뺀 이름). 그런데 바뀐 건 grasp.yaml
+      하나뿐이었고 이 함수와 place.yaml 은 옛 이름을 그대로 내놓아서,
+      pick 이 첫 줄(self.grasp[variant])에서 KeyError 로 죽었다 — 겉으로는
+      NO_FLANGE(3) 로 보여서 "팔이 못 닿는다" 로 한참 헤맸다. 실제 로그:
+          grasp.yaml 에 없는 variant: magazine_1_orange
 
-        return f"{info.family}_{info.color}"
+    ★ family 를 쓰지 않고 base_asset 에서 숫자를 떼는 이유
+      스택은 family 가 "stack" 인데 에셋 이름과 yaml 키는 "tray" 다
+      (F3-STKB-4 -> tray_2_blue.usda -> tray_blue). f"{family}_{color}" 로는
+      stack_blue 가 나와서 안 맞는다. 에셋 이름 쪽이 yaml 과 같은 어휘다.
 
     자리를 보지 않고 아는 품목 코드를 찾는 방식이라, 로트 날짜가 끼어도
     (F1-260921-MGZO-1) 그대로 읽힌다.
     """
     info = carrier_code.parse_code(payload)
     if info is not None:
-        return info.base_asset[:-len(".usda")]
+        return _strip_slot_number(info.base_asset[:-len(".usda")])
     return NUMERIC_TO_VARIANT.get(payload)          # 옛 씬용 폴백
 
 

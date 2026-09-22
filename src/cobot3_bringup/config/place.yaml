@@ -45,19 +45,19 @@ meta:
 
 magazines:
   # ── 매거진 → 포장 투입 벨트 (정차점 3.75, 4.60) ──────────────────────
-  magazine_1_orange:
+  magazine_orange:
     position: [0.50, 0.0, 0.603094]
     quat_wxyz: [1.0, 0.0, 0.0, 0.0]
-  magazine_2_blue:
+  magazine_blue:
     position: [0.50, 0.0, 0.567094]
     quat_wxyz: [1.0, 0.0, 0.0, 0.0]
 
   # ── 트레이 스택 → 검사 투입 벨트 (정차점 3.85, -2.705) ───────────────
   # ★ 미실측. 에셋(isaacpjt/assets/F3_STKO_1.usda / F3_STKB_1.usda)의 전체
   #   높이에서 위 식으로 계산했다. Isaac 에서 확인하지 않았다.
-  tray_1_orange:
+  tray_orange:
     position: [0.55, 0.0, 0.538794]
     quat_wxyz: [1.0, 0.0, 0.0, 0.0]
-  tray_2_blue:
+  tray_blue:
     position: [0.55, 0.0, 0.558094]
     quat_wxyz: [1.0, 0.0, 0.0, 0.0]
