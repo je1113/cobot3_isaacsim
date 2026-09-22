@@ -47,10 +47,17 @@ docs/08_ROS2_NODE_Graph.html 의 확정안(01-03)이 기준이다. 노드 5개 �
      │   ├─ RETURN                     순찰 시작 좌표로 복귀
      │   └─ 사이클 완료
      └─ [→] 순찰 가지                  Sequence, memory=True
-         ├─ START (1회)                시작 자리 → 순찰 첫 정차점. 평생 한 번만
+         ├─ START (1회)                시작 자리 → 순찰 시작점. 평생 한 번만
          │                             나간다 (OneShot). 노드가 뜬 자리는 순찰
          │                             경로 위가 아니라서 필요하다.
-         └─ 순찰                       정차점을 순서대로 돈다. 끝나지 않는다.
+         ├─ POSE                       팔을 관측 자세로. 여기서 기다린다
+         └─ 순찰                       정차점 사이를 왕복한다. 끝나지 않는다.
+
+  순찰 가지의 순서가 곧 요구사항이다 — "시작점으로 이동하고, 자세를 취한 뒤,
+  순찰을 시작한다". START 는 평생 한 번이지만 POSE 는 가지에 다시 들어올 때마다
+  돈다. 그래서 RETURN 이 patrol_route[0] 로 복귀한 뒤에도 같은 순서가 성립한다 —
+  잎 하나가 START 경로와 RETURN 경로를 둘 다 덮는다. 근거는 ObservePoseLeaf
+  독스트링의 ★ 항목에 있다.
 
   최상위가 memory=False 인 이유: tick 마다 맨 위부터 다시 검사하라는 뜻이다.
   그래서 순찰이 RUNNING 인 중에도 "detected?" 가 매 tick 재검사된다. 신호가 오는
@@ -128,6 +135,9 @@ docs/08_ROS2_NODE_Graph.html 의 확정안(01-03)이 기준이다. 노드 5개 �
 동일하고, 이름만 상대이름이 됐다.
   구독  perception/carrier_detected  std_msgs/Bool
   호출  perception/carrier_scan      CarrierScan.srv
+  호출  perception/observe_pose      std_srvs/Trigger — 순찰 전 관측 자세.
+                                     어느 자세인지는 받는 쪽이 자기 파라미터로
+                                     안다(DEFAULT_OBSERVE_POSE_SERVICE 참고)
   액션  navigation/navigate_to       NavigateTo.action
   액션  manipulation/pick_carrier    PickCarrier.action
   액션  manipulation/place_carrier   PlaceCarrier.action
@@ -144,7 +154,10 @@ docs/08_ROS2_NODE_Graph.html 의 확정안(01-03)이 기준이다. 노드 5개 �
   붙는다. robot1 로 띄우면 /robot1/navigation/navigate_to 가 된다. 그래서 이
   노드는 자기가 어느 로봇인지 모르고, 알 필요도 없다 — /robot1 의 task_manager
   에게는 /robot1 의 서버만 보인다. "본 놈이 가는 것" 이 코드가 아니라 배선으로
-  보장된다(docs/02 §2). 로봇을 늘릴 때 이 파일에서 고칠 것은 아래 좌표 상수뿐이다.
+  보장된다(docs/02 §2). 로봇을 늘릴 때 이 파일에서 고칠 것은 없다 — 로봇마다
+  다른 값(순찰 경로 · 대기 자리 · 상대 토픽)은 전부 파라미터이고, 로봇별 표는
+  mission_nodes.launch.py 에 있다. 아래 좌표 상수는 파라미터를 안 줬을 때의
+  폴백일 뿐이다.
 
   예외가 하나 생길 예정이다: docking_server 는 도크가 공용 자원이라 전역 1개로
   두므로 /docking/dock 만 절대이름이고, 대신 Dock.action 의 robot_name 필드로
@@ -159,8 +172,10 @@ docs/08_ROS2_NODE_Graph.html 의 확정안(01-03)이 기준이다. 노드 5개 �
                          "patrol" 이 아니게 되면 팔 자세를 다시 잡도록
                          disarm 한다. 그래서 순찰 중에는 정확히 "patrol" 이어야
                          한다 — 트리의 순찰 잎 이름을 PATROL("patrol") 로 둔
-                         이유가 이것이다. start · hold · scan · pick · nav ·
-                         place · return 은 전부 "patrol 아님" 으로 취급된다.
+                         이유가 이것이다. start · pose · hold · scan · pick ·
+                         nav · place · return 은 전부 "patrol 아님" 으로
+                         취급된다. pose 가 그 목록에 있는 것은 의도다 — 팔이
+                         관측 자세로 움직이는 동안은 폴링할 이유가 없다.
     patrol_target=<0|1>  그 노드의 POSE_BY_PATROL_TARGET 이 이걸로 층별 관측
                          자세를 고른다 — 끝점(1)으로 가는 중이면 2층, 시작점(0)
                          으로 돌아가는 중이면 1층. 순찰 잎이 정차점을 고르는
@@ -202,9 +217,14 @@ docs/08_ROS2_NODE_Graph.html 의 확정안(01-03)이 기준이다. 노드 5개 �
   - 씬이 아직 옛 에셋이라 QR 이 숫자 하나("1"/"2")만 담는다. 그 동안에도 돌도록
     _variant_of() 가 새 페이로드(F1-MGZB-1)와 옛 숫자를 둘 다 받는다.
     씬을 16종으로 바꾸면 NUMERIC_TO_VARIANT 와 그 폴백을 지운다.
-  - 순찰 중이 아닐 때(START · scan · pick · nav · place · return) 들어온
+  - 순찰 중이 아닐 때(START · POSE · scan · pick · nav · place · return) 들어온
     carrier_detected 는 버린다. 물건은 그 자리에 그대로 있으므로 다음 순찰에
     다시 보인다.
+  - 관측 자세는 순찰 한 바퀴 내내 하나로 고정이다. 왕복 방향마다 층을 바꾸던
+    방식(carrier_code_reader 의 POSE_BY_PATROL_TARGET)은 "시작점에서 한 번 잡고
+    그대로 왕복한다" 로 바뀌었다. 그래서 아래 patrol_target 계약은 이제 이
+    노드에서는 쓸 일이 없다 — 받는 쪽이 고정 자세로 넘어가면 발행도 지울 수
+    있다. 호환을 위해 지금은 그대로 싣는다.
   - 배터리·도킹 선점 가지는 아직 없다. 트리에 가지 하나 더하는 자리가 이미
     나 있다 (build_tree 참고).
   - TraceEvent 발행은 붙었다 — Freeze.update() 한 곳에서 pick·nav·place·return
@@ -241,7 +261,7 @@ from rclpy.action import ActionClient
 from rclpy.clock import Clock, ClockType
 from rclpy.node import Node
 from std_msgs.msg import Bool, String
-from std_srvs.srv import SetBool
+from std_srvs.srv import SetBool, Trigger
 
 from cobot3_interfaces.action import NavigateTo, PickCarrier, PlaceCarrier
 from cobot3_interfaces.msg import TraceEvent
@@ -265,18 +285,50 @@ from cobot3_interfaces.srv import CarrierScan
 #
 # 개활지 회전 웨이포인트를 넣은 순환 경로(이전 버전)는 그 전환 구간 자체가
 # 깔끔하게 안 돌아서(실측: 방향이 몇 초 사이 수십 도씩 흔들림) 걷어냈다.
-# 대신 실제로 RViz/Isaac 에서 로봇을 직접 움직여 확인한 좌표 두 개로 단순
-# 직선 왕복을 쓴다 — 계산으로 추정한 좌표보다 이게 더 믿을 만하다.
-#   시작점: 2026-09-18 실측 (-2.674, 1.613)
-#   끝점:   2026-09-18 실측, 선반1 관측 자세 근처 (-6.582, 1.344)
-# 두 점 다 yaw=0 으로 고정 — frames.yaml 의 관측/파지 자세(observation_poses)가
-# 그 자세로 티칭돼 있어서다. 왕복 중 반대 방향으로 갈 때 정차점에서 제자리
-# 회전이 필요한 문제(footprint 스윕 0.66m vs 선반 여유 0.42~0.48m)는 아직
-# 해결 안 됐다 — nav_server 의 저속 프로파일 + 도착후 미세정렬로 완화만 됐다.
-PATROL_ROUTE = [
-    (-2.674, 1.613, 0.0),
-    (-6.582, 1.344, 0.0),
+# 대신 두 점 사이 단순 직선 왕복을 쓴다. 두 점의 yaw 를 같게 잡으면 끝점에서
+# 제자리 회전이 필요 없다 — nav_server 가 목표 지점이 뒤쪽(±90도 밖)이면
+# 그대로 후진하고(_execute 의 direction = -1.0), 도착 yaw 가 이미 맞으니
+# _fine_align 도 거의 돌지 않는다(허용오차 5도). 그래서 "전진/후진 반복" 이
+# 순찰의 기본 거동이고, 선반 여유가 좁아도 성립한다.
+#
+# ★ 아래는 폴백일 뿐이다. 실제 값은 patrol_route 파라미터로 들어온다.
+#   로봇마다 다른 선반을 돌아야 해서 모듈 상수로 두면 두 대가 같은 경로를
+#   돌다 선반 앞에서 부딪힌다. 로봇별 표는 mission_nodes.launch.py 의
+#   PATROL_ROUTE_BY_ROBOT 이고, staging_pose 와 같은 3단 구조다.
+#
+# ★ 파라미터는 평탄화해서 받는다 — rclpy 파라미터에 double[][] 타입이 없어서
+#   중첩 리스트를 못 넘긴다. [x0, y0, yaw0, x1, y1, yaw1, ...] 로 주고 세 개씩
+#   끊어 읽는다(_unflatten_route). staging_pose 가 flat list 인 것과 같은 이유다.
+#
+# ★ 이 폴백 좌표는 옛 레이아웃(선반이 x≈-6.5 에 있던 시절)의 2026-09-18
+#   실측값이라 지금 씬에는 맞지 않는다 — simple_factory_layout.usda 의
+#   Shelf_01 중심은 (-1.741, +2.953), Shelf_02 중심은 (-1.741, -1.973) 이다.
+#   파라미터 없이 띄우면 로봇이 씬에 없는 자리로 가므로 __init__ 이 경고한다.
+DEFAULT_PATROL_ROUTE = [
+    -2.674, 1.613, 0.0,
+    -6.582, 1.344, 0.0,
 ]
+
+# 순찰 시작 전에 "관측 자세를 잡아라" 고 말할 서비스. 상대이름이라 네임스페이스가
+# 앞에 붙는다 — /robot1/perception/observe_pose.
+#
+# ★ std_srvs/Trigger 다 — 요청에 필드가 없다. 어느 자세를 잡을지는 받는 쪽이
+#   자기 파라미터로 안다. 이 노드는 "네 순찰 자세를 잡아라" 만 말한다.
+#   이유는 두 가지다:
+#     1) 자세는 로봇마다 하나로 고정이다. 왕복 방향마다 층을 바꾸던 이전
+#        방식(carrier_code_reader 의 POSE_BY_PATROL_TARGET)과 달리, 시작점에서
+#        한 번 잡고 그대로 왕복한다. 그래서 매번 이름을 실어 보낼 이유가 없다.
+#     2) docs/08 확정안의 "미션 어휘는 task_manager 에만, 나머지 노드는 좌표
+#        하나 또는 종류 하나만 받는다" 와 맞는다. 자세 이름은 기하이고, 기하는
+#        perception 담당이다. cobot3_interfaces 에 새 .srv 를 만들지 않아도
+#        되는 것은 덤이다.
+#   자세 이름을 task_manager 가 정해야 할 일이 생기면 그때 .srv 를 만들고
+#   ObservePoseLeaf 의 요청 한 줄만 바꾸면 된다.
+#
+# ★ 빈 문자열이면 이 단계를 건너뛴다(잎은 트리에 남고 즉시 SUCCESS).
+#   받는 쪽이 아직 없을 때 순찰만 먼저 돌려보기 위한 것이다 — 트리 모양이
+#   바뀌지 않으므로 로그의 트리 그림과 current_stage 가 그대로 유지된다.
+DEFAULT_OBSERVE_POSE_SERVICE = "perception/observe_pose"
 
 # place 하러 갈 목적지 — 테스트 스테이션 로더 앞 주차 위치.
 # 지금은 매거진 1 · 2 를 전부 여기로 가져다 놓는다. (08 문서의 "매거진은 패키징
@@ -320,18 +372,17 @@ TEST_LOADER = (3.85, 0.0, 0.0)
 #   값을 두 곳에 적어 둘 필요가 없다.
 DEFAULT_STAGING_POSE = [0.80, -0.40, 0.0]
 
-# ★ 순찰 가지를 주석처리해 둔 동안 쓰는 임시 스위치 — carrier_detected 는
-# "순찰 중"에만 받아들이는데(patrolling 게이트), 순찰이 없으니 그 경로로는
-# 영원히 안 들어온다. True 면 노드가 뜨자마자 detected 를 강제로 세워서
-# 캐리어 처리 가지(SCAN 부터)가 바로 돈다 — simple_factory_layout.usda 의
-# nova_carter1 스폰을 이미 pick 위치로 옮겨 둔 것과 짝이다. 순찰을 다시
-# 살리면 False 로 되돌리고 이 강제 설정도 지운다.
-START_DETECTED_FOR_TEST = True
+# 순찰 없이 SCAN 부터 바로 돌리는 임시 스위치. 순찰 가지를 주석처리해 뒀던
+# 동안 쓰던 것이고, 순찰을 되살리면서 False 로 되돌렸다 — carrier_detected 를
+# 정상 경로(순찰 중 감지)로 받는다. 순찰 없이 pick 부터 단위 테스트하고 싶으면
+# 다시 True 로 두면 되지만, 그때는 로봇이 이미 pick 자리에 서 있어야 한다.
+START_DETECTED_FOR_TEST = False
 
 # ── 단계 이름 ─────────────────────────────────────────────────────────────
 # 이전 판의 "상태" 다. 지금은 상태가 아니라 라벨이다 — 트리의 어느 노드인지,
 # 그리고 실패 기록(fail_stage)에 어느 단계였는지 적는 데만 쓴다.
 START = "start"
+POSE = "pose"           # 순찰 시작 전 관측 자세 잡기. 아래 ObservePoseLeaf 참고
 PATROL = "patrol"
 HOLD = "hold"
 SCAN = "scan"
@@ -370,6 +421,10 @@ PORT_BY_STAGE = {PLACE: "test_loader", PUSH: "test_loader"}
 # SCAN 은 재시도(SCAN_RETRIES)까지 포함해서 이 시간 안에 끝나야 한다 — 시도
 # 한 번(observe_pose 재정렬 + n_frames 캡처)이 GUI/렌더 모드에서 몇 초씩
 # 걸리므로 재시도 여유를 넉넉히 둔다.
+# 관측 자세로 팔이 움직이는 데 주는 시간. sim_backend 의 observe_pose 는
+# 관절을 옮기고 SETTLE_STEPS 만큼 시뮬을 돌린 뒤 카메라까지 덥히므로
+# GUI 모드에서 몇 초 걸린다. SCAN 과 같은 여유를 준다.
+OBSERVE_POSE_TIMEOUT_S = 40.0
 SCAN_TIMEOUT_S = 40.0
 NAV_TIMEOUT_S = 300.0
 PICK_TIMEOUT_S = 120.0
@@ -563,6 +618,27 @@ def _reason_name(result_cls, code):
         if isinstance(value, int) and value == code:
             return f"{name}({code})"
     return str(code)
+
+
+def _unflatten_route(flat):
+    """[x0,y0,yaw0, x1,y1,yaw1, ...] → [(x0,y0,yaw0), (x1,y1,yaw1), ...].
+
+    평탄화돼 오는 이유는 위 DEFAULT_PATROL_ROUTE 주석 참고.
+
+    ★ 잘못된 입력에는 예외를 던진다 — 빈 리스트를 돌려주지 않는다.
+      이 값이 비거나 어그러질 수 있는 경로는 "launch 가 넘긴 숫자 표가 틀렸다"
+      하나뿐이고(파라미터를 아예 안 주면 declare_parameter 의 기본값이 들어온다),
+      그건 런타임 상황이 아니라 설정 실수다. 미션 도중에 멈추는 것보다 노드가
+      뜰 때 죽는 편이 낫다 — 런치 로그에 바로 보이고, 좌표를 모르는 로봇이
+      주행 goal 을 내는 일도 없다. 반쯤 읽은 좌표로 움직이는 것이 제일 나쁘다.
+    """
+    vals = [float(v) for v in flat]
+    if not vals or len(vals) % 3 != 0:
+        raise ValueError(
+            f"patrol_route 의 길이가 {len(vals)} 다 — 비어 있지 않고 3 의 배수여야 "
+            f"한다. 정차점 하나가 (x, y, yaw_deg) 세 칸이다. "
+            f"mission_nodes.launch.py 의 이 로봇 항목을 확인해라.")
+    return [tuple(vals[i:i + 3]) for i in range(0, len(vals), 3)]
 
 
 def _to_pose(xy_yaw_deg):
@@ -787,6 +863,84 @@ class ScanLeaf(py_trees.behaviour.Behaviour):
             f"scan — 종류={self.bb.kind} variant={self.bb.variant} "
             f"carrier={self.bb.carrier_id}")
         self.feedback_message = f"{self.bb.variant}"
+        return Status.SUCCESS
+
+
+class ObservePoseLeaf(py_trees.behaviour.Behaviour):
+    """순찰을 시작하기 전에 팔을 관측 자세로 세운다.
+
+    왜 트리에 이 단계가 있나
+      이전에는 이 일을 아무도 "단계" 로 두지 않았다. carrier_code_reader 가
+      선반 구역에 들어온 것을 보고 자기 타이머 안에서 observe_pose 를 불렀다
+      (그 노드의 _armed 플래그). 그러면 베이스는 이미 순찰 goal 을 받아
+      움직이는 중인데 팔이 그와 동시에 올라간다 — 순서가 보장되지 않는다.
+      요구는 "시작점에 서고 → 자세를 잡고 → 그 다음 순찰" 이므로, 기다릴 수
+      있는 자리, 즉 트리의 잎이어야 한다.
+
+    ★ 이 잎 하나가 START 경로와 RETURN 경로를 둘 다 덮는다.
+      순찰 가지가 Sequence(memory=True)[START(OneShot), POSE, PATROL] 이고,
+      최상위 Selector 가 memory=False 라 캐리어 처리 가지에 선점당하면 순찰
+      가지가 INVALID 로 끊긴다. 끊긴 Sequence 는 다음에 다시 tick 될 때
+      RUNNING 이 아니므로 첫 자식부터 다시 시작한다 — START 는 OneShot 이라
+      캐시된 SUCCESS 를 그냥 돌려주고, POSE 가 다시 돈다. 즉 RETURN 이
+      patrol_route[0] 에 데려다 놓은 뒤 자동으로 "자세 → 순찰" 순서가 된다.
+      (py_trees 2.6.0 에서 이 거동을 직접 확인했다: START 1회, POSE 2회)
+
+    ★ /orchestrator/state 가 이 단계 동안 "pose" 다 — "patrol" 이 아니다.
+      carrier_code_reader 는 정확히 "patrol" 일 때만 QR 을 폴링하므로, 팔이
+      움직이는 동안은 폴링하지 않는다. 의도한 것이다.
+
+    ★ 받는 쪽에 거는 조건 (cobot3_perception 담당)
+      - perception/observe_pose (std_srvs/Trigger) 서버를 연다.
+      - 자기 순찰 자세 이름을 파라미터로 들고, 요청을 받으면 그 자세로 간다.
+      - 팔이 자세에 도착한 뒤에 응답한다. 먼저 응답하면 이 잎이 기다리는
+        의미가 없어지고 순서 보장이 사라진다.
+      - 자기 타이머에서 observe_pose 를 부르던 자동 arming 은 걷어내야 한다.
+        안 그러면 두 노드가 같은 팔에 명령을 보낸다.
+    """
+
+    def __init__(self, name, node):
+        super().__init__(name)
+        self.node = node
+        self.future = None
+
+    def initialise(self):
+        self.future = None
+        now = time.monotonic()
+        self.server_deadline = now + SERVER_WAIT_S
+        self.deadline = now + OBSERVE_POSE_TIMEOUT_S
+
+    def update(self):
+        if self.node.observe_pose is None:
+            # 서비스 이름이 비어 있다 — 이 단계를 끈 것이다.
+            self.feedback_message = "건너뜀(observe_pose_service 가 비었다)"
+            return Status.SUCCESS
+
+        if time.monotonic() > self.deadline:
+            self.feedback_message = f"TIMEOUT({OBSERVE_POSE_TIMEOUT_S:.0f}s)"
+            return Status.FAILURE
+
+        if self.future is None:
+            if not self.node.observe_pose.service_is_ready():
+                if time.monotonic() > self.server_deadline:
+                    self.feedback_message = (
+                        f"SERVICE_UNAVAILABLE({self.node.observe_pose_name})")
+                    return Status.FAILURE
+                self.feedback_message = "서비스 대기"
+                return Status.RUNNING
+            self.future = self.node.observe_pose.call_async(Trigger.Request())
+
+        if not self.future.done():
+            return Status.RUNNING
+
+        res = self.future.result()
+        if not res.success:
+            self.feedback_message = f"REJECTED({res.message or 'UNKNOWN'})"
+            return Status.FAILURE
+
+        self.node.get_logger().info(
+            f"관측 자세 완료 — 순찰 시작 ({res.message})" if res.message
+            else "관측 자세 완료 — 순찰 시작")
         return Status.SUCCESS
 
 
@@ -1023,7 +1177,7 @@ class CycleDone(py_trees.behaviour.Behaviour):
         self.bb.carrier_id = ""
         self.bb.qr_pose = None
         self.bb.run_id = ""          # 다음 미션은 새 run_id 를 받는다
-        # RETURN 이 PATROL_ROUTE[0] 까지 데려다 놨다. 순찰은 그 다음 점부터
+        # RETURN 이 patrol_route[0] 까지 데려다 놨다. 순찰은 그 다음 점부터
         # 이어가면 된다 — 되감지 않으면 이미 서 있는 자리로 goal 을 한 번 더 보낸다.
         self.waypoints.idx = 1
         return Status.SUCCESS
@@ -1122,16 +1276,17 @@ class _NextWaypoint:
         self.idx = start_idx
 
     def __call__(self):
-        target_idx = self.idx % len(PATROL_ROUTE)
+        route = self.node.patrol_route
+        target_idx = self.idx % len(route)
         self.idx += 1
         self.node.set_patrol_target(target_idx)
-        return NavigateTo.Goal(pose=_to_pose(PATROL_ROUTE[target_idx]))
+        return NavigateTo.Goal(pose=_to_pose(route[target_idx]))
 
 
 def build_tree(node):
     """이 모듈 맨 위 docstring 의 트리를 조립한다."""
     bb = _blackboard("build_tree", ("variant", "qr_pose"))
-    # START 와 RETURN 이 둘 다 PATROL_ROUTE[0] 에 데려다 놓으므로, 순찰은 그
+    # START 와 RETURN 이 둘 다 patrol_route[0] 에 데려다 놓으므로, 순찰은 그
     # 다음 점부터 잇는다 — 안 그러면 이미 서 있는 자리로 goal 을 한 번 더 보낸다.
     waypoints = _NextWaypoint(node, start_idx=1)
 
@@ -1215,7 +1370,7 @@ def build_tree(node):
     # "넘으면 다음 RETURN 에서 dock_pad 로" 가 여기다.
     ret = Freeze("RETURN", ActionLeaf(
         RETURN, node, node.nav, "navigation/navigate_to", NavigateTo.Result,
-        make_goal=lambda: NavigateTo.Goal(pose=_to_pose(PATROL_ROUTE[0])),
+        make_goal=lambda: NavigateTo.Goal(pose=_to_pose(node.patrol_route[0])),
         timeout_s=NAV_TIMEOUT_S, moves_base=True), node, RETURN)
 
     mission = py_trees.composites.Sequence(
@@ -1224,39 +1379,43 @@ def build_tree(node):
                   scan, pick, to_loader, place, ret,
                   CycleDone("사이클 완료", node, waypoints)])
 
-    # ★ 순찰 가지 통째로 주석처리 — patrol 좌표/전환 로직이 아직 이상해서
-    # (task_manager.py 상단 PATROL_ROUTE 주석 참고), task_manager 를
-    # 이식/검증하는 동안은 순찰 없이 SCAN 부터 바로 돈다(TaskManager.__init__
-    # 의 self.bb.detected = True 강제 설정과 짝이다 — 씬이 이미 pick 위치에서
-    # 시작하도록 simple_factory_layout.usda 의 nova_carter1 스폰도 옮겨 뒀다).
-    # 나중에 patrol 로직을 다시 정리하면 이 블록을 풀고 Selector children 에
-    # patrol_branch 를 되돌린다.
+    # ── 순찰 가지 ────────────────────────────────────────────────────────
+    # 순서가 곧 요구사항이다: 시작점으로 이동 → 관측 자세 → 순찰.
     #
-    # patrol = Freeze("PATROL", py_trees.decorators.SuccessIsRunning(
-    #     name="순찰", child=ActionLeaf(
-    #         PATROL, node, node.nav, "navigation/navigate_to",
-    #         NavigateTo.Result, make_goal=waypoints, timeout_s=NAV_TIMEOUT_S,
-    #         ok_fail_reasons=(NavigateTo.Result.CANCELED,),
-    #         moves_base=True)), node, PATROL)
-    #
-    # start = py_trees.decorators.OneShot(
-    #     "START(1회)",
-    #     child=Freeze("START", ActionLeaf(
-    #         START, node, node.nav, "navigation/navigate_to", NavigateTo.Result,
-    #         make_goal=lambda: NavigateTo.Goal(pose=_to_pose(PATROL_ROUTE[0])),
-    #         timeout_s=NAV_TIMEOUT_S, moves_base=True), node, START),
-    #     policy=py_trees.common.OneShotPolicy.ON_SUCCESSFUL_COMPLETION)
-    #
-    # patrol_branch = py_trees.composites.Sequence(
-    #     "순찰 가지", memory=True, children=[start, patrol])
-    #
-    # node.patrol_node = patrol
+    # ★ START 는 평생 한 번이지만 POSE 는 재진입마다 다시 돈다.
+    #   캐리어 처리 가지에 선점당하면 이 Sequence 가 INVALID 로 끊기고, 다음에
+    #   다시 tick 될 때 RUNNING 이 아니므로 첫 자식부터 시작한다. START 는
+    #   OneShot 이라 캐시된 SUCCESS 를 그냥 돌려주고 주행 goal 을 새로 내지
+    #   않으며, POSE 가 다시 돈다. 그래서 RETURN 이 patrol_route[0] 에 데려다
+    #   놓은 뒤에도 "자세 → 순찰" 순서가 저절로 성립한다 — 잎 하나가 START
+    #   경로와 RETURN 경로를 둘 다 덮는다(ObservePoseLeaf 독스트링 참고).
+    patrol = Freeze("PATROL", py_trees.decorators.SuccessIsRunning(
+        name="순찰", child=ActionLeaf(
+            PATROL, node, node.nav, "navigation/navigate_to",
+            NavigateTo.Result, make_goal=waypoints, timeout_s=NAV_TIMEOUT_S,
+            ok_fail_reasons=(NavigateTo.Result.CANCELED,),
+            moves_base=True)), node, PATROL)
+
+    start = py_trees.decorators.OneShot(
+        "START(1회)",
+        child=Freeze("START", ActionLeaf(
+            START, node, node.nav, "navigation/navigate_to", NavigateTo.Result,
+            make_goal=lambda: NavigateTo.Goal(pose=_to_pose(node.patrol_route[0])),
+            timeout_s=NAV_TIMEOUT_S, moves_base=True), node, START),
+        policy=py_trees.common.OneShotPolicy.ON_SUCCESSFUL_COMPLETION)
+
+    pose = Freeze("POSE", ObservePoseLeaf(POSE, node), node, POSE)
+
+    patrol_branch = py_trees.composites.Sequence(
+        "순찰 가지", memory=True, children=[start, pose, patrol])
+
+    node.patrol_node = patrol
 
     # 가지를 더한다면 여기다. 위에 있을수록 먼저 기회를 받는다 —
     # 배터리 선점(NavigateTo.action ★ hard_threshold_s)은 mission 위에,
     # 외부 작업 지시(ExecuteTask.action) 처리는 mission 과 patrol_branch 사이에 온다.
     return py_trees.composites.Selector(
-        "우선순위", memory=False, children=[mission])
+        "우선순위", memory=False, children=[mission, patrol_branch])
 
 
 def current_stage(root):
@@ -1321,6 +1480,25 @@ class TaskManager(Node):
         self._frozen_node = None     # 얼어붙은 Freeze. _on_resume 이 푼다
         self.create_service(SetBool, "orchestrator/resume", self._on_resume)
 
+        # ── 순찰 경로 (로봇마다 다른 선반을 돈다) ─────────────────────────
+        # ★ 트리 조립보다 먼저다 — 잎들이 self.patrol_route 를 읽는다.
+        #   평탄화해서 받는 이유는 DEFAULT_PATROL_ROUTE 주석 참고.
+        self.declare_parameter("patrol_route", DEFAULT_PATROL_ROUTE)
+        self.patrol_route = _unflatten_route(
+            self.get_parameter("patrol_route").value)
+
+        # 순찰을 시작하기 전에 팔을 세울 자세. 빈 이름이면 그 단계를 건너뛴다 —
+        # 이유와 받는 쪽 조건은 DEFAULT_OBSERVE_POSE_SERVICE 주석과
+        # ObservePoseLeaf 독스트링에 있다.
+        self.declare_parameter("observe_pose_service", DEFAULT_OBSERVE_POSE_SERVICE)
+        self.observe_pose_name = self.get_parameter("observe_pose_service").value
+        self.observe_pose = (self.create_client(Trigger, self.observe_pose_name)
+                             if self.observe_pose_name else None)
+        if self.observe_pose is None:
+            self.get_logger().warning(
+                "observe_pose_service 가 비어 있다 — 순찰 전 관측 자세 단계를 "
+                "건너뛴다. 팔이 주행 자세 그대로라 QR 이 안 보일 수 있다.")
+
         # ── 로더 차선 조율 (두 대가 같은 로더로 갈 때) ────────────────────
         # ★ build_tree 가 self.staging_pose 를 읽으므로 트리 조립보다 먼저다.
         self.declare_parameter("peer_state_topic", "")
@@ -1377,10 +1555,17 @@ class TaskManager(Node):
         self.create_timer(STATE_PUBLISH_PERIOD_S, self._publish_state)
 
         self.get_logger().info("task_manager ready — 행동트리 tick 시작")
-        if not PATROL_ROUTE:
+        if _unflatten_route(DEFAULT_PATROL_ROUTE) == self.patrol_route:
             self.get_logger().warning(
-                "PATROL_ROUTE 가 비어 있다 — 순찰 잎이 정차점을 못 낸다. "
-                "task_manager.py 상단에 좌표를 넣어라.")
+                "patrol_route 가 폴백값 그대로다 — 이건 옛 레이아웃"
+                "(선반 x≈-6.5) 좌표라 지금 씬에는 맞지 않는다. 로봇이 씬에 "
+                "없는 자리로 간다. PATROL_ROUTE_BY_ROBOT 를 확인해라.")
+        else:
+            self.get_logger().info(
+                "순찰 경로 "
+                + " → ".join(f"({x:.3f}, {y:.3f}, {yaw:.1f}°)"
+                             for x, y, yaw in self.patrol_route)
+                + " — 두 점의 yaw 가 같으면 제자리 회전 없이 전진/후진 왕복한다")
         if TEST_LOADER is None:
             self.get_logger().warning(
                 "TEST_LOADER 가 비어 있다 — pick 까지는 되지만 nav 단계에서 멈춘다. "
@@ -1568,30 +1753,16 @@ class TaskManager(Node):
 
     # ── 표시 ──────────────────────────────────────────────────────────────
     def _on_post_tick(self, tree):
-        # patrol_branch 를 주석처리해 둔 동안은 patrol_node 가 None 이다.
+        # 순찰 잎이 RUNNING 인 동안만 carrier_detected 를 받는다. POSE 로
+        # 팔을 세우는 중이나 작업 중에는 patrol_node 가 RUNNING 이 아니므로
+        # 자연히 닫힌다 (_on_carrier_detected 참고).
         self.patrolling = (self.patrol_node is not None
                             and self.patrol_node.status == Status.RUNNING)
 
-        # ★ 임시 — patrol 가지가 없는 동안의 재시도 흉내.
-        # SCAN 이 found=false 로 soft 실패하면 mission Sequence 가 FAILURE 로
-        # 끝나고, patrol 가지가 없으니 Selector 도 그대로 FAILURE 다 — 아무
-        # 리프도 RUNNING 이 아닌 "완전 정지" 상태가 된다. patrol 이 있었다면
-        # 자연히 거기로 빠져 순찰하다 다시 carrier_detected 를 받았을 자리인데,
-        # 지금은 그 경로가 없다. bb.detected 는 Hold 가 한 번 쓰고 지우는
-        # 값이라(START_DETECTED_FOR_TEST 는 노드 시작 시 딱 한 번만 세운다)
-        # 아무도 다시 세워주지 않으면 로봇이 영원히 멈춘 채로 남는다.
-        # 여기서 그 자리를 대신한다: 완전 정지 상태를 감지하면 detected 를
-        # 다시 세워 SCAN 부터 재시도한다. SCAN_COOLDOWN_S(on_scan_not_found
-        # 가 세우는 값)로 재시도 폭주를 막는다 — hard 실패(self.failed=True)는
-        # Freeze 가 RUNNING 을 계속 돌려주므로 이 조건에 안 걸린다.
-        # patrol 을 다시 살리면 patrol_node 가 None 이 아니게 되어 이 블록은
-        # 저절로 꺼진다 — 그때 지워도 되고 안 지워도 무해하다.
-        if (self.patrol_node is None and not self.failed
-                and tree.root.status == Status.FAILURE
-                and time.monotonic() >= self._scan_cooldown_until):
-            self.get_logger().info(
-                "완전 정지 상태(patrol 없음) — detected 재설정, SCAN 재시도")
-            self.bb.detected = True
+        # ※ 순찰 가지가 없던 동안 "완전 정지" 를 감지해 detected 를 다시 세우던
+        #   임시 블록이 여기 있었다. 순찰을 되살리면서 지웠다 — SCAN 이 soft
+        #   실패하면 이제 Selector 가 순찰 가지로 빠지고, 순찰하다 다시
+        #   carrier_detected 를 받는다. 그게 원래 설계한 경로다.
 
         snapshot = py_trees.display.unicode_tree(tree.root, show_status=True)
         if snapshot != self._last_snapshot:
