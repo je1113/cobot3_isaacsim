@@ -123,14 +123,14 @@ async def on_bridge_event(ch: str, data: dict) -> None:
     #   오지만, 화면은 **하나의 robot_state 메시지**만 읽는다. 그래서 여기서
     #   합쳐 보낸다. 화면은 받은 칸만 이전 값과 병합하므로(`??`) 매번 둘 다
     #   실을 필요는 없다 — 다만 **null 로는 못 지운다**는 점에 주의.
-    if ch == "robot_pose":
+    if ch == "robot.pose":
         await hub.publish_robot_state([shapes.robot_state_out(
             robot_id or "",
             pose={"x": data.get("x", 0.0), "y": data.get("y", 0.0), "theta": data.get("theta", 0.0)},
         )])
         return
 
-    if ch == "robot_state":
+    if ch == "robot.state":
         # /orchestrator/state 의 "state=pick | carrier=F1-MGZB-1 | ..." 를 판 dict 다.
         stage = data.get("state")
         carrier = data.get("carrier")
@@ -145,6 +145,12 @@ async def on_bridge_event(ch: str, data: dict) -> None:
 
     if ch in {"alert"}:
         await hub.publish(ch, data, robot_id)
+        return
+
+    # 조용히 흘리지 않는다 — 브리지가 내보내는 이름과 여기 이름이 어긋나면
+    # 화면만 빈 채로 돌고 아무데도 흔적이 안 남는다(실제로 robot.pose 가
+    # robot_pose 로 적혀 있어 위치·상태가 통째로 사라진 적이 있다).
+    log.warning("브리지가 올린 모르는 채널: %s", ch)
 
 
 async def _on_result(data: dict, robot_id: str | None) -> None:
