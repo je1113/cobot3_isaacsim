@@ -235,6 +235,19 @@ BOOT_POSE_NAME = ""
 #   False 로 두면 _restore_state() 가 되살린 팔 자세를 그대로 쓴다.
 BOOT_ARM_HOME = True
 
+# ★ 매거진/스택도 매 기동마다 씬 원위치에서 시작한다.
+#
+#   _restore_state() 는 이전 종료 시점의 매거진 pose 까지 되살린다. 그건
+#   "작업을 이어서 한다" 는 용도인데, 시험은 반대로 매번 같은 조건에서
+#   시작해야 결과를 비교할 수 있다 — 지난 판에서 옮겨 놓은 매거진이 그대로
+#   남아 있으면 pick 이 됐는지 안 됐는지도 헷갈린다.
+#
+#   True 면 스냅샷의 magazines 블록을 건너뛴다. USD 가 정한 스폰 자리
+#   그대로 시작한다. 로봇 베이스 pose 복원은 그대로 둔다 — 그쪽은 매번
+#   도크로 되돌리면 오히려 번거롭고, Nav2 가 어차피 다시 몰고 간다.
+#   ☞ 베이스까지 리셋하고 싶으면 스냅샷 파일을 지우면 된다(STATE_SNAPSHOT_PATH).
+BOOT_RESET_MAGAZINES = True
+
 # 12_pick_test.py / grasp.yaml 검증값 — 새로 지어내지 않는다.
 SUCTION_FACE_Z = 0.161
 TCP_OFFSET = np.array([0.0, 0.0, SUCTION_FACE_Z])
@@ -1138,11 +1151,16 @@ class Backend:
             print(f"   상태 스냅샷이 다른 씬 것이다({snapshot.get('world_usd')}) — 건너뛴다")
             return
 
-        for path, m in (snapshot.get("magazines") or {}).items():
-            if not self.stage.GetPrimAtPath(path).IsValid():
-                continue    # 이 씬에는 이제 없는 매거진/스택 — 조용히 건너뛴다
-            SingleRigidPrim(prim_path=path).set_world_pose(
-                position=np.array(m["pos"]), orientation=np.array(m["quat_wxyz"]))
+        if BOOT_RESET_MAGAZINES:
+            # 매거진은 USD 스폰 자리 그대로 둔다 — 이유는 그 상수 주석.
+            n = len(snapshot.get("magazines") or {})
+            print(f"  매거진 {n}개: 스냅샷을 건너뛰고 씬 원위치에서 시작한다")
+        else:
+            for path, m in (snapshot.get("magazines") or {}).items():
+                if not self.stage.GetPrimAtPath(path).IsValid():
+                    continue    # 이 씬에는 이제 없는 매거진/스택 — 조용히 건너뛴다
+                SingleRigidPrim(prim_path=path).set_world_pose(
+                    position=np.array(m["pos"]), orientation=np.array(m["quat_wxyz"]))
 
         for robot_id, r in (snapshot.get("robots") or {}).items():
             rig = self.rigs.get(robot_id)
