@@ -13,6 +13,7 @@ import json
 import os
 import socket
 import threading
+import time
 
 
 class SimClientError(RuntimeError):
@@ -37,7 +38,7 @@ class SimClient:
         s.settimeout(read_timeout_s)
         return s.makefile("rwb")
 
-    def call(self, method, timeout_s=60.0, **params):
+    def call(self, method, timeout_s=60.0, connect_retry_s=20.0, **params):
         """블로킹 호출 — 결과가 올 때까지 기다린다. 오래 걸리는 호출
         (pick_phase1_approach 등) 은 진행 중 get_status() 를 별도 연결로
         폴링해서 액션 feedback 을 만든다.
@@ -50,12 +51,33 @@ class SimClient:
         그 예외를 못 삼키고 노드 자체가 죽었다(실측 재현: carrier_code_reader
         가 "ConnectionRefusedError" 로 process died). sim_backend 를
         재시작하는 동안 터미널을 다시 실행해도 안전하려면 이 클라이언트가
-        연결 실패를 "그 한 번의 SimClientError" 로 통일해서 돌려줘야 한다."""
+        연결 실패를 "그 한 번의 SimClientError" 로 통일해서 돌려줘야 한다.
+
+        ★ connect_retry_s — sim_backend 가 재시작 중이면(stage 를 다시 열고
+        로봇을 다시 세우는 데 수십 초가 걸린다) 포트가 잠깐 안 열려 있어
+        ConnectionRefusedError 가 난다. 그 창을 그냥 에러로 흘리면 순찰
+        중이던 노드가 그 한 번의 실패로 상태를 잃는다 — 그래서 "연결 자체가
+        안 되는" 실패만 이 시간 동안 재시도한다. 연결된 뒤(요청을 이미
+        보낸 뒤)의 실패는 재시도하지 않는다 — 그 요청이 이미 물리적으로
+        절반쯗 실행됐을 수 있어서, 같은 걸 다시 보내면 동작이 중복될 수
+        있다."""
         with self._lock:
             self._next_id += 1
             req_id = self._next_id
+
+        deadline = time.monotonic() + connect_retry_s
+        while True:
+            try:
+                f = self._new_conn(read_timeout_s=timeout_s + 5.0)
+                break
+            except OSError as e:
+                if time.monotonic() >= deadline:
+                    raise SimClientError(
+                        f"{method}: sim_backend 와 연결할 수 없다 "
+                        f"({connect_retry_s:.0f}s 재시도 끝 — {e})") from e
+                time.sleep(0.5)
+
         try:
-            f = self._new_conn(read_timeout_s=timeout_s + 5.0)
             try:
                 f.write((json.dumps({"id": req_id, "method": method, "params": params,
                                      "timeout_s": timeout_s}) + "\n").encode())
@@ -77,6 +99,11 @@ class SimClient:
     def get_status(self, robot_id=None):
         """짧은 타임아웃의 폴링 전용 호출. 큐를 거치지 않아 빠르다.
         robot_id 를 안 주면 sim_backend 쪽 기본값(robot1)을 본다 — 로봇
-        두 대를 한 소켓으로 관리하므로 로봇별 phase 를 보려면 넘겨야 한다."""
+        두 대를 한 소켓으로 관리하므로 로봇별 phase 를 보려면 넘겨야 한다.
+
+        connect_retry_s 를 짧게 둔다 — 이건 폴링용이라 sim_backend 가
+        아예 안 떠 있을 때도 자주 불린다. call() 의 기본 20s 재시도를
+        그대로 쓰면 sim_backend 가 없는 동안 폴링 하나하나가 20s 씩
+        블로킹돼서 "빠른 폴링"이라는 이 메서드의 목적이 깨진다."""
         params = {"robot_id": robot_id} if robot_id else {}
-        return self.call("get_status", timeout_s=3.0, **params)
+        return self.call("get_status", timeout_s=3.0, connect_retry_s=3.0, **params)
