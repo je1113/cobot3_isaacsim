@@ -204,31 +204,6 @@ async def logs(limit: int = Query(500, ge=1, le=5000)):
 # 경로가 src/api/robots.js 에 하드코딩돼 있다. 이름을 바꾸면 화면이 깨진다.
 
 
-@router.post("/robots/{robot_id}/goal")
-async def robot_goal(robot_id: str, body: dict = Body(...)):
-    """지도 클릭. 화면이 보내는 것:
-
-        {"goal": {"x_ratio": 0.12345, "y_ratio": 0.54321}}
-
-    ★ **월드 좌표가 아니다.** 화면의 지도 div 안에서의 0~1 비율이고,
-      그 div 는 지금 실제 맵 이미지가 아니라 개념 배치다
-      ("실제 ROS Map 표시 영역 · 개념 배치 · 좌표 미사용").
-
-      그래서 이 비율을 map 프레임으로 바꾸는 변환이 **아직 없다.** 없는 변환을
-      추측해서 로봇을 보내는 것이 가장 위험하므로, 받아서 기록만 하고 422 로
-      거절한다. 맵 이미지와 그 원점·해상도가 정해지면 그때 변환을 넣는다.
-    """
-    goal = body.get("goal") or {}
-    log.info("지도 클릭 목표 (미변환) robot=%s %s", robot_id, goal)
-    raise Unprocessable(
-        "지도 클릭으로 이동은 아직 연결되지 않았다. "
-        "화면이 보내는 값은 지도 div 안의 0~1 비율이고, 그것을 map 좌표로 바꾸려면 "
-        "실제 맵 이미지와 그 원점·해상도(map.yaml)가 먼저 정해져야 한다.",
-        received=goal,
-        robot_id=robot_id,
-    )
-
-
 @router.post("/robots/{robot_id}/pause")
 async def robot_pause(robot_id: str, body: dict = Body(default={})):
     return await _command(robot_id, "PAUSE")
