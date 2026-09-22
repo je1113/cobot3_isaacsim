@@ -199,6 +199,8 @@
       <span class="d">한 사이클이 도는 순서와 실패 경로</span></a>
     <a href="#fig3"><span class="n">FIG.3</span><span class="t">로봇 상태 전이</span>
       <span class="d">/orchestrator/state 값이 바뀌는 흐름</span></a>
+    <a href="#fig4"><span class="n">FIG.4</span><span class="t">행동트리 — 확정</span>
+      <span class="d">코드가 실제로 도는 트리와 로더 조율</span></a>
     <a href="#care"><span class="n">§</span><span class="t">주의해야 할 것</span>
       <span class="d">구현하면서 걸리는 것 · 아직 안 정한 것</span></a>
   </nav>
@@ -553,9 +555,282 @@
     </figcaption>
   </figure>
 
+  <!-- ══════════ FIG.4 ══════════ -->
+  <figure class="sheet" id="fig4">
+    <div class="tblock"><span class="no">FIG.4</span><h2>행동트리 — 확정</h2>
+      <span class="ref">task_manager.py build_tree()</span></div>
+    <div class="canvas">
+      <svg viewBox="0 0 1240 754" role="img" aria-label="행동트리 구조도. 최상위 우선순위 Selector 아래 캐리어 처리 Sequence 가 있고, 그 안의 배송 Selector 가 직행과 우회 두 가지로 갈린다. 우회는 HOLD_BACK, APPROACH, WAIT, PUSH 순서다.">
+        <path class="fc-ln" d="M55,68 L55,87.0 L70,87.0" stroke-width="1.2"/>
+        <path class="fc-ln" d="M81,98 L81,117.0 L96,117.0" stroke-width="1.2"/>
+        <path class="fc-ln" d="M81,98 L81,147.0 L96,147.0" stroke-width="1.2"/>
+        <path class="fc-ln" d="M81,98 L81,177.0 L96,177.0" stroke-width="1.2"/>
+        <path class="fc-ln" d="M81,98 L81,207.0 L96,207.0" stroke-width="1.2"/>
+        <path class="fc-ln" d="M81,98 L81,237.0 L96,237.0" stroke-width="1.2"/>
+        <path class="fc-ln" d="M107,248 L107,267.0 L122,267.0" stroke-width="1.2"/>
+        <path class="fc-ln" d="M133,278 L133,297.0 L148,297.0" stroke-width="1.2"/>
+        <path class="fc-ln" d="M133,278 L133,327.0 L148,327.0" stroke-width="1.2"/>
+        <path class="fc-ln" d="M107,248 L107,357.0 L122,357.0" stroke-width="1.2"/>
+        <path class="fc-ln" d="M133,368 L133,387.0 L148,387.0" stroke-width="1.2"/>
+        <path class="fc-ln" d="M133,368 L133,417.0 L148,417.0" stroke-width="1.2"/>
+        <path class="fc-ln" d="M133,368 L133,447.0 L148,447.0" stroke-width="1.2"/>
+        <path class="fc-ln" d="M133,368 L133,477.0 L148,477.0" stroke-width="1.2"/>
+        <path class="fc-ln" d="M81,98 L81,507.0 L96,507.0" stroke-width="1.2"/>
+        <path class="fc-ln" d="M81,98 L81,537.0 L96,537.0" stroke-width="1.2"/>
+        <path class="fc-ln" d="M81,98 L81,567.0 L96,567.0" stroke-width="1.2"/>
+        <path class="fc-ln" d="M55,68 L55,597.0 L70,597.0" stroke-width="1.2" opacity="0.42"/>
+        <path class="fc-ln" d="M81,608 L81,627.0 L96,627.0" stroke-width="1.2" opacity="0.42"/>
+        <path class="fc-ln" d="M81,608 L81,657.0 L96,657.0" stroke-width="1.2" opacity="0.42"/>
+        <g>
+          <rect class="fc fc-dec" x="44" y="46" width="196" height="22" rx="4"/>
+          <text class="st-n" x="54" y="61">[?] 우선순위</text>
+          <text class="fc-s" x="249" y="61">memory=False</text>
+        </g>
+        <g>
+          <rect class="fc fc-term" x="70" y="76" width="186" height="22" rx="4"/>
+          <text class="st-n" x="80" y="91">[→] 캐리어 처리</text>
+          <text class="fc-s" x="265" y="91">memory=True</text>
+        </g>
+        <g>
+          <rect class="fc fc-perc" x="96" y="106" width="168" height="22" rx="4"/>
+          <text class="st-n" x="106" y="121">detected?</text>
+        </g>
+        <g>
+          <rect class="fc fc-perc" x="96" y="136" width="168" height="22" rx="4"/>
+          <text class="st-n" x="106" y="151">HOLD</text>
+        </g>
+        <g>
+          <rect class="fc fc-perc" x="96" y="166" width="168" height="22" rx="4"/>
+          <text class="st-n" x="106" y="181">SCAN</text>
+          <circle cx="251" cy="177" r="7.5" fill="none" stroke="var(--ink-3)" stroke-width="1.1"/>
+          <text class="fc-s" x="251" y="180.5" text-anchor="middle" fill="var(--ink-3)">F</text>
+        </g>
+        <g>
+          <rect class="fc fc-perc" x="96" y="196" width="168" height="22" rx="4"/>
+          <text class="st-n" x="106" y="211">PICK</text>
+          <circle cx="251" cy="207" r="7.5" fill="none" stroke="var(--ink-3)" stroke-width="1.1"/>
+          <text class="fc-s" x="251" y="210.5" text-anchor="middle" fill="var(--ink-3)">F</text>
+        </g>
+        <g>
+          <rect class="fc fc-new" x="96" y="226" width="168" height="22" rx="4"/>
+          <text class="st-n" x="106" y="241">[?] 배송</text>
+          <text class="fc-s" x="273" y="241">memory=True</text>
+        </g>
+        <g>
+          <rect class="fc fc-new" x="122" y="256" width="150" height="22" rx="4"/>
+          <text class="st-n" x="132" y="271">[→] 직행</text>
+          <text class="fc-s" x="281" y="271">memory=True</text>
+        </g>
+        <g>
+          <rect class="fc fc-new" x="148" y="286" width="150" height="22" rx="4"/>
+          <text class="st-n" x="158" y="301">상대 한가?</text>
+        </g>
+        <g>
+          <rect class="fc fc-perc" x="148" y="316" width="150" height="22" rx="4"/>
+          <text class="st-n" x="158" y="331">NAV</text>
+          <circle cx="285" cy="327" r="7.5" fill="none" stroke="var(--ink-3)" stroke-width="1.1"/>
+          <text class="fc-s" x="285" y="330.5" text-anchor="middle" fill="var(--ink-3)">F</text>
+        </g>
+        <g>
+          <rect class="fc fc-new" x="122" y="346" width="150" height="22" rx="4"/>
+          <text class="st-n" x="132" y="361">[→] 우회</text>
+          <text class="fc-s" x="281" y="361">memory=True</text>
+        </g>
+        <g>
+          <rect class="fc fc-new" x="148" y="376" width="150" height="22" rx="4"/>
+          <text class="st-n" x="158" y="391">HOLD_BACK</text>
+          <circle cx="285" cy="387" r="7.5" fill="none" stroke="var(--ink-3)" stroke-width="1.1"/>
+          <text class="fc-s" x="285" y="390.5" text-anchor="middle" fill="var(--ink-3)">F</text>
+        </g>
+        <g>
+          <rect class="fc fc-new" x="148" y="406" width="150" height="22" rx="4"/>
+          <text class="st-n" x="158" y="421">APPROACH</text>
+          <circle cx="285" cy="417" r="7.5" fill="none" stroke="var(--ink-3)" stroke-width="1.1"/>
+          <text class="fc-s" x="285" y="420.5" text-anchor="middle" fill="var(--ink-3)">F</text>
+        </g>
+        <g>
+          <rect class="fc fc-new" x="148" y="436" width="150" height="22" rx="4"/>
+          <text class="st-n" x="158" y="451">WAIT</text>
+          <circle cx="285" cy="447" r="7.5" fill="none" stroke="var(--ink-3)" stroke-width="1.1"/>
+          <text class="fc-s" x="285" y="450.5" text-anchor="middle" fill="var(--ink-3)">F</text>
+        </g>
+        <g>
+          <rect class="fc fc-new" x="148" y="466" width="150" height="22" rx="4"/>
+          <text class="st-n" x="158" y="481">PUSH</text>
+          <circle cx="285" cy="477" r="7.5" fill="none" stroke="var(--ink-3)" stroke-width="1.1"/>
+          <text class="fc-s" x="285" y="480.5" text-anchor="middle" fill="var(--ink-3)">F</text>
+        </g>
+        <g>
+          <rect class="fc fc-perc" x="96" y="496" width="168" height="22" rx="4"/>
+          <text class="st-n" x="106" y="511">PLACE</text>
+          <circle cx="251" cy="507" r="7.5" fill="none" stroke="var(--ink-3)" stroke-width="1.1"/>
+          <text class="fc-s" x="251" y="510.5" text-anchor="middle" fill="var(--ink-3)">F</text>
+        </g>
+        <g>
+          <rect class="fc fc-perc" x="96" y="526" width="168" height="22" rx="4"/>
+          <text class="st-n" x="106" y="541">RETURN</text>
+          <circle cx="251" cy="537" r="7.5" fill="none" stroke="var(--ink-3)" stroke-width="1.1"/>
+          <text class="fc-s" x="251" y="540.5" text-anchor="middle" fill="var(--ink-3)">F</text>
+        </g>
+        <g>
+          <rect class="fc fc-perc" x="96" y="556" width="168" height="22" rx="4"/>
+          <text class="st-n" x="106" y="571">사이클 완료</text>
+        </g>
+        <g opacity="0.42">
+          <rect class="fc fc-term" x="70" y="586" width="186" height="22" rx="4"/>
+          <text class="st-n" x="80" y="601">[→] 순찰 가지</text>
+          <text class="fc-s" x="265" y="601">memory=True</text>
+        </g>
+        <g opacity="0.42">
+          <rect class="fc fc-perc" x="96" y="616" width="168" height="22" rx="4"/>
+          <text class="st-n" x="106" y="631">START (1회)</text>
+          <circle cx="251" cy="627" r="7.5" fill="none" stroke="var(--ink-3)" stroke-width="1.1"/>
+          <text class="fc-s" x="251" y="630.5" text-anchor="middle" fill="var(--ink-3)">F</text>
+        </g>
+        <g opacity="0.42">
+          <rect class="fc fc-perc" x="96" y="646" width="168" height="22" rx="4"/>
+          <text class="st-n" x="106" y="661">순찰</text>
+          <circle cx="251" cy="657" r="7.5" fill="none" stroke="var(--ink-3)" stroke-width="1.1"/>
+          <text class="fc-s" x="251" y="660.5" text-anchor="middle" fill="var(--ink-3)">F</text>
+        </g>
+        <path class="fc-ln" d="M324,297.0 L584,297.0" stroke-width="1" stroke-dasharray="2 3" opacity="0.5"/>
+        <text class="fc-s" x="596" y="294.5">상대 state 가 nav · push · place · return 중 하나면 FAILURE.</text>
+        <text class="fc-s" x="596" y="307.5">Selector 가 우회로 넘어간다. PICK 직후 한 번만 본다.</text>
+        <path class="fc-ln" d="M324,387.0 L584,387.0" stroke-width="1" stroke-dasharray="2 3" opacity="0.5"/>
+        <text class="fc-s" x="596" y="378.0">픽업존에서 기다린다 — 상대가 로더 구역에서 움직이는 동안</text>
+        <text class="fc-s" x="596" y="391.0">(nav · push · return). 대기 장소가 로더 앞이라 그때 올라가면</text>
+        <text class="fc-s" x="596" y="404.0">둘이 같은 공간에서 엇갈린다. place 일 때만 통과한다.</text>
+        <path class="fc-ln" d="M324,447.0 L584,447.0" stroke-width="1" stroke-dasharray="2 3" opacity="0.5"/>
+        <text class="fc-s" x="596" y="444.5">대기 장소에서 기다린다 — 상대가 로더 반경 안이거나</text>
+        <text class="fc-s" x="596" y="457.5">아직 로더로 오는 중인 동안.</text>
+        <path class="fc-ln" d="M324,477.0 L584,477.0" stroke-width="1" stroke-dasharray="2 3" opacity="0.5"/>
+        <text class="fc-s" x="596" y="474.5">상대가 로더 반경(loader_clear_radius_m) 밖으로 나가면 진입.</text>
+        <text class="fc-s" x="596" y="487.5">상대 amcl_pose 로 잰다 — 시간으로 재면 시뮬 속도에 묶인다.</text>
+        <text class="fc-e" x="348" y="601.0" fill="var(--fc-move)">★ 코드에서는 주석 처리돼 있다 — 지금 트리에 없다</text>
+        <rect class="fc fc-dec" x="44" y="698" width="16" height="13" rx="3"/>
+        <text class="fc-s" x="67" y="708">[?] Selector — 왼쪽부터, SUCCESS · RUNNING 에서 멈춘다</text>
+        <rect class="fc fc-term" x="640" y="698" width="16" height="13" rx="3"/>
+        <text class="fc-s" x="663" y="708">[→] Sequence — 왼쪽부터, 전부 SUCCESS 여야 한다</text>
+        <rect class="fc fc-new" x="44" y="722" width="16" height="13" rx="3"/>
+        <text class="fc-s" x="67" y="732">이번 로더 조율로 새로 생긴 노드</text>
+        <circle cx="648" cy="728" r="7.5" fill="none" stroke="var(--ink-3)" stroke-width="1.1"/>
+        <text class="fc-s" x="648" y="731.5" text-anchor="middle" fill="var(--ink-3)">F</text>
+        <text class="fc-s" x="663" y="732">Freeze — 실패하면 그 자리에서 정지하고 /orchestrator/resume 을 기다린다</text>
+      </svg>
+    </div>
+    <figcaption>
+      <span class="k">FIG.2 는 PICK 다음이 바로 NAV 다. 두 대가 되면 그 자리가 갈린다</span> —
+      패키징 로더 앞 주차 자리가 하나뿐이라 둘 중 하나는 기다려야 한다.
+      그 판단이 <b>배송 Selector</b> 이고, 기다리는 자리가 <b>HOLD_BACK</b>(픽업존)과
+      <b>WAIT</b>(대기 장소) 둘이다.
+      <span class="k">기준은 상대의 <code>state=</code> 하나다</span> —
+      <code>nav</code> · <code>push</code> · <code>place</code> · <code>return</code> 중
+      하나면 상대가 로더를 쓰고 있다고 본다. 두 로봇이 같은 목록을 쓴다.
+    </figcaption>
+  </figure>
+
+  <!-- ══════════ FIG.4 가 바꾼 것 ══════════ -->
+  <h3 id="fig4-diff">FIG.4 가 FIG.2 · FIG.3 에서 바꾼 것</h3>
+  <p class="sub">§2 가 “2대가 되면 이 박스가 갈린다” 고 적어 둔 자리가 실제로 갈린 결과다.
+    아래는 그 갈림이 나머지 그림과 계약에 미친 영향이다.</p>
+
+  <h4>§A &nbsp;왜 배선으로 풀어야 했나</h4>
+  <p>이 문서 §2 는 <code>task_manager</code> 를 <b>전역 1개</b>로 두는 쪽을 골랐고,
+    그러면 “두 로봇이 같은 캐리어를 보면 한 노드 안에서 조정할 수 있다” 고 적었다.
+    <span class="k">코드는 반대로 갔다</span> — 로봇당 1개이고 네임스페이스가 로봇 식별자다.
+    조정할 노드가 없으므로 두 <code>task_manager</code> 가 서로의
+    <code>/orchestrator/state</code> 를 읽어 스스로 순서를 정한다. 그게 FIG.4 의 배송 가지다.
+    §2 표의 “로봇당 1개 → 조정 노드가 따로 필요하다” 칸을, 노드를 만들지 않고
+    <b>서로를 구독하는 것</b>으로 대신했다.</p>
+
+  <h4>§B &nbsp;늘어난 것</h4>
+  <div class="tbl-wrap">
+    <table>
+      <thead><tr><th>늘어난 것</th><th>무엇</th><th>비고</th></tr></thead>
+      <tbody>
+        <tr><td>상태 4개</td><td class="d"><code>hold_back</code> · <code>approach</code> · <code>wait</code> · <code>push</code></td><td class="d">FIG.3 에 네 칸이 는다</td></tr>
+        <tr><td>합성 노드 3개</td><td class="d">배송 <code>Selector</code> · 직행 · 우회 <code>Sequence</code></td><td class="d">셋 다 <b>memory=True</b> — 고른 가지를 끝까지 들고 간다</td></tr>
+        <tr><td>조건 잎 3개</td><td class="d">상대 한가?(<code>PeerClear</code>) · <code>HOLD_BACK</code> · <code>WAIT</code></td><td class="d">액션 클라이언트도 스레드도 <code>future</code> 도 없다</td></tr>
+        <tr><td>액션 잎 2개</td><td class="d"><code>APPROACH</code> · <code>PUSH</code></td><td class="d"><code>NavigateTo</code>. <code>NAV</code> 와 같은 액션, 다른 목적지</td></tr>
+        <tr><td>구독 2개</td><td class="d">상대의 <code>orchestrator/state</code> · 상대의 <code>amcl_pose</code></td><td class="d">둘 다 절대이름. 파라미터가 비면 구독하지 않는다</td></tr>
+        <tr><td>파라미터 5개</td><td class="d"><code>peer_state_topic</code> · <code>peer_pose_topic</code> · <code>peer_busy_stages</code> · <code>staging_pose</code> · <code>loader_clear_radius_m</code></td><td class="d">launch 가 로봇별로 준다. 비대칭은 소스가 아니라 launch 에 있다</td></tr>
+        <tr><td>DB stage 4개</td><td class="d">같은 네 이름</td><td class="d"><code>stage</code> 가 TEXT 라 마이그레이션이 필요 없다 (DB구성 §4)</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h4>§C &nbsp;두 번 기다리는 이유</h4>
+  <div class="tbl-wrap">
+    <table>
+      <thead><tr><th>어디서</th><th>상대가 이 상태인 동안</th><th>막는 것</th></tr></thead>
+      <tbody>
+        <tr><td><code>HOLD_BACK</code></td><td class="d"><code>nav</code> · <code>push</code> · <code>return</code></td><td class="d">로더 <b>구역</b> 진입</td></tr>
+        <tr><td><code>WAIT</code></td><td class="d">로더 반경 안 · <code>nav</code> · <code>push</code></td><td class="d">로더 <b>주차 자리</b> 진입</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p><span class="k">대기 장소가 로더 바로 앞이라, 거기로 가는 것 자체가 로더 구역에 들어가는 것이다.</span>
+    그래서 한 번 더 앞에서 잡는다. <code>place</code> 가 <code>HOLD_BACK</code> 대상이 아닌 것이
+    핵심이다 — 상대가 로더에 <b>멈춰 있는</b> 그 구간만이 대기 장소로 올라갈 안전한 창이고,
+    그 창이 있어야 대기 장소를 두는 의미가 있다. <code>place</code> 를 넣으면 올라갈 창이
+    없어져서 대기 장소가 쓸모없어진다.</p>
+  <p><code>approach</code> 와 <code>wait</code> 은 <b>어느 목록에도 넣지 않는다.</b> 둘 다 로더
+    구역 밖이고, 두 로봇이 같은 목록을 쓰므로 넣으면 양쪽이 서로의 대기를 기다려 교착이다.
+    <code>isaacpjt/tools/test_peer_yield.py</code> 가 그 불변식을 검사한다.</p>
+
+  <h4>§D &nbsp;<code>/orchestrator/state</code> 계약이 넓어졌다</h4>
+  <p>§4-2 는 이 문자열의 계약이 “정확히 <code>patrol</code> 인가” 하나라고 적었다.
+    <b>그 보장은 그대로다</b> — <code>carrier_code_reader</code> 는 여전히 <code>patrol</code> 만
+    보고, 새 네 상태는 전부 “patrol 아님” 으로 묶인다.
+    <span class="k">대신 소비자가 하나 늘었다.</span> 이제 상대 로봇이 같은 문자열을 읽고
+    <code>nav</code> · <code>push</code> · <code>place</code> · <code>return</code> 이라는
+    <b>이름</b>에 의존한다. 그 넷의 잎 이름을 바꾸면 조율이 조용히 멈춘다 — 에러도 안 난다.
+    발행 주기도 1.0 s 에서 0.2 s 로 내렸다. 이 값이 상대가 보는 정보의 최대 지연이다.</p>
+
+  <h4>§E &nbsp;원칙에서 벗어난 것 하나</h4>
+  <p><code>task_manager</code> 는 로봇 위치를 모른다는 게 원칙이었다(기하는
+    <code>navigation</code> · <code>manipulation</code> 담당). <b>예외를 하나 뒀다.</b>
+    “상대가 로더를 비켰나” 를 시간으로 재면 벽시계 초를 쓰게 되는데, Isaac 을 GUI 렌더로
+    돌리면 벽시계 기준 이동 속도가 <code>nav_server</code> 의 지령값과 전혀 다르고 머신 ·
+    렌더 설정마다 또 다르다(<code>TraceEvent.msg</code> §4-2 가 사이클 타임을 시뮬 시각으로
+    재는 이유와 같다). 그래서 <b>거리로 재고</b>, 그 거리를 알 방법이 상대의
+    <code>amcl_pose</code> 뿐이다. 위치를 못 받으면 거리 판정을 포기하고 상태 변화만 기다린다 —
+    느리지만 안전하다.</p>
+
+  <h4>§F &nbsp;실패 정책은 안 건드렸다</h4>
+  <p>FIG.2 의 “파지 · 주행 · 배치 실패는 전부 FROZEN” 이 그대로다. 새 잎 중
+    <code>HOLD_BACK</code> · <code>APPROACH</code> · <code>WAIT</code> · <code>PUSH</code> 넷이
+    <code>Freeze</code> 로 감싸여 있어서, 실패하면 그 자리에서 정지하고
+    <code>/orchestrator/resume</code> 을 기다린다.
+    <span class="k">상대 한가?(<code>PeerClear</code>)만 감싸지 않는다</span> — 거기서 FAILURE 는
+    에러가 아니라 경로 선택이라, 감싸면 상대가 바쁠 때마다 로봇이 얼어붙는다.
+    상대가 로더 구역에서 얼어붙은 경우는 기다려도 안 비켜지므로 <code>PEER_FROZEN</code> 으로
+    즉시 실패를 올려 이쪽도 같이 웹에 뜨게 한다.</p>
+
+  <h4>§G &nbsp;아직 남은 것</h4>
+  <ul class="plain">
+    <li><span class="mk">·</span><span><b>동시 출발.</b> 두 로봇이 0.3 초 안에 PICK 을 끝내면
+      서로를 <code>pick</code> 으로 보고 둘 다 직행을 고른다. 순서를 정하는 장치가 없어서 막을
+      방법이 없다 — 우선순위를 한쪽에만 주면 없어지지만, 그러면 줄 선 쪽이 앞질러진다.</span></li>
+    <li><span class="mk">·</span><span><b>결정이 한 번뿐이다.</b> <code>PeerClear</code> 도
+      <code>HOLD_BACK</code> 도 통과한 뒤에는 재확인하지 않는다. 배송 Selector 를
+      <code>memory=False</code> 로 두면 재확인이 되지만, 미션 Sequence 가
+      <code>memory=True</code> 라 무효화하면 PICK 부터 다시 시작한다 — <b>§3-4 가 복구
+      가지에서 지적한 함정과 같은 것이다.</b></span></li>
+    <li><span class="mk">·</span><span><b>대기 장소 좌표가 미확정이다.</b> 로더 앞 배치에 맞춰
+      다시 잡아야 한다. <code>isaacpjt/tools/check_staging_poses.py</code> 가 자유공간 ·
+      도착각 · 이탈경로 · 두 자리 간격을 한 번에 검사한다.</span></li>
+    <li><span class="mk">·</span><span><b>세 대 이상은 안 된다.</b> 상대가 하나라고 보고 토픽
+      하나를 구독한다. 세 대가 되면 도크처럼 전역 조정 노드를 두는 편이 낫다 — §2 의
+      <code>docking_server</code> 논리와 같다.</span></li>
+    <li><span class="mk">·</span><span><b>순찰 가지가 아직 주석 처리돼 있다.</b> 그래서 두 대가
+      서로 만나는 시나리오를 돌려 볼 수 없고, FIG.4 의 조율도 런타임 검증이 안 됐다.
+      §3-8 이 “첫 작업” 이라고 적은 그것이 여전히 첫 작업이다.</span></li>
+  </ul>
+
   <!-- ══════════ 주의사항 ══════════ -->
   <h3 id="care">주의해야 할 것</h3>
-  <p class="sub">위 세 그림이 코드가 되는 과정에서 실제로 걸리는 것들. §3 · §4 는 안 지키면 노드가 죽거나
+  <p class="sub">위 네 그림이 코드가 되는 과정에서 실제로 걸리는 것들. §3 · §4 는 안 지키면 노드가 죽거나
     동작이 조용히 어긋나는 것이고, §6 은 아직 답이 없어서 그림에 못 그린 것이다.</p>
 
   <h4>§1 &nbsp;이 문서의 위치</h4>

@@ -75,3 +75,48 @@ magazines:
     - 0.0
     qr_overlap: false
     labels_agree_mm: 0.0
+  # ── 트레이 스택 (static_test 시나리오의 스택 pick) ──────────────────────
+  # ★ 미실측. 값은 에셋(isaacpjt/assets/F3_STKO_1.usda / F3_STKB_1.usda)의
+  #   기하에서 매거진과 같은 규칙으로 계산했다 — T_QR_grasp_xyz 는 QR 중심에서
+  #   플랜지 윗면 중심까지의 벡터를 QR 프레임(x=라벨 오른쪽, y=라벨 아래,
+  #   z=라벨 안쪽)으로 옮긴 것. 매거진 값으로 역산해 규칙이 맞는 것은 확인했다
+  #   (magazine_1_orange: QR (-0.090,-0.0705,0.075) → 플랜지 (0,0,0.142) →
+  #   [0.09, -0.067, 0.0705] 그대로). 플랜지는 넷 다 80x80 이고 색도 같아
+  #   flange_vision 은 그대로 쓴다. QR 은 40 mm 라 매거진(50 mm)보다 작다.
+  #   Isaac 에서 실제로 집히는지는 아직 확인하지 않았다.
+  tray_1_orange:
+    color: orange
+    flange_size:
+    - 0.08
+    - 0.08
+    - 0.006
+    cup_margin_m: 0.015
+    # QR 중심 (-0.1373, -0.06845, 0.02472), 플랜지 윗면 z 0.07772
+    T_QR_grasp_xyz:
+    - 0.1373
+    - -0.053
+    - 0.06845
+    approach_axis_in_qr:
+    - 0.0
+    - 1.0
+    - 0.0
+    qr_overlap: false
+    labels_agree_mm: 0.0
+  tray_2_blue:
+    color: blue
+    flange_size:
+    - 0.08
+    - 0.08
+    - 0.01
+    cup_margin_m: 0.015
+    # QR 중심 (-0.1373, -0.06845, 0.03996), 플랜지 윗면 z 0.09696
+    T_QR_grasp_xyz:
+    - 0.1373
+    - -0.057
+    - 0.06845
+    approach_axis_in_qr:
+    - 0.0
+    - 1.0
+    - 0.0
+    qr_overlap: false
+    labels_agree_mm: 0.0

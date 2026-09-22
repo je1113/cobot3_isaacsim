@@ -50,6 +50,7 @@ eval_qr_pose.py, docs/08_Grasp_Pose_Error_Reduction.md):
 
 from dataclasses import dataclass, field
 import math
+import os
 
 import cv2
 import numpy as np
@@ -120,6 +121,204 @@ class AggregatedQRPose:
 # ══════════════════════════════════════════════════════════════
 #  검출 (presence 만, decode 안 되도 됨 — 3-1 에서 재사용)
 # ══════════════════════════════════════════════════════════════
+_WECHAT = None
+_WECHAT_TRIED = False
+
+
+def _wechat_detector():
+    """WeChat QR 검출기(있으면). CNN 검출 + zxing 디코더라 기울기에 훨씬 강하다.
+
+    ★ 왜 필요한가 — Isaac 렌더 프레임에서 cv2.QRCodeDetector 가 **기울어진 라벨을
+      못 읽는다**. 실측: 손목캠이 라벨을 13도 비스듬히 8.3 px/모듈 로 잡은
+      프레임에서 detectAndDecode / detectAndDecodeMulti / detectAndDecodeCurved 가
+      전부 빈 문자열을 냈는데, 같은 프레임을 WeChat 검출기는 한 번에 읽었다.
+      (같은 PNG 를 정면에서 4 px/모듈 로 줄여 주면 cv2 도 읽는다 — 해상도가
+       아니라 원근/기울기가 원인이다)
+
+    ★ 없는 빌드도 있다(모델 파일이 빠진 opencv). 그래서 실패하면 조용히
+      None 을 돌려주고 기존 cv2 경로로 간다 — 있으면 좋고 없어도 돌아간다.
+    """
+    global _WECHAT, _WECHAT_TRIED
+    if not _WECHAT_TRIED:
+        _WECHAT_TRIED = True
+        try:
+            _WECHAT = cv2.wechat_qrcode_WeChatQRCode()
+        except Exception:
+            _WECHAT = None
+    return _WECHAT
+
+
+_EXTERNAL_DECODER = None
+
+
+def set_external_decoder(fn):
+    """이 인터프리터의 cv2 에 WeChat 이 없을 때 쓸 디코더를 주입한다.
+
+    fn(bgr_or_gray) -> 디코딩된 문자열(없으면 "").
+
+    ★ 왜 주입인가 — Isaac 이 번들한 cv2 는 contrib 가 아니라서
+      (4.11.0, /isaacsim/exts/omni.pip.compute/pip_prebundle/cv2)
+      wechat_qrcode_WeChatQRCode 가 아예 없다. 실측: 같은 프레임 9장을
+      시스템 파이썬의 cv2 는 9/9 읽는데 Isaac 안에서는 0/9 다. 그렇다고
+      이 모듈이 Isaac 을 알게 만들 수는 없다 — 여긴 ROS 노드도 쓰는
+      공용 모듈이고, 거기선 WeChat 이 그냥 있다. 그래서 "밖에서 어떻게
+      읽을지" 는 Isaac 스크립트가 정해서 넣어 준다.
+    """
+    global _EXTERNAL_DECODER
+    _EXTERNAL_DECODER = fn
+
+
+def _external_decode(image):
+    if _EXTERNAL_DECODER is None or _wechat_detector() is not None:
+        return ""       # 로컬에 WeChat 이 있으면 밖으로 나갈 이유가 없다
+    try:
+        return _EXTERNAL_DECODER(image) or ""
+    except Exception:
+        return ""
+
+
+def _bright_quad_candidates(gray, min_px=40, max_frac=0.5):
+    """흰 QR 라벨처럼 보이는 밝은 사각형 후보의 bbox 를 큰 것부터 돌려준다.
+
+    ★ 왜 필요한가 — cv2.QRCodeDetector 는 **화면 전체**를 주면 앞쪽의 어두운
+      로봇 팔 같은 방해물 때문에 검출 자체를 실패한다. 그런데 라벨 주변만
+      잘라 주면 같은 프레임에서 정사각형도 0.92 의 정확한 꼭짓점을 낸다(실측).
+      그래서 '어디를 잘라 줄지' 만 먼저 찾아 준다. 0.01 초면 끝난다.
+    """
+    h, w = gray.shape[:2]
+    _, bw = cv2.threshold(gray, 200, 255, cv2.THRESH_BINARY)
+    bw = cv2.morphologyEx(bw, cv2.MORPH_CLOSE, np.ones((9, 9), np.uint8))
+    cnts, _ = cv2.findContours(bw, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    raw = [cv2.boundingRect(c) for c in cnts]
+
+    # ★ 조각을 먼저 합친다. 라벨은 흰 바탕에 검은 모듈이 박혀 있어서 임계화하면
+    #   **한 라벨이 여러 조각으로 쪼개진다.** 실측: 라벨 자리에서 153x103 과
+    #   83x66 두 조각이 따로 잡혔고, 그 조각만 잘라 주면 detect() 가 QR 을
+    #   못 찾아 꼭짓점이 하나도 안 나왔다(밝은후보 4개, out=0). 9x9 닫기로는
+    #   파인더 패턴(모듈 7칸 ~ 70px)만 한 검은 영역을 못 메운다. 상자를
+    #   합치는 쪽이 커널을 키우는 것보다 안전하다 — 커널을 키우면 라벨이
+    #   선반 배경까지 빨아들인다.
+    boxes = _merge_nearby_boxes(raw)
+
+    out = []
+    for (x, y, cw, ch) in boxes:
+        if not (min_px <= cw <= w * max_frac and min_px <= ch <= h * max_frac):
+            continue
+        if not (0.5 <= cw / float(ch) <= 2.0):     # 라벨은 정사각형에 가깝다
+            continue
+        out.append((x, y, cw, ch))
+    out.sort(key=lambda b: -b[2] * b[3])
+    return out
+
+
+def _texture_quad_candidates(gray, min_px=60, max_frac=0.5):
+    """QR 라벨처럼 **흑백 전환이 조밀한** 영역의 bbox 를 큰 것부터 돌려준다.
+
+    ★ 왜 밝기(_bright_quad_candidates)만으로는 부족한가 — 라벨이 배경보다
+      어두울 수 있다. 실측: shelf_2 매거진은 180도 돌아 있어 조명을 반대로
+      받는다. 그 라벨은 뒤쪽 흰 벽보다 **어둡게** 찍혀서, 밝기 임계(200)로는
+      벽이 잡히고 라벨은 안 잡힌다 — 후보가 0~1개 나오는데 전부 엉뚱한 자리라
+      꼭짓점을 하나도 못 얻었다(0/3 프레임). 같은 프레임에서 이 대비 기반
+      탐색은 179x178 짜리 라벨을 정확히 집어내고 cv2.detect 도 성공한다.
+
+      QR 은 밝기와 무관하게 "검은 모듈과 흰 모듈이 촘촘히 번갈아 나오는 사각형"
+      이다. 그 성질을 직접 본다 — Laplacian 으로 경계 밀도를 재고, 닫기로
+      뭉쳐서 덩어리를 만든다.
+    """
+    h, w = gray.shape[:2]
+    g = cv2.GaussianBlur(gray, (5, 5), 0)
+    edge = cv2.convertScaleAbs(cv2.Laplacian(g, cv2.CV_32F, ksize=3))
+    _, bw = cv2.threshold(edge, 40, 255, cv2.THRESH_BINARY)
+    bw = cv2.morphologyEx(bw, cv2.MORPH_CLOSE, np.ones((31, 31), np.uint8))
+    cnts, _ = cv2.findContours(bw, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    out = []
+    for c in cnts:
+        x, y, cw, ch = cv2.boundingRect(c)
+        if not (min_px <= cw <= w * max_frac and min_px <= ch <= h * max_frac):
+            continue
+        if not (0.5 <= cw / float(ch) <= 2.0):     # 라벨은 정사각형에 가깝다
+            continue
+        out.append((x, y, cw, ch))
+    out.sort(key=lambda b: -b[2] * b[3])
+    return out
+
+
+def _label_candidates(gray):
+    """라벨 후보 — 대비 기반을 먼저, 밝기 기반을 그다음에.
+
+    대비 기반이 밝기와 무관해서 더 일반적이다(실측 6/6). 밝기 기반은 남겨
+    둔다 — 두 방식이 서로 다른 프레임에서 성공한 적이 있어 버릴 이유가 없다.
+    """
+    seen, out = set(), []
+    for b in list(_texture_quad_candidates(gray)) + list(_bright_quad_candidates(gray)):
+        if b in seen:
+            continue
+        seen.add(b)
+        out.append(b)
+    return out
+
+
+def _merge_nearby_boxes(boxes, pad_frac=0.35, max_iters=4):
+    """맞닿거나 가까운 bbox 를 하나로 합친다 (합쳐진 것 + 원본 둘 다 돌려준다).
+
+    원본도 남기는 이유: 합친 상자가 배경까지 삼켜 버린 경우에도 원래 조각으로
+    한 번 더 시도할 수 있게 하려는 것이다. 호출부가 큰 것부터 몇 개만 쓴다.
+    """
+    cur = [tuple(b) for b in boxes]
+    merged = list(cur)
+    for _ in range(max_iters):
+        used = [False] * len(cur)
+        nxt = []
+        changed = False
+        for i, (x1, y1, w1, h1) in enumerate(cur):
+            if used[i]:
+                continue
+            px, py = pad_frac * w1, pad_frac * h1
+            ax1, ay1, ax2, ay2 = x1 - px, y1 - py, x1 + w1 + px, y1 + h1 + py
+            for j in range(i + 1, len(cur)):
+                if used[j]:
+                    continue
+                x2, y2, w2, h2 = cur[j]
+                qx, qy = pad_frac * w2, pad_frac * h2
+                bx1, by1, bx2, by2 = x2 - qx, y2 - qy, x2 + w2 + qx, y2 + h2 + qy
+                if ax1 < bx2 and bx1 < ax2 and ay1 < by2 and by1 < ay2:
+                    nx1, ny1 = min(x1, x2), min(y1, y2)
+                    nx2, ny2 = max(x1 + w1, x2 + w2), max(y1 + h1, y2 + h2)
+                    x1, y1, w1, h1 = nx1, ny1, nx2 - nx1, ny2 - ny1
+                    px, py = pad_frac * w1, pad_frac * h1
+                    ax1, ay1, ax2, ay2 = x1 - px, y1 - py, x1 + w1 + px, y1 + h1 + py
+                    used[j] = True
+                    changed = True
+            used[i] = True
+            nxt.append((x1, y1, w1, h1))
+        cur = nxt
+        merged.extend(cur)
+        if not changed:
+            break
+    # 중복 제거(순서 유지)
+    seen, out = set(), []
+    for b in merged:
+        if b not in seen:
+            seen.add(b)
+            out.append(b)
+    return out
+
+
+def _decode_text(image):
+    """텍스트만 얻는다. cv2 가 실패하면 WeChat 으로 한 번 더."""
+    text, _, _ = cv2.QRCodeDetector().detectAndDecode(image)
+    if text:
+        return text
+    wechat = _wechat_detector()
+    if wechat is None:
+        return ""
+    try:
+        texts, _ = wechat.detectAndDecode(image)
+    except Exception:
+        return ""
+    return texts[0] if texts else ""
+
+
 def detect_qr_quads(gray_or_bgr):
     """QR 후보 사각형을 전부 돌려준다. decode 는 시도하되 실패해도 포함한다.
 
@@ -135,13 +334,51 @@ def detect_qr_quads(gray_or_bgr):
     더 낮은 해상도에서도 성공한다 (qr_decode_range.py 실측 근거) — presence
     용도(3-1)에서는 decode 가 안 돼도 이 결과를 쓴다.
     """
+    # ── WeChat 이 있으면 먼저 쓴다 (기울기에 강하다) ──────────────────
+    wechat = _wechat_detector()
+    if wechat is not None:
+        try:
+            texts, pts_list = wechat.detectAndDecode(gray_or_bgr)
+        except Exception:
+            texts, pts_list = (), ()
+        # ★ 이 빌드의 WeChat 은 꼭짓점으로 **입력 이미지 경계**를 그대로 돌려준다
+        #   (실측: 2560x1440 프레임에 [[0,0],[2559,0],[2559,1439],[0,1439]]).
+        #   그대로 쓰면 평면 적합 ROI 가 화면 전체가 되어 자세가 엉뚱해진다.
+        #   그래서 '이미지 전체에 가까운 사각형' 은 버린다 — 디코딩 텍스트만
+        #   쓸모가 있고, 꼭짓점은 아래 cv2 경로에서 얻어야 한다.
+        h, w = gray_or_bgr.shape[:2]
+        hits = []
+        for t, pt in zip(texts, pts_list):
+            if not t:
+                continue
+            q = np.asarray(pt, dtype=np.float64).reshape(4, 2)
+            area = cv2.contourArea(q.astype(np.float32))
+            if area > 0.5 * w * h:      # 화면의 절반을 넘으면 경계 반환이다
+                continue
+            hits.append((q, t))
+        if hits:
+            return hits
+
+    # ★ 로컬 cv2 에 WeChat 이 없으면(예: Isaac 번들) 프레임당 **한 번**만
+    #   외부 디코더로 텍스트를 받아 둔다. 꼭짓점은 아래 cv2 경로가 낸다 —
+    #   실패하던 건 언제나 decode 쪽이지 검출 쪽이 아니었다
+    #   ("검출만 된 사각형은 있었을 수 있다"가 그 로그다).
+    ext_text = _external_decode(gray_or_bgr)
+    dbg = os.environ.get("QR_DEBUG") == "1"
+
     detector = cv2.QRCodeDetector()
     out = []
 
     text, pts, _ = detector.detectAndDecode(gray_or_bgr)
     if pts is not None:
-        out.append((np.asarray(pts, dtype=np.float64).reshape(4, 2), text))
-        if text:
+        # ★ text 가 비면 ext_text 로 메운다. 예전엔 여기서 빈 문자열인 채로
+        #   out 에 넣고 아래 'if out: return out' 로 **조기 반환**해 버려서,
+        #   외부 디코더 결과도 crop 폴백도 못 써 보고 끝났다. 실측: 전체
+        #   프레임에서 detect 가 되는 쪽(robot2)만 그 경로를 타서 혼자
+        #   0/3 으로 실패했고, detect 가 안 되는 쪽(robot1)은 폴백까지 내려가
+        #   2/3 으로 성공했다 — 같은 장면인데 결과가 갈렸다.
+        out.append((np.asarray(pts, dtype=np.float64).reshape(4, 2), text or ext_text))
+        if out[-1][1]:
             return out       # 흔한 경우(QR 한 개, decode 성공) — 바로 끝낸다
 
     ok, decoded_infos, points, _ = detector.detectAndDecodeMulti(gray_or_bgr)
@@ -151,12 +388,44 @@ def detect_qr_quads(gray_or_bgr):
                 out.append((np.asarray(pts2, dtype=np.float64).reshape(4, 2), text2))
     if any(t for _, t in out):
         return [o for o in out if o[1]] or out
-    if out:
-        return out
-    # 그래도 못 찾으면 detect() 단독으로 재시도한다
-    found, pts = detector.detect(gray_or_bgr)
-    if found and pts is not None:
-        out.append((np.asarray(pts, dtype=np.float64).reshape(4, 2), ""))
+
+    # 그래도 텍스트가 없으면 detect() 단독으로 재시도한다.
+    # (out 이 이미 차 있으면 같은 사각형을 또 넣지 않는다)
+    if not out:
+        found, pts = detector.detect(gray_or_bgr)
+        if found and pts is not None:
+            out.append((np.asarray(pts, dtype=np.float64).reshape(4, 2), ext_text))
+            if out[-1][1]:
+                return out
+
+    # ── 마지막 수단: 밝은 라벨 후보를 잘라 그 안에서 다시 찾는다 ──────
+    #   화면 전체로는 못 찾아도 라벨 주변만 주면 찾는다(위 주석 참고).
+    gray = gray_or_bgr if gray_or_bgr.ndim == 2 else cv2.cvtColor(gray_or_bgr, cv2.COLOR_BGR2GRAY)
+    h, w = gray.shape[:2]
+    cands = _label_candidates(gray)
+    if dbg:
+        print(f"      [qr] ext={ext_text!r}  out={len(out)}  밝은후보={len(cands)}  "
+              f"상위={[tuple(c) for c in cands[:3]]}")
+    for (x, y, cw, ch) in cands[:6]:
+        margin = int(0.25 * max(cw, ch))
+        ox, oy = max(0, x - margin), max(0, y - margin)
+        sub = gray[oy:min(h, y + ch + margin), ox:min(w, x + cw + margin)]
+        ok, pts = detector.detect(sub)
+        if not (ok and pts is not None):
+            continue
+        quad = np.asarray(pts, dtype=np.float64).reshape(4, 2) + np.array([ox, oy], dtype=np.float64)
+        sides = [float(np.linalg.norm(quad[i] - quad[(i + 1) % 4])) for i in range(4)]
+        if min(sides) / max(sides) < 0.7:      # 정사각형에서 너무 멀면 QR 이 아니다
+            continue
+        # ★ 텍스트는 **이 crop 에 대해** 얻는다. 프레임 전체의 ext_text 를 그냥
+        #   갖다 붙이면, 라벨이 아닌 밝은 사각형(선반 모서리 등)에도 '1' 이
+        #   붙어서 그대로 반환된다 — 실측: 그렇게 잡힌 엉뚱한 꼭짓점으로 평면을
+        #   맞춰 "벽면 법선이 77.3도 기울어 있다" 로 끝났다. crop 단위로 물어야
+        #   아닌 것은 빈 문자열이 되어 다음 후보로 넘어간다.
+        txt = _decode_text(sub) or _external_decode(sub)
+        out.append((quad, txt))
+        if txt:
+            return out
     return out
 
 

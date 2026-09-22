@@ -102,6 +102,12 @@ async def put_shelves(
         target = kept.get(shelf_id)
         converted = {"shelf_id": shelf_id, **shapes.shelf_in(item)}
         if target is not None:
+            # ★ 로봇 쪽 필드는 화면이 안 보내면 기존 값을 지킨다. merge_into 는
+            #   src 에 없는 키를 지우므로, 여기서 넘겨주지 않으면 저장 한 번에
+            #   assigned_robot 이 사라지고 task_manager 가 자기 선반을 잃는다
+            #   (그 노드의 _resolve_patrol_route ★★).
+            if "assigned_robot" not in converted and "assigned_robot" in target:
+                converted["assigned_robot"] = target["assigned_robot"]
             # 제자리 병합 — 갈아끼우면 항목에 붙은 주석이 날아간다(yamlstore 참고)
             merged.append(yamlstore.merge_into(target, converted))
         else:

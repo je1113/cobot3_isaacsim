@@ -21,6 +21,12 @@ Isaac Sim 쪽 실행 백엔드 — 진짜 rclpy 노드들이 이 파일을 로�
 실행:
     isaac_python isaacpjt/ros_bridge/sim_backend.py
     SIM_BACKEND_PORT=8765 isaac_python isaacpjt/ros_bridge/sim_backend.py
+
+머신이 둘일 때 (ROS 는 일반 PC, Isaac 은 GPU PC):
+    GPU PC   isaac_python isaacpjt/ros_bridge/sim_backend.py     # 0.0.0.0 에 바인드한다
+             hostname -I                                        # 이 IP 를
+    ROS PC   export SIM_BACKEND_HOST=<그 IP>                      # 여기에 준다
+             nc -vz <그 IP> 8765                                 # succeeded 면 연결 OK
 """
 
 import json
@@ -113,7 +119,12 @@ sys.path.insert(0, str(WS_ROOT / "src/cobot3_perception"))
 from cobot3_perception.qr_pose import estimate_qr_pose, aggregate_qr_poses  # noqa: E402
 from cobot3_perception.flange_topview import detect_flange  # noqa: E402
 
-WORLD_USD = str(ISAACPJT / "worlds/simple_factory_layout.usda")
+# 어느 씬을 열지. 기본은 simple_factory_layout.usda 이고, 순찰 없는 고정
+# 시나리오(task_manager scenario:=static_test)는 매거진 둘·스택 하나만 놓인
+#     SIM_WORLD_USD=isaacpjt/worlds/simple_factory_layout_test.usda
+# 로 띄운다. 두 씬은 prim 경로가 같다(nova_carter1, magazine_1_orange 등) —
+# 아래 하드코딩된 경로가 그대로 맞아야 하므로 씬을 새로 만들 때 이름을 지켜라.
+WORLD_USD = os.environ.get("SIM_WORLD_USD") or str(ISAACPJT / "worlds/simple_factory_layout.usda")
 URDF_PATH = str(ISAACPJT / "M0609/doosan-robot2/urdf/m0609_isaac_sim.urdf")
 DESC_PATH = str(ISAACPJT / "M0609/descriptor/m0609_description.yaml")
 FRAMES_YAML = WS_ROOT / "src/cobot3_bringup/config/frames.yaml"
@@ -121,20 +132,49 @@ GRASP_YAML = WS_ROOT / "src/cobot3_bringup/config/grasp.yaml"
 CARRIERS_YAML = WS_ROOT / "src/cobot3_bringup/config/carriers.yaml"
 MEASURED = ISAACPJT / "tools/out/layout_measured.yaml"
 
-ROBOT_PRIM_PATH = "/World/Robots/nova_carter1/m0609"
-BASE_XFORM_PATH = "/World/Robots/nova_carter1"
-BASE_LINK_PATH = f"{ROBOT_PRIM_PATH}/base_link"     # m0609 자체 base — Lula IK 전용
-CHASSIS_LINK_PATH = f"{BASE_XFORM_PATH}/chassis_link"   # ROS 규약의 base_link(AMR 섀시).
+EE_LINK_NAME = "link_6"
+ARM_JOINTS = ["joint_1", "joint_2", "joint_3", "joint_4", "joint_5", "joint_6"]
+
+# 로봇 두 대 — simple_factory_layout.usda 에 nova_carter1/nova_carter2 가
+# 완전히 같은 구조(m0609 팔 + short_gripper + rsd455)로 미러링돼 있다
+# (isaac:namespace = "robot1"/"robot2"). carter prim 이름만 바꾸면
+# 그대로 재사용된다 — ROBOT_CARTER_NAME 이 그 매핑이다.
+ROBOT_CARTER_NAME = {"robot1": "nova_carter1", "robot2": "nova_carter2"}
+DEFAULT_ROBOT_ID = "robot1"   # robot_id 를 안 주는 옛 호출(단일 로봇 시절)의 폴백
+
+
+def _robot_paths(carter_name):
+    base_xform = f"/World/Robots/{carter_name}"
+    robot_prim = f"{base_xform}/m0609"
+    gripper_prim = f"{robot_prim}/short_gripper"
+    return {
+        "base_xform": base_xform,
+        "robot_prim": robot_prim,
+        "base_link": f"{robot_prim}/base_link",       # m0609 자체 base — Lula IK 전용
+        "chassis_link": f"{base_xform}/chassis_link",  # ROS 규약의 base_link(AMR 섀시).
                                                         # CarrierScan/PickCarrier 의
                                                         # frame_id="base_link" 는 이쪽이다 —
                                                         # 06 §1 TF 트리: map -> base_link(Carter)
                                                         # -> m0609_base -> tool0. 헷갈리지 말 것.
-EE_LINK_NAME = "link_6"
-EE_LINK_PATH = f"{ROBOT_PRIM_PATH}/{EE_LINK_NAME}"
-GRIPPER_PRIM = f"{ROBOT_PRIM_PATH}/short_gripper"
-CAMERA_PRIM = f"{GRIPPER_PRIM}/rsd455/RSD455/Camera_OmniVision_OV9782_Color"
-ARTICULATION_ROOT_CANDIDATES = [f"{BASE_XFORM_PATH}/chassis_link", BASE_XFORM_PATH]
-ARM_JOINTS = ["joint_1", "joint_2", "joint_3", "joint_4", "joint_5", "joint_6"]
+        "ee_link": f"{robot_prim}/{EE_LINK_NAME}",
+        "gripper_prim": gripper_prim,
+        "camera_prim": f"{gripper_prim}/rsd455/RSD455/Camera_OmniVision_OV9782_Color",
+        "articulation_root_candidates": [f"{base_xform}/chassis_link", base_xform],
+    }
+
+
+# robot1 기본값 — 리팩터 전부터 있던 모듈 상수 이름을 그대로 유지한다
+# (debug_* 메서드 기본 인자·주석에서 여전히 참조한다). 실제 RPC 경로는
+# 로봇별로 Backend.rigs[robot_id](RobotRig)를 쓴다.
+_ROBOT1_PATHS = _robot_paths(ROBOT_CARTER_NAME["robot1"])
+ROBOT_PRIM_PATH = _ROBOT1_PATHS["robot_prim"]
+BASE_XFORM_PATH = _ROBOT1_PATHS["base_xform"]
+BASE_LINK_PATH = _ROBOT1_PATHS["base_link"]
+CHASSIS_LINK_PATH = _ROBOT1_PATHS["chassis_link"]
+EE_LINK_PATH = _ROBOT1_PATHS["ee_link"]
+GRIPPER_PRIM = _ROBOT1_PATHS["gripper_prim"]
+CAMERA_PRIM = _ROBOT1_PATHS["camera_prim"]
+ARTICULATION_ROOT_CANDIDATES = _ROBOT1_PATHS["articulation_root_candidates"]
 
 CARTER_Z = 0.07963398335074101
 RESOLUTION = (1280, 720)
@@ -290,8 +330,8 @@ def resolve_articulation_root(candidates, fallback):
     return fallback
 
 
-def configure_drives(stage):
-    for prim in Usd.PrimRange(stage.GetPrimAtPath(ROBOT_PRIM_PATH)):
+def configure_drives(stage, robot_prim_path):
+    for prim in Usd.PrimRange(stage.GetPrimAtPath(robot_prim_path)):
         if prim.GetName() not in ARM_JOINTS:
             continue
         for dt in ["angular", "linear"]:
@@ -456,17 +496,21 @@ class _Call:
 
 _inbox = queue.Queue()
 _status_lock = threading.Lock()
-_status = {"phase": "IDLE", "gripped": False, "gap_m": 0.0, "message": ""}
+# 로봇별로 따로 둔다 — pick_place_server 두 인스턴스(robot1/robot2 네임스페이스)
+# 가 각자 _poll_until 에서 get_status 를 폴링하는데, 하나로 합쳐 두면 로봇1이
+# PICK 중일 때 로봇2의 액션 feedback 에 로봇1의 phase 가 찍힌다.
+_status = {robot_id: {"phase": "IDLE", "gripped": False, "gap_m": 0.0, "message": ""}
+           for robot_id in ROBOT_CARTER_NAME}
 
 
-def _set_status(**kv):
+def _set_status(robot_id, **kv):
     with _status_lock:
-        _status.update(kv)
+        _status[robot_id].update(kv)
 
 
-def _get_status():
+def _get_status(robot_id):
     with _status_lock:
-        return dict(_status)
+        return dict(_status[robot_id])
 
 
 def _rpc_serve(host, port):
@@ -494,7 +538,8 @@ def _handle_conn(conn):
                 continue
             method = req.get("method")
             if method == "get_status":         # 폴링용 — 큐를 거치지 않고 바로 답한다
-                resp = {"id": req.get("id"), "result": _get_status()}
+                robot_id = req.get("params", {}).get("robot_id", DEFAULT_ROBOT_ID)
+                resp = {"id": req.get("id"), "result": _get_status(robot_id)}
             else:
                 call = _Call(method, req.get("params", {}))
                 _inbox.put(call)
@@ -511,6 +556,46 @@ def _handle_conn(conn):
         print(f"   !! RPC 연결 오류: {e}")
     finally:
         conn.close()
+
+
+# ══════════════════════════════════════════════════════════════
+#  로봇 한 대의 핸들 + 진행 중인 PICK/PLACE 상태
+# ══════════════════════════════════════════════════════════════
+class RobotRig:
+    """로봇 하나(robot1/robot2)의 프림 경로·IK·그리퍼 핸들과, OBSERVE ->
+    APPROACH -> FINISH 여러 RPC 호출에 걸쳐 들고 있어야 하는 중간 상태
+    (current_magazine_path/flange_world/slot_world)를 담는다.
+
+    이 상태를 Backend 인스턴스 전체에 하나만 두면(리팩터 전처럼) 안 된다 —
+    로봇 두 대의 pick_place_server 가 같은 소켓(sim_backend)에 붙어서, 로봇1의
+    APPROACH 호출과 로봇2의 APPROACH 호출이 큐에서 번갈아 처리될 수 있다.
+    공유 상태였다면 로봇1이 APPROACH 에서 저장해 둔 flange_world 를 로봇2의
+    호출이 그새 덮어써, 로봇1의 FINISH 가 엉뚱한 위치로 내려가게 된다."""
+
+    def __init__(self, robot_id, carter_name):
+        self.robot_id = robot_id
+        paths = _robot_paths(carter_name)
+        self.base_xform_path = paths["base_xform"]
+        self.robot_prim_path = paths["robot_prim"]
+        self.base_link_path = paths["base_link"]
+        self.chassis_link_path = paths["chassis_link"]
+        self.ee_link_path = paths["ee_link"]
+        self.gripper_prim = paths["gripper_prim"]
+        self.camera_prim = paths["camera_prim"]
+        self.articulation_root_candidates = paths["articulation_root_candidates"]
+
+        self.robot = None              # SingleManipulator — Backend.__init__ 이 채운다
+        self.lula = None               # LulaKinematicsSolver
+        self.solver = None             # ArticulationKinematicsSolver
+        self.gripper_node_path = None  # SurfaceGripper OmniGraph 노드 경로
+        self.gripper = None            # SurfaceGripperCtl
+        self.capture_ready = False     # _ensure_camera_warm() 이 한 번 세팅하면 True
+        self.pending_capture = None    # _capture_frame() 이 진행 중인 캡쳐를 GC 로부터 붙잡아두는 자리
+
+        self.current_magazine_path = MAGAZINE_XFORM_PATH  # PICK 전 기본값(레거시 메서드용)
+        self.flange_world = None       # pick APPROACH -> FINISH 로 넘기는 목표
+        self.slot_world = None         # place APPROACH -> FINISH
+        self.place_approach_dist_m = PLACE_APPROACH_HEIGHT_OFFSET
 
 
 # ══════════════════════════════════════════════════════════════
@@ -532,24 +617,35 @@ class Backend:
         # unloaded 프림을 root 조차 스킵한다). 그래서 명시적으로 Load() 가 필요하다.
         self.stage.Load()
         wait_for_stage_load(ctx)
-        configure_drives(self.stage)
-        self._gripper_node_path = configure_gripper_limits(self.stage, GRIPPER_PRIM)
-        filter_collision(GRIPPER_PRIM, MAGAZINE_XFORM_PATH)
+
+        self.rigs = {robot_id: RobotRig(robot_id, carter_name)
+                     for robot_id, carter_name in ROBOT_CARTER_NAME.items()}
+
+        for rig in self.rigs.values():
+            configure_drives(self.stage, rig.robot_prim_path)
+            rig.gripper_node_path = configure_gripper_limits(self.stage, rig.gripper_prim)
         # pkg_loader 정지 지점에서 _carry_gripped_object_through_teleport 가
         # 매거진을 tcp 바로 아래(ConveyorFrame 충돌체와 살짝 겹치는 위치)로
         # 순간이동시킨다 — 실측: 필터링 없이는 그 겹침을 PhysX 가 몇 m 밖으로
         # 튕겨내는 걸로 "해결"했다. 이 우회 자체가 실제 접촉을 흉내 낼 필요가
-        # 없으므로 걸러낸다.
+        # 없으므로 걸러낸다. 이 우회는 robot1 하드코딩 경로(teleport_base ->
+        # 재흡착)에서만 쓰였고 지금 배선(실제 Nav2)에서는 아무도 안 부른다 —
+        # robot2 용 필터 쌍은 그 경로를 실제로 쓰게 되면 추가한다.
+        filter_collision(self.rigs["robot1"].gripper_prim, MAGAZINE_XFORM_PATH)
         filter_collision(MAGAZINE_XFORM_PATH, CONVEYOR_FRAME_PATH)
 
         self.world = World(stage_units_in_meters=1.0)
-        root_path = resolve_articulation_root(ARTICULATION_ROOT_CANDIDATES, ROBOT_PRIM_PATH)
-        self.robot = self.world.scene.add(SingleManipulator(
-            prim_path=root_path, name="m0609_robot", end_effector_prim_path=EE_LINK_PATH))
+        for rig in self.rigs.values():
+            root_path = resolve_articulation_root(
+                rig.articulation_root_candidates, rig.robot_prim_path)
+            rig.robot = self.world.scene.add(SingleManipulator(
+                prim_path=root_path, name=f"m0609_robot_{rig.robot_id}",
+                end_effector_prim_path=rig.ee_link_path))
         self.magazine = self.world.scene.add(SingleRigidPrim(
             prim_path=MAGAZINE_XFORM_PATH, name="magazine"))
         self.world.reset()
-        self.robot.initialize()
+        for rig in self.rigs.values():
+            rig.robot.initialize()
         # ★ 2단계 부팅 — 1) 먼저 안전하다고 검증된 READY_JOINTS_DEG 로
         # 즉시 스냅하고 충분히 세워 안정시킨다. 2) 안정된 뒤에야
         # BOOT_POSE_NAME(SCAN 관측 자세, joint_3=150° 근처로 훨씬 더
@@ -559,15 +655,19 @@ class Backend:
         # 박아봤더니) 베이스가 물리 충격으로 넘어지는 게 실측 재현됐다 —
         # 이 씬에서 READY_JOINTS_DEG 는 오래 써 온 안전한 시작 자세라
         # 그대로 두고, 거기서 SCAN 자세까지는 반드시 부드럽게 옮긴다.
-        q = np.zeros(self.robot.num_dof)
-        for name, deg in zip(ARM_JOINTS, READY_JOINTS_DEG):
-            q[self.robot.get_dof_index(name)] = np.deg2rad(deg)
-        self.robot.set_joint_positions(q)
+        # 로봇 두 대 모두 같은 절차를 거친다.
+        for rig in self.rigs.values():
+            q = np.zeros(rig.robot.num_dof)
+            for name, deg in zip(ARM_JOINTS, READY_JOINTS_DEG):
+                q[rig.robot.get_dof_index(name)] = np.deg2rad(deg)
+            rig.robot.set_joint_positions(q)
         for _ in range(SETTLE_STEPS):
             self.world.step(render=not HEADLESS)
 
         taught = yaml.safe_load((ISAACPJT / "tools/out/taught_poses.yaml").read_text(encoding="utf-8"))
-        self._servo_joint_deg(taught[BOOT_POSE_NAME]["joints_deg"], n_steps=SETTLE_STEPS)
+        for rig in self.rigs.values():
+            self._servo_joint_deg(rig.robot_id, taught[BOOT_POSE_NAME]["joints_deg"],
+                                  n_steps=SETTLE_STEPS)
 
         self.magazine_spawn_pos, self.magazine_spawn_quat = self.magazine.get_world_pose()
 
@@ -580,21 +680,37 @@ class Backend:
         # 상단 "알려진 갭" 참고). 그래서 이름이 아니라 위치로 가른다 —
         # pick_phase1_approach 가 이미 아는 실제 목표 flange_world 좌표에
         # 가장 가까운 인스턴스를 찾는다. 그 후보 목록을 여기서 한 번만
-        # 읽어둔다(매 PICK 마다 yaml 다시 읽을 필요 없음).
+        # 읽어둔다(매 PICK 마다 yaml 다시 읽을 필요 없음). 두 로봇이
+        # 같은 매거진 후보 목록을 공유한다 — 어느 선반 것이든 좌표로 가른다.
         meas_layout = yaml.safe_load(MEASURED.read_text(encoding="utf-8"))
         self._all_magazine_prims = [m["prim"] for m in meas_layout["magazines"].values()]
-        self._current_magazine_path = MAGAZINE_XFORM_PATH  # PICK 전 기본값(레거시 메서드용)
+        # ★ yaml 목록은 기본 씬의 매거진 16 개다. 다른 씬(SIM_WORLD_USD)이나
+        #   스택(F3_STK*, 플랜지가 있는 캐리어면 전부)도 같은 방식으로 "실제로
+        #   집은 그것" 을 찾을 수 있게, 스테이지에서 flange_plate 자식을 가진
+        #   prim 을 전부 후보에 더한다. 없는 prim 은 _find_nearest_magazine 이
+        #   measure_prim 예외로 건너뛰므로 yaml 쪽 목록은 그대로 둔다.
+        try:
+            for prim in Usd.PrimRange(self.stage.GetPrimAtPath("/World")):
+                if prim.GetChild("flange_plate").IsValid():
+                    path = str(prim.GetPath())
+                    if path not in self._all_magazine_prims:
+                        self._all_magazine_prims.append(path)
+        except Exception as e:      # noqa: BLE001 — 후보 탐색 실패는 치명적이지 않다
+            print(f"   !! 플랜지 후보 탐색 실패({e}) — layout_measured.yaml 목록만 쓴다")
+        print(f"   플랜지 후보 {len(self._all_magazine_prims)} 개")
+        # ★ rig.current_magazine_path 기본값은 RobotRig.__init__ 이 이미
+        #   MAGAZINE_XFORM_PATH 로 세워 둔다(로봇별로 갖는 상태라 여기서
+        #   전역으로 다시 세울 self._current_magazine_path 는 없다).
 
-        base_pos0, base_quat0 = get_world_pose(BASE_LINK_PATH)
-        self.lula = LulaKinematicsSolver(robot_description_path=DESC_PATH, urdf_path=URDF_PATH)
-        self.lula.set_robot_base_pose(robot_position=base_pos0, robot_orientation=base_quat0)
-        self.solver = ArticulationKinematicsSolver(
-            robot_articulation=self.robot, kinematics_solver=self.lula,
-            end_effector_frame_name=EE_LINK_NAME)
-        self.gripper = SurfaceGripperCtl(self._gripper_node_path)
+        for rig in self.rigs.values():
+            base_pos0, base_quat0 = get_world_pose(rig.base_link_path)
+            rig.lula = LulaKinematicsSolver(robot_description_path=DESC_PATH, urdf_path=URDF_PATH)
+            rig.lula.set_robot_base_pose(robot_position=base_pos0, robot_orientation=base_quat0)
+            rig.solver = ArticulationKinematicsSolver(
+                robot_articulation=rig.robot, kinematics_solver=rig.lula,
+                end_effector_frame_name=EE_LINK_NAME)
+            rig.gripper = SurfaceGripperCtl(rig.gripper_node_path)
         self.target_quat = make_target_quat(APPROACH_ROLL_DEG, APPROACH_PITCH_DEG, GRIPPER_YAW_DEG)
-        self._capture_ready = False   # _ensure_camera_warm() 이 한 번 세팅하면 True
-        self._pending_capture = None  # _capture_frame() 이 진행 중인 캡쳐를 GC 로부터 붙잡아두는 자리
 
         st = self.frames["static_transforms"]
         self.R_l6_cam = quat_xyzw_to_mat(st["m0609_tool0__camera_link"]["quat_xyzw"])
@@ -604,15 +720,16 @@ class Backend:
         self.K = np.array(ci["k"], dtype=float).reshape(3, 3)
         self.dist = np.array(ci["d"], dtype=float)
 
-        print("   scene ready")
+        print(f"   scene ready — robots: {list(self.rigs.keys())}")
 
-    def _set_arm_stiffness(self, stiffness):
+    def _set_arm_stiffness(self, robot_id, stiffness):
         """observe_pose() 는 QR 이 깨지지 않게 DRIVE_STIFFNESS(1e5)로,
         pick_phase1_approach() 는 흡착 유지력이 충분한 DRIVE_STIFFNESS_PICK
         (1e8, 12_pick_test.py 검증값)으로 되돌린다. 위 DRIVE_STIFFNESS_PICK
         정의부 주석 참고 — 실측: 1e5 로 두면 LIFT 중 rise=88mm·tilt<0.1도로
         정상 상승해도 HOLD_WAIT 끝에 gripped=False (SLIP) 였다."""
-        for prim in Usd.PrimRange(self.stage.GetPrimAtPath(ROBOT_PRIM_PATH)):
+        rig = self.rigs[robot_id]
+        for prim in Usd.PrimRange(self.stage.GetPrimAtPath(rig.robot_prim_path)):
             if prim.GetName() not in ARM_JOINTS:
                 continue
             for dt in ["angular", "linear"]:
@@ -620,9 +737,10 @@ class Backend:
                 if d:
                     d.GetStiffnessAttr().Set(stiffness)
 
-    def _sync_ik_base(self):
-        pos, quat = get_world_pose(BASE_LINK_PATH)
-        self.lula.set_robot_base_pose(robot_position=pos, robot_orientation=quat)
+    def _sync_ik_base(self, robot_id):
+        rig = self.rigs[robot_id]
+        pos, quat = get_world_pose(rig.base_link_path)
+        rig.lula.set_robot_base_pose(robot_position=pos, robot_orientation=quat)
         return pos, quat
 
     def _require_playing(self):
@@ -637,48 +755,52 @@ class Backend:
                 "누른 뒤 다시 시도해라 (Stop 상태에서는 로봇 articulation 을 "
                 "읽거나 움직일 수 없다)")
 
-    def _set_joint_deg(self, joints_deg):
+    def _set_joint_deg(self, robot_id, joints_deg):
         self._require_playing()
-        idx = np.array([self.robot.get_dof_index(j) for j in ARM_JOINTS])
-        q = self.robot.get_joint_positions()
+        rig = self.rigs[robot_id]
+        idx = np.array([rig.robot.get_dof_index(j) for j in ARM_JOINTS])
+        q = rig.robot.get_joint_positions()
         q[idx] = np.deg2rad(joints_deg)
-        self.robot.set_joint_positions(q)
-        self.robot.set_joint_velocities(np.zeros_like(q))
-        self.robot.apply_action(ArticulationAction(joint_positions=np.deg2rad(joints_deg),
-                                                    joint_indices=idx))
+        rig.robot.set_joint_positions(q)
+        rig.robot.set_joint_velocities(np.zeros_like(q))
+        rig.robot.apply_action(ArticulationAction(joint_positions=np.deg2rad(joints_deg),
+                                                   joint_indices=idx))
 
-    def _servo_joint_deg(self, target_joints_deg, n_steps=SETTLE_STEPS):
+    def _servo_joint_deg(self, robot_id, target_joints_deg, n_steps=SETTLE_STEPS):
         """_set_joint_deg 는 set_joint_positions() 로 관절을 즉시 스냅한다 —
         아무것도 안 들고 있을 때(observe_pose)는 문제없지만, STOW 처럼 흡착
         중에 쓰면 그 순간 가속으로 접합이 끊긴다(실측: LIFT 판정은 통과했는데
         STOW 이후 최종 gripped=False). 대신 매 스텝 목표를 다시 명령해 부드럽게
         움직인다 — _servo_tcp 와 같은 방식."""
         self._require_playing()
-        idx = np.array([self.robot.get_dof_index(j) for j in ARM_JOINTS])
-        start_deg = np.degrees(self.robot.get_joint_positions()[idx])
+        rig = self.rigs[robot_id]
+        idx = np.array([rig.robot.get_dof_index(j) for j in ARM_JOINTS])
+        start_deg = np.degrees(rig.robot.get_joint_positions()[idx])
         target_deg = np.array(target_joints_deg, dtype=float)
         for i in range(1, n_steps + 1):
             self.world.step(render=not HEADLESS)
             cur_deg = start_deg + ease(i / float(n_steps)) * (target_deg - start_deg)
-            self.robot.apply_action(ArticulationAction(
+            rig.robot.apply_action(ArticulationAction(
                 joint_positions=np.deg2rad(cur_deg), joint_indices=idx))
 
-    def _get_tcp_pose(self):
-        pos, quat = self.robot.end_effector.get_world_pose()
+    def _get_tcp_pose(self, robot_id):
+        rig = self.rigs[robot_id]
+        pos, quat = rig.robot.end_effector.get_world_pose()
         return get_tcp_pose_from_ee(pos, quat)
 
-    def _servo_tcp(self, goal_tcp, phase_name):
-        start = self._get_tcp_pose()
+    def _servo_tcp(self, robot_id, goal_tcp, phase_name):
+        rig = self.rigs[robot_id]
+        start = self._get_tcp_pose(robot_id)
         n_steps, dist = steps_for(start, goal_tcp)
         fail = 0
         for i in range(1, n_steps + 1):
             self.world.step(render=not HEADLESS)
             tcp = start + ease(i / float(n_steps)) * (goal_tcp - start)
-            action, solved = self.solver.compute_inverse_kinematics(
+            action, solved = rig.solver.compute_inverse_kinematics(
                 target_position=tcp_to_flange(tcp, self.target_quat),
                 target_orientation=self.target_quat)
             if solved:
-                self.robot.apply_action(action)
+                rig.robot.apply_action(action)
                 fail = 0
             else:
                 fail += 1
@@ -687,10 +809,14 @@ class Backend:
         return True
 
     # ── RPC 메서드 ──────────────────────────────────────────
-    def teleport_base(self, x, y, yaw_deg):
+    # 아래 대부분은 robot_id="robot1"/"robot2" 를 받는다 — pick_place_server/
+    # carrier_code_reader 가 자기 ROS 네임스페이스를 그대로 실어 보낸다
+    # (robot_id 를 안 주면 DEFAULT_ROBOT_ID="robot1" 폴백 — 옛 호출과 호환).
+    def teleport_base(self, x, y, yaw_deg, robot_id=DEFAULT_ROBOT_ID):
         """임시 nav_server 가 부르는 것 — "가짜 주행". SLAM 준비되면 이
         메서드는 그대로 두고, 임시 nav_server 만 실제 Nav2 클라이언트로
-        바뀐다(이 백엔드는 안 바뀐다).
+        바뀐다(이 백엔드는 안 바뀐다). ★ 지금은 아무 ROS 노드도 이 메서드를
+        안 부른다 — 실제 Nav2(multi_navigation.launch.py)로 이미 대체됐다.
 
         ★ 한 번에 점프하지 않는다 — 목표까지 여러 스텝에 걸쳐 조금씩
         set_world_pose() 를 다시 부른다(_servo_base). 12_place_test.py 실측:
@@ -699,34 +825,36 @@ class Backend:
         같다. 그래도 "정말 몇 스텝째 놓치는지" 를 실측으로 보여주려고 이
         방식을 쓴다 — dropped_at_step 로 보고한다(gripped=False 로 시작하면
         None)."""
-        was_gripped = holding(self.gripper.gripped())
-        dropped_at_step = self._servo_base(x, y, yaw_deg)
-        self._sync_ik_base()
-        # BASE_LINK_PATH(m0609/base_link) 는 팔의 마운트 기준점이지 AMR 섀시가
-        # 아니다 — 카터 위에 약 0.2 m 앞으로 얹혀 있다(taught_poses.yaml 의
-        # base_link_world vs m0609_base_world 차이와 일치). 여기서는 실제로
+        rig = self.rigs[robot_id]
+        was_gripped = holding(rig.gripper.gripped())
+        dropped_at_step = self._servo_base(robot_id, x, y, yaw_deg)
+        self._sync_ik_base(robot_id)
+        # rig.base_link_path(m0609/base_link) 는 팔의 마운트 기준점이지 AMR
+        # 섀시가 아니다 — 카터 위에 약 0.2 m 앞으로 얹혀 있다(taught_poses.yaml
+        # 의 base_link_world vs m0609_base_world 차이와 일치). 여기서는 실제로
         # 텔레포트한 섀시 pose 를 보고한다. Lula 동기화(_sync_ik_base)는
         # 그대로 m0609/base_link 를 쓴다 — IK 에는 그게 맞는 프레임이다.
-        pos, quat_w = get_world_pose(f"{BASE_XFORM_PATH}/chassis_link")
+        pos, quat_w = get_world_pose(rig.chassis_link_path)
 
         carried_ok = True
         if was_gripped:
-            carried_ok = self._carry_gripped_object_through_teleport()
+            carried_ok = self._carry_gripped_object_through_teleport(robot_id)
 
         return {"base_x": float(pos[0]), "base_y": float(pos[1]),
                "base_yaw_deg": math.degrees(yaw_of_quat(quat_w)),
                "carried_ok": carried_ok, "dropped_at_step": dropped_at_step}
 
-    def _servo_base(self, target_x, target_y, target_yaw_deg):
+    def _servo_base(self, robot_id, target_x, target_y, target_yaw_deg):
         """베이스를 목표 pose 까지 여러 스텝에 걸쳐 보간 이동한다("가짜
         주행"). 실제 바퀴 속도 제어가 아니라 매 스텝 set_world_pose() 를
         다시 부르는 것뿐이다 — Nav2 전까지의 임시 근사."""
-        start_p, start_q = get_world_pose(BASE_XFORM_PATH)
+        rig = self.rigs[robot_id]
+        start_p, start_q = get_world_pose(rig.base_xform_path)
         start_yaw = math.degrees(yaw_of_quat(start_q))
         dist = float(np.linalg.norm([target_x - start_p[0], target_y - start_p[1]]))
         n_steps = int(np.clip(dist / 0.03, MIN_STEPS, MAX_STEPS * 2))
 
-        was_gripped = holding(self.gripper.gripped())
+        was_gripped = holding(rig.gripper.gripped())
         dropped_at_step = None
         for i in range(1, n_steps + 1):
             a = ease(i / float(n_steps))
@@ -734,21 +862,21 @@ class Backend:
             y = start_p[1] + a * (target_y - start_p[1])
             yaw = start_yaw + a * (target_yaw_deg - start_yaw)
             quat = quat_from_axis([0, 0, 1], yaw)
-            self.robot.set_world_pose(position=np.array([x, y, CARTER_Z]), orientation=quat)
+            rig.robot.set_world_pose(position=np.array([x, y, CARTER_Z]), orientation=quat)
             try:
-                self.robot.set_linear_velocity(np.zeros(3))
-                self.robot.set_angular_velocity(np.zeros(3))
+                rig.robot.set_linear_velocity(np.zeros(3))
+                rig.robot.set_angular_velocity(np.zeros(3))
             except Exception:
                 pass
             self.world.step(render=not HEADLESS)
-            if was_gripped and dropped_at_step is None and not holding(self.gripper.gripped()):
+            if was_gripped and dropped_at_step is None and not holding(rig.gripper.gripped()):
                 dropped_at_step = i
-                print(f"   !! 주행 중 {i}/{n_steps} 스텝에서 흡착이 끊겼다")
+                print(f"   !! [{robot_id}] 주행 중 {i}/{n_steps} 스텝에서 흡착이 끊겼다")
         for _ in range(BASE_MOVE_SETTLE_STEPS):
             self.world.step(render=not HEADLESS)
         return dropped_at_step
 
-    def _carry_gripped_object_through_teleport(self):
+    def _carry_gripped_object_through_teleport(self, robot_id):
         """★ 이 시뮬레이션의 한계 우회: 베이스 아티큘레이션에 set_world_pose()
         를 부르면 거리와 무관하게 흡착이 즉시 풀린다(12_place_test.py /
         14_place_test_pse.py 실측 — 상대 위치를 그대로 들고 옮겨도 마찬가지였다).
@@ -756,6 +884,12 @@ class Backend:
         자리에서 매거진을 그리퍼 바로 아래로 다시 옮겨 재흡착한다. 실물
         로봇은 이 메서드를 안 타므로(진짜로 붙든 채 이동하니) 이관 시 자연히
         빠진다 — nav_server/pick_place_server 쪽 코드는 안 바뀐다.
+
+        ★ self.magazine(MAGAZINE_XFORM_PATH, shelf_1 orange 고정 하나)만
+        재배치한다 — teleport_base 를 아무도 안 부르는 지금 배선에서는
+        도달하지 않는 경로라 robot2/다른 매거진 인스턴스로 일반화하지
+        않았다. 실제로 이 경로를 다시 쓰게 되면 rig.current_magazine_path
+        인스턴스를 재배치하도록 고쳐야 한다.
 
         재배치는 tcp_now 를 그대로 쓴다(gripper.close() 가 maxGripDistance
         30mm 안에서만 붙으니 tcp 에 최대한 가까워야 한다) — pkg_loader 정지
@@ -775,17 +909,18 @@ class Backend:
         뒤 그 자세에서 재흡착한다 — 좌표 공식도 grip_z 와 동일하게 월드 -Z
         오프셋을 쓸 수 있다. 호버 지점(섀시 앞 0.3m, 위 1.0m)은 바닥·선반·
         컨베이어 전부와 충분히 떨어져 있어 충돌 걱정이 없다."""
-        self.gripper.open()
-        self.gripper.reinit()
+        rig = self.rigs[robot_id]
+        rig.gripper.open()
+        rig.gripper.reinit()
 
-        base_p, base_q = get_world_pose(CHASSIS_LINK_PATH)
+        base_p, base_q = get_world_pose(rig.chassis_link_path)
         R_base = quat_to_matrix(base_q)
         safe_hover = base_p + R_base @ np.array([0.3, 0.0, 1.0])
-        self._servo_tcp(safe_hover, "TRANSIT_HOVER")
+        self._servo_tcp(robot_id, safe_hover, "TRANSIT_HOVER")
         for _ in range(10):
             self.world.step(render=not HEADLESS)
 
-        tcp_now = self._get_tcp_pose()   # target_quat 자세라 월드 -Z 오프셋이 맞다
+        tcp_now = self._get_tcp_pose(robot_id)   # target_quat 자세라 월드 -Z 오프셋이 맞다
         mag_height = measure_prim(MAGAZINE_XFORM_PATH)[2]
         # 직전까지 떨어져 있던 자세(mag_quat)를 그대로 쓰면 기울어진 채로
         # 재배치되어 바운딩박스가 커지고 주변과 걸릴 수 있다 — reset_magazine
@@ -803,18 +938,20 @@ class Backend:
         for _ in range(SETTLE_STEPS):
             self.world.step(render=not HEADLESS)
 
-        self.gripper.close()
+        rig.gripper.close()
         for _ in range(GRIP_WAIT):
             self.world.step(render=not HEADLESS)
-        ok = holding(self.gripper.gripped())
+        ok = holding(rig.gripper.gripped())
         if not ok:
-            print("   !! 이송 후 재흡착 실패 — 이송 중 놓친 것으로 처리")
+            print(f"   !! [{robot_id}] 이송 후 재흡착 실패 — 이송 중 놓친 것으로 처리")
         return ok
 
-    def reset_magazine(self):
+    def reset_magazine(self, robot_id=DEFAULT_ROBOT_ID):
         """반복 테스트용. carrier_code_reader/pick 결과에 영향받은 매거진을
-        원위치로 되돌린다."""
-        self.gripper.open()
+        원위치로 되돌린다. robot_id 는 그리퍼를 열어 둘 로봇 — 매거진
+        자체(MAGAZINE_XFORM_PATH)는 로봇과 무관한 전역 픽스처다."""
+        rig = self.rigs[robot_id]
+        rig.gripper.open()
         for _ in range(20):
             self.world.step(render=not HEADLESS)
         self.magazine.set_world_pose(position=self.magazine_spawn_pos,
@@ -823,24 +960,33 @@ class Backend:
         self.magazine.set_angular_velocity(np.zeros(3))
         for _ in range(30):
             self.world.step(render=not HEADLESS)
-        self.gripper.reinit()
+        rig.gripper.reinit()
         return {"ok": True}
 
-    def observe_pose(self, pose_name="shelf_1_top_close_centered"):
-        """관측 자세로 이동한다. taught_poses.yaml 에 있는 아무 키나 받는다 —
-        층별로 다른 관절값을 쓰려면(2층 shelf_1_top_close_centered, 1층
-        s1_bottom_scan) 호출하는 쪽에서 pose_name 을 바꿔서 넘기면 된다.
-        carrier_code_reader.scan_qr() 전에 부른다."""
-        self._set_arm_stiffness(DRIVE_STIFFNESS)   # QR 디코드가 깨지지 않는 값으로
-        taught = yaml.safe_load((ISAACPJT / "tools/out/taught_poses.yaml").read_text(encoding="utf-8"))
-        pose = taught[pose_name]
-        self._set_joint_deg(pose["joints_deg"])
+    def observe_pose(self, pose_name=None, joints_deg=None, robot_id=DEFAULT_ROBOT_ID):
+        """관측 자세로 이동한다. 두 가지 중 하나로 목표를 준다:
+          pose_name    taught_poses.yaml 에 있는 키 (예: shelf_1_top_close_centered)
+          joints_deg   J1..J6 목록 (도). shelves.yaml 의
+                       scan_passes.arm_teach_pose 는 rad 단위(meta.units)니
+                       호출하는 쪽(carrier_code_reader)이 도로 바꿔 넘긴다.
+        둘 다 주어지면 joints_deg 가 우선한다. 둘 다 없으면 ValueError.
+        carrier_code_reader.scan_qr() 전에 부른다. robot_id 는 어느 로봇의
+        팔/손목캠을 움직일지 고른다(네임스페이스 그대로: "robot1"/"robot2")."""
+        self._set_arm_stiffness(robot_id, DRIVE_STIFFNESS)   # QR 디코드가 깨지지 않는 값으로
+        if joints_deg is not None:
+            self._set_joint_deg(robot_id, list(joints_deg))
+        elif pose_name is not None:
+            taught = yaml.safe_load((ISAACPJT / "tools/out/taught_poses.yaml").read_text(encoding="utf-8"))
+            pose = taught[pose_name]
+            self._set_joint_deg(robot_id, pose["joints_deg"])
+        else:
+            raise ValueError("observe_pose: pose_name 또는 joints_deg 가 필요하다")
         for _ in range(SETTLE_STEPS):
             self.world.step(render=not HEADLESS)
-        self._ensure_camera_warm()
-        return {"ok": True, "pose": pose_name}
+        self._ensure_camera_warm(robot_id)
+        return {"ok": True, "pose": pose_name or "joints(deg): %s" % joints_deg}
 
-    def _ensure_camera_warm(self, force=False):
+    def _ensure_camera_warm(self, robot_id, force=False):
         """관측 자세에 이미 도착한 뒤, 뷰포트를 손목 카메라로 돌리고 depth
         AOV 를 등록한다.
 
@@ -877,9 +1023,15 @@ class Backend:
         (0,0)으로 끝까지 안 채워짐 — SD 이름이라야 R32_SFLOAT/1280x720 로
         실제 채워진다).
 
-        부작용: 이 호출 이후 GUI 뷰포트에는 씬 전체가 아니라 손목 카메라
-        시야가 보인다 — 감수한다.
+        부작용: 이 호출 이후 GUI 뷰포트에는 씬 전체가 아니라 이 robot_id 의
+        손목 카메라 시야가 보인다 — 감수한다. 뷰포트(및 그 render_product)는
+        Isaac 프로세스에 하나뿐이라 두 로봇이 동시에 캡쳐할 수는 없다 —
+        하지만 RPC 큐가 호출을 한 번에 하나씩만 처리하므로(main() 참고)
+        실제로 동시 호출이 겹칠 일이 없다. capture_ready 는 로봇별로
+        따로 추적한다 — 다른 로봇으로 넘어갔다가 돌아오면 그 로봇 카메라로
+        다시 한 번 워밍업 검증을 한다.
         """
+        rig = self.rigs[robot_id]
         from omni.kit.viewport.utility import get_active_viewport, add_aov_to_viewport
         import carb.settings
 
@@ -887,23 +1039,26 @@ class Backend:
         if viewport is None:
             raise RuntimeError(
                 "활성 뷰포트를 찾을 수 없다 — headless 모드에서는 이 우회가 안 통한다")
-        viewport.camera_path = CAMERA_PRIM
-        if force or not self._capture_ready:
+        viewport.camera_path = rig.camera_prim
+        if force or not rig.capture_ready:
             carb.settings.get_settings().set(
                 "/app/hydra/renderSettings/saveUsdAttributes", False)
             add_aov_to_viewport(viewport, DEPTH_AOV_NAME)
-            self._capture_ready = False
+            rig.capture_ready = False
         for _ in range(30):
             self.world.step(render=True)
         # 실제로 유효한 프레임이 나오는지 한 번 확인한다 — 이전 판의
         # "워밍업 검증" 과 같은 취지다. 실패하면 그대로 예외를 올린다.
-        self._capture_frame(timeout_frames=240)
-        self._capture_ready = True
+        self._capture_frame(robot_id, timeout_frames=240)
+        rig.capture_ready = True
 
-    def _capture_frame(self, timeout_frames=180):
+    def _capture_frame(self, robot_id, timeout_frames=180):
         """뷰포트의 render_product 에서 RGB(BGR 로 변환해서 반환)+depth 를
         raw 바이트 콜백으로 한 프레임 받는다. _ensure_camera_warm() 독스트링
-        참고 — Replicator/AnnotatorRegistry(FabricReader)를 아예 안 거친다."""
+        참고 — Replicator/AnnotatorRegistry(FabricReader)를 아예 안 거친다.
+        호출 전에 _ensure_camera_warm(robot_id) 로 뷰포트가 이미 이 로봇의
+        카메라를 보고 있어야 한다."""
+        rig = self.rigs[robot_id]
         from omni.kit.viewport.utility import get_active_viewport
         from omni.kit.widget.viewport.capture import MultiAOVByteCapture
 
@@ -924,28 +1079,30 @@ class Backend:
             result["depth"] = arr.reshape(height, width).astype(np.float64).copy()
 
         cap = MultiAOVByteCapture(["", DEPTH_AOV_NAME], [_on_rgb, _on_depth])
-        self._pending_capture = cap  # GC 되면 콜백이 안 온다 — 끝날 때까지 붙잡아둔다
+        rig.pending_capture = cap  # GC 되면 콜백이 안 온다 — 끝날 때까지 붙잡아둔다
         viewport.schedule_capture(cap)
         for _ in range(timeout_frames):
             self.world.step(render=True)
             if "rgb" in result and "depth" in result:
-                self._pending_capture = None
+                rig.pending_capture = None
                 return result["rgb"], result["depth"]
-        self._pending_capture = None
+        rig.pending_capture = None
         raise RuntimeError("프레임 캡쳐 타임아웃 — rgb/depth 콜백이 오지 않았다")
 
-    def scan_qr(self, expected_id=None, n_frames=3):
+    def scan_qr(self, expected_id=None, n_frames=3, robot_id=DEFAULT_ROBOT_ID):
         """cobot3_perception.qr_pose 로 QR 자세를 재고, base_link 프레임으로
         변환해 돌려준다. carrier_code_reader 노드가 그대로 CarrierScan.qr_pose
-        에 옮겨 담을 수 있는 형태다."""
-        base_p, base_q = get_world_pose(CHASSIS_LINK_PATH)
+        에 옮겨 담을 수 있는 형태다. observe_pose(robot_id=...) 로 이미 그
+        로봇의 관측 자세/카메라가 준비돼 있어야 한다."""
+        rig = self.rigs[robot_id]
+        base_p, base_q = get_world_pose(rig.chassis_link_path)
         R_base = quat_to_matrix(base_q)
 
         obs_list = []
         decoded = ""
         for _ in range(n_frames):
-            rgb, depth = self._capture_frame()
-            l6_p, l6_q = get_world_pose(EE_LINK_PATH)
+            rgb, depth = self._capture_frame(robot_id)
+            l6_p, l6_q = get_world_pose(rig.ee_link_path)
             R_l6 = quat_to_matrix(l6_q)
             R_opt = R_l6 @ self.R_l6_cam @ self.R_cam_opt
             p_opt = l6_p + R_l6 @ self.t_l6_cam
@@ -1019,7 +1176,7 @@ class Backend:
                 best_path, best_d = path, d
         return best_path or MAGAZINE_XFORM_PATH
 
-    def pick_observe_flange(self, flange_pose_base_link, variant):
+    def pick_observe_flange(self, flange_pose_base_link, variant, robot_id=DEFAULT_ROBOT_ID):
         """PickCarrier 의 OBSERVE — qr_pose(prior) 위로 손목캠을 가져가
         flange_topview.detect_flange() 로 진짜 파지점(중심 xy·윗면 z·yaw)을
         잰다. PickCarrier.action ★ 블록과 pick_place_server.py 독스트링이
@@ -1034,12 +1191,13 @@ class Backend:
         Replicator/AnnotatorRegistry 는 이 세션(Isaac Sim 5.1.0 rc.19)에서
         rgb annotator 가 항상 빈 프레임(shape=(0,))만 줘서(_ensure_camera_warm
         독스트링 참고), 뷰포트 캡쳐 우회로 이미 바꿔 둔 경로를 그대로 쓴다."""
+        rig = self.rigs[robot_id]
         entry = self.grasp["magazines"].get(variant)
         if entry is None:
             return {"ok": False, "reason": f"grasp.yaml 에 없는 variant: {variant}"}
         fv = self.grasp["flange_vision"]
 
-        base_p, base_q = get_world_pose(CHASSIS_LINK_PATH)
+        base_p, base_q = get_world_pose(rig.chassis_link_path)
         R_base = quat_to_matrix(base_q)
         p_rel = np.array(flange_pose_base_link["position"])
         prior_world = base_p + R_base @ p_rel
@@ -1060,17 +1218,17 @@ class Backend:
         tool0_pos = cam_pos - R_tool @ self.t_l6_cam
         observe_tcp = tool0_pos + R_tool @ TCP_OFFSET
 
-        _set_status(phase="OBSERVE_FLANGE", message="")
-        if not self._servo_tcp(observe_tcp, "OBSERVE_FLANGE"):
+        _set_status(robot_id, phase="OBSERVE_FLANGE", message="")
+        if not self._servo_tcp(robot_id, observe_tcp, "OBSERVE_FLANGE"):
             return {"ok": False, "reason": "관측 자세 IK 실패"}
 
-        self._ensure_camera_warm()
+        self._ensure_camera_warm(robot_id)
         try:
-            rgb, depth = self._capture_frame()
+            rgb, depth = self._capture_frame(robot_id)
         except RuntimeError as e:
             return {"ok": False, "reason": str(e)}
 
-        l6_p, l6_q = get_world_pose(EE_LINK_PATH)
+        l6_p, l6_q = get_world_pose(rig.ee_link_path)
         R_l6 = quat_to_matrix(l6_q)
         R_opt = R_l6 @ self.R_l6_cam @ self.R_cam_opt
         p_opt = l6_p + R_l6 @ self.t_l6_cam
@@ -1087,75 +1245,78 @@ class Backend:
             max_depth_correction_m=float(fv["max_depth_correction_m"]))
 
         if not obs.ok:
-            _set_status(phase="OBSERVE_FLANGE", message=obs.reason)
+            _set_status(robot_id, phase="OBSERVE_FLANGE", message=obs.reason)
             return {"ok": False, "reason": obs.reason}
 
         p_rel_out = R_base.T @ (obs.center_world - base_p)
         yaw_rel_out = obs.yaw_rad - yaw_of_quat(base_q)
         half = yaw_rel_out / 2.0
-        print(f"   OBSERVE_FLANGE  {variant}  depth_corr {obs.depth_correction_m*1000:+.1f} mm  "
+        print(f"   OBSERVE_FLANGE  [{robot_id}] {variant}  depth_corr {obs.depth_correction_m*1000:+.1f} mm  "
               f"fill {obs.fill_ratio:.2f}  edge_rms {obs.edge_rms_mm:.2f} mm")
         return {"ok": True,
                "position": p_rel_out.tolist(),
                "quat_wxyz": [float(math.cos(half)), 0.0, 0.0, float(math.sin(half))]}
 
-    def pick_phase1_approach(self, flange_pose_base_link, approach_dist_m):
+    def pick_phase1_approach(self, flange_pose_base_link, approach_dist_m, robot_id=DEFAULT_ROBOT_ID):
         """PickCarrier 의 APPROACH. flange_pose 는 base_link 프레임
         {position:[x,y,z], quat_wxyz:[..]} (Pose 규약과 동일, position=판
         윗면 중심, +Z=법선 위)."""
-        self._set_arm_stiffness(DRIVE_STIFFNESS_PICK)   # 흡착 유지력 검증값으로
-        base_p, base_q = get_world_pose(CHASSIS_LINK_PATH)
+        rig = self.rigs[robot_id]
+        self._set_arm_stiffness(robot_id, DRIVE_STIFFNESS_PICK)   # 흡착 유지력 검증값으로
+        base_p, base_q = get_world_pose(rig.chassis_link_path)
         R_base = quat_to_matrix(base_q)
         p_rel = np.array(flange_pose_base_link["position"])
         flange_world = base_p + R_base @ p_rel
-        self._flange_world = flange_world   # DESCEND 단계에서 재사용
+        rig.flange_world = flange_world   # DESCEND 단계에서 재사용
         # ★ pick_phase2_finish 의 rise/tilt 판정이 엉뚱한(하드코딩된
         # magazine_1_orange) 매거진을 재던 버그의 수정 — 실제 목표 위치에
         # 가장 가까운 인스턴스를 여기서 미리 찾아둔다.
-        self._current_magazine_path = self._find_nearest_magazine(flange_world)
+        rig.current_magazine_path = self._find_nearest_magazine(flange_world)
 
-        _set_status(phase="APPROACH", gripped=False, gap_m=0.0, message="")
+        _set_status(robot_id, phase="APPROACH", gripped=False, gap_m=0.0, message="")
         goal = flange_world + np.array([0, 0, approach_dist_m])
-        ok = self._servo_tcp(goal, "APPROACH")
+        ok = self._servo_tcp(robot_id, goal, "APPROACH")
         if not ok:
-            _set_status(phase="FAILED", message="APPROACH IK 실패")
+            _set_status(robot_id, phase="FAILED", message="APPROACH IK 실패")
             return {"success": False, "fail_reason": "NO_IK", "phase": "APPROACH"}
         return {"success": True}
 
-    def pick_phase2_finish(self, grip_gaps_m, offset_limit_m, lift_height_m=None):
+    def pick_phase2_finish(self, grip_gaps_m, offset_limit_m, lift_height_m=None,
+                           robot_id=DEFAULT_ROBOT_ID):
         """DESCEND -> SUCTION -> LIFT -> STOW. offset_limit_m 은 이제
         pick_place_server 의 declare_parameter 값을 그대로 받는다 (PickCarrier.action
         리팩터 이후 flange_short_side_m 이 goal 에서 빠졌다 — offset_limit_m
         을 서버 파라미터로 직접 갖는 쪽이 계약과 맞는다)."""
+        rig = self.rigs[robot_id]
         if lift_height_m is None:
             lift_height_m = LIFT_HEIGHT_OFFSET
-        flange_world = self._flange_world
+        flange_world = rig.flange_world
 
         for attempt, gap in enumerate(grip_gaps_m):
-            _set_status(phase="DESCEND", gap_m=gap)
+            _set_status(robot_id, phase="DESCEND", gap_m=gap)
             grip_z = flange_world + np.array([0, 0, gap])
-            if not self._servo_tcp(grip_z, "DESCEND"):
-                _set_status(phase="FAILED", message="DESCEND IK 실패")
+            if not self._servo_tcp(robot_id, grip_z, "DESCEND"):
+                _set_status(robot_id, phase="FAILED", message="DESCEND IK 실패")
                 return {"success": False, "fail_reason": "NO_IK", "phase": "DESCEND"}
 
-            _set_status(phase="SUCTION", gap_m=gap)
-            self.gripper.close()
+            _set_status(robot_id, phase="SUCTION", gap_m=gap)
+            rig.gripper.close()
             for _ in range(GRIP_WAIT):
                 self.world.step(render=not HEADLESS)
-            ok = holding(self.gripper.gripped())
-            _set_status(gripped=ok)
-            print(f"   시도 {attempt+1}/{len(grip_gaps_m)}  간격 {gap*1000:+.0f} mm  "
+            ok = holding(rig.gripper.gripped())
+            _set_status(robot_id, gripped=ok)
+            print(f"   [{robot_id}] 시도 {attempt+1}/{len(grip_gaps_m)}  간격 {gap*1000:+.0f} mm  "
                   f"-> {'붙었다' if ok else '안 붙었다'}")
             if ok:
                 break
-            self.gripper.open()
+            rig.gripper.open()
         else:
-            _set_status(phase="FAILED", message="흡착 실패 — grip_gaps 전부 소진")
+            _set_status(robot_id, phase="FAILED", message="흡착 실패 — grip_gaps 전부 소진")
             return {"success": False, "fail_reason": "NO_ATTACH", "phase": "SUCTION",
                    "used_gap_m": 0.0}
 
         # 흡착 순간 TCP 횡오차 (OFF_FLANGE 판정 — PickCarrier.action 주석 그대로)
-        tcp_now = self._get_tcp_pose()
+        tcp_now = self._get_tcp_pose(robot_id)
         final_offset_m = float(np.linalg.norm((tcp_now - flange_world)[:2]))
 
         # ★ 하드코딩된 FLANGE_PATH/self.magazine(magazine_1_orange) 대신,
@@ -1164,48 +1325,48 @@ class Backend:
         # 재서 rise 가 항상 0mm 으로 나오고 실제로는 성공한 PICK 이
         # SLIP 으로 오판정된다(실측 재현 — task_manager.py QR 인식
         # 디버깅 이력 참고).
-        target_flange_path = f"{self._current_magazine_path}/flange_plate"
-        _set_status(phase="LIFT")
+        target_flange_path = f"{rig.current_magazine_path}/flange_plate"
+        _set_status(robot_id, phase="LIFT")
         top_z0 = measure_prim(target_flange_path)[1]
         lift_goal = flange_world + np.array([0, 0, lift_height_m])
-        self._servo_tcp(lift_goal, "LIFT")
+        self._servo_tcp(robot_id, lift_goal, "LIFT")
         for _ in range(HOLD_WAIT):
             self.world.step(render=not HEADLESS)
-        gripped_after_lift = holding(self.gripper.gripped())
-        _set_status(gripped=gripped_after_lift)
+        gripped_after_lift = holding(rig.gripper.gripped())
+        _set_status(robot_id, gripped=gripped_after_lift)
         top_z1 = measure_prim(target_flange_path)[1]
         rise_m = top_z1 - top_z0
-        _, mag_q = get_world_pose(self._current_magazine_path)
+        _, mag_q = get_world_pose(rig.current_magazine_path)
         tilt_deg = tilt_deg_from_quat(mag_q)
 
         if not gripped_after_lift:
-            _set_status(phase="FAILED", message="리프트 중 놓쳤다")
+            _set_status(robot_id, phase="FAILED", message="리프트 중 놓쳤다")
             return {"success": False, "fail_reason": "SLIP", "phase": "LIFT",
                    "final_offset_m": final_offset_m, "offset_limit_m": offset_limit_m}
 
         if final_offset_m > offset_limit_m:
-            _set_status(phase="FAILED", message="OFF_FLANGE")
+            _set_status(robot_id, phase="FAILED", message="OFF_FLANGE")
             return {"success": False, "fail_reason": "OFF_FLANGE", "phase": "LIFT",
                    "final_offset_m": final_offset_m, "offset_limit_m": offset_limit_m}
 
-        _set_status(phase="STOW")
+        _set_status(robot_id, phase="STOW")
         # STOW: 이송 자세로. READY_JOINTS_DEG 로 되돌리는 것으로 대신한다 —
         # _set_joint_deg(즉시 스냅) 대신 _servo_joint_deg(부드러운 보간)를
         # 쓴다. 실측: 즉시 스냅은 LIFT 판정(rise·tilt·gripped 전부 정상)을
         # 통과한 뒤에도 그 스냅 가속으로 흡착이 끊겼다.
-        self._servo_joint_deg(READY_JOINTS_DEG, n_steps=SETTLE_STEPS)
+        self._servo_joint_deg(robot_id, READY_JOINTS_DEG, n_steps=SETTLE_STEPS)
         for _ in range(HOLD_WAIT):
             self.world.step(render=not HEADLESS)
 
-        ok = (rise_m >= LIFT_OK_MIN_M) and (tilt_deg <= TILT_MAX_DEG) and holding(self.gripper.gripped())
-        _set_status(phase="DONE" if ok else "FAILED",
+        ok = (rise_m >= LIFT_OK_MIN_M) and (tilt_deg <= TILT_MAX_DEG) and holding(rig.gripper.gripped())
+        _set_status(robot_id, phase="DONE" if ok else "FAILED",
                     message="" if ok else f"판정 실패 rise={rise_m*1000:.1f}mm tilt={tilt_deg:.2f}")
         return {"success": bool(ok), "fail_reason": "NONE" if ok else "SLIP",
-               "gripped": bool(holding(self.gripper.gripped())),
+               "gripped": bool(holding(rig.gripper.gripped())),
                "final_offset_m": final_offset_m, "offset_limit_m": offset_limit_m,
                "used_gap_m": float(gap), "rise_mm": rise_m*1000, "tilt_deg": tilt_deg}
 
-    def get_place_slot_pose_base_link(self):
+    def get_place_slot_pose_base_link(self, robot_id=DEFAULT_ROBOT_ID):
         """편의 메서드 — get_flange_pose_world 와 같은 목적, place 쪽 GT.
         포트/슬롯 지오메트리가 아직 씬에 없어서(다음 범위), 12_place_test.py 가
         검증한 컨베이어 벨트 위 스테이징 지점(PLACE_TARGET_XY, CONVEYOR_BELT_Z)을
@@ -1218,84 +1379,89 @@ class Backend:
         flange_plate 는 거기서 물체 높이(magazine_height)만큼 더 위에
         있어야 물체 바닥이 실제로 벨트에 닿는다(12_place_test.py 의
         place_ref_z = CONVEYOR_BELT_Z + magazine_height 와 같은 식이다).
-        지금 들고 있는 실제 인스턴스(self._current_magazine_path, PICK
+        지금 들고 있는 실제 인스턴스(rig.current_magazine_path, PICK
         때 pick_phase1_approach 가 찾아둔 것)의 실측 높이를 그대로 쓴다."""
-        base_p, base_q = get_world_pose(CHASSIS_LINK_PATH)
+        rig = self.rigs[robot_id]
+        base_p, base_q = get_world_pose(rig.chassis_link_path)
         R_base = quat_to_matrix(base_q)
-        magazine_height = measure_prim(self._current_magazine_path)[2]
+        magazine_height = measure_prim(rig.current_magazine_path)[2]
         target_z = CONVEYOR_BELT_Z + magazine_height
         world_target = np.array([PLACE_TARGET_XY[0], PLACE_TARGET_XY[1], target_z])
         p_rel = R_base.T @ (world_target - base_p)
         return {"position": p_rel.tolist(), "quat_wxyz": [1.0, 0.0, 0.0, 0.0]}
 
-    def place_phase1_approach(self, slot_pose_base_link, approach_dist_m=None):
+    def place_phase1_approach(self, slot_pose_base_link, approach_dist_m=None,
+                              robot_id=DEFAULT_ROBOT_ID):
         """PlaceCarrier 의 APPROACH. slot_pose 는 base_link 프레임
         {position:[x,y,z], quat_wxyz:[..]}, z=슬롯 바닥. 이송(TRANSIT)은
         여기서 안 한다 — task_manager 가 이 호출 전에 NavigateTo 로 이미
         pkg_loader 에 도착해 있어야 한다(재흡착은 teleport_base 안에서
         처리됨, _carry_gripped_object_through_teleport 참고)."""
-        if not holding(self.gripper.gripped()):
-            _set_status(phase="FAILED", message="APPROACH 시작 시점에 이미 안 붙어 있다")
+        rig = self.rigs[robot_id]
+        if not holding(rig.gripper.gripped()):
+            _set_status(robot_id, phase="FAILED", message="APPROACH 시작 시점에 이미 안 붙어 있다")
             return {"success": False, "fail_reason": "NOT_GRIPPED"}
 
         if approach_dist_m is None:
             approach_dist_m = PLACE_APPROACH_HEIGHT_OFFSET
-        base_p, base_q = get_world_pose(CHASSIS_LINK_PATH)
+        base_p, base_q = get_world_pose(rig.chassis_link_path)
         R_base = quat_to_matrix(base_q)
         p_rel = np.array(slot_pose_base_link["position"])
         slot_world = base_p + R_base @ p_rel
-        self._slot_world = slot_world   # DESCEND 단계에서 재사용
-        self._place_approach_dist_m = float(approach_dist_m)
+        rig.slot_world = slot_world   # DESCEND 단계에서 재사용
+        rig.place_approach_dist_m = float(approach_dist_m)
 
-        _set_status(phase="APPROACH", gripped=True, gap_m=0.0, message="")
+        _set_status(robot_id, phase="APPROACH", gripped=True, gap_m=0.0, message="")
         goal = slot_world + np.array([0, 0, approach_dist_m])
-        ok = self._servo_tcp(goal, "APPROACH")
+        ok = self._servo_tcp(robot_id, goal, "APPROACH")
         if not ok:
-            _set_status(phase="FAILED", message="APPROACH IK 실패")
+            _set_status(robot_id, phase="FAILED", message="APPROACH IK 실패")
             return {"success": False, "fail_reason": "NO_IK"}
         return {"success": True}
 
-    def place_phase2_finish(self, release_height_m):
+    def place_phase2_finish(self, release_height_m, robot_id=DEFAULT_ROBOT_ID):
         """DESCEND -> RELEASE -> RETRACT.
 
         ★ 알려진 갭: PORT_OCCUPIED(슬롯 점유 감지)는 아직 구현하지 않았다 —
         이 씬에 슬롯 자체가 없어서(place_phase1_approach 독스트링 참고)
         항상 비어 있다고 본다."""
-        slot_world = self._slot_world
-        approach_dist_m = getattr(self, "_place_approach_dist_m", PLACE_APPROACH_HEIGHT_OFFSET)
+        rig = self.rigs[robot_id]
+        slot_world = rig.slot_world
+        approach_dist_m = rig.place_approach_dist_m
 
-        _set_status(phase="DESCEND")
+        _set_status(robot_id, phase="DESCEND")
         descend_goal = slot_world + np.array([0, 0, release_height_m])
-        if not self._servo_tcp(descend_goal, "DESCEND"):
-            _set_status(phase="FAILED", message="DESCEND IK 실패")
+        if not self._servo_tcp(robot_id, descend_goal, "DESCEND"):
+            _set_status(robot_id, phase="FAILED", message="DESCEND IK 실패")
             return {"success": False, "fail_reason": "NO_IK"}
 
-        _set_status(phase="RELEASE")
-        self.gripper.open()
+        _set_status(robot_id, phase="RELEASE")
+        rig.gripper.open()
         for _ in range(RELEASE_WAIT):
             self.world.step(render=not HEADLESS)
-        released = not holding(self.gripper.gripped())
-        _set_status(gripped=not released)
+        released = not holding(rig.gripper.gripped())
+        _set_status(robot_id, gripped=not released)
 
-        _set_status(phase="RETRACT")
+        _set_status(robot_id, phase="RETRACT")
         retract_goal = slot_world + np.array([0, 0, approach_dist_m])
-        self._servo_tcp(retract_goal, "RETRACT")
+        self._servo_tcp(robot_id, retract_goal, "RETRACT")
         for _ in range(SETTLE_STEPS):
             self.world.step(render=not HEADLESS)
 
-        _set_status(phase="DONE" if released else "FAILED",
+        _set_status(robot_id, phase="DONE" if released else "FAILED",
                     message="" if released else "흡착이 안 풀렸다")
         return {"success": bool(released), "gripped": bool(not released),
                "fail_reason": "NONE" if released else "COLLISION"}
 
-    def get_flange_pose_world(self, magazine_key):
+    def get_flange_pose_world(self, magazine_key, robot_id=DEFAULT_ROBOT_ID):
         """편의 메서드 — task_manager 개발/테스트용. 실측 GT 플랜지 pose 를
         base_link 프레임으로 돌려준다 (QR 대신 GT 로 파이프라인만 먼저
         확인하고 싶을 때)."""
+        rig = self.rigs[robot_id]
         meas = yaml.safe_load(MEASURED.read_text(encoding="utf-8"))
         m = meas["magazines"][magazine_key]
         fc = np.array(m["flange_center"]); fc[2] = m["flange_top_z"]
-        base_p, base_q = get_world_pose(CHASSIS_LINK_PATH)
+        base_p, base_q = get_world_pose(rig.chassis_link_path)
         R_base = quat_to_matrix(base_q)
         p_rel = R_base.T @ (fc - base_p)
         return {"position": p_rel.tolist(), "quat_wxyz": [1.0, 0.0, 0.0, 0.0]}
@@ -1391,21 +1557,22 @@ class Backend:
         result["available_aovs"] = seen_aovs
         return result
 
-    def debug_state(self):
+    def debug_state(self, robot_id=DEFAULT_ROBOT_ID):
         """디버그 전용 — tcp/매거진 world pose 와 간격을 바로 본다.
 
-        self._current_magazine_path(PICK 시도 때 pick_phase1_approach 가
+        rig.current_magazine_path(PICK 시도 때 pick_phase1_approach 가
         찾아둔 실제 인스턴스)를 쓴다 — 하드코딩된 MAGAZINE_XFORM_PATH
         (magazine_1_orange)를 그대로 뒀더니 실제로 집은 게 magazine_2_blue
         여도 엉뚱한 매거진 위치가 찍혀서 디버깅에 혼선을 줬다."""
-        tcp = self._get_tcp_pose()
-        mag_p, mag_q = get_world_pose(self._current_magazine_path)
-        cx, top_z, height = measure_prim(self._current_magazine_path)
+        rig = self.rigs[robot_id]
+        tcp = self._get_tcp_pose(robot_id)
+        mag_p, mag_q = get_world_pose(rig.current_magazine_path)
+        cx, top_z, height = measure_prim(rig.current_magazine_path)
         return {"tcp_world": tcp.tolist(), "magazine_world_pos": mag_p.tolist(),
-               "magazine_path": self._current_magazine_path,
+               "magazine_path": rig.current_magazine_path,
                "magazine_top_z": top_z, "magazine_height": height,
                "magazine_center_xy": cx.tolist(),
-               "gripped": holding(self.gripper.gripped()),
+               "gripped": holding(rig.gripper.gripped()),
                "dist_tcp_to_mag_top": float(np.linalg.norm(tcp - np.array([cx[0], cx[1], top_z])))}
 
     def debug_list_cameras(self, root_path="/World/Robots/nova_carter1"):
@@ -1452,12 +1619,14 @@ class Backend:
         rgb.detach()
         return result
 
-    def debug_check_camera_prim(self):
-        """디버그 전용 — CAMERA_PRIM 이 지금 스테이지에 실제로 존재/로드돼
-        있는지 확인한다. rgb annotator 가 계속 shape=(0,) 을 줄 때 render_product
-        가 애초에 존재하지 않는 prim 을 가리키고 있는 건 아닌지 가른다."""
-        prim = self.stage.GetPrimAtPath(CAMERA_PRIM)
-        info = {"path": CAMERA_PRIM, "valid": prim.IsValid()}
+    def debug_check_camera_prim(self, robot_id=DEFAULT_ROBOT_ID):
+        """디버그 전용 — 이 로봇의 카메라 prim 이 지금 스테이지에 실제로
+        존재/로드돼 있는지 확인한다. rgb annotator 가 계속 shape=(0,) 을 줄
+        때 render_product 가 애초에 존재하지 않는 prim 을 가리키고 있는
+        건 아닌지 가른다."""
+        rig = self.rigs[robot_id]
+        prim = self.stage.GetPrimAtPath(rig.camera_prim)
+        info = {"path": rig.camera_prim, "valid": prim.IsValid()}
         if prim.IsValid():
             info["type"] = prim.GetTypeName()
             info["active"] = prim.IsActive()
@@ -1465,7 +1634,7 @@ class Backend:
         # 안 보이는 가장 흔한 이유다(configure_gripper_limits 의 short_gripper
         # 사례와 같은 종류).
         chain = []
-        p = self.stage.GetPrimAtPath(GRIPPER_PRIM)
+        p = self.stage.GetPrimAtPath(rig.gripper_prim)
         for name in ["", "rsd455", "RSD455", "Camera_OmniVision_OV9782_Color"]:
             if name:
                 p = p.GetChild(name) if p.IsValid() else p
@@ -1478,14 +1647,15 @@ class Backend:
         info["chain"] = chain
         return info
 
-    def debug_capture(self, path, force=False):
-        """디버그 전용 — 지금 손목 카메라가 보는 그림을 저장한다."""
+    def debug_capture(self, path, force=False, robot_id=DEFAULT_ROBOT_ID):
+        """디버그 전용 — 지금 이 로봇의 손목 카메라가 보는 그림을 저장한다."""
         import cv2
-        self._ensure_camera_warm(force=force)
-        rgb, _depth = self._capture_frame()
+        rig = self.rigs[robot_id]
+        self._ensure_camera_warm(robot_id, force=force)
+        rgb, _depth = self._capture_frame(robot_id)
         cv2.imwrite(path, rgb)
-        base_p, base_q = get_world_pose(CHASSIS_LINK_PATH)
-        l6_p, l6_q = get_world_pose(EE_LINK_PATH)
+        base_p, base_q = get_world_pose(rig.chassis_link_path)
+        l6_p, l6_q = get_world_pose(rig.ee_link_path)
         return {"saved": path, "chassis_world": base_p.tolist(),
                "link6_world": l6_p.tolist()}
 
@@ -1493,8 +1663,12 @@ class Backend:
 def main():
     port = int(os.environ.get("SIM_BACKEND_PORT", "8765"))
     backend = Backend()
-    threading.Thread(target=_rpc_serve, args=("127.0.0.1", port), daemon=True).start()
-    _set_status(phase="IDLE", message="ready")
+    # 0.0.0.0 = 다른 머신에서도 받는다. ROS 노드를 일반 PC 에서, Isaac 을 GPU PC 에서
+    # 돌리는 구성이라 127.0.0.1 이면 sim_client 가 붙지 못한다(Connection refused).
+    # 클라이언트 쪽은 SIM_BACKEND_HOST 로 이 머신의 IP 를 준다(sim_client.py:24).
+    threading.Thread(target=_rpc_serve, args=("0.0.0.0", port), daemon=True).start()
+    for robot_id in backend.rigs:
+        _set_status(robot_id, phase="IDLE", message="ready")
 
     print("=" * 70)
     print("  sim_backend ready — RPC 대기 중")

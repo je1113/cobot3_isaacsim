@@ -21,7 +21,7 @@
             string boundCamera = "/OmniverseKit_Persp"
         }
         dictionary omni_layer = {
-            string authoring_layer = "./simple_factory_layout.usda"
+            string authoring_layer = "./simple_factory_layout_test.usda"
         }
         dictionary renderSettings = {
         }
@@ -667,6 +667,17 @@ def Xform "World"
                 float3 xformOp:scale = (1, 1, 1)
                 double3 xformOp:translate = (0, -1.8286350742021307, 0)
                 uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
+
+                def "stack_1" (
+                    prepend payload = @../assets/F3_STKO_1.usda@
+                )
+                {
+                    custom asset flow:stackPayload = @../assets/F3_STKO_1.usda@
+                    quatf xformOp:orient = (0.70710677, 0, 0, -0.70710677)
+                    float3 xformOp:scale = (1, 1, 1)
+                    double3 xformOp:translate = (3.83, 3.0586350742021307, 0.542)
+                    uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
+                }
             }
 
             def Xform "PackagingUnloaderTunnel"
@@ -879,39 +890,7 @@ def Xform "World"
                     float physxRigidBody:sleepThreshold = 0
                     quatf xformOp:orient = (1, 0, 0, 0)
                     float3 xformOp:scale = (1, 1, 1)
-                    double3 xformOp:translate = (-3.5115933418273926, 2, 0.6000000238418579)
-                    uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
-                }
-
-                def "magazine_2_blue" (
-                    prepend payload = @../assets/magazine_2_blue_qr.usda@
-                )
-                {
-                    quatf xformOp:orient = (1, 0, 0, 0)
-                    float3 xformOp:scale = (1, 1, 1)
-                    double3 xformOp:translate = (-2.9349210640959815, 2, 0.6)
-                    uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
-                }
-
-                def "magazine_1_orange_02" (
-                    prepend payload = @../assets/magazine_1_orange_qr.usda@
-                )
-                {
-                    token visibility = "inherited"
-                    quatf xformOp:orient = (1, 0, 0, 0)
-                    float3 xformOp:scale = (1, 1, 1)
-                    double3 xformOp:translate = (-2.3103625131861882, 2, 0.6)
-                    uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
-                }
-
-                def "magazine_2_blue_02" (
-                    prepend payload = @../assets/magazine_2_blue_qr.usda@
-                )
-                {
-                    token visibility = "inherited"
-                    quatf xformOp:orient = (1, 0, 0, 0)
-                    float3 xformOp:scale = (1, 1, 1)
-                    double3 xformOp:translate = (-1.7115933222351316, 2, 0.6)
+                    double3 xformOp:translate = (-1.7115933222351316, 2, 0.6000000238418579)
                     uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
                 }
             }
@@ -931,42 +910,10 @@ def Xform "World"
                 double3 xformOp:translate = (0, 0, 0)
                 uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
 
-                def "magazine_1_orange" (
-                    prepend payload = @../assets/magazine_1_orange_qr.usda@
-                )
-                {
-                    quatf xformOp:orient = (0, 0, 0, 1)
-                    float3 xformOp:scale = (1, 1, 1)
-                    double3 xformOp:translate = (-3.5115933222351283, -2.2, 0.6)
-                    uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
-                }
-
                 def "magazine_2_blue" (
                     prepend payload = @../assets/magazine_2_blue_qr.usda@
                 )
                 {
-                    quatf xformOp:orient = (0, 0, 0, 1)
-                    float3 xformOp:scale = (1, 1, 1)
-                    double3 xformOp:translate = (-2.9349210640959815, -2.2, 0.6)
-                    uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
-                }
-
-                def "magazine_1_orange_02" (
-                    prepend payload = @../assets/magazine_1_orange_qr.usda@
-                )
-                {
-                    token visibility = "inherited"
-                    quatf xformOp:orient = (0, 0, 0, 1)
-                    float3 xformOp:scale = (1, 1, 1)
-                    double3 xformOp:translate = (-2.3103625131861882, -2.2, 0.6)
-                    uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
-                }
-
-                def "magazine_2_blue_02" (
-                    prepend payload = @../assets/magazine_2_blue_qr.usda@
-                )
-                {
-                    token visibility = "inherited"
                     quatf xformOp:orient = (0, 0, 0, 1)
                     float3 xformOp:scale = (1, 1, 1)
                     double3 xformOp:translate = (-1.7115933222351316, -2.2, 0.6)

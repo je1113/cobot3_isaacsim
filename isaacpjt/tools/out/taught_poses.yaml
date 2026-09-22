@@ -61,6 +61,57 @@ shelf_1_top_scan:
     - 922.2
     - 571.4
   captured_at: '2026-09-17 14:46:52'
+packaging_output_scan:
+  base_waypoint: packaging_output
+  base_link_world:
+  - 3.45786
+  - 1.70424
+  - -0.0
+  base_link_quat_wxyz:
+  - 0.999774
+  - 1.6e-05
+  - -0.000786
+  - 0.021261
+  m0609_base_world:
+  - 3.25069
+  - 1.69542
+  - 0.54888
+  joints:
+    joint_1: -92.9833
+    joint_2: 58.0156
+    joint_3: 120.497
+    joint_4: 90.4982
+    joint_5: 89.9996
+    joint_6: 90.9994
+  joints_deg:
+  - -92.9833
+  - 58.0156
+  - 120.497
+  - 90.4982
+  - 89.9996
+  - 90.9994
+  joints_rad:
+  - -1.622864
+  - 1.012564
+  - 2.10307
+  - 1.579492
+  - 1.570789
+  - 1.588239
+  tool0_world:
+  - 3.37438
+  - 1.33507
+  - 0.53335
+  tool0_quat_wxyz:
+  - -0.493628
+  - 0.497198
+  - -0.502103
+  - 0.506969
+  camera_optical_world:
+  - 3.40912
+  - 1.3233
+  - 0.57849
+  qr_in_view: []
+  captured_at: '2026-09-22 14:53:13'
 shelf_1_top_close_centered:
   base_waypoint: shelf_1
   base_link_world:

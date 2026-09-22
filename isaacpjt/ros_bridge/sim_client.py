@@ -74,6 +74,9 @@ class SimClient:
             raise SimClientError(f"{method}: {resp['error']}")
         return resp.get("result")
 
-    def get_status(self):
-        """짧은 타임아웃의 폴링 전용 호출. 큐를 거치지 않아 빠르다."""
-        return self.call("get_status", timeout_s=3.0)
+    def get_status(self, robot_id=None):
+        """짧은 타임아웃의 폴링 전용 호출. 큐를 거치지 않아 빠르다.
+        robot_id 를 안 주면 sim_backend 쪽 기본값(robot1)을 본다 — 로봇
+        두 대를 한 소켓으로 관리하므로 로봇별 phase 를 보려면 넘겨야 한다."""
+        params = {"robot_id": robot_id} if robot_id else {}
+        return self.call("get_status", timeout_s=3.0, **params)

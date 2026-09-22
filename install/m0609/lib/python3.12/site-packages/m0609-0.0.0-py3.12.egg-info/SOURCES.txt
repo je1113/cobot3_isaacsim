@@ -9,6 +9,7 @@ setup.py
 ../../build/m0609/m0609.egg-info/top_level.txt
 ../../build/m0609/m0609.egg-info/zip-safe
 m0609/__init__.py
+m0609/m0609_color_detector.py
 resource/m0609
 test/test_copyright.py
 test/test_flake8.py
