@@ -30,8 +30,14 @@ router = APIRouter(tags=["commands"])
 
 
 async def _dispatch(robot_id: str, command: str, reason: str, cid: str) -> None:
+    # ★ 브리지는 **네임스페이스**로 부른다('robot1'). 여기 robot_id 는 경로/설정에서
+    #   온 화면 이름('AMR-01')이라 그대로 넘기면 _require 가 "모르는 네임스페이스" 로
+    #   503 을 낸다 — 기본 설정(COBOT3_ROBOTS=AMR-01=robot1,…)에서 바로 밟힌다.
+    #   compat._command 와 dispatcher 는 이미 이렇게 번역한다(config.py: 경계에서만).
+    #   반대로 밖으로 나가는 메시지의 robot_id 는 화면 이름 그대로여야 한다.
+    ns = settings().to_ns(robot_id)
     try:
-        res = await bridge.command(robot_id, command, reason)
+        res = await bridge.command(ns, command, reason)
     except ApiError as e:
         await hub.publish("command_result", {"correlation_id": cid, "command": command,
                                              "accepted": False, "error": e.message}, robot_id)
@@ -42,7 +48,7 @@ async def _dispatch(robot_id: str, command: str, reason: str, cid: str) -> None:
     # STOP / SKIP 은 실행 중이던 작업을 끝낸다. 로봇이 result(CANCELED)를 올리면
     # dispatcher 가 표를 정리하므로 여기서 표를 고치지 않는다 — writer 를 하나로 둔다.
     if res.get("accepted") and command in {"STOP", "SKIP"}:
-        await bridge.cancel_task(robot_id)
+        await bridge.cancel_task(ns)
 
 
 @router.post("/robots/{robot_id}/commands", status_code=202, response_model=CommandAccepted)
