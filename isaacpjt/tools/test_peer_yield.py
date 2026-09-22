@@ -16,6 +16,9 @@ task_manager.py 의 peer_busy() · peer_frozen() 에 들어 있다. py_trees 와
      얼어붙으면 양보를 푼다
   5. 둘 다 줄 서 있는 상태로 서로를 기다리는 교착 조합이 없다
   6. mission_nodes.launch.py 의 설정이 소스 기본값과 어긋나지 않는다
+  7. 로더 반경 진입(WAIT · HOLD_BACK)의 단계 목록이 양보 목록과 맞는다
+  8. static_test 시나리오 — lane_priority 로 정하는 순서가 한쪽만 양보하고,
+     양보 목록·launch 표가 소스와 맞는다
 
 5번이 이 설계의 핵심 성질이다. 두 로봇이 같은 목록을 쓰므로, 줄 서 있는 상태
 ('approach' · 'wait')를 목록에 넣는 순간 양쪽이 서로의 대기를 기다려 아무도
@@ -33,8 +36,9 @@ WS = Path(__file__).resolve().parent.parent.parent
 TM = WS / "src/cobot3_orchestrator/cobot3_orchestrator/task_manager.py"
 LAUNCH = WS / "src/cobot3_bringup/launch/mission_nodes.launch.py"
 
-# 판단에 쓰는 메서드. 이 넷만 꺼낸다.
-WANTED = {"_on_peer_state", "peer_busy", "peer_frozen", "peer_stage"}
+# 판단에 쓰는 메서드. 이것들만 꺼낸다.
+WANTED = {"_on_peer_state", "peer_busy", "peer_frozen", "peer_stage", "peer_seen",
+          "peer_prio", "peer_outranks_me", "peer_contending"}
 
 
 def _top_level_consts(tree, extra=None):
@@ -92,13 +96,16 @@ def main():
     # 두 로봇이 같은 목록을 쓴다. 순서를 정하는 장치는 없다.
     busy_set = list(launch_ns["LANE_STAGES"])
 
-    def make(busy_stages, seen=None, failed=False, age=0.0):
+    def make(busy_stages, seen=None, failed=False, age=0.0, my_prio=0, peer_prio=0):
         """상대 상태를 주입한 판단기. seen=None 이면 한 번도 못 받은 상태."""
         p = Peer()
         p._peer_busy_stages = tuple(busy_stages)
         p._peer_stage, p._peer_failed, p._peer_last_rx = None, False, 0.0
+        p._peer_prio, p.lane_priority = 0, my_prio
         if seen is not None:
             parts = [f"state={seen}", "detected=False"]
+            if peer_prio:
+                parts.append(f"prio={peer_prio}")
             if failed:
                 parts += ["FAILED", f"fail_stage={seen}", "fail_reason=X"]
             # _publish_state 가 실제로 만드는 문자열 형식 그대로 넣는다.
@@ -184,6 +191,55 @@ def main():
     check(("peer_pose_topic" in src) and ("amcl_pose" in src),
           "launch 가 peer_pose_topic 을 넘긴다 — 없으면 거리 판정을 못 하고 "
           "상대의 return 이 끝날 때까지 기다린다")
+
+    print("\n── 8. static_test — 순서(lane_priority)와 양보 목록 ──")
+    static_busy = list(launch_ns["STATIC_LANE_STAGES"])
+    check(static_busy == list(ns["STATIC_PEER_BUSY_STAGES"]),
+          f"STATIC_LANE_STAGES == STATIC_PEER_BUSY_STAGES {static_busy}")
+    check(all(st in static_busy for st in busy_set),
+          "static 양보 목록이 순찰 목록을 포함한다")
+    check(WAIT not in static_busy and ns["APPROACH"] not in static_busy
+          and ns["HOLD_BACK"] not in static_busy,
+          "static 양보 목록에 wait · approach · hold_back 이 없다 — 있으면 교착")
+    check(all(st in static_busy for st in ns["STATIC_HOLD_BACK_STAGES"]),
+          "STATIC_HOLD_BACK_STAGES 가 전부 static 양보 목록 안에 있다")
+    check(all(st in static_busy for st in ns["PEER_PAST_LOADER_STAGES"]
+              if st not in (ns["DOCK"], ns["DONE"])),
+          "로더를 지난 단계(dock·done 빼고)는 전부 양보 대상이다 — 스택을 나르는 동안 로더로 안 간다")
+    check(not any(st in static_busy for st in ns["CONTENDING_STAGES"]),
+          "CONTENDING_STAGES 는 양보 목록 밖이다 — 안 그러면 prio 없이도 둘 다 양보한다")
+    # 순서: 후순위만 양보한다. 선순위는 상대가 무엇을 하든(차선 밖이면) 직행.
+    pick = ns["PICK"]
+    lo = make(static_busy, seen=pick, my_prio=2, peer_prio=1)
+    hi = make(static_busy, seen=pick, my_prio=1, peer_prio=2)
+    check(lo.peer_contending() and lo.peer_outranks_me(),
+          "후순위(prio 2): 상대가 pick 이면 곧 로더로 온다 → 양보")
+    check(hi.peer_contending() and not hi.peer_outranks_me(),
+          "선순위(prio 1): 상대가 pick 이어도 양보 안 함")
+    check(not make(static_busy, seen=ns["HOLD_BACK"], my_prio=1, peer_prio=2).peer_contending(),
+          "상대가 hold_back(이미 양보 중)이면 contending 아님 → 선순위 직행")
+    check(not make(static_busy, seen=pick, my_prio=2, peer_prio=0).peer_outranks_me()
+          and not make(static_busy, seen=pick, my_prio=0, peer_prio=1).peer_outranks_me(),
+          "한쪽이라도 prio 가 없으면(0) 순서 장치가 꺼진다")
+    check(make(static_busy).peer_seen() is False and lo.peer_seen() is True,
+          "peer_seen — 미수신/수신 구분")
+    prios = launch_ns["LANE_PRIORITY_BY_ROBOT"]
+    check(sorted(prios.values()) == [1, 2],
+          f"launch 의 lane_priority 가 1·2 로 갈린다 {prios}")
+    scan_routes, dock_routes = launch_ns["STATIC_SCAN_ROUTE_BY_ROBOT"], launch_ns["STATIC_DOCK_ROUTE_BY_ROBOT"]
+    check(list(ns["DEFAULT_SCAN_ROUTE"]) == scan_routes["robot1"]
+          and list(ns["DEFAULT_DOCK_ROUTE"]) == dock_routes["robot1"],
+          "소스 기본 scan/dock 경로가 launch 의 robot1 값과 같다")
+    check(set(scan_routes) == set(dock_routes) == set(prios) == set(staging),
+          "static 표 넷이 같은 로봇 집합을 안다")
+    check(dock_routes["robot1"][-3:] != dock_routes["robot2"][-3:],
+          "도크가 로봇마다 다르다")
+    for name, table in (("scan", scan_routes), ("dock", dock_routes)):
+        check(all(len(r) % 3 == 0 and len(r) >= 3 for r in table.values()),
+              f"{name} 경로가 (x, y, yaw) 3 의 배수다")
+    src_tm = io.open(TM, encoding="utf-8").read()
+    check("prio=" in src_tm and "peer_pose_topic" in src,
+          "상태 문자열에 prio 토큰이 실리고 launch 가 상대 위치를 넘긴다 — 출발 게이트에 필요")
 
     print()
     if failures:

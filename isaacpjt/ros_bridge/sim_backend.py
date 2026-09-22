@@ -119,7 +119,12 @@ sys.path.insert(0, str(WS_ROOT / "src/cobot3_perception"))
 from cobot3_perception.qr_pose import estimate_qr_pose, aggregate_qr_poses  # noqa: E402
 from cobot3_perception.flange_topview import detect_flange  # noqa: E402
 
-WORLD_USD = str(ISAACPJT / "worlds/simple_factory_layout.usda")
+# 어느 씬을 열지. 기본은 simple_factory_layout.usda 이고, 순찰 없는 고정
+# 시나리오(task_manager scenario:=static_test)는 매거진 둘·스택 하나만 놓인
+#     SIM_WORLD_USD=isaacpjt/worlds/simple_factory_layout_test.usda
+# 로 띄운다. 두 씬은 prim 경로가 같다(nova_carter1, magazine_1_orange 등) —
+# 아래 하드코딩된 경로가 그대로 맞아야 하므로 씬을 새로 만들 때 이름을 지켜라.
+WORLD_USD = os.environ.get("SIM_WORLD_USD") or str(ISAACPJT / "worlds/simple_factory_layout.usda")
 URDF_PATH = str(ISAACPJT / "M0609/doosan-robot2/urdf/m0609_isaac_sim.urdf")
 DESC_PATH = str(ISAACPJT / "M0609/descriptor/m0609_description.yaml")
 FRAMES_YAML = WS_ROOT / "src/cobot3_bringup/config/frames.yaml"
@@ -679,6 +684,23 @@ class Backend:
         # 같은 매거진 후보 목록을 공유한다 — 어느 선반 것이든 좌표로 가른다.
         meas_layout = yaml.safe_load(MEASURED.read_text(encoding="utf-8"))
         self._all_magazine_prims = [m["prim"] for m in meas_layout["magazines"].values()]
+        # ★ yaml 목록은 기본 씬의 매거진 16 개다. 다른 씬(SIM_WORLD_USD)이나
+        #   스택(F3_STK*, 플랜지가 있는 캐리어면 전부)도 같은 방식으로 "실제로
+        #   집은 그것" 을 찾을 수 있게, 스테이지에서 flange_plate 자식을 가진
+        #   prim 을 전부 후보에 더한다. 없는 prim 은 _find_nearest_magazine 이
+        #   measure_prim 예외로 건너뛰므로 yaml 쪽 목록은 그대로 둔다.
+        try:
+            for prim in Usd.PrimRange(self.stage.GetPrimAtPath("/World")):
+                if prim.GetChild("flange_plate").IsValid():
+                    path = str(prim.GetPath())
+                    if path not in self._all_magazine_prims:
+                        self._all_magazine_prims.append(path)
+        except Exception as e:      # noqa: BLE001 — 후보 탐색 실패는 치명적이지 않다
+            print(f"   !! 플랜지 후보 탐색 실패({e}) — layout_measured.yaml 목록만 쓴다")
+        print(f"   플랜지 후보 {len(self._all_magazine_prims)} 개")
+        # ★ rig.current_magazine_path 기본값은 RobotRig.__init__ 이 이미
+        #   MAGAZINE_XFORM_PATH 로 세워 둔다(로봇별로 갖는 상태라 여기서
+        #   전역으로 다시 세울 self._current_magazine_path 는 없다).
 
         for rig in self.rigs.values():
             base_pos0, base_quat0 = get_world_pose(rig.base_link_path)

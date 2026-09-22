@@ -1,16 +1,26 @@
-import { useState } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from 'react'
 
 import {
   requestLogs,
 } from '../api/logs'
 
 import useApiRequest from '../hooks/useApiRequest'
+import useWebSocket from '../hooks/useWebSocket'
 import {
   useEnum,
   useRobots,
 } from '../contexts/MetaContext'
 
-function getLogSummary(logs) {
+function getLogSummary(
+  logs,
+  successValue,
+  failedValue,
+) {
   const total = logs.length
 
   const completed =
@@ -79,6 +89,50 @@ function LogsPage() {
   const [searchQuery, setSearchQuery] =
     useState('')
 
+  const loadLogsRef = useRef(null)
+  const reloadTimerRef = useRef(null)
+
+  // 6.4 — event_logger 가 로그를 INSERT 하면 DB 트리거가 pg_notify 를 쏘고,
+  // 백엔드가 그걸 trace_appended 로 흘려 준다. 그 신호에 다시 읽는다.
+  //
+  // ★ 봉투를 그대로 목록에 붙이지 않고 통째로 다시 읽는 이유:
+  //   봉투는 8000바이트 제한 때문에 키만 싣는다(004_notify.sql). 이 화면이
+  //   쓰는 duration·task_type 이 없고, 통계도 배열 전체로 계산한다.
+  // ★ 한 작업이 단계마다 여러 줄을 쌓으므로 신호가 연달아 온다. 400ms 모아서
+  //   한 번만 읽는다.
+  const scheduleReload =
+    useCallback(() => {
+      if (reloadTimerRef.current) {
+        return
+      }
+
+      reloadTimerRef.current =
+        setTimeout(() => {
+          reloadTimerRef.current = null
+          loadLogsRef.current?.()
+        }, 400)
+    }, [])
+
+  useEffect(() => {
+    return () => {
+      if (reloadTimerRef.current) {
+        clearTimeout(
+          reloadTimerRef.current,
+        )
+      }
+    }
+  }, [])
+
+  const {
+    connectionStatus: liveStatus,
+  } = useWebSocket({
+    types: ['trace_appended'],
+    onMessage: scheduleReload,
+    // 끊긴 사이에 쌓인 줄은 서버가 재전송하지 않는다 — 다시 붙으면 다시 읽는다.
+    onReconnect: () =>
+      loadLogsRef.current?.(),
+  })
+
   async function loadLogs() {
     try {
       const data =
@@ -102,8 +156,24 @@ function LogsPage() {
     }
   }
 
+  // ★ execute 는 렌더마다 새 함수라 의존성에 넣을 수 없다. 최신 loadLogs 를
+  //   ref 로 들고 효과와 소켓 콜백은 그걸 부른다. 커밋 뒤에 넣는다.
+  useEffect(() => {
+    loadLogsRef.current = loadLogs
+  })
+
+  // 들어오면 바로 한 번 읽는다 — 예전에는 '로그 불러오기' 를 누르기 전까지
+  // 빈 화면이었고, 그래서 화면이 백엔드와 안 붙은 것처럼 보였다.
+  useEffect(() => {
+    loadLogsRef.current?.()
+  }, [])
+
   const summary =
-    getLogSummary(logs)
+    getLogSummary(
+      logs,
+      successValue,
+      failedValue,
+    )
 
   const averageDurationLabel =
     summary.averageDuration === null
@@ -221,7 +291,9 @@ function LogsPage() {
               : logsError
                 ? 'Backend 오류'
                 : logsLoaded
-                  ? 'Backend 연결됨'
+                  ? liveStatus === 'CONNECTED'
+                    ? '실시간 연결됨'
+                    : 'Backend 연결됨 · 실시간 끊김'
                   : 'Backend 연동 전'}
           </span>
 

@@ -99,6 +99,10 @@ def shelf_out(shelf_id: str, data: dict) -> dict:
         "scan_passes": [pass_out(p) for p in (data.get("scan_passes") or [])],
         # 화면은 없으면 '-' 를 그린다. 키 자체를 빼지 말고 null 로 낸다.
         "first_taught_at": data.get("first_taught_at"),
+        # ★ 로봇 쪽 필드다 — task_manager 가 이 값으로 자기 선반을 고른다
+        #   (그 노드의 _resolve_patrol_route). 화면은 아직 편집하지 않지만 그대로
+        #   들고 있다가 저장 때 되돌려줘야 한다. 빠지면 저장 한 번에 배정이 사라진다.
+        "assigned_robot": data.get("assigned_robot"),
     }
 
 
@@ -117,7 +121,7 @@ def pass_out(p: Any) -> dict:
 
 
 def shelf_in(body: dict) -> dict:
-    return {
+    out = {
         "waypoint_start": pose_in(body.get("waypoint_start")),
         "waypoint_end": pose_in(body.get("waypoint_end")),
         "standoff_distance": to_number(body.get("standoff_distance")),
@@ -133,6 +137,12 @@ def shelf_in(body: dict) -> dict:
         ],
         "first_taught_at": body.get("first_taught_at"),
     }
+    # ★ 화면이 보낸 것만 쓴다. 키가 없으면(옛 화면 · 새로 만든 선반) 아예 넣지
+    #   않는다 — routers/settings.py 가 파일의 기존 값을 그대로 둔다. 빈 문자열은
+    #   "배정 해제" 라 null 로 저장한다.
+    if "assigned_robot" in body:
+        out["assigned_robot"] = to_text(body.get("assigned_robot")) or None
+    return out
 
 
 def shelf_is_taught(data: dict) -> bool:

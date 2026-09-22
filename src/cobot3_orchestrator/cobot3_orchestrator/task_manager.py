@@ -46,12 +46,15 @@ docs/08_ROS2_NODE_Graph.html 의 확정안(01-03)이 기준이다. 노드 5개 �
      │   ├─ PLACE                      배치
      │   ├─ RETURN                     순찰 시작 좌표로 복귀
      │   └─ 사이클 완료
-     └─ [→] 순찰 가지                  Sequence, memory=True
-         ├─ START (1회)                시작 자리 → 순찰 시작점. 평생 한 번만
-         │                             나간다 (OneShot). 노드가 뜬 자리는 순찰
-         │                             경로 위가 아니라서 필요하다.
-         ├─ POSE                       팔을 관측 자세로. 여기서 기다린다
-         └─ 순찰                       정차점 사이를 왕복한다. 끝나지 않는다.
+     └─ (guard) 작업 있나?             EternalGuard — 웹 작업(ExecuteTask)의
+         │                             문지기. wait_for_task 면 goal 이 올 때까지
+         │                             아래 가지를 닫아 둔다. 아래 "웹 작업 지시"
+         └─ [→] 순찰 가지              Sequence, memory=True
+             ├─ START (1회)            시작 자리 → 순찰 시작점. 평생 한 번만
+             │                         나간다 (OneShot). 노드가 뜬 자리는 순찰
+             │                         경로 위가 아니라서 필요하다.
+             ├─ POSE                   팔을 관측 자세로. 여기서 기다린다
+             └─ 순찰                   정차점 사이를 왕복한다. 끝나지 않는다.
 
   순찰 가지의 순서가 곧 요구사항이다 — "시작점으로 이동하고, 자세를 취한 뒤,
   순찰을 시작한다". START 는 평생 한 번이지만 POSE 는 가지에 다시 들어올 때마다
@@ -114,6 +117,25 @@ docs/08_ROS2_NODE_Graph.html 의 확정안(01-03)이 기준이다. 노드 5개 �
   트리를 찍으면 그게 실제다. 이전 판의 self._state 는 따로 갱신해 줘야 하는
   값이라 실제와 어긋날 수 있었다 (실패 후 상태는 'scan' 인데 실제로는 아무것도
   하지 않는 상태였다).
+
+웹 작업 지시 (ExecuteTask.action — /{robot}/orchestrator/execute_task)
+  웹이 가져가는 것은 "다음에 어느 선반" 하나뿐이다(.action 머리주석). 그래서
+  새 가지가 아니라 순찰 가지의 문지기(EternalGuard)와 순찰 경로 교체로 받는다.
+    goal 수락     target_ref 로 shelves.yaml 의 선반을 찾아 waypoint_start →
+                  waypoint_end 를 순찰 경로로 대기시킨다(_pending_route). 다른
+                  선반을 돌던 중이면 순찰 가지를 한 tick 끊어 새 경로로 다시
+                  들어간다. 미션 순서는 그대로다 — 순찰 → carrier_detected →
+                  HOLD → SCAN → PICK → 배송 → PLACE → RETURN.
+    feedback      pick · nav · place · return 에 들어설 때 한 번씩(_task_track).
+                  run_id 는 SCAN 이 발행한 것이라 첫 feedback 부터 실린다.
+    result        사이클 완료 → success. Freeze 로 얼면 그 단계의 *_FAIL 로 닫고
+                  트리는 얼어 있는 채로 둔다(복구는 지금처럼 /orchestrator/resume).
+                  경로를 empty_sweeps 바퀴 돌아도 감지가 없으면 NO_CARRIER —
+                  실패가 아니다. SKIP/STOP(cancel_goal)은 미션 전이면 바로 세우고,
+                  미션 중이면 RETURN 까지 마친 뒤 CANCELED 로 돌려준다.
+    아직 없는 것  RECOVER(스테이션 회수) goal · resume_progress 재개 ·
+                  more_at_target 판정(항상 false) · RobotCommand 서비스(PAUSE 등).
+                  wait_for_task 기본값이 False 라 웹 없이 띄우던 순찰이 그대로다.
 
   "이번 미션의 데이터" 는 블랙보드(py_trees 의 공유 저장소)에 둔다.
       detected     carrier_detected 신호가 와 있나
@@ -220,6 +242,68 @@ docs/08_ROS2_NODE_Graph.html 의 확정안(01-03)이 기준이다. 노드 5개 �
                               자리다 — 그래서 이 노드는 그 자리에서 바로 세운다.
                               정차점까지 더 가고 싶으면 아래 상수 하나를 끈다.
 
+순찰 없는 고정 시나리오 (scenario:=static_test)
+  순찰 자체를 시험에서 빼고 싶을 때 쓰는 두 번째 트리다(build_static_tree).
+  씬은 isaacpjt/worlds/simple_factory_layout_test.usda — 매거진 둘(로봇당
+  하나, 각자의 스캔 자리 바로 앞)과 스택 하나(포장 출력 선반)가 처음부터
+  놓여 있다. 로봇은 도크에서 출발해 아래를 한 번 돌고 도크로 돌아와 선다.
+
+    [→] 정적 시험                   Sequence, memory=True — 한 번만 돈다
+     ├─ START (게이트)             후순위 로봇은 선순위 상대가 도크 곁을
+     │                             떠날 때까지 기다린다 (WaitPeerAway)
+     ├─ START                      scan_route 를 따라 스캔 자리로
+     ├─ SCAN                       그 자리에서 바로 carrier_scan. 미판독은
+     │                             순찰로 돌아갈 곳이 없으니 Freeze 다
+     ├─ PICK
+     ├─ [?] 배송                   위 트리와 같은 직행/우회. 다른 점 하나 —
+     │                             둘이 동시에 PICK 을 마치는 상황이 기본이라
+     │                             lane_priority 로 순서를 정한다(아래 ★)
+     ├─ PLACE
+     ├─ [?] 다음 일                Selector, memory=True
+     │   ├─ [→] 스택               먼저 place 한 쪽만 들어온다 (StackFirst)
+     │   │   ├─ STACK_NAV          stack_pick_route 로 스택 앞에
+     │   │   ├─ STACK_SCAN         스택 QR (F3-STKO-1 → tray_1_orange)
+     │   │   ├─ STACK_PICK
+     │   │   ├─ STACK_DELIVER      stack_deliver_route 로 검사 스테이션에
+     │   │   └─ STACK_PLACE
+     │   └─ (통과)                 나중에 place 한 쪽 — 그냥 도킹
+     ├─ DOCK                       dock_route 를 따라 도크로 (마지막 점이 도크)
+     └─ DONE                       영원히 RUNNING. 웹에는 state=done
+
+  ★ 순서를 정하는 장치 — lane_priority (1 이 가장 먼저)
+    순찰 트리는 "상대가 지금 차선을 쓰는가" 만 봐서 순서를 정하지 않는다
+    (모듈 독스트링 "알려진 갭"). 이 시나리오는 두 대가 동시에 출발해 동시에
+    PICK 을 마치므로 그 규칙만으로는 둘 다 직행을 고른다. 그래서 상대가 아직
+    차선 판단 전(start · scan · pick, CONTENDING_STAGES)인데 나보다 선순위면
+    후순위 쪽이 우회로 간다. 선순위는 상대가 우회(hold_back·approach·wait)에
+    있는 것을 보고 직행한다 — 교착이 안 생기는 근거는 "양보는 한쪽만" 이다.
+    우선순위는 /orchestrator/state 의 prio= 토큰으로 서로 알린다. 한쪽이라도
+    prio 가 없으면(0) 순찰 트리와 같은 규칙으로 떨어진다.
+
+  ★ 후순위 로봇의 WAIT 는 상대의 스택 사이클까지 기다린다
+    스택 자리(포장 출력 선반)와 검사 스테이션이 로더 바로 곁이라, 상대가
+    스택을 나르는 동안 로더로 들어가면 nav_server(회피 없음)가 그 경로를
+    가로지른다. 그래서 static_test 의 양보 목록(STATIC_PEER_BUSY_STAGES)에는
+    스택 단계가 전부 들어 있고, 상대가 dock 으로 넘어간 뒤에야 PUSH 한다.
+
+  ★ 출발 게이트가 필요한 이유
+    두 로봇이 도크에 0.98 m 간격으로 나란히 서 있는데 뒷바퀴 축이 base_link
+    뒤 0.656 m 라 제자리 회전 스윕이 0.70 m 다. 북쪽 로봇(robot1)이 먼저
+    돌면 꼬리가 남쪽 로봇을 친다. 후순위 로봇은 선순위 상대가 자기 도크에서
+    start_clearance_m 밖으로 나갈 때까지 서 있는다(상대 위치는
+    peer_pose_topic). 상대 위치를 못 받으면 START_PEER_GRACE_S 만 기다린다.
+
+  스택 단계의 생산 트래킹은 stack_log 표로 간다(event_logger 가 QR 의
+  STK 로 가른다). stage 는 DB 어휘(pick · nav · place)로 바꿔 싣는다
+  (TRACE_STAGE). dock 은 아직 기록하지 않는다(docs/DB구성.md 미결 #2).
+
+  이 모드는 ExecuteTask goal 을 받지 않는다(거절 사유를 돌려준다). 좌표는
+  전부 파라미터이고 기본값은 robot1 것이다 — robot2 값은 mission_nodes.
+  launch.py 의 표에 있다. 좌표의 근거는 각 DEFAULT_* 주석에 있다.
+  ★ 스택 pick/place 는 manipulation 쪽이 아직 매거진만 안다 — grasp.yaml
+    / place.yaml 의 tray_* 항목과 sim_backend 의 플랜지 후보 일반화까지는
+    같이 넣었지만, Isaac 에서 실제로 집히는지는 확인하지 못했다.
+
 알려진 갭
   - 씬이 아직 옛 에셋이라 QR 이 숫자 하나("1"/"2")만 담는다. 그 동안에도 돌도록
     _variant_of() 가 새 페이로드(F1-MGZB-1)와 옛 숫자를 둘 다 받는다.
@@ -265,6 +349,7 @@ docs/08_ROS2_NODE_Graph.html 의 확정안(01-03)이 기준이다. 노드 5개 �
 import hashlib
 import math
 import sys
+import threading
 import time
 import uuid
 from pathlib import Path
@@ -274,13 +359,15 @@ import rclpy
 import yaml
 from geometry_msgs.msg import PoseStamped, PoseWithCovarianceStamped
 from py_trees.common import Access, Status
-from rclpy.action import ActionClient
+from rclpy.action import ActionClient, ActionServer, CancelResponse, GoalResponse
+from rclpy.callback_groups import ReentrantCallbackGroup
 from rclpy.clock import Clock, ClockType
+from rclpy.executors import MultiThreadedExecutor
 from rclpy.node import Node
 from std_msgs.msg import Bool, String
 from std_srvs.srv import SetBool, Trigger
 
-from cobot3_interfaces.action import NavigateTo, PickCarrier, PlaceCarrier
+from cobot3_interfaces.action import ExecuteTask, NavigateTo, PickCarrier, PlaceCarrier
 from cobot3_interfaces.msg import TraceEvent
 from cobot3_interfaces.srv import CarrierScan, ReloadConfig
 
@@ -367,6 +454,32 @@ DEFAULT_OBSERVE_POSE_SERVICE = "perception/observe_pose"
 #     하면 이 파라미터만 바꾸면 된다.
 DEFAULT_RELOAD_SERVICE = "config/reload"
 
+# 웹이 작업을 시키는 액션(ExecuteTask.action). 상대이름이라 네임스페이스가 붙어
+# /robot1/orchestrator/execute_task 가 된다 — web/backend/app/services/rosbridge.py
+# 의 ActionClient 가 정확히 그 이름을 본다. 빈 문자열이면 서버를 열지 않는다.
+DEFAULT_EXECUTE_TASK_ACTION = "orchestrator/execute_task"
+
+# 어느 트리를 조립할지.
+#   patrol       지금까지의 트리 — 순찰하다 감지하면 처리한다 (build_tree)
+#   static_test  순찰 없는 고정 시나리오 (build_static_tree). 모듈 독스트링의
+#                "순찰 없는 고정 시나리오" 절 참고.
+SCENARIO_PATROL = "patrol"
+SCENARIO_STATIC_TEST = "static_test"
+DEFAULT_SCENARIO = SCENARIO_PATROL
+
+# 작업(goal) 없이도 순찰할지.
+#   False  지금까지처럼 assigned_robot 선반을 알아서 돈다. goal 은 "다음에 어느
+#          선반" 만 바꾼다 — 웹 없이 띄우던 시험 방식이 그대로 된다.
+#   True   goal 이 올 때까지 순찰 가지를 닫아 두고 그 자리에서 기다린다.
+#          ExecuteTask.action 머리주석의 "goal 대기" 가 이것이다. 순찰 순서를
+#          웹이 들 때 켠다.
+DEFAULT_WAIT_FOR_TASK = False
+
+# 빈 선반 판정. goal 의 경로를 적용한 뒤 선반을 이만큼 왕복(시작점→끝점→시작점)
+# 했는데도 carrier_detected 가 한 번도 없으면 NO_CARRIER 로 끝낸다 — 실패가
+# 아니다(ExecuteTask.action result 주석, docs/DB구성.md §8-4).
+DEFAULT_EMPTY_SWEEPS = 1
+
 # place 하러 갈 목적지 — 테스트 스테이션 로더 앞 주차 위치.
 # 지금은 매거진 1 · 2 를 전부 여기로 가져다 놓는다. (08 문서의 "매거진은 패키징
 # 로더로" 규칙은 지금 적용하지 않는다 — pkg_loader 는 나중에 추가한다.)
@@ -432,6 +545,15 @@ HOLD_BACK = "hold_back" # 픽업존에서 상대가 로더에 도착하기를 �
 APPROACH = "approach"   # 대기 장소로 주행
 WAIT = "wait"           # 대기 자리에서 상대가 차선을 비우기를 기다린다
 PUSH = "push"           # 차선이 비면 대기 자리에서 로더로 주행
+# static_test 에서만 지나가는 단계들. 이름이 state= 토큰으로 상대와 웹에 그대로
+# 나가므로 patrol 트리의 이름과 겹치지 않게 stack_ 접두를 붙였다.
+STACK_NAV = "stack_nav"          # 로더에서 스택 자리로
+STACK_SCAN = "stack_scan"        # 스택 QR 판독
+STACK_PICK = "stack_pick"
+STACK_DELIVER = "stack_deliver"  # 스택을 들고 검사 스테이션으로
+STACK_PLACE = "stack_place"
+DOCK = "dock"                    # 도크로 복귀 (dock_route 의 각 구간)
+DONE = "done"                    # 시나리오 끝. 도크에 서 있다
 
 # ── 생산 트래킹 (docs/DB구성.md) ──────────────────────────────────────────
 # DB 에 행이 남는 단계. scan 은 없다 — 판독 실패는 미션이 시작되지도 않은 것이라
@@ -439,7 +561,15 @@ PUSH = "push"           # 차선이 비면 대기 자리에서 로더로 주행
 # 우회 경로의 네 단계도 넣는다 — 대기 시간이 두 대 시연의 핵심 지표이고,
 # docs/DB구성.md §4 가 stage 를 TEXT 로 둔 이유가 "가지가 늘어날 자리" 다.
 # 값을 더하는 데 마이그레이션이 필요 없다.
-LOGGED_STAGES = (PICK, HOLD_BACK, APPROACH, WAIT, PUSH, NAV, PLACE, RETURN)
+LOGGED_STAGES = (PICK, HOLD_BACK, APPROACH, WAIT, PUSH, NAV, PLACE, RETURN,
+                 STACK_PICK, STACK_DELIVER, STACK_PLACE)
+
+# 스택 단계 → DB 어휘. stack_log 표는 magazine_log 와 컬럼이 같고 stage 도
+# "pick | nav | place | return" 이다(docs/DB구성.md §4). run_id 가 스택마다
+# 새로 나오므로 UNIQUE(run_id, stage, attempt) 와 부딪히지 않는다.
+# stack_nav(스택 자리로 가는 길)와 stack_scan 은 매거진의 순찰·scan 처럼
+# 기록하지 않는다 — 미션이 아직 시작 전이다.
+TRACE_STAGE = {STACK_PICK: PICK, STACK_DELIVER: NAV, STACK_PLACE: PLACE}
 
 # 실패 사유는 '단계' 가 정한다. return 은 같은 NavigateTo 액션이라 nav_error 다.
 # 그래서 액션 enum 에 없는 실패(TIMEOUT · SERVER_UNAVAILABLE · GOAL_REJECTED)도
@@ -448,10 +578,41 @@ STAGE_TO_REASON = {PICK: "pick_error", NAV: "nav_error",
                    PLACE: "place_error", RETURN: "nav_error",
                    # 우회 세 단계는 전부 주행/대기라 nav_error 로 모인다.
                    HOLD_BACK: "nav_error", APPROACH: "nav_error",
-                   WAIT: "nav_error", PUSH: "nav_error"}
+                   WAIT: "nav_error", PUSH: "nav_error",
+                   # static_test 의 스택 단계. dock 은 DB ENUM 에 자리만 있고
+                   # 아직 기록하지 않는다(LOGGED_STAGES 에 없다).
+                   STACK_NAV: "nav_error", STACK_PICK: "pick_error",
+                   STACK_DELIVER: "nav_error", STACK_PLACE: "place_error",
+                   DOCK: "dock_error"}
 
 # 어디서 일어난 일인가. 순찰 중 발견 방식이라 슬롯 번호를 모르므로 place 만 채워진다.
 PORT_BY_STAGE = {PLACE: "test_loader", PUSH: "test_loader"}
+# 스택을 내려놓는 자리 이름. static_test 의 stack_place_port 파라미터 기본값.
+DEFAULT_STACK_PLACE_PORT = "test_station"
+
+# ── 웹 작업(ExecuteTask) 보고 ────────────────────────────────────────────
+# feedback.stage 는 .action 이 정한 넷(pick · nav · place · return)뿐이다.
+# 우회 네 단계는 전부 주행/대기라 nav 로 올린다 — STAGE_TO_REASON 이 nav_error
+# 로 모으는 것과 같은 기준이다. 목록에 없는 단계(scan · hold · 순찰)는 보고하지
+# 않는다: scan 은 run_id 가 아직 없고, 순찰은 작업 밖이다.
+TASK_STAGE = {PICK: "pick", NAV: "nav", HOLD_BACK: "nav", APPROACH: "nav",
+              WAIT: "nav", PUSH: "nav", PLACE: "place", RETURN: "return"}
+
+# feedback.progress — goal.resume_progress 와 같은 축(0.0 처음부터 … 1.0 복귀
+# 끝)이라 단계마다 고정값이다. 화면이 막대로 그릴 뿐 로봇은 안 읽는다.
+TASK_PROGRESS = {PICK: 0.3, NAV: 0.5, HOLD_BACK: 0.4, APPROACH: 0.45,
+                 WAIT: 0.45, PUSH: 0.5, PLACE: 0.7, RETURN: 0.9}
+
+# Freeze 가 얼어붙은 단계 → result.fail_reason. 하위 액션의 실패를 그대로
+# 올리는 것이라(.action 주석) 단계가 곧 사유다. 목록 밖(우회·순찰·시작·자세)
+# 은 전부 주행이라 NAV_FAIL 이다.
+TASK_FAIL_REASON = {SCAN: ExecuteTask.Result.SCAN_FAIL,
+                    PICK: ExecuteTask.Result.PICK_FAIL,
+                    PLACE: ExecuteTask.Result.PLACE_FAIL}
+
+# 이 단계들 중 하나가 RUNNING 이면 미션이 시작된 것이다 — 취소가 와도 캐리어를
+# 놓지 않고 RETURN 까지 마친다(_execute_task).
+MISSION_STAGES = (HOLD, SCAN, PICK, HOLD_BACK, APPROACH, WAIT, PUSH, NAV, PLACE, RETURN)
 
 
 # 각 단계를 이만큼 기다려도 안 끝나면 실패로 본다. 단위 초.
@@ -595,6 +756,103 @@ HOLD_BACK_STAGES = [NAV, PUSH, RETURN]
 # 올려도 비용이 없다. (carrier_code_reader 는 변화만 보므로 영향 없다.)
 STATE_PUBLISH_PERIOD_S = 0.2
 
+# ══════════════════════════════════════════════════════════════════════════
+#  static_test 시나리오 — 좌표와 조율 규칙
+#
+#  좌표는 전부 (x, y, yaw_deg) 를 평탄화한 경로다(_unflatten_route). 아래
+#  기본값은 robot1 것이고 robot2 값은 mission_nodes.launch.py 의 표에 있다.
+#  씬은 isaacpjt/worlds/simple_factory_layout_test.usda.
+#
+#  ★ 좌표의 근거 — 실측이 아니라 기하 계산이다. Isaac 에서 한 번 돌려 보고
+#    고쳐야 한다. 계산의 출발점은 두 가지 검증된 관계다:
+#      (a) 12_pick_test.py / taught_poses.yaml 의 픽 자세 — 베이스가 선반
+#          상판 앞면에서 0.4167 m 떨어져 서고(frames.yaml "y 는 선반 전면에서
+#          0.4167 m"), 매거진은 상판 앞면에서 0.133 m 안쪽에 놓인다.
+#          지금 씬의 매거진 줄(y=2.586 / -1.614)이 이미 그 깊이라, 베이스 y 는
+#          Shelf_01 앞면 2.4531 - 0.4167 = 2.036, Shelf_02 앞면 -1.4729 +
+#          0.4167 = -1.056 이다. x 는 frames.yaml 의 디코드 창 중심 —
+#          Shelf_01(yaw 0)은 매거진 x 그대로, Shelf_02(yaw 180)는 +0.125.
+#      (b) nav_server 는 직선으로만 몰고 목표가 뒤쪽이면 후진한다. 그래서
+#          경로의 각 점은 "그 자리에서 제자리 회전을 안 해도 다음 점으로 갈
+#          수 있게" 잡았다. 선반 앞·도크 곁에서의 회전은 꼬리 스윕(0.70 m)이
+#          이웃을 친다.
+# ══════════════════════════════════════════════════════════════════════════
+
+# 도크 → 스캔 자리. 첫 점은 자기 줄을 따라 서쪽으로 곧장(회전 없음), 둘째
+# 점은 선반 줄 동쪽 끝의 진입점, 셋째가 스캔 자리다. 둘째 점의 yaw 를 스캔
+# 자리와 같게 두어 마지막 구간은 후진(robot1) 또는 전진(robot2)으로 회전 없이
+# 들어간다. 매거진은 씬에서 선반 동쪽 끝 슬롯(x=-0.641)에 있다 — 도크에서
+# 가장 가까운 자리다.
+DEFAULT_SCAN_ROUTE = [
+    3.5, -6.591, 180.0,
+    1.0, 2.036, 0.0,
+    -0.641, 2.036, 0.0,
+]
+
+# 로더(또는 검사 스테이션)에서 도크로. 첫 점까지는 후진으로 남하(검사 컨베이어
+# x≥4.2 의 서쪽), 둘째 점에서 180 도로 돌아(이웃 로봇 줄과 0.3 m 이상 여유)
+# 마지막은 후진으로 도크에 들어간다 — 주차 방향(yaw 180)이 그대로 나온다.
+# 마지막 점이 곧 도크이고, 씬의 nova_carter1 시작 자세와 같다.
+DEFAULT_DOCK_ROUTE = [
+    3.0, -4.6, 90.0,
+    3.0, -6.3, 180.0,
+    5.5, -6.591, 180.0,
+]
+
+# 로더에서 스택 자리로. 스택은 포장 출력 선반(ShelfDeck, x 3.694~4.044,
+# y 0.271~1.671, 윗면 z 0.54) 위 (3.83, 1.23) 에 yaw -90 도로 놓여 있고, 로봇은
+# 그 서쪽 (3.28, 1.20) 에 남향(yaw -90)으로 선다 — (a) 의 관계를 90 도 돌린
+# 것이다(옆으로 0.55 m, 앞뒤 0.03 m). 로더에서 곧장 가면 선반 남서 모서리를
+# 스치므로 먼저 서쪽으로 후진해 나온 뒤 북쪽으로 올라가 (3.28, 2.6) 에서
+# 남향으로 돌고(여기는 사방이 비어 있다) 마지막 1.4 m 를 직진한다.
+DEFAULT_STACK_PICK_ROUTE = [
+    2.6, 0.0, 0.0,
+    3.28, 2.6, -90.0,
+    3.28, 1.2, -90.0,
+]
+
+# 스택 자리에서 검사 스테이션으로. 출력 선반 모서리를 피해 남서로 빠진 뒤
+# 검사 컨베이어(TestingZone BeltTop, x≥4.05, y -3.26~-2.16) 서쪽 끝 앞에
+# 동향으로 선다. place.yaml 의 tray_* 배치 자세가 이 정차점 기준이다.
+DEFAULT_STACK_DELIVER_ROUTE = [
+    2.6, -0.3, -115.0,
+    3.7, -2.705, 0.0,
+]
+
+# 로더 차선 순서. 1 이 가장 먼저이고 0 이면 순서를 정하지 않는다(순찰 규칙
+# 그대로). 두 대를 띄울 때는 launch 가 로봇마다 다른 값을 준다.
+DEFAULT_LANE_PRIORITY = 0
+
+# 상대가 아직 차선 판단 전이라 곧 로더로 올 단계들. 후순위 로봇은 선순위
+# 상대가 여기 있으면 우회로 간다(PeerClear · HOLD_BACK 의 yield_to_contending).
+CONTENDING_STAGES = [START, SCAN, PICK]
+
+# static_test 의 양보 목록. 순찰의 넷에 스택 단계 다섯을 더한다 — 스택 자리와
+# 검사 스테이션이 로더 곁이라 상대가 스택을 나르는 동안은 차선을 쓰는 것으로
+# 본다. launch 의 STATIC_LANE_STAGES 와 같아야 한다(test_peer_yield 가 검사).
+# approach · wait · hold_back 은 여기서도 넣지 않는다 — 넣으면 교착이다.
+STATIC_PEER_BUSY_STAGES = [NAV, PUSH, PLACE, RETURN,
+                           STACK_NAV, STACK_SCAN, STACK_PICK, STACK_DELIVER, STACK_PLACE]
+
+# static_test 의 HOLD_BACK 대상 — 순찰과 같은 셋. 상대가 place 나 스택 단계로
+# 로더 근처에 '멈춰' 있는 동안 대기 자리로 올라가 둔다.
+STATIC_HOLD_BACK_STAGES = [NAV, PUSH, RETURN]
+
+# 먼저 place 한 로봇이 스택을 맡는다. 상대가 이 단계 중 하나면 상대가 이미
+# 로더를 지났다는 뜻이라 나는 나중이다 — 도킹으로 간다(StackFirst).
+PEER_PAST_LOADER_STAGES = [STACK_NAV, STACK_SCAN, STACK_PICK, STACK_DELIVER,
+                           STACK_PLACE, DOCK, DONE]
+
+# 출발 게이트. 후순위 로봇은 선순위 상대가 자기 도크(dock_route 의 마지막
+# 점)에서 이만큼 밖으로 나가야 출발한다. 두 도크가 0.98 m 떨어져 있고 꼬리
+# 스윕이 0.70 m 라 1.5 m 면 상대가 회전 반경 밖이다.
+DEFAULT_START_CLEARANCE_M = 1.5
+# 상대 상태·위치를 아직 한 번도 못 받았으면 이만큼만 기다려 보고 출발한다
+# (한 대만 띄웠거나 상대가 늦게 뜬 경우).
+START_PEER_GRACE_S = 3.0
+# 게이트 상한. 상대가 안 움직여도(얼었거나 amcl 이 안 나와도) 이 뒤엔 출발한다.
+START_GATE_TIMEOUT_S = 60.0
+
 
 def _find_ws_root():
     p = Path(__file__).resolve()
@@ -648,6 +906,14 @@ def _variant_of(payload):
     if info is not None:
         return info.base_asset[:-len(".usda")]
     return NUMERIC_TO_VARIANT.get(payload)          # 옛 씬용 폴백
+
+
+def _family_of(payload):
+    """QR 원문 -> "magazine" | "stack" | None. 옛 숫자 QR("1"/"2")은 매거진이다."""
+    info = carrier_code.parse_code(payload)
+    if info is not None:
+        return info.family
+    return "magazine" if payload in NUMERIC_TO_VARIANT else None
 
 
 def _reason_name(result_cls, code):
@@ -709,6 +975,25 @@ def _shelf_route(shelf):
             return None
         route.append((x, y, math.degrees(theta)))
     return route
+
+
+def _shelf_is_taught(shelf):
+    """web/backend/app/shapes.py 의 shelf_is_taught 와 **같은 규칙** — 층이 하나
+    이상 있고 모든 층의 arm_teach_pose 여섯 칸이 다 채워져 있을 것.
+
+    웹이 배정 때 422 로 걸러야 하는 조건이지만(ExecuteTask.action NOT_TAUGHT),
+    파일이 그 사이 바뀔 수 있어 goal 을 받을 때 한 번 더 본다.
+    """
+    passes = [p for p in (shelf.get("scan_passes") or []) if isinstance(p, dict)]
+    if not passes:
+        return False
+    for p in passes:
+        joints = p.get("arm_teach_pose")
+        if not isinstance(joints, (list, tuple)) or len(joints) < 6:
+            return False
+        if any(j is None or (isinstance(j, str) and not j.strip()) for j in joints[:6]):
+            return False
+    return True
 
 
 def _to_pose(xy_yaw_deg):
@@ -858,10 +1143,17 @@ class ScanLeaf(py_trees.behaviour.Behaviour):
     거동이다.
     """
 
-    def __init__(self, name, node):
+    def __init__(self, name, node, hard_not_found=False, expect_family=None):
+        """hard_not_found  True 면 미판독도 Freeze 로 얼린다. static_test 처럼
+                        돌아갈 순찰이 없을 때 — 웹 resume 이 이 잎을 다시 돌린다.
+        expect_family   "magazine" | "stack". 읽힌 QR 의 종류가 다르면 실패다
+                        (스택 자리에서 매거진을 집으려 드는 것을 막는다).
+        """
         super().__init__(name)
         self.node = node
         self.bb = _blackboard(name, ("kind", "variant", "carrier_id", "qr_pose"))
+        self.hard_not_found = hard_not_found
+        self.expect_family = expect_family
         self.soft = False
         self.future = None
         self.attempt = 0
@@ -871,7 +1163,8 @@ class ScanLeaf(py_trees.behaviour.Behaviour):
         # ★ SCAN 은 어떤 실패도 로봇을 얼리지 않는다 — soft 를 처음부터 True 로 둔다.
         #   판독이 안 되면 무조건 순찰로 돌아간다. SCAN 은 에러가 아니다.
         #   (docs/DB구성.md §4-6 — 그래서 DB 에도 scan 행이 없다)
-        self.soft = True
+        #   예외는 hard_not_found — 순찰이 없는 트리에서는 얼리는 것이 맞다.
+        self.soft = not self.hard_not_found
         self.attempt = 0
         now = time.monotonic()
         self.server_deadline = now + SERVER_WAIT_S
@@ -908,8 +1201,8 @@ class ScanLeaf(py_trees.behaviour.Behaviour):
                 return Status.RUNNING
             # 재시도까지 다 썼다 — 세우는 사이 라벨이 시야에서 벗어났거나
             # 다수결을 못 채웠다고 본다. 멈추지 않고 순찰로 돌아간다 — 물건은
-            # 그 자리에 그대로 있다.
-            self.soft = True
+            # 그 자리에 그대로 있다. (hard_not_found 면 얼린다)
+            self.soft = not self.hard_not_found
             self.node.on_scan_not_found()
             self.feedback_message = (
                 f"NOT_FOUND(found=false) x{self.attempt} — patrol 로 돌아간다")
@@ -919,6 +1212,14 @@ class ScanLeaf(py_trees.behaviour.Behaviour):
         if variant is None:
             self.node.on_scan_not_found()
             self.feedback_message = f"UNKNOWN_PAYLOAD({res.payload!r})"
+            return Status.FAILURE
+        family = _family_of(res.payload)
+        if self.expect_family and family != self.expect_family:
+            # 엉뚱한 종류다. 이건 라벨이 안 보인 것이 아니라 자리가 틀린 것이라
+            # 재시도해도 같다 — 얼려서 사람이 보게 한다.
+            self.soft = False
+            self.feedback_message = (
+                f"WRONG_FAMILY({res.payload!r} 은 {family}, 기대 {self.expect_family})")
             return Status.FAILURE
 
         qr_pose = PoseStamped()
@@ -1108,12 +1409,19 @@ class PeerClear(py_trees.behaviour.Behaviour):
       쪽을 골랐다. 사각지대를 줄이려면 peer_busy_stages 를 넓히면 된다.
     """
 
-    def __init__(self, name, node):
+    def __init__(self, name, node, yield_to_contending=False):
+        """yield_to_contending  static_test 용. 상대가 아직 차선 판단 전
+        (CONTENDING_STAGES)인데 나보다 선순위면 우회한다 — 둘이 동시에
+        PICK 을 마치는 시나리오에서 순서를 정하는 유일한 장치다."""
         super().__init__(name)
         self.node = node
+        self.yield_to_contending = yield_to_contending
 
     def update(self):
         busy, why = self.node.peer_busy()
+        if not busy and self.yield_to_contending and self.node.peer_contending() \
+                and self.node.peer_outranks_me():
+            busy, why = True, f"state={self.node.peer_stage()} (선순위 prio={self.node.peer_prio()})"
         if busy:
             self.node.get_logger().info(f"로더 차선 사용 중({why}) — 대기 자리로 우회한다")
             self.feedback_message = f"우회 — 상대 {why}"
@@ -1147,21 +1455,29 @@ class WaitForPeer(py_trees.behaviour.Behaviour):
     한 대만 띄웠을 때 영원히 기다리는 걸 막는다.
     """
 
-    def __init__(self, name, node, stages=None, use_radius=True, arrive_log=""):
+    def __init__(self, name, node, stages=None, use_radius=True, arrive_log="",
+                 yield_to_contending=False):
         """stages      기다릴 상대 단계. None 이면 peer_busy_stages 전체.
         use_radius  로더 반경으로도 판정할지. 로더에서 멀리 떨어져 기다리는
                     자리(픽업존)에서는 반경이 의미가 없어서 끈다.
         arrive_log  이 잎에 처음 들어갈 때 남길 로그 한 줄.
+        yield_to_contending  static_test 의 HOLD_BACK 용. 선순위 상대가 아직
+                    로더로 출발하기 전(CONTENDING_STAGES)이어도 붙잡는다 —
+                    상대가 곧 차선에 들어오므로 그 전에 구역에 올라가면 안 된다.
         """
         super().__init__(name)
         self.node = node
         self.stages = stages
         self.use_radius = use_radius
         self.arrive_log = arrive_log
+        self.yield_to_contending = yield_to_contending
         self.soft = False
 
     def _busy(self):
         """(기다려야 하나, 이유). stages 가 있으면 그 목록으로만 본다."""
+        if self.yield_to_contending and self.node.peer_contending() \
+                and self.node.peer_outranks_me():
+            return True, f"state={self.node.peer_stage()} (선순위 상대가 곧 로더로 온다)"
         if self.stages is None:
             return self.node.peer_busy()
         stage = self.node.peer_stage()
@@ -1234,17 +1550,24 @@ class WaitForPeer(py_trees.behaviour.Behaviour):
 
 
 class CycleDone(py_trees.behaviour.Behaviour):
-    """배치와 복귀까지 끝났다. 손이 비었다고 확정하고 순찰로 돌아간다."""
+    """캐리어 하나가 끝났다. 손이 비었다고 확정하고 블랙보드를 비운다.
 
-    def __init__(self, name, node, waypoints):
+    순찰 트리에서는 배치와 복귀까지 끝난 자리이고, static_test 에서는 PLACE
+    (매거진) 와 STACK_PLACE 뒤에 한 번씩 온다 — 그때는 waypoints 가 없다.
+    """
+
+    def __init__(self, name, node, waypoints=None, next_label="patrol 로 복귀"):
         super().__init__(name)
         self.node = node
         self.waypoints = waypoints
+        self.next_label = next_label
         self.bb = _blackboard(name, ("kind", "variant", "carrier_id", "qr_pose", "run_id"))
 
     def update(self):
         self.node.get_logger().info(
-            f"사이클 완료 (carrier={self.bb.carrier_id}) — patrol 로 복귀")
+            f"사이클 완료 (carrier={self.bb.carrier_id}) — {self.next_label}")
+        # 웹 작업이었다면 여기가 끝이다 — run_id 를 지우기 전에 알려야 result 에 실린다.
+        self.node.on_task_cycle_done()
         self.bb.kind = ""
         self.bb.variant = ""
         self.bb.carrier_id = ""
@@ -1252,8 +1575,117 @@ class CycleDone(py_trees.behaviour.Behaviour):
         self.bb.run_id = ""          # 다음 미션은 새 run_id 를 받는다
         # RETURN 이 patrol_route[0] 까지 데려다 놨다. 순찰은 그 다음 점부터
         # 이어가면 된다 — 되감지 않으면 이미 서 있는 자리로 goal 을 한 번 더 보낸다.
-        self.waypoints.idx = 1
+        if self.waypoints is not None:
+            self.waypoints.idx = 1
         return Status.SUCCESS
+
+
+# ── static_test 에서만 쓰는 잎 셋 ──────────────────────────────────────────
+
+
+class WaitPeerAway(py_trees.behaviour.Behaviour):
+    """출발 게이트. 후순위 로봇은 선순위 상대가 자기 도크 곁을 떠날 때까지 선다.
+
+    왜 필요한지는 모듈 독스트링 "출발 게이트가 필요한 이유". 거리는 상대의
+    amcl_pose(peer_pose_topic)와 내 도크(anchor)로 잰다 — 이 노드는 자기 위치를
+    모르지만 출발 전이라 도크에 있다는 것은 안다.
+
+    통과 조건 (먼저 오는 것):
+      선순위다 / 상대가 없다      바로 간다. 상대 정보가 아직 없으면
+                                  START_PEER_GRACE_S 만 기다려 본다
+      상대가 clearance 밖         회전 스윕 밖이다
+      START_GATE_TIMEOUT_S 경과   상대가 얼었거나 위치를 못 받는다. 경고하고 간다
+    """
+
+    def __init__(self, name, node, anchor, clearance_m):
+        super().__init__(name)
+        self.node = node
+        self.anchor = anchor
+        self.clearance_m = float(clearance_m)
+
+    def initialise(self):
+        now = time.monotonic()
+        self.grace_deadline = now + START_PEER_GRACE_S
+        self.deadline = now + START_GATE_TIMEOUT_S
+        self.node.publish_state()      # 상대도 내 prio 를 봐야 한다
+
+    def update(self):
+        now = time.monotonic()
+        if not self.node.peer_seen():
+            if now < self.grace_deadline:
+                self.feedback_message = "상대 상태 대기"
+                return Status.RUNNING
+            self.feedback_message = "상대 없음 — 출발"
+            return Status.SUCCESS
+        if not self.node.peer_outranks_me():
+            self.feedback_message = "선순위 — 출발"
+            return Status.SUCCESS
+        if now > self.deadline:
+            self.node.get_logger().warning(
+                f"출발 게이트 {START_GATE_TIMEOUT_S:.0f}s 초과 — 상대(state="
+                f"{self.node.peer_stage()})가 비켜 주지 않는다. 그냥 출발한다")
+            return Status.SUCCESS
+        xy = self.node.peer_xy()
+        if xy is None:
+            self.feedback_message = "상대 위치 대기"
+            return Status.RUNNING
+        dist = math.hypot(xy[0] - self.anchor[0], xy[1] - self.anchor[1])
+        if dist < self.clearance_m:
+            self.feedback_message = f"상대가 도크 곁 {dist:.2f}/{self.clearance_m:.2f} m"
+            return Status.RUNNING
+        self.node.get_logger().info(f"상대가 {dist:.2f} m 밖으로 나갔다 — 출발")
+        return Status.SUCCESS
+
+
+class StackFirst(py_trees.behaviour.Behaviour):
+    """내가 먼저 place 했나. 스택 가지의 문지기다.
+
+    SUCCESS 면 스택을 맡고, FAILURE 면 나중 로봇이라 도킹으로 간다. 기준은
+    "상대가 이미 로더를 지났는가"(PEER_PAST_LOADER_STAGES) — 상대가 스택
+    단계나 dock·done 이면 상대가 먼저 place 한 것이다. 상대가 없으면(한 대)
+    당연히 내 몫이다. 상대가 얼어 있어도 로더 전이면 내가 맡는다 — 상대는
+    스택을 나를 수 없다.
+
+    ★ 순서가 겹칠 수 없는 이유: 로더는 하나이고 배송 가지가 한 대씩만
+      들여보낸다. 먼저 놓은 쪽이 stack_nav 로 넘어가 상태를 즉시 발행하고,
+      나중 쪽은 그로부터 한 사이클 뒤에나 이 잎에 온다.
+    FAILURE 가 에러가 아니라 분기라 Freeze 로 감싸지 않는다.
+    """
+
+    def __init__(self, name, node):
+        super().__init__(name)
+        self.node = node
+
+    def update(self):
+        stage = self.node.peer_stage()
+        if not self.node.peer_seen():
+            why = "상대 없음"
+        elif stage in PEER_PAST_LOADER_STAGES:
+            self.node.get_logger().info(
+                f"상대가 먼저 place 했다(state={stage}) — 스택은 상대 몫, 도킹으로")
+            self.feedback_message = f"나중 — 상대 {stage}"
+            return Status.FAILURE
+        else:
+            why = f"상대 state={stage}"
+        self.node.get_logger().info(f"내가 먼저 place 했다({why}) — 스택을 가지러 간다")
+        self.feedback_message = f"먼저 — {why}"
+        return Status.SUCCESS
+
+
+class Idle(py_trees.behaviour.Behaviour):
+    """시나리오 끝. 영원히 RUNNING — 로봇은 도크에 서 있고 state=done 이다."""
+
+    def __init__(self, name, node):
+        super().__init__(name)
+        self.node = node
+
+    def initialise(self):
+        self.node.get_logger().info("시나리오 완료 — 도크에서 대기한다 (state=done)")
+        self.node.publish_state()
+
+    def update(self):
+        self.feedback_message = "도크 대기"
+        return Status.RUNNING
 
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -1301,7 +1733,7 @@ class Freeze(py_trees.decorators.Decorator):
         if child.status == Status.SUCCESS:
             # ★ 생산 트래킹의 발행 지점이다. pick · nav · place · return 넷이 전부
             #   이 데코레이터를 지나가므로 여기 한 곳만 고치면 네 단계가 다 걸린다.
-            if self.stage == SCAN:
+            if self.stage in (SCAN, STACK_SCAN):
                 # 페이로드를 처음 확보한 순간 = 미션 하나의 시작. run_id 를 발행한다.
                 # (scan 자체는 행을 만들지 않는다 — LOGGED_STAGES 에 없다)
                 self.node.new_run()
@@ -1482,15 +1914,133 @@ def build_tree(node):
     patrol_branch = py_trees.composites.Sequence(
         "순찰 가지", memory=True, children=[start, pose, patrol])
 
+    # ── 웹 작업 지시 (ExecuteTask.action) ────────────────────────────────
+    # 별도 가지가 아니라 순찰 가지의 문지기다. 웹이 가져가는 것은 "다음에 어느
+    # 선반" 하나뿐이라(.action 머리주석) 미션 순서는 그대로 두고, 순찰이
+    # 돌아도 되는지(goal 이 있는지)와 어느 선반을 도는지만 바깥에서 정한다.
+    #
+    # EternalGuard 는 tick 마다 조건을 다시 본다. 조건이 닫히면 자식을 INVALID
+    # 로 끊고 FAILURE 를 돌려준다 — 순찰 잎의 terminate(INVALID) 가 진행 중인
+    # NavigateTo goal 을 거둔다(ActionLeaf.terminate). 그래서 STOP 이 "멈춰라"
+    # 를 따로 보내지 않아도 서고, goal 이 선반을 바꾸면 한 tick 닫았다 열어
+    # START(캐시) → POSE → 순찰로 새 경로에 다시 들어간다(task_allows_patrol).
+    guarded_patrol = py_trees.decorators.EternalGuard(
+        name="작업 있나?", child=patrol_branch, condition=node.task_allows_patrol)
+
     node.patrol_node = patrol
     # 경로가 바뀌면 다음 정차점 인덱스를 되감아야 한다 (commit_pending_route).
     node.patrol_waypoints = waypoints
 
     # 가지를 더한다면 여기다. 위에 있을수록 먼저 기회를 받는다 —
-    # 배터리 선점(NavigateTo.action ★ hard_threshold_s)은 mission 위에,
-    # 외부 작업 지시(ExecuteTask.action) 처리는 mission 과 patrol_branch 사이에 온다.
+    # 배터리 선점(NavigateTo.action ★ hard_threshold_s)은 mission 위에 온다.
     return py_trees.composites.Selector(
-        "우선순위", memory=False, children=[mission, patrol_branch])
+        "우선순위", memory=False, children=[mission, guarded_patrol])
+
+
+def build_static_tree(node):
+    """모듈 독스트링 "순찰 없는 고정 시나리오" 의 트리를 조립한다.
+
+    잎은 전부 build_tree 와 같은 것들이다 — 다른 점은 Detected · Hold · POSE ·
+    순찰 · RETURN 이 없고, 배송 분기가 lane_priority 로 순서를 정하며, PLACE
+    뒤에 스택 가지와 도킹이 붙는 것뿐이다. memory=True Sequence 하나라 한 번
+    돌고 DONE 에서 멈춘다.
+    """
+    bb = _blackboard("build_static_tree", ("variant", "qr_pose"))
+
+    def nav_leaf(stage, pose):
+        return Freeze(stage.upper(), ActionLeaf(
+            stage, node, node.nav, "navigation/navigate_to", NavigateTo.Result,
+            make_goal=lambda p=pose: NavigateTo.Goal(pose=_to_pose(p)),
+            timeout_s=NAV_TIMEOUT_S, moves_base=True), node, stage)
+
+    def route(stage, points, label):
+        # 경로의 점 하나가 NavigateTo goal 하나다. 잎 이름이 같아도 된다 —
+        # current_stage 는 RUNNING 인 잎의 이름만 보므로 state= 는 stage 그대로다.
+        return py_trees.composites.Sequence(
+            label, memory=True, children=[nav_leaf(stage, pt) for pt in points])
+
+    dock_pose = node.dock_route[-1]
+    gate = WaitPeerAway(START, node, anchor=dock_pose, clearance_m=node.start_clearance_m)
+    start = route(START, node.scan_route, "출발")
+
+    # 순찰이 없으니 미판독은 돌아갈 곳이 없다 — 얼려서 웹 resume 으로 다시 돈다.
+    scan = Freeze("SCAN", ScanLeaf(SCAN, node, hard_not_found=True,
+                                   expect_family="magazine"), node, SCAN)
+    pick = Freeze("PICK", ActionLeaf(
+        PICK, node, node.pick, "manipulation/pick_carrier", PickCarrier.Result,
+        make_goal=lambda: PickCarrier.Goal(variant=bb.variant, qr_pose=bb.qr_pose),
+        timeout_s=PICK_TIMEOUT_S,
+        feedback_cb=node.log_phase("PICK")), node, PICK)
+
+    # ── 배송 — build_tree 와 같은 두 갈래. 순서만 lane_priority 로 정한다 ──
+    nav = Freeze("NAV", ActionLeaf(
+        NAV, node, node.nav, "navigation/navigate_to", NavigateTo.Result,
+        make_goal=lambda: NavigateTo.Goal(pose=_to_pose(TEST_LOADER)),
+        timeout_s=NAV_TIMEOUT_S, moves_base=True), node, NAV)
+    direct = py_trees.composites.Sequence(
+        "직행", memory=True,
+        children=[PeerClear("상대 한가?", node, yield_to_contending=True), nav])
+    hold_back = Freeze("HOLD_BACK", WaitForPeer(
+        HOLD_BACK, node, stages=STATIC_HOLD_BACK_STAGES, use_radius=False,
+        yield_to_contending=True,
+        arrive_log="선순위 상대가 로더로 가는 중 — 픽업존에서 기다린다"),
+        node, HOLD_BACK)
+    approach = Freeze("APPROACH", ActionLeaf(
+        APPROACH, node, node.nav, "navigation/navigate_to", NavigateTo.Result,
+        make_goal=lambda: NavigateTo.Goal(pose=_to_pose(node.staging_pose)),
+        timeout_s=NAV_TIMEOUT_S, moves_base=True), node, APPROACH)
+    # WAIT 의 양보 목록은 peer_busy_stages(= STATIC_PEER_BUSY_STAGES) 라 상대의
+    # 스택 사이클 내내 기다린다 — 모듈 독스트링 ★ 참고.
+    wait = Freeze("WAIT", WaitForPeer(
+        WAIT, node, arrive_log="대기 장소 도착 — 상대가 로더 곁을 다 비우기를 기다린다"),
+        node, WAIT)
+    push = Freeze("PUSH", ActionLeaf(
+        PUSH, node, node.nav, "navigation/navigate_to", NavigateTo.Result,
+        make_goal=lambda: NavigateTo.Goal(pose=_to_pose(TEST_LOADER)),
+        timeout_s=NAV_TIMEOUT_S, moves_base=True), node, PUSH)
+    detour = py_trees.composites.Sequence(
+        "우회", memory=True, children=[hold_back, approach, wait, push])
+    to_loader = py_trees.composites.Selector(
+        "배송", memory=True, children=[direct, detour])
+
+    place = Freeze("PLACE", ActionLeaf(
+        PLACE, node, node.place, "manipulation/place_carrier", PlaceCarrier.Result,
+        make_goal=lambda: PlaceCarrier.Goal(variant=bb.variant),
+        timeout_s=PLACE_TIMEOUT_S,
+        feedback_cb=node.log_phase("PLACE")), node, PLACE)
+    magazine_done = CycleDone("매거진 완료", node, next_label="스택/도킹 판단")
+
+    # ── 스택 — 먼저 place 한 쪽만 ─────────────────────────────────────────
+    stack_scan = Freeze("STACK_SCAN", ScanLeaf(
+        STACK_SCAN, node, hard_not_found=True, expect_family="stack"), node, STACK_SCAN)
+    stack_pick = Freeze("STACK_PICK", ActionLeaf(
+        STACK_PICK, node, node.pick, "manipulation/pick_carrier", PickCarrier.Result,
+        make_goal=lambda: PickCarrier.Goal(variant=bb.variant, qr_pose=bb.qr_pose),
+        timeout_s=PICK_TIMEOUT_S,
+        feedback_cb=node.log_phase("STACK_PICK")), node, STACK_PICK)
+    stack_place = Freeze("STACK_PLACE", ActionLeaf(
+        STACK_PLACE, node, node.place, "manipulation/place_carrier", PlaceCarrier.Result,
+        make_goal=lambda: PlaceCarrier.Goal(variant=bb.variant),
+        timeout_s=PLACE_TIMEOUT_S,
+        feedback_cb=node.log_phase("STACK_PLACE")), node, STACK_PLACE)
+    stack = py_trees.composites.Sequence(
+        "스택", memory=True,
+        children=[StackFirst("먼저 place?", node),
+                  route(STACK_NAV, node.stack_pick_route, "스택으로"),
+                  stack_scan, stack_pick,
+                  route(STACK_DELIVER, node.stack_deliver_route, "검사 스테이션으로"),
+                  stack_place,
+                  CycleDone("스택 완료", node, next_label="도킹")])
+    after_place = py_trees.composites.Selector(
+        "다음 일", memory=True,
+        children=[stack, py_trees.behaviours.Success("나중 — 바로 도킹")])
+
+    dock = route(DOCK, node.dock_route, "도킹")
+
+    return py_trees.composites.Sequence(
+        "정적 시험", memory=True,
+        children=[gate, start, scan, pick, to_loader, place, magazine_done,
+                  after_place, dock, Idle(DONE, node)])
 
 
 def current_stage(root):
@@ -1506,6 +2056,39 @@ def current_stage(root):
 # ══════════════════════════════════════════════════════════════════════════
 #  노드 — ROS 배선만 한다. 미션 순서는 전부 트리에 있다.
 # ══════════════════════════════════════════════════════════════════════════
+
+
+class _Task:
+    """웹이 시킨 작업 하나 (ExecuteTask goal). 수락된 순간부터 result 를 낼 때까지.
+
+    두 스레드가 본다 — 액션 execute 콜백(기다리는 쪽)과 트리 tick(끝내는 쪽).
+    끝내는 쪽은 finish() 하나로만 쓰고, 기다리는 쪽은 done 만 본다. 먼저 끝낸
+    쪽이 이긴다(취소와 사이클 완료가 같은 순간 겹쳐도 result 는 하나다).
+    """
+
+    def __init__(self, goal_handle):
+        goal = goal_handle.request
+        self.handle = goal_handle
+        self.task_id = int(goal.task_id)
+        self.kind = goal.kind
+        self.target_ref = goal.target_ref
+        self.done = threading.Event()
+        self.result = None            # ExecuteTask.Result. finish() 가 한 번만 채운다
+        self.canceled = False         # 웹이 SKIP/STOP 을 걸었다 (cancel_goal)
+        self.mission_started = False  # 미션 단계에 들어섰다 — 취소해도 캐리어를 놓지 않는다
+        self.route_committed = False  # 이 작업의 선반 경로가 순찰에 적용됐다
+        self.end_legs = 0             # 경로 적용 뒤 끝점을 향해 출발한 횟수 (빈 선반 판정)
+        self.last_feedback = None     # 마지막으로 올린 (stage, run_id, carrier_id)
+        self._lock = threading.Lock()
+
+    def finish(self, result):
+        """result 를 확정한다. 이미 끝났으면 무시한다(먼저 끝낸 쪽이 이긴다)."""
+        with self._lock:
+            if self.result is not None:
+                return False
+            self.result = result
+        self.done.set()
+        return True
 
 
 class TaskManager(Node):
@@ -1555,13 +2138,43 @@ class TaskManager(Node):
         self._frozen_node = None     # 얼어붙은 Freeze. _on_resume 이 푼다
         self.create_service(SetBool, "orchestrator/resume", self._on_resume)
 
+        # ── 어느 트리인가 ─────────────────────────────────────────────────
+        self.declare_parameter("scenario", DEFAULT_SCENARIO)
+        self.scenario = self.get_parameter("scenario").value
+        if self.scenario not in (SCENARIO_PATROL, SCENARIO_STATIC_TEST):
+            raise ValueError(
+                f"scenario={self.scenario!r} — {SCENARIO_PATROL} 또는 "
+                f"{SCENARIO_STATIC_TEST} 여야 한다")
+        self.static_test = self.scenario == SCENARIO_STATIC_TEST
+
         # ── 순찰 경로 (로봇마다 다른 선반을 돈다) ─────────────────────────
         # ★ 트리 조립보다 먼저다 — 잎들이 self.patrol_route 를 읽는다.
         #   출처를 고르는 규칙은 _resolve_patrol_route 독스트링에 있다.
         self.declare_parameter("shelves_yaml", str(DEFAULT_SHELVES_YAML))
         self.declare_parameter("patrol_shelf", "")
         self.declare_parameter("patrol_route", DEFAULT_PATROL_ROUTE)
-        self.patrol_route, self.patrol_route_source = self._resolve_patrol_route()
+        if self.static_test:
+            # 순찰이 없다. shelves.yaml 을 읽어 봐야 경고만 남으므로 건너뛴다.
+            self.patrol_route, self.patrol_route_source = [], "static_test (순찰 없음)"
+        else:
+            self.patrol_route, self.patrol_route_source = self._resolve_patrol_route()
+
+        # ── static_test 좌표 (근거는 DEFAULT_* 상수 주석) ────────────────
+        self.declare_parameter("scan_route", DEFAULT_SCAN_ROUTE)
+        self.declare_parameter("dock_route", DEFAULT_DOCK_ROUTE)
+        self.declare_parameter("stack_pick_route", DEFAULT_STACK_PICK_ROUTE)
+        self.declare_parameter("stack_deliver_route", DEFAULT_STACK_DELIVER_ROUTE)
+        self.declare_parameter("stack_place_port", DEFAULT_STACK_PLACE_PORT)
+        self.declare_parameter("lane_priority", DEFAULT_LANE_PRIORITY)
+        self.declare_parameter("start_clearance_m", DEFAULT_START_CLEARANCE_M)
+        self.scan_route = _unflatten_route(self.get_parameter("scan_route").value)
+        self.dock_route = _unflatten_route(self.get_parameter("dock_route").value)
+        self.stack_pick_route = _unflatten_route(self.get_parameter("stack_pick_route").value)
+        self.stack_deliver_route = _unflatten_route(
+            self.get_parameter("stack_deliver_route").value)
+        self.stack_place_port = self.get_parameter("stack_place_port").value
+        self.lane_priority = int(self.get_parameter("lane_priority").value)
+        self.start_clearance_m = float(self.get_parameter("start_clearance_m").value)
         # 웹이 좌표를 고쳤을 때 갈아끼울 값. 바로 반영하지 않는 이유는
         # _on_reload_config 독스트링 ★ 참고 — POSE 잎이 커밋한다.
         self._pending_route = None
@@ -1571,14 +2184,55 @@ class TaskManager(Node):
         if reload_name:
             self.create_service(ReloadConfig, reload_name, self._on_reload_config)
 
+        # ── 웹 작업 지시 (ExecuteTask.action) ────────────────────────────
+        # 액션 서버만 별도 콜백 그룹이다. rclpy 액션의 execute 콜백은 result 를
+        # 돌려줄 때까지 블로킹하는 계약이라(_execute_task), 트리 tick 과 같은
+        # 그룹에 두면 작업 하나가 도는 내내 트리가 멈춘다. 트리·구독·서비스는
+        # 전부 기본(상호배제) 그룹에 남아 서로 겹치지 않는다 — "잎이 블로킹하지
+        # 않아서 단일 스레드로 충분하다" 는 트리 쪽에서는 여전히 참이다.
+        # 두 스레드가 같이 만지는 것은 self._task(핸드오프)와 _pending_route ·
+        # _task_bounce(플래그)뿐이고, 트리와 블랙보드는 tick 스레드만 바꾼다.
+        self.declare_parameter("execute_task_action", DEFAULT_EXECUTE_TASK_ACTION)
+        self.declare_parameter("wait_for_task", DEFAULT_WAIT_FOR_TASK)
+        self.declare_parameter("empty_sweeps", DEFAULT_EMPTY_SWEEPS)
+        self.wait_for_task = bool(self.get_parameter("wait_for_task").value)
+        self.empty_sweeps = int(self.get_parameter("empty_sweeps").value)
+        self._task = None             # 진행 중인 _Task. 없으면 None
+        self._task_lock = threading.Lock()
+        self._task_claimed = False    # goal 수락 ~ _task 생성 사이의 자리표시
+        self._task_bounce = False     # 선반이 바뀌었다 — 순찰 가지를 한 tick 끊어라
+        self._task_reject_last = ("", 0.0)   # (사유, 시각) — 거절 경고 간격 조절
+        self._task_group = ReentrantCallbackGroup()
+        self._task_server = None
+        action_name = self.get_parameter("execute_task_action").value
+        if action_name:
+            self._task_server = ActionServer(
+                self, ExecuteTask, action_name,
+                execute_callback=self._execute_task,
+                goal_callback=self._on_task_goal,
+                cancel_callback=self._on_task_cancel,
+                callback_group=self._task_group)
+            self.get_logger().info(
+                f"ExecuteTask 액션 서버 {action_name} — "
+                f"{'goal 대기' if self.wait_for_task else '순찰하며 goal 을 받는다'}")
+        elif self.wait_for_task:
+            self.get_logger().warning(
+                "wait_for_task 가 켜져 있는데 execute_task_action 이 비어 있다 — "
+                "goal 이 올 곳이 없어 순찰 가지가 영원히 닫힌다.")
+
         # 순찰을 시작하기 전에 팔을 세울 자세. 빈 이름이면 그 단계를 건너뛴다 —
         # 이유와 받는 쪽 조건은 DEFAULT_OBSERVE_POSE_SERVICE 주석과
         # ObservePoseLeaf 독스트링에 있다.
         self.declare_parameter("observe_pose_service", DEFAULT_OBSERVE_POSE_SERVICE)
         self.observe_pose_name = self.get_parameter("observe_pose_service").value
-        self.observe_pose = (self.create_client(Trigger, self.observe_pose_name)
-                             if self.observe_pose_name else None)
-        if self.observe_pose is None:
+        if self.static_test:
+            # POSE 잎이 트리에 없다 — carrier_scan 서비스가 관측 자세를 스스로
+            # 잡는다(carrier_code_reader._on_carrier_scan). 클라이언트도 안 만든다.
+            self.observe_pose = None
+        else:
+            self.observe_pose = (self.create_client(Trigger, self.observe_pose_name)
+                                 if self.observe_pose_name else None)
+        if self.observe_pose is None and not self.static_test:
             self.get_logger().warning(
                 "observe_pose_service 가 비어 있다 — 순찰 전 관측 자세 단계를 "
                 "건너뛴다. 팔이 주행 자세 그대로라 QR 이 안 보일 수 있다.")
@@ -1599,6 +2253,7 @@ class TaskManager(Node):
         self._peer_stage = None       # 마지막으로 본 상대 단계
         self._peer_xy = None          # 상대 베이스 위치 (map). 없으면 None
         self._peer_failed = False     # 상대가 얼어붙었나 (FAILED 토큰)
+        self._peer_prio = 0           # 상대의 lane_priority (prio= 토큰). 0 = 없음
         self._peer_last_rx = 0.0      # 마지막 수신 시각 (monotonic). 0 = 한 번도 못 받음
         peer_topic = self.get_parameter("peer_state_topic").value
         if peer_topic:
@@ -1630,7 +2285,8 @@ class TaskManager(Node):
                 "(한 대만 띄울 때의 기본값)")
 
         self.patrol_node = None          # build_tree 가 채운다
-        self.tree = py_trees.trees.BehaviourTree(build_tree(self))
+        self.tree = py_trees.trees.BehaviourTree(
+            build_static_tree(self) if self.static_test else build_tree(self))
         self.tree.add_post_tick_handler(self._on_post_tick)
         self.tree.setup()
 
@@ -1638,7 +2294,11 @@ class TaskManager(Node):
         # 이 주기가 상대가 보는 정보의 최대 지연이다 — 상수 주석 참고.
         self.create_timer(STATE_PUBLISH_PERIOD_S, self._publish_state)
 
-        self.get_logger().info("task_manager ready — 행동트리 tick 시작")
+        self.get_logger().info(
+            f"task_manager ready — 행동트리 tick 시작 (scenario={self.scenario})")
+        if self.static_test:
+            self._log_static_routes()
+            return
         pts = " → ".join(f"({x:.3f}, {y:.3f}, {yaw:.1f}°)"
                          for x, y, yaw in self.patrol_route)
         if _unflatten_route(DEFAULT_PATROL_ROUTE) == self.patrol_route:
@@ -1655,6 +2315,23 @@ class TaskManager(Node):
             self.get_logger().warning(
                 "TEST_LOADER 가 비어 있다 — pick 까지는 되지만 nav 단계에서 멈춘다. "
                 "task_manager.py 상단에 좌표를 넣어라.")
+
+    def _log_static_routes(self):
+        """static_test 시작 로그 — 어느 좌표로 도는지 한 번에 보인다."""
+        def fmt(route):
+            return " → ".join(f"({x:.3f}, {y:.3f}, {yaw:.1f}°)" for x, y, yaw in route)
+        self.get_logger().info(
+            f"static_test 경로 — 출발 {fmt(self.scan_route)} | 로더 "
+            f"({TEST_LOADER[0]:.2f}, {TEST_LOADER[1]:.2f}) | 스택 {fmt(self.stack_pick_route)} "
+            f"| 검사 {fmt(self.stack_deliver_route)} | 도킹 {fmt(self.dock_route)}")
+        self.get_logger().info(
+            f"static_test 조율 — lane_priority={self.lane_priority or '없음'} "
+            f"(1 이 먼저) · 출발 여유 {self.start_clearance_m:.2f} m · "
+            f"양보 대상 {list(self._peer_busy_stages)}")
+        if self.lane_priority == 0 and self._peer_busy_stages:
+            self.get_logger().warning(
+                "lane_priority 가 0 이다 — 두 대가 동시에 PICK 을 마치면 둘 다 "
+                "직행을 골라 로더에서 만난다. launch 의 LANE_PRIORITY_BY_ROBOT 참고.")
 
     # ── 순찰 경로 고르기 ──────────────────────────────────────────────────
     def _resolve_patrol_route(self):
@@ -1677,12 +2354,13 @@ class TaskManager(Node):
         ★ 1) 이 실패해도 예외를 던지지 않고 2) 로 내려간다. 대신 왜 실패했는지
           반드시 경고로 남긴다. 조용히 옛 좌표로 도는 것이 제일 나쁘다.
 
-        ★★ assigned_robot 은 웹이 지울 수 있다 — 알고 있어야 한다.
+        ★★ assigned_robot 은 웹이 지울 수 있었다 — 알고 있어야 한다.
           web/backend/app/shapes.py 의 shelf_in() 이 고정된 키 목록으로 dict 를
-          새로 만들기 때문에, 그 목록에 없는 필드는 화면에서 「설정 > 선반」 을
-          한 번 저장하는 순간 조용히 사라진다. shelf_in/shelf_out 양쪽에
-          assigned_robot 이 추가되기 전까지, 저장 한 번에 이 로봇이 자기 선반을
-          잃는다. 그래서 아래에서 그 경우를 따로 짚어 경고한다.
+          새로 만들어서, 그 목록에 없는 필드는 화면에서 「설정 > 선반」 을 한 번
+          저장하는 순간 조용히 사라졌다. 지금은 shelf_out 이 이 키를 화면에
+          내주고 routers/settings.py 가 화면이 안 보낸 키를 파일 값으로 지키므로
+          저장해도 남는다. 사람이 에디터로 지우는 경우는 여전히 있어서 아래에서
+          그 경우를 따로 짚어 경고한다.
         """
         path = self.get_parameter("shelves_yaml").value or ""
         if path:
@@ -1724,9 +2402,9 @@ class TaskManager(Node):
                 if not any("assigned_robot" in sh for sh in shelves):
                     self.get_logger().warning(
                         "shelves.yaml 의 어느 선반에도 assigned_robot 이 없다. "
-                        "웹의 shapes.py(shelf_in/shelf_out)에 그 필드가 없으면 "
-                        "화면에서 「설정 > 선반」 을 한 번 저장할 때 지워진다 — "
-                        "방금 저장하지 않았는지 확인해라 "
+                        "선반 항목에 assigned_robot: robot1 처럼 적어야 이 로봇이 "
+                        "자기 선반을 안다. 웹 저장은 이제 이 키를 지키지만"
+                        "(routers/settings.py) 에디터로 지웠을 수 있다 "
                         "(_resolve_patrol_route 독스트링 ★★).")
                 else:
                     assigned = {str(sh.get("shelf_id")): sh.get("assigned_robot")
@@ -1777,7 +2455,9 @@ class TaskManager(Node):
           (_resolve_patrol_route ★★). 그때는 reloaded=false 로 거절하고 지금
           경로를 그대로 쓴다 — 웹이 그 사유를 로그에 남긴다.
         """
-        if req.scope not in (ReloadConfig.Request.ALL, ReloadConfig.Request.SHELVES):
+        if req.scope not in (ReloadConfig.Request.ALL, ReloadConfig.Request.SHELVES) \
+                or self.static_test:
+            # static_test 는 순찰 경로를 안 쓴다 — 무관한 scope 처럼 조용히 성공.
             res.reloaded = True
             res.revision = ""
             return res
@@ -1836,6 +2516,11 @@ class TaskManager(Node):
         self.patrol_route_source = source
         if self.patrol_waypoints is not None:
             self.patrol_waypoints.idx = 0
+        task = self._task
+        if task is not None:
+            # 이 작업의 선반 경로가 적용됐다. 빈 선반 판정은 여기서부터 센다.
+            task.route_committed = True
+            task.end_legs = 0
         self.get_logger().info(
             "순찰 경로 적용 [" + source + "] "
             + " → ".join(f"({x:.3f}, {y:.3f}, {yaw:.1f}°)" for x, y, yaw in route)
@@ -1852,6 +2537,7 @@ class TaskManager(Node):
             f"[실패] {stage} 단계에서 멈췄다. 이유: {reason} — "
             f"그 자리에서 정지한다. 자동 복귀하지 않는다. 복구하려면 "
             f"/{self.robot_id}/orchestrator/resume 에 true 를 보낸다.")
+        self._task_on_freeze(stage, reason)
         self._publish_state()
 
     # ── 생산 트래킹 (docs/DB구성.md §4-7 · §9) ────────────────────────────
@@ -1881,6 +2567,7 @@ class TaskManager(Node):
         return 은 place 뒤라 실패해도 물체는 이미 배달됐다 — 그래서
         success=false 인데 status=COMPLETED 인 행이 나온다(docs/DB구성.md §4-3).
         """
+        stage = TRACE_STAGE.get(stage, stage)
         if stage == RETURN:
             return "COMPLETED"
         if not ok:
@@ -1898,13 +2585,14 @@ class TaskManager(Node):
         msg.carrier_id = self.bb.kind or ""          # QR 원문 그대로. 가공하지 않는다
         msg.robot_id = self.robot_id
         msg.run_id = self.bb.run_id or ""
-        msg.stage = stage
+        msg.stage = TRACE_STAGE.get(stage, stage)     # 스택 단계는 DB 어휘로
         msg.attempt = self.attempt_of(stage)
         msg.success = bool(ok)
         msg.status = self._status_of(stage, ok)
         msg.fail_reason = "" if ok else STAGE_TO_REASON.get(stage, "nav_error")
         msg.fail_detail = "" if ok else (fail_detail or "UNKNOWN")
-        msg.port = PORT_BY_STAGE.get(stage, "")
+        msg.port = (self.stack_place_port if stage == STACK_PLACE
+                    else PORT_BY_STAGE.get(stage, ""))
         self._trace_pub.publish(msg)
 
     def _on_resume(self, req, res):
@@ -1972,6 +2660,7 @@ class TaskManager(Node):
         """
         self.bb.patrol_target = idx
         self._publish_state()
+        self._task_count_sweep(idx)
 
     def on_scan_not_found(self):
         """SCAN 이 found=false 로 끝났다. 잠시 감지를 받지 않는다.
@@ -1998,6 +2687,251 @@ class TaskManager(Node):
 
     def log_phase(self, label):
         return lambda fb: self.get_logger().info(f"  {label} phase={fb.feedback.phase}")
+
+    # ── 웹 작업 지시 (ExecuteTask.action) ────────────────────────────────
+    # 스레드 경계: _on_task_goal · _on_task_cancel · _execute_task 는 액션
+    # 콜백 스레드(_task_group)에서, 나머지(task_allows_patrol · _task_track ·
+    # _task_count_sweep · on_task_cycle_done · _task_on_freeze)는 tick 스레드
+    # 에서 돈다. 트리와 블랙보드는 tick 스레드만 바꾼다.
+
+    def _on_task_goal(self, request):
+        """goal 을 받을지. 거절하면 웹이 큐로 되돌리고 alert 를 띄운다(dispatcher)."""
+        why = None
+        if self.static_test:
+            why = (f"scenario={SCENARIO_STATIC_TEST} 는 웹 작업을 받지 않는다 — "
+                   f"순찰 없이 고정 시나리오를 한 번 돈다")
+        elif request.kind != "SCAN":
+            why = (f"kind={request.kind} 는 아직 못 받는다 — SCAN 만 된다 "
+                   f"(RECOVER 는 스테이션으로 가는 경로가 아직 없다)")
+        elif self.failed:
+            why = (f"{self.bb.fail_stage} 단계에서 얼어붙어 있다 — "
+                   f"/{self.robot_id}/orchestrator/resume 으로 먼저 푼다")
+        else:
+            with self._task_lock:
+                if self._task is not None or self._task_claimed:
+                    why = ("작업이 이미 진행 중이다 — 로봇 하나에 하나씩이다 "
+                           "(표 5 task_one_running_per_robot)")
+                else:
+                    self._task_claimed = True
+        if why:
+            # 거절된 goal 은 웹이 큐로 되돌리고 2초 뒤에 다시 보낸다(dispatcher 의
+            # _IDLE_POLL_SEC). 얼어 있는 동안 같은 사유가 계속 오므로, 같은 사유는
+            # 30초에 한 번만 경고로 남기고 나머지는 debug 로 내린다.
+            now = time.monotonic()
+            last_why, last_at = self._task_reject_last
+            if why != last_why or now - last_at > 30.0:
+                self._task_reject_last = (why, now)
+                self.get_logger().warning(
+                    f"ExecuteTask 거절 task={request.task_id} {request.target_ref}: {why}")
+            else:
+                self.get_logger().debug(f"ExecuteTask 거절 task={request.task_id}: {why}")
+            return GoalResponse.REJECT
+        return GoalResponse.ACCEPT
+
+    def _on_task_cancel(self, goal_handle):
+        """화면의 SKIP / STOP. 받기만 하고, 실제 처리는 _execute_task 의 대기 루프가 한다."""
+        return CancelResponse.ACCEPT
+
+    def _execute_task(self, goal_handle):
+        """goal 하나를 끝까지. 트리가 끝낼 때까지 여기서 기다린다(액션 스레드).
+
+        하는 일은 셋이다 — 선반을 찾아 순찰 경로로 대기시키고, 트리가 result 를
+        채울 때까지 기다리고, 취소 요청을 살핀다. 미션 자체는 기존 트리가 돈다:
+        순찰 → carrier_detected → HOLD → SCAN → PICK → 배송 → PLACE → RETURN.
+        """
+        goal = goal_handle.request
+        task = _Task(goal_handle)
+
+        route, code, detail = self._route_for_target(goal.target_ref)
+        if route is None:
+            with self._task_lock:
+                self._task_claimed = False
+            self.get_logger().error(
+                f"ExecuteTask task={task.task_id} {goal.target_ref}: {detail}")
+            goal_handle.abort()
+            return self._task_result(success=False, fail_reason=code, fail_detail=detail)
+
+        if goal.resume_progress > 0.0:
+            # 재개는 아직 없다 — 끊긴 지점이 아니라 scan 부터 다시 한다
+            # (ExecuteTask.action: run_id 를 이어갈지도 미정 §11 #2).
+            self.get_logger().warning(
+                f"ExecuteTask task={task.task_id}: resume_progress="
+                f"{goal.resume_progress:.2f} 는 아직 못 쓴다 — 처음부터 한다")
+
+        with self._task_lock:
+            self._task = task
+        if route == self.patrol_route:
+            task.route_committed = True
+            how = "지금 순찰 경로 그대로"
+        else:
+            self._pending_route = (
+                route, f"shelves.yaml {goal.target_ref} (ExecuteTask task={task.task_id})")
+            if self.patrolling:
+                # 다른 선반을 돌던 중이다. 순찰 가지를 한 tick 끊어 새 경로로
+                # 다시 들어가게 한다. 미션 중이면 끊지 않는다 — task_allows_patrol
+                # 이 미리 커밋해 두므로 RETURN 이 새 선반의 시작점으로 간다.
+                self._task_bounce = True
+            how = "새 경로 대기 (다음 순찰 진입에 적용)"
+        self.get_logger().info(
+            f"ExecuteTask 수락 task={task.task_id} {goal.kind} {goal.target_ref} — {how}")
+
+        # 트리가 끝낼 때까지. result 는 tick 스레드가 _Task.finish 로 채운다.
+        while not task.done.wait(timeout=0.2):
+            if goal_handle.is_cancel_requested and not task.canceled:
+                task.canceled = True
+                if task.mission_started:
+                    # 캐리어를 들고 있을 수 있다. 미션은 끝까지 돌리고 그 result
+                    # 를 취소로 돌려준다 — 웹은 CANCELED 를 실패로 치지 않는다.
+                    self.get_logger().warning(
+                        f"ExecuteTask task={task.task_id} 취소 요청 — 미션이 이미 "
+                        f"돌고 있어 RETURN 까지 마친 뒤 닫는다")
+                else:
+                    self.get_logger().info(
+                        f"ExecuteTask task={task.task_id} 취소 — 순찰을 세운다")
+                    task.finish(self._task_result(
+                        success=False, fail_reason=ExecuteTask.Result.CANCELED,
+                        fail_detail="웹이 취소했다(SKIP/STOP)"))
+
+        with self._task_lock:
+            self._task = None
+            self._task_claimed = False
+        result = task.result
+        if task.canceled:
+            goal_handle.canceled()
+        elif result.success or result.fail_reason == ExecuteTask.Result.NO_CARRIER:
+            goal_handle.succeed()
+        else:
+            goal_handle.abort()
+        self.get_logger().info(
+            f"ExecuteTask 종료 task={task.task_id} success={result.success} "
+            f"reason={_reason_name(ExecuteTask.Result, result.fail_reason)} "
+            f"run={result.run_id[:8] or '-'}")
+        return result
+
+    @staticmethod
+    def _task_result(success, fail_reason=ExecuteTask.Result.NONE, fail_detail="",
+                     run_id="", more_at_target=False):
+        r = ExecuteTask.Result()
+        r.success = bool(success)
+        r.more_at_target = bool(more_at_target)
+        r.run_id = run_id or ""
+        r.fail_reason = int(fail_reason)
+        r.fail_detail = fail_detail or ""
+        return r
+
+    def _route_for_target(self, target_ref):
+        """goal 의 target_ref(shelf_id) → 순찰 경로. 못 쓰면 (None, 사유코드, 설명).
+
+        좌표를 goal 에 싣지 않는 이유는 .action 주석 — 자세의 주인은 파일이다.
+        """
+        path = self.get_parameter("shelves_yaml").value or ""
+        try:
+            doc = yaml.safe_load(Path(path).read_text(encoding="utf-8")) or {}
+            shelves = [sh for sh in (doc.get("shelves") or []) if isinstance(sh, dict)]
+        except (OSError, yaml.YAMLError) as e:
+            return None, ExecuteTask.Result.NO_TARGET, f"shelves.yaml({path}) 을 못 읽었다: {e}"
+        shelf = next((sh for sh in shelves if str(sh.get("shelf_id")) == target_ref), None)
+        if shelf is None:
+            ids = [str(sh.get("shelf_id")) for sh in shelves]
+            return (None, ExecuteTask.Result.NO_TARGET,
+                    f"shelves.yaml 에 {target_ref} 가 없다 — 있는 것: {ids}")
+        route = _shelf_route(shelf)
+        if route is None:
+            return (None, ExecuteTask.Result.NO_TARGET,
+                    f"{target_ref} 의 waypoint 좌표가 덜 찼다 — 화면에서 채워라")
+        if not _shelf_is_taught(shelf):
+            return (None, ExecuteTask.Result.NOT_TAUGHT,
+                    f"{target_ref} 에 티칭된 자세가 없다 — 웹이 422 로 걸렀어야 한다")
+        return route, ExecuteTask.Result.NONE, ""
+
+    def task_allows_patrol(self):
+        """순찰 가지 EternalGuard 의 조건. tick 마다 불린다(tick 스레드).
+
+        False 를 돌려주면 순찰 가지가 INVALID 로 끊기고 진행 중인 주행 goal 이
+        거둬진다(build_tree 의 guarded_patrol 주석). 두 경우다:
+          - 선반이 바뀌어 한 tick 끊는다(_task_bounce). 다음 tick 에 다시 열린다.
+          - wait_for_task 인데 goal 이 없다 — 그 자리에서 기다린다.
+        열려 있는 동안, 작업의 새 경로가 대기 중이고 순찰 잎이 돌고 있지 않으면
+        여기서 바로 적용한다. POSE 가 커밋하기 전에 START 가 옛 경로의 시작점
+        으로 나가는 것을 막고, 미션 중이면 RETURN 이 새 시작점으로 가게 한다.
+        (작업이 없을 때의 reload 는 지금처럼 POSE 가 커밋한다.)
+        """
+        if self._task_bounce:
+            self._task_bounce = False
+            return False
+        task = self._task
+        if task is not None and self._pending_route is not None and not self.patrolling:
+            self.commit_pending_route()
+        if task is None and self.wait_for_task:
+            return False
+        return True
+
+    def _task_track(self, tree):
+        """tick 뒤에 한 번. 미션 단계가 바뀌면 feedback 을 올린다(tick 스레드)."""
+        task = self._task
+        if task is None:
+            return
+        stage = current_stage(tree.root)
+        if stage in MISSION_STAGES and not task.mission_started:
+            task.mission_started = True
+        fb_stage = TASK_STAGE.get(stage)
+        if fb_stage is None:
+            return
+        key = (fb_stage, self.bb.run_id, self.bb.carrier_id)
+        if key == task.last_feedback:
+            return
+        task.last_feedback = key
+        fb = ExecuteTask.Feedback()
+        fb.stage = fb_stage
+        fb.progress = float(TASK_PROGRESS.get(stage, 0.0))
+        fb.run_id = self.bb.run_id or ""
+        fb.carrier_id = self.bb.carrier_id or ""
+        task.handle.publish_feedback(fb)
+
+    def _task_count_sweep(self, idx):
+        """순찰 정차점이 바뀔 때마다(set_patrol_target). 빈 선반 판정.
+
+        끝점(1)을 향해 두 번째로 출발한다는 것은 시작점→끝점→시작점 한 바퀴를
+        감지 없이 돌았다는 뜻이다. empty_sweeps 바퀴가 차면 NO_CARRIER 로 닫는다.
+        """
+        task = self._task
+        if task is None or not task.route_committed or task.mission_started or idx != 1:
+            return
+        task.end_legs += 1
+        sweeps = task.end_legs - 1
+        if sweeps >= self.empty_sweeps:
+            self.get_logger().info(
+                f"ExecuteTask task={task.task_id} {task.target_ref}: "
+                f"{sweeps}바퀴 돌았는데 캐리어가 없다 — NO_CARRIER")
+            task.finish(self._task_result(
+                success=False, fail_reason=ExecuteTask.Result.NO_CARRIER,
+                fail_detail=f"{sweeps}바퀴 순찰, 감지 없음"))
+
+    def on_task_cycle_done(self):
+        """CycleDone 이 부른다 — RETURN 까지 끝났다. 웹 작업이면 성공으로 닫는다."""
+        task = self._task
+        if task is None:
+            return
+        # more_at_target 은 아직 못 본다. 복귀한 자리가 선반 앞이지만 상태가
+        # patrol 이 아니라 carrier_code_reader 가 폴링하지 않는다 — 확신이 없으면
+        # false 가 안전하다(.action 주석). 남은 캐리어는 다음 goal 의 순찰이 본다.
+        task.finish(self._task_result(
+            success=True, run_id=self.bb.run_id, more_at_target=False))
+
+    def _task_on_freeze(self, stage, reason):
+        """얼어붙었다(on_freeze). 웹 작업이면 그 단계의 실패로 닫는다.
+
+        트리는 그대로 얼어 있다. 웹이 /orchestrator/resume 으로 풀면 트리는 그
+        단계부터 이어가지만 작업은 이미 닫혔으므로 웹이 다시 배차한다 — 얼어
+        있는 동안 오는 goal 은 거절된다(_on_task_goal).
+        """
+        task = self._task
+        if task is None:
+            return
+        task.finish(self._task_result(
+            success=False,
+            fail_reason=TASK_FAIL_REASON.get(stage, ExecuteTask.Result.NAV_FAIL),
+            fail_detail=reason, run_id=self.bb.run_id))
 
     # ── 구독 ──────────────────────────────────────────────────────────────
     def _on_carrier_detected(self, msg):
@@ -2028,6 +2962,8 @@ class TaskManager(Node):
         # 자연히 닫힌다 (_on_carrier_detected 참고).
         self.patrolling = (self.patrol_node is not None
                             and self.patrol_node.status == Status.RUNNING)
+        # 웹 작업 보고 — 미션 단계가 바뀔 때만 feedback 을 낸다.
+        self._task_track(tree)
 
         # ※ 순찰 가지가 없던 동안 "완전 정지" 를 감지해 detected 를 다시 세우던
         #   임시 블록이 여기 있었다. 순찰을 되살리면서 지웠다 — SCAN 이 soft
@@ -2047,15 +2983,21 @@ class TaskManager(Node):
         cobot3_perception/carrier_code_reader._on_orchestrator_state 와 같다.
         그 노드와 마찬가지로 모르는 필드는 그냥 무시한다.
         """
-        stage, failed = None, False
+        stage, failed, prio = None, False, 0
         for part in msg.data.split("|"):
             part = part.strip()
             if part.startswith("state="):
                 stage = part[len("state="):]
             elif part == "FAILED":
                 failed = True
+            elif part.startswith("prio="):
+                try:
+                    prio = int(part[len("prio="):])
+                except ValueError:
+                    prio = 0
         self._peer_stage = stage
         self._peer_failed = failed
+        self._peer_prio = prio
         self._peer_last_rx = time.monotonic()
 
     def _on_peer_pose(self, msg):
@@ -2063,6 +3005,29 @@ class TaskManager(Node):
 
     def peer_stage(self):
         return self._peer_stage
+
+    def peer_seen(self):
+        """상대 상태를 한 번이라도 받았나."""
+        return self._peer_last_rx != 0.0
+
+    def peer_xy(self):
+        return self._peer_xy
+
+    def peer_prio(self):
+        return self._peer_prio
+
+    def peer_outranks_me(self):
+        """상대가 나보다 선순위인가 (lane_priority 는 1 이 가장 먼저).
+
+        어느 한쪽이라도 우선순위가 없으면(0) False 다 — 그러면 static_test 도
+        순찰 트리와 같은 "지금 차선을 쓰는가" 규칙만으로 판단한다.
+        """
+        return (self.lane_priority > 0 and self._peer_prio > 0
+                and self._peer_prio < self.lane_priority)
+
+    def peer_contending(self):
+        """상대가 아직 차선 판단 전이라 곧 로더로 오는가 (CONTENDING_STAGES)."""
+        return self.peer_seen() and self._peer_stage in CONTENDING_STAGES
 
     def peer_dist_to_loader(self):
         """상대 베이스와 로더 주차점의 거리. 위치를 모르면 None.
@@ -2138,6 +3103,9 @@ class TaskManager(Node):
             # PATROL_ROUTE[0](시작점)으로 돌아가는 중이면 1층. 확정안 밖의
             # 추가분(§03 note)이라 자유롭게 확장 가능하다.
             parts.append(f"patrol_target={self.bb.patrol_target}")
+        if self.lane_priority:
+            # static_test 의 순서 장치. 상대의 PeerClear/HOLD_BACK/게이트가 읽는다.
+            parts.append(f"prio={self.lane_priority}")
         if self.bb.scan_fail_streak:
             parts.append(f"scan_fail={self.bb.scan_fail_streak}")
         if self.bb.carrier_id:
@@ -2158,11 +3126,17 @@ class TaskManager(Node):
 def main():
     rclpy.init()
     node = TaskManager()
+    # 스레드가 둘 이상이어야 한다 — ExecuteTask 의 execute 콜백이 작업이 끝날
+    # 때까지 블로킹하는 동안에도 트리가 tick 되어야 하기 때문이다. 그룹 나누기와
+    # 스레드 경계는 TaskManager.__init__ 의 액션 서버 주석에 있다.
+    executor = MultiThreadedExecutor(num_threads=3)
+    executor.add_node(node)
     try:
-        rclpy.spin(node)
+        executor.spin()
     except KeyboardInterrupt:
         pass
     finally:
+        executor.shutdown()
         node.destroy_node()
         rclpy.shutdown()
 

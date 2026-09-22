@@ -3,6 +3,8 @@
 
     ros2 launch cobot3_bringup mission_nodes.launch.py                      # robot1 한 대
     ros2 launch cobot3_bringup mission_nodes.launch.py robots:=robot1,robot2  # 두 대
+    # 순찰 없는 고정 시나리오 (씬: worlds/simple_factory_layout_test.usda)
+    ros2 launch cobot3_bringup mission_nodes.launch.py robots:=robot1,robot2 scenario:=static_test
 
 이 launch 가 책임지는 건 애플리케이션 노드뿐이다. 아래는 따로 띄워야 한다
 (이 순서로):
@@ -46,6 +48,15 @@
      robot_id="robot1"/"robot2" — pick_place_server/carrier_code_reader 가
      자기 네임스페이스를 그대로 실어 보낸다). scan · pick · place 도 두
      로봇 다 된다. 주행(nav_server)은 원래 sim_backend 를 안 썼다.
+
+★ scenario:=static_test — 순찰 없는 고정 시나리오
+  task_manager.py 모듈 독스트링 "순찰 없는 고정 시나리오" 가 트리를 설명한다.
+  여기서는 로봇별 좌표와 순서만 준다(아래 STATIC_* 표). 씬은
+      SIM_WORLD_USD=isaacpjt/worlds/simple_factory_layout_test.usda \
+          isaac_python isaacpjt/ros_bridge/sim_backend.py
+  로 띄운다 — 매거진 둘(선반 동쪽 끝 슬롯, 로봇당 하나)과 스택 하나(포장
+  출력 선반)가 처음부터 놓여 있다. 좌표의 근거는 task_manager.py 의
+  DEFAULT_SCAN_ROUTE 등 상수 주석에 있고, 실측이 아니라 기하 계산이다.
 """
 
 from launch import LaunchDescription
@@ -100,17 +111,71 @@ STAGING_BY_ROBOT = {
 PEER_OF = {"robot1": "robot2", "robot2": "robot1"}
 
 
-def _task_manager_params(ns, namespaces):
+# ══════════════════════════════════════════════════════════════════════════
+#  scenario:=static_test — 순찰 없는 고정 시나리오의 로봇별 표
+#
+#  좌표는 전부 (x, y, yaw_deg) 를 평탄화한 경로다. 값의 근거는 task_manager.py
+#  의 DEFAULT_SCAN_ROUTE · DEFAULT_DOCK_ROUTE · DEFAULT_STACK_* 주석(robot1 값이
+#  그 기본값과 같다 — test_peer_yield.py 가 검사한다). robot2 는 같은 규칙을
+#  Shelf_02(통로가 +y 라 yaw 180)와 자기 도크 줄(y=-7.575)에 적용한 것이다.
+#
+#  ★ 실측이 아니다. 선반 앞 정차 관계(전면에서 0.4167 m)와 nav_server 의
+#    직선 주행·후진 규칙에서 기하로 계산했다. Isaac 에서 한 번 돌려 보고
+#    부딪히는 점이 있으면 여기서 고친다.
+# ══════════════════════════════════════════════════════════════════════════
+
+# 도크 → 스캔 자리. 자기 줄을 따라 서쪽으로 나간 뒤(회전 없음) 선반 줄 동쪽
+# 끝으로 올라가 마지막 구간은 회전 없이 들어간다(robot1 후진 · robot2 전진).
+STATIC_SCAN_ROUTE_BY_ROBOT = {
+    "robot1": [3.5, -6.591, 180.0,   1.0, 2.036, 0.0,     -0.641, 2.036, 0.0],
+    "robot2": [3.5, -7.575, 180.0,   1.0, -1.056, 180.0,  -0.516, -1.056, 180.0],
+}
+
+# 로더/검사 스테이션 → 도크. 마지막 점이 도크(씬의 시작 자세와 같다). 둘째
+# 점은 자기 줄 위이고, 이웃 줄과 0.98 m 떨어져 있어 거기서 도는 꼬리 스윕
+# (0.70 m)이 이웃을 안 친다 — robot1 은 -6.3(이웃이 남쪽), robot2 는 자기 줄.
+STATIC_DOCK_ROUTE_BY_ROBOT = {
+    "robot1": [3.0, -4.6, 90.0,   3.0, -6.3, 180.0,     5.5, -6.591, 180.0],
+    "robot2": [3.0, -4.6, 90.0,   3.0, -7.575, 180.0,   5.5, -7.575, 180.0],
+}
+
+# 로더 차선 순서. 1 이 먼저다. 남쪽 로봇(robot2)이 먼저 나가야 북쪽 로봇의
+# 꼬리 스윕이 이웃을 안 치므로(task_manager.py "출발 게이트") robot2 가 1 이다.
+# 그 순서가 로더에서도 그대로 이어져 robot2 가 먼저 place 하고 스택을 맡는
+# 것이 기본 흐름이다.
+LANE_PRIORITY_BY_ROBOT = {"robot1": 2, "robot2": 1}
+
+# static_test 의 양보 목록. task_manager.py 의 STATIC_PEER_BUSY_STAGES 와 같은
+# 값이어야 한다. 순찰의 LANE_STAGES 에 스택 다섯 단계를 더한 것 — 스택 자리와
+# 검사 스테이션이 로더 곁이라 상대의 스택 사이클 내내 기다린다.
+STATIC_LANE_STAGES = LANE_STAGES + [
+    "stack_nav", "stack_scan", "stack_pick", "stack_deliver", "stack_place"]
+
+
+def _task_manager_params(ns, namespaces, scenario="patrol"):
     """task_manager 하나에 넘길 파라미터. 조율이 필요 없으면 빈 dict."""
+    static = scenario == "static_test"
+    params = {"scenario": scenario} if static else {}
+    if static:
+        if ns not in STATIC_SCAN_ROUTE_BY_ROBOT:
+            raise RuntimeError(
+                f"static_test 에 {ns} 의 좌표가 없다 — STATIC_SCAN_ROUTE_BY_ROBOT · "
+                f"STATIC_DOCK_ROUTE_BY_ROBOT · LANE_PRIORITY_BY_ROBOT 에 넣어라")
+        params.update({
+            "scan_route": STATIC_SCAN_ROUTE_BY_ROBOT[ns],
+            "dock_route": STATIC_DOCK_ROUTE_BY_ROBOT[ns],
+            "lane_priority": LANE_PRIORITY_BY_ROBOT[ns],
+        })
+
     # ★ 모르는 네임스페이스에는 조율을 켜지 않는다. 검증된 대기 자리가 없는데
     #   아무 좌표나 기본값으로 물려 주면, 그 자리가 장애물 안이어도 로봇이
     #   그리로 간다. 지도가 바뀌면서 실제로 좌표 하나가 장애물 안으로 들어간
     #   적이 있다(check_staging_poses.py 가 그래서 있다). 좌표가 없으면 조율
     #   없이 직행만 하게 두는 편이 안전하다.
     if ns not in STAGING_BY_ROBOT:
-        return {}
+        return params
 
-    params = {"staging_pose": STAGING_BY_ROBOT[ns]}
+    params["staging_pose"] = STAGING_BY_ROBOT[ns]
     peer = PEER_OF.get(ns)
     if not peer or peer not in namespaces:
         # 상대가 같이 안 뜨면 구독하지 않는다. 안 뜨는 토픽을 구독해 둬도
@@ -118,7 +183,7 @@ def _task_manager_params(ns, namespaces):
         return params
 
     params["peer_state_topic"] = f"/{peer}/orchestrator/state"
-    params["peer_busy_stages"] = list(LANE_STAGES)
+    params["peer_busy_stages"] = list(STATIC_LANE_STAGES if static else LANE_STAGES)
     # 상대가 로더에서 얼마나 멀어졌는지 보려면 상대 위치가 필요하다. 없어도
     # 동작은 하지만(상대의 return 이 끝날 때까지 기다린다) 그만큼 느리다.
     # Nav2(multi_navigation.launch.py)가 네임스페이스마다 amcl 을 띄우므로
@@ -133,11 +198,14 @@ def _setup(context):
     if not namespaces:
         raise RuntimeError(
             "robots 인자가 비었다 — 예: robots:=robot1 또는 robots:=robot1,robot2")
+    scenario = LaunchConfiguration("scenario").perform(context).strip()
+    if scenario not in ("patrol", "static_test"):
+        raise RuntimeError(f"scenario:={scenario} — patrol 또는 static_test 여야 한다")
 
     nodes = []
     for ns in namespaces:
         for package, executable in MISSION_NODES:
-            params = (_task_manager_params(ns, namespaces)
+            params = (_task_manager_params(ns, namespaces, scenario)
                       if executable == "task_manager" else {})
             nodes.append(Node(
                 package=package,
@@ -168,5 +236,9 @@ def generate_launch_description():
             description="미션 노드를 띄울 로봇 네임스페이스. 쉼표로 여러 개 "
                         "(예: robot1,robot2). 기본값이 robot1 하나인 이유는 "
                         "모듈 독스트링 '기본값이 robot1 하나인 이유' 참고."),
+        DeclareLaunchArgument(
+            "scenario", default_value="patrol",
+            description="task_manager 의 트리. patrol(순찰) 또는 static_test"
+                        "(순찰 없는 고정 시나리오 — 모듈 독스트링 ★ 참고)."),
         OpaqueFunction(function=_setup),
     ])

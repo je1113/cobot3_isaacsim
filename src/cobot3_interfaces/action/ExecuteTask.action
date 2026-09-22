@@ -49,8 +49,9 @@
 #        복귀를 빼면 매번 스테이션에서 선반까지 다시 가야 한다.
 #
 #   ★ 그래서 return 의 목적지는 PATROL_ROUTE[0] 이 아니라 **goal 의 target_ref**
-#     (shelves.yaml 의 approach)다. 지금 task_manager 의 RETURN 은 순찰 시작점으로
-#     가는데, 이 액션을 받는 구조에서는 그 좌표를 goal 에서 가져와야 한다.
+#     (shelves.yaml 의 waypoint)다. 지금 task_manager 의 RETURN 은 순찰 시작점으로
+#     가는데, 이 액션을 받는 구조에서는 그 좌표를 target_ref 로 찾아야 한다.
+#     층이 하나라 돌아갈 자리도 하나다 — 그 앞에 선 채로 다음 goal 을 받는다.
 #
 #   선반에 매거진이 3개면 작업도 3건이다. 배정 시점에 몇 개가 있는지 모르므로,
 #   복귀한 로봇이 result.more_at_target 으로 "아직 더 있다" 를 알려주고 웹이
@@ -100,8 +101,21 @@ string target_ref               # yaml 의 id 다. FK 가 아니다(§10-2 ①).
                                 # 좌표를 직접 싣지 않는 이유: 자세의 주인은 파일이고(§8-5),
                                 # 웹이 좌표를 실어 보내면 웹도 주인이 되어 둘이 갈라진다.
 
-float32 resume_progress         # 0.0 = 처음부터. 웹 복구로 중단 지점부터 재개할 때만 > 0.
-                                # ★ WBS 0.1 로 '층(pass)' 개념이 사라져 이 한 칸만 남았다.
+float32 resume_progress         # **이 작업의 진척도.** 0.0 = 처음부터(scan 부터),
+                                # 1.0 = 복귀까지 끝. feedback.progress 와 같은 축이다.
+                                #
+                                # ★ 쓰임은 하나뿐이다 — **웹 복구**.
+                                #   작업이 중간에 끊겼을 때(정지·통신 두절·웹 재시작)
+                                #   끊긴 지점부터 다시 시킬 때만 0 보다 크다.
+                                #
+                                # ★ 후속 작업(more_at_target)에는 **넘기지 않는다.**
+                                #   다음 캐리어는 새 작업이라 scan 부터 시작해야 한다.
+                                #   앞 작업의 진척을 물려주면 로봇이 스캔도 파지도 건너뛰고
+                                #   빈 팔로 place 로 간다.
+                                #
+                                # ★ 층이 하나로 고정돼 있어 '어디부터 다시' 가 이 값
+                                #   하나로 정해진다. 층이 여럿이면 (층, 진척) 쌍이 필요했다.
+                                #
                                 # ★ 재개 시 run_id 를 이어갈지 새로 발행할지는 미정(§11 #2).
 ---
 # ── result ──
@@ -132,6 +146,8 @@ string fail_detail              # DB 의 fail_detail 과 같은 문자열. 웹�
 ---
 # ── feedback ──
 string stage                    # 소문자 — pick | nav | place | return. TraceEvent.stage 와 같은 값.
-float32 progress                # 0.0 ~ 1.0. 중단되면 이 값이 task.resume_progress 로 저장된다.
+float32 progress                # 이 작업의 진척도 0.0 ~ 1.0. goal.resume_progress 와 같은 축이다.
+                                # 웹이 task.resume_progress 에 저장해 두고, 작업이 끊겼을 때
+                                # **그 작업을 다시 시킬 때만** 돌려준다(후속 작업에는 안 쓴다).
 string run_id                   # ScanLeaf 성공 직후 첫 feedback 부터 채워진다. 그 전에는 빈 문자열.
 string carrier_id               # 판독된 QR 원문. 화면이 "무엇을 옮기는 중" 을 표시하는 데 쓴다.

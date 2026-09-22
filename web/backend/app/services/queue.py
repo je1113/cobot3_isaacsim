@@ -70,7 +70,11 @@ async def list_tasks(status: str | None = None, limit: int = 200) -> list[dict]:
 
 # ── 배정 (4.1) ───────────────────────────────────────────────────────
 async def create(
-    robot_id: str, target_ref: str, kind: str = "SCAN", queue_order: int | None = None
+    robot_id: str,
+    target_ref: str,
+    kind: str = "SCAN",
+    queue_order: int | None = None,
+    resume_progress: float | None = None,
 ) -> dict:
     _check_robot(robot_id)
     await _check_target(kind, target_ref)
@@ -80,9 +84,9 @@ async def create(
 
     try:
         row = await db.fetchrow(
-            "INSERT INTO task (robot_id, kind, target_ref, queue_order) "
-            f"VALUES (%s, %s, %s, %s) RETURNING {_COLS}",
-            (robot_id, kind, target_ref, queue_order),
+            "INSERT INTO task (robot_id, kind, target_ref, queue_order, resume_progress) "
+            f"VALUES (%s, %s, %s, %s, %s) RETURNING {_COLS}",
+            (robot_id, kind, target_ref, queue_order, resume_progress),
         )
     except pgerr.UniqueViolation as e:
         raise _translate(e, robot_id, target_ref) from e
@@ -294,7 +298,13 @@ async def follow_up(task_id: int) -> dict | None:
     있는지 모르므로, 로봇이 "아직 더 있다" 를 알려주면 웹이 한 건 더 만든다.
     사람이 매번 다시 배정하지 않아도 선반이 빌 때까지 돈다.
 
-    같은 로봇에게 준다 — 이미 그 선반 앞에 복귀해 있으니 이동 비용이 0이다.
+    ★ **진척도(resume_progress)는 넘기지 않는다.** 그 값은 '이 작업을 어디까지
+      했나' 이고, 다음 캐리어는 **새 작업**이라 scan 부터 시작해야 한다.
+      물려주면 로봇이 스캔도 파지도 건너뛰고 빈 팔로 place 로 간다.
+      (resume_progress 의 쓰임은 웹 복구 하나뿐이다 — 끊긴 그 작업을 다시
+       시킬 때만 쓴다. ExecuteTask.action 참고)
+
+    같은 로봇에게 준다 — 이미 그 자리에 복귀해 있으니 이동 비용이 0이다.
     다른 로봇이 같은 선반에서 같이 일하고 있어도 상관없다(선반은 안 잠근다).
     부하 균형이 필요하면 화면에서 자동 분배를 다시 돌리면 된다.
     """
