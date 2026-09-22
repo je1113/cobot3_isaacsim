@@ -847,6 +847,24 @@ def Xform "World"
                 }
             }
         }
+
+        def Xform "Obstacle"
+        {
+            quatd xformOp:orient = (1, 0, 0, 0)
+            double3 xformOp:scale = (1, 1, 1)
+            double3 xformOp:translate = (0, 0, 0)
+            uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
+
+            def "traffic_cone_orange" (
+                prepend payload = @../assets/traffic_cone_orange.usda@
+            )
+            {
+                quatf xformOp:orient = (1, 0, 0, 0)
+                float3 xformOp:scale = (1, 1, 1)
+                double3 xformOp:translate = (2.3931683178429313, -4.16850517642612, -5.710554660254274e-7)
+                uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
+            }
+        }
     }
 
     def Xform "Magazines"
