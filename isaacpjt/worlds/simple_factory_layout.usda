@@ -7,8 +7,8 @@
                 double radius = 5
             }
             dictionary Perspective = {
-                double3 position = (-6.153545624217779, -14.98983681718451, 1.7189541728940032)
-                double3 target = (9.138121387628178, 28.213833729027392, -51.98347863349267)
+                double3 position = (7.855051718594679, -18.351372323003247, 14.583967995669228)
+                double3 target = (-25.8945895829022, 58.938601930967565, -50.681235800291304)
             }
             dictionary Right = {
                 double3 position = (0, -5, 0)
@@ -1720,6 +1720,10 @@ def Xform "World"
 
             over "joint_wheel_left"
             {
+                custom string isaac:nameOverride = "left_wheel" (
+                    displayName = "Name Override"
+                    doc = "Name override for prim lookup in base name search"
+                )
                 float physics:lowerLimit = -inf
                 float physics:upperLimit = inf
                 float state:angular:physics:position = 0
@@ -1728,6 +1732,10 @@ def Xform "World"
 
             over "joint_wheel_right"
             {
+                custom string isaac:nameOverride = "right_wheel" (
+                    displayName = "Name Override"
+                    doc = "Name override for prim lookup in base name search"
+                )
                 float physics:lowerLimit = -inf
                 float physics:upperLimit = inf
                 float state:angular:physics:position = 0
@@ -2054,6 +2062,10 @@ def Xform "World"
                     over "joint_1"
                     {
                         float drive:angular:physics:targetPosition = 0.4
+                        string isaac:nameOverride = "m0609_joint_1" (
+                            displayName = "Name Override"
+                            doc = "Name override for prim lookup in base name search"
+                        )
                         float physics:lowerLimit = -360.00082
                         float physics:upperLimit = 360.00082
                         float state:angular:physics:position = 0
@@ -2063,6 +2075,10 @@ def Xform "World"
                     over "joint_2"
                     {
                         float drive:angular:physics:targetPosition = 0.4
+                        string isaac:nameOverride = "m0609_joint_2" (
+                            displayName = "Name Override"
+                            doc = "Name override for prim lookup in base name search"
+                        )
                         float physics:lowerLimit = -360.00082
                         float physics:upperLimit = 360.00082
                         float state:angular:physics:position = 0
@@ -2072,6 +2088,10 @@ def Xform "World"
                     over "joint_3"
                     {
                         float drive:angular:physics:targetPosition = 88.200005
+                        string isaac:nameOverride = "m0609_joint_3" (
+                            displayName = "Name Override"
+                            doc = "Name override for prim lookup in base name search"
+                        )
                         float physics:lowerLimit = -150.00035
                         float physics:upperLimit = 150.00035
                         float state:angular:physics:position = 0
@@ -2081,6 +2101,10 @@ def Xform "World"
                     over "joint_4"
                     {
                         float drive:angular:physics:targetPosition = -16.9
+                        string isaac:nameOverride = "m0609_joint_4" (
+                            displayName = "Name Override"
+                            doc = "Name override for prim lookup in base name search"
+                        )
                         float physics:lowerLimit = -360.00082
                         float physics:upperLimit = 360.00082
                         float state:angular:physics:position = 0
@@ -2090,6 +2114,10 @@ def Xform "World"
                     over "joint_5"
                     {
                         float drive:angular:physics:targetPosition = 90.4
+                        string isaac:nameOverride = "m0609_joint_5" (
+                            displayName = "Name Override"
+                            doc = "Name override for prim lookup in base name search"
+                        )
                         float physics:lowerLimit = -360.00082
                         float physics:upperLimit = 360.00082
                         float state:angular:physics:position = 0
@@ -2099,6 +2127,10 @@ def Xform "World"
                     over "joint_6"
                     {
                         float drive:angular:physics:targetPosition = -9.900001
+                        string isaac:nameOverride = "m0609_joint_6" (
+                            displayName = "Name Override"
+                            doc = "Name override for prim lookup in base name search"
+                        )
                         float physics:lowerLimit = -360.00082
                         float physics:upperLimit = 360.00082
                         float state:angular:physics:position = 0
@@ -2851,6 +2883,44 @@ def "Render" (
                 custom bool overrideClipRange = 0
                 uniform int2 resolution = (1280, 720)
             }
+
+            def RenderProduct "Replicator_33" (
+                prepend apiSchemas = ["OmniRtxSettingsCommonAdvancedAPI_1", "OmniRtxSettingsRtAdvancedAPI_1", "OmniRtxSettingsPtAdvancedAPI_1", "OmniRtxPostColorGradingAPI_1", "OmniRtxPostChromaticAberrationAPI_1", "OmniRtxPostBloomPhysicalAPI_1", "OmniRtxPostMatteObjectAPI_1", "OmniRtxPostCompositingAPI_1", "OmniRtxPostDofAPI_1", "OmniRtxPostMotionBlurAPI_1", "OmniRtxPostTvNoiseAPI_1", "OmniRtxPostTonemapIrayReinhardAPI_1", "OmniRtxPostDebugSettingsAPI_1", "OmniRtxDebugSettingsAPI_1"]
+                hide_in_stage_window = true
+                no_delete = true
+            )
+            {
+                rel camera = </World/Robots/nova_carter1/chassis_link/sensors/XT_32/PandarXT_32_10hz>
+                custom string ogPostProcessPath = "/Render/OmniverseKit/HydraTextures/Replicator_33/PostRender"
+                bool omni:rtx:material:db:syncLoads = 1
+                bool omni:rtx:rt:ecoMode:enabled = 0
+                bool omni:rtx:scene:hydra:materialSyncLoads = 1
+                rel orderedVars = [
+                    </Render/Vars/GenericModelOutput>,
+                    </Render/Vars/RtxSensorMetadata>,
+                ]
+                custom bool overrideClipRange = 0
+                uniform int2 resolution = (1280, 720)
+            }
+
+            def RenderProduct "Replicator_34" (
+                prepend apiSchemas = ["OmniRtxSettingsCommonAdvancedAPI_1", "OmniRtxSettingsRtAdvancedAPI_1", "OmniRtxSettingsPtAdvancedAPI_1", "OmniRtxPostColorGradingAPI_1", "OmniRtxPostChromaticAberrationAPI_1", "OmniRtxPostBloomPhysicalAPI_1", "OmniRtxPostMatteObjectAPI_1", "OmniRtxPostCompositingAPI_1", "OmniRtxPostDofAPI_1", "OmniRtxPostMotionBlurAPI_1", "OmniRtxPostTvNoiseAPI_1", "OmniRtxPostTonemapIrayReinhardAPI_1", "OmniRtxPostDebugSettingsAPI_1", "OmniRtxDebugSettingsAPI_1"]
+                hide_in_stage_window = true
+                no_delete = true
+            )
+            {
+                rel camera = </World/Robots/nova_carter2/chassis_link/sensors/XT_32/PandarXT_32_10hz>
+                custom string ogPostProcessPath = "/Render/OmniverseKit/HydraTextures/Replicator_34/PostRender"
+                bool omni:rtx:material:db:syncLoads = 1
+                bool omni:rtx:rt:ecoMode:enabled = 0
+                bool omni:rtx:scene:hydra:materialSyncLoads = 1
+                rel orderedVars = [
+                    </Render/Vars/GenericModelOutput>,
+                    </Render/Vars/RtxSensorMetadata>,
+                ]
+                custom bool overrideClipRange = 0
+                uniform int2 resolution = (1280, 720)
+            }
         }
     }
 
@@ -2894,6 +2964,8 @@ def "Render" (
             </Render/OmniverseKit/HydraTextures/Replicator_30>,
             </Render/OmniverseKit/HydraTextures/Replicator_31>,
             </Render/OmniverseKit/HydraTextures/Replicator_32>,
+            </Render/OmniverseKit/HydraTextures/Replicator_33>,
+            </Render/OmniverseKit/HydraTextures/Replicator_34>,
         ]
     }
 
