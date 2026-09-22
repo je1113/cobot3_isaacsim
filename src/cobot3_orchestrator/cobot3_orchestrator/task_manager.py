@@ -205,10 +205,18 @@ TEST_LOADER = (3.75, 4.60, 0.0)
 # 선반 줄 동쪽 끝의 진입점, 셋째가 스캔 자리다. 둘째 점의 yaw 를 스캔 자리와
 # 같게 두어 마지막 구간은 회전 없이 들어간다. 매거진은 씬에서 선반 동쪽 끝
 # 슬롯(x=-0.641)에 있다 — 도크에서 가장 가까운 자리다.
+#
+# ★ 정차 x = SCAN_STOP_X. 매거진 x 그대로(-0.641)에 세웠더니 실측으로 차체가
+#   너무 서쪽(도크 반대쪽)에 섰다. 도크 방향(+x)으로 0.20 m 물렸다.
+#   두 로봇이 같은 x 에 서야 한다(줄만 다르고 슬롯은 같은 자리) — 그래서
+#   mission_nodes.launch.py 의 SCAN_ROUTE_BY_ROBOT 도 robot1/robot2 모두
+#   이 값을 쓴다. 한쪽만 고치면 두 줄의 스캔 자리가 어긋난다.
+SCAN_STOP_X = -0.441
+
 DEFAULT_SCAN_ROUTE = [
     3.5, -6.591, 180.0,
     1.0, 2.036, 0.0,
-    -0.641, 2.036, 0.0,
+    SCAN_STOP_X, 2.036, 0.0,
 ]
 
 # 스캔 자리 → 대기 자리. 우회 가지의 APPROACH 가 이 경로를 그대로 쓰고,
@@ -336,7 +344,10 @@ DEFAULT_STACK_PLACE_PORT = "test_station"
 #   렌더에서 한 번이 10~20초이므로 재시도까지 이 안에 들어가려면 크게 잡아야
 #   한다. 옛 값(40초)은 한 대 기준이었다.
 SCAN_TIMEOUT_S = 180.0
-NAV_TIMEOUT_S = 300.0
+# ★ nav_server.py DRIVE_TIMEOUT_S(300) 보다 커야 한다 — 주행 속도를 1/3 로
+#   낮추면서 같이 올렸다. 작으면 주행 서버가 BLOCKED 를 돌려주기 전에
+#   여기서 먼저 TIMEOUT 으로 얼어버려서 실패 이유가 안 남는다.
+NAV_TIMEOUT_S = 420.0
 PICK_TIMEOUT_S = 120.0
 PLACE_TIMEOUT_S = 120.0
 SERVER_WAIT_S = 5.0
