@@ -69,16 +69,21 @@ from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
 from cobot3_interfaces.action import NavigateTo
 
 ALIGN_YAW_TOL_RAD = math.radians(5.0)   # QR 관측 자세가 버틸 수 있는 최종 yaw 오차
-ALIGN_MAX_W = 0.15                      # rad/s — 선반 근처라 아주 느리게만 돈다
-ALIGN_TIMEOUT_S = 15.0
 
-SHELF_DRIVE_MAX_V = 0.12   # m/s — 선반 구역. 흔들리면 QR 디코드가 깨지므로 느리게
-# ★ 임시로 올림(디버깅용, 12_place_test.py TRANSPORT 반복 검증 때 180s 넘게
-# 걸리는 걸 줄이려고) — 검증 끝나면 0.5 로 되돌릴 것. 선반 구역
-# (SHELF_DRIVE_MAX_V)은 안전 때문에 그대로 둔다.
-OPEN_DRIVE_MAX_V = 1.2     # m/s — 선반 밖. Nav2 없이 직접 모니 보수적으로 잡았다
+# ── 속도 ──────────────────────────────────────────────────────────────
+# ★ 2026-09-22: 두 대 동시 주행이 눈으로 따라가기에 너무 빨라 직선·회전을
+#   통째로 1/3 로 낮췄다. 아래 세 값은 한 묶음이다 — 하나만 만지지 말 것.
+#   느려진 만큼 타임아웃도 같이 늘렸다(그러지 않으면 회전 중에 죽는다:
+#   제자리 180도 회전이 0.05 rad/s 에서 63 초다).
+ALIGN_MAX_W = 0.05                      # rad/s — 선반 근처라 아주 느리게만 돈다 (was 0.15)
+ALIGN_TIMEOUT_S = 45.0                  # was 15.0 — ALIGN_MAX_W 를 1/3 로 낮춘 만큼
+
+SHELF_DRIVE_MAX_V = 0.04   # m/s — 선반 구역. 흔들리면 QR 디코드가 깨지므로 느리게 (was 0.12)
+OPEN_DRIVE_MAX_V = 0.4     # m/s — 선반 밖. Nav2 없이 직접 모니 보수적으로 잡았다 (was 1.2)
 DRIVE_POS_TOL = 0.08       # m
-DRIVE_TIMEOUT_S = 180.0    # 선반 밖은 거리가 멀 수 있어 넉넉하게
+DRIVE_TIMEOUT_S = 300.0    # 선반 밖은 거리가 멀 수 있어 넉넉하게 (was 180.0)
+# ★ task_manager.py NAV_TIMEOUT_S 는 이 값보다 커야 한다. 안 그러면 주행이
+#   실패 이유를 돌려주기 전에 행동트리가 먼저 얼어버린다.
 
 # 하드 안전장치 — 조향 로직에 버그가 있든 없든, 선반 구역에서 y 가 이 선을
 # 넘으면 무조건 전진을 막는다. 실측 충돌(정렬 오차로 궤적이 +y 로 휘어져
