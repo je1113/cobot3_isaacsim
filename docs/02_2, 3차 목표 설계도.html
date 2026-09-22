@@ -114,6 +114,9 @@
   .ln-service{fill:none;stroke:var(--service);stroke-width:1.5;}
   .ln-action{fill:none;stroke:var(--action);stroke-width:1.5;}
   .ln-rpc{fill:none;stroke:var(--ink-3);stroke-width:1.3;stroke-dasharray:4 4;}
+  .ln-db{fill:none;stroke:var(--ink-3);stroke-width:1.6;}
+  .ln-dash{stroke-dasharray:6 4;}
+  .box-db{fill:var(--sheet);stroke:var(--ink-2);stroke-width:1.8;}
   .hd-topic path{fill:var(--topic);} .hd-service path{fill:var(--service);}
   .hd-action path{fill:var(--action);} .hd-ink path{fill:var(--ink-3);}
   .fc{stroke-width:1.6;}
@@ -182,13 +185,14 @@
     <h1>2·3차 목표 설계도</h1>
     <p class="lede">
       1차 시연 코드에 <strong>도킹</strong>과 <strong>웹 개입</strong>을 더한 뒤의 목표 형태다.
-      노드 <strong>6개 + 웹 게이트웨이</strong>, 인터페이스 <strong>8개</strong>.
-      <code>task_manager</code> 는 <strong>전역 1개</strong>로 둔다 —
-      로봇 2대가 되면 이 결정이 가장 먼저 흔들리므로, 무엇이 달라지는지를 §2 에 적어 뒀다.
+      미션 노드 <strong>4개 × 로봇 대수</strong> + 전역 노드 <strong>3개</strong>, 인터페이스 <strong>13개</strong>.
+      DB(<code>event_logger</code> → PostgreSQL)와 웹(<code>cobot3_web_bridge</code>)은 <strong>이미 붙었다</strong> —
+      FIG.1 은 그 배선까지 그린 것이다. 도킹만 아직 미구현이다.
+      <code>task_manager</code> 는 이 문서가 전역 1개로 적었는데 <strong>코드는 네임스페이스(로봇당 1개)로 갔다</strong> — §2 참조.
     </p>
     <div class="srcline">
       <span><b>기준</b> 08_ROS2_NODE_Graph.html 확정안 + 도킹 · 웹 추가</span>
-      <span><b>상태</b> 미구현 — 설계 문서</span>
+      <span><b>상태</b> DB · 웹 구현됨 · 도킹 미구현</span>
     </div>
   </header>
 
@@ -208,122 +212,164 @@
   <!-- ══════════ FIG.1 ══════════ -->
   <figure class="sheet" id="fig1">
     <div class="tblock"><span class="no">FIG.1</span><h2>노드 구성도 — 목표</h2>
-      <span class="ref">노드 6 + 웹 · 인터페이스 8</span></div>
+      <span class="ref">로봇당 4 + 전역 3 · 인터페이스 13</span></div>
     <div class="fclegend">
       <span><i class="l" style="border-color:var(--topic)"></i>토픽</span>
       <span><i class="l" style="border-color:var(--service)"></i>서비스</span>
       <span><i class="l" style="border-color:var(--action)"></i>액션</span>
       <span><i class="l" style="border-color:var(--ink-3);border-top-style:dashed"></i>sim_backend RPC (ROS 아님)</span>
-      <span><i style="border-color:var(--rule-2);border-style:dashed;background:none"></i>시뮬 경계 · 미구현</span>
+      <span><i style="border-color:var(--ink-2);background:var(--sheet)"></i>DB (ROS 아님)</span>
+      <span><i style="border-color:var(--rule-2);border-style:dashed;background:none"></i>네임스페이스 · 시뮬 경계 · 미구현</span>
     </div>
     <div class="canvas">
-      <svg viewBox="0 0 1200 840" role="img" aria-label="Isaac Sim 위에서 carrier_code_reader, task_manager, nav_server, pick_place_server, docking_server 다섯 노드와 웹 게이트웨이가 토픽 2개·서비스 2개·액션 4개로 연결된 목표 노드 구성도">
+      <svg viewBox="0 0 1400 1110" role="img" aria-label="웹 백엔드의 cobot3_web_bridge 노드가 ExecuteTask 액션과 RobotCommand·resume·ReloadConfig 서비스로 로봇 네임스페이스 안의 task_manager 에 지시하고, task_manager 는 trace/alert 와 orchestrator/state 로 되돌려 준다. task_manager 가 /trace/event 로 내보낸 TraceEvent 는 전역 1개인 event_logger 가 받아 PostgreSQL 에 쌓는다.">
         <defs>
           <marker id="f1-topic" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" class="hd-topic"><path d="M0,0 L10,5 L0,10 z"/></marker>
           <marker id="f1-service" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" class="hd-service"><path d="M0,0 L10,5 L0,10 z"/></marker>
           <marker id="f1-action" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" class="hd-action"><path d="M0,0 L10,5 L0,10 z"/></marker>
           <marker id="f1-ink" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" class="hd-ink"><path d="M0,0 L10,5 L0,10 z"/></marker>
         </defs>
-        <rect class="box-sim" x="460" y="24" width="280" height="62"/>
-        <text class="nname" x="476" y="50" text-anchor="start">web_gateway</text>
-        <text class="npkg" x="476" y="70" text-anchor="start">COBOT3_WEB — 신규 · 미구현</text>
-        <text class="npkg" x="30" y="158" text-anchor="start">COBOT3_PERCEPTION</text>
-        <rect class="box-n" x="30" y="170" width="260" height="140"/>
-        <text class="nname" x="46" y="197" text-anchor="start">carrier_code_reader</text>
-        <text class="nrole" x="46" y="218" text-anchor="start">역할 — QR 판독 + 관측 자세 유지</text>
-        <text class="nitem" x="46" y="238" text-anchor="start">observe_pose 로 팔을 잡는다</text>
-        <text class="nitem" x="46" y="256" text-anchor="start">state==patrol 일 때만 폴링</text>
-        <text class="nitem" x="46" y="274" text-anchor="start">→ /robot1/amcl_pose 구독</text>
-        <text class="nitem" x="46" y="292" text-anchor="start">판독은 sim_backend RPC</text>
-        <text class="npkg" x="460" y="128" text-anchor="start">COBOT3_ORCHESTRATOR</text>
-        <rect class="box-n" x="460" y="140" width="280" height="280"/>
-        <text class="nname" x="476" y="167" text-anchor="start">task_manager</text>
-        <text class="nrole" x="476" y="188" text-anchor="start">역할 — 미션 지휘 · 전역 1개</text>
-        <text class="nitem" x="476" y="211" text-anchor="start">행동트리 (py_trees) · tick 0.1 s</text>
-        <text class="nitem" x="476" y="229" text-anchor="start">복구 > 충전 > 미션 > 순찰</text>
-        <text class="nitem" x="476" y="247" text-anchor="start">보면 정지(HOLD) → 그 자리 판독</text>
-        <text class="nitem" x="476" y="265" text-anchor="start">명령 큐 없음 — 본 로봇이 바로 집는다</text>
-        <text class="nitem" x="476" y="283" text-anchor="start">payload 해석 → variant → 목적지</text>
-        <text class="nitem" x="476" y="301" text-anchor="start">가동시간 타이머 (soft/hard_threshold_s)</text>
-        <text class="nitem" x="476" y="319" text-anchor="start">실패 = 그 자리 정지 (Freeze)</text>
-        <text class="nitem" x="476" y="337" text-anchor="start">frames.yaml · carriers.yaml 을 읽는다</text>
-        <text class="nitem" x="476" y="355" text-anchor="start">★ 2대가 되면 이 박스가 갈린다 —</text>
-        <text class="nitem" x="476" y="373" text-anchor="start">   주의사항 §2 참조</text>
-        <text class="npkg" x="910" y="128" text-anchor="start">COBOT3_NAVIGATION</text>
-        <rect class="box-n" x="910" y="140" width="260" height="106"/>
-        <text class="nname" x="926" y="167" text-anchor="start">nav_server</text>
-        <text class="nrole" x="926" y="188" text-anchor="start">역할 — 받은 좌표로 주행</text>
-        <text class="nitem" x="926" y="208" text-anchor="start">Nav2 미사용 — cmd_vel 직접 주행</text>
-        <text class="nitem" x="926" y="226" text-anchor="start">→ /robot1/cmd_vel → Isaac Sim</text>
-        <text class="nitem" x="926" y="244" text-anchor="start">“정지”를 모른다 · 취소되면 CANCELED</text>
-        <text class="npkg" x="910" y="274" text-anchor="start">COBOT3_MANIPULATION</text>
-        <rect class="box-n" x="910" y="286" width="260" height="124"/>
-        <text class="nname" x="926" y="313" text-anchor="start">pick_place_server</text>
-        <text class="nrole" x="926" y="334" text-anchor="start">역할 — 파지점 계산 · pick/place</text>
-        <text class="nitem" x="926" y="354" text-anchor="start">grasp.yaml · place.yaml</text>
-        <text class="nitem" x="926" y="372" text-anchor="start">phase OBSERVE…STOW · MOVE…RETREAT</text>
-        <text class="nitem" x="926" y="390" text-anchor="start">동작은 sim_backend RPC</text>
-        <text class="nitem" x="926" y="408" text-anchor="start">★ flange_topview 미연결 (주의사항 §5)</text>
-        <text class="npkg" x="460" y="458" text-anchor="start">COBOT3_DOCKING — 신규</text>
-        <rect class="box-n" x="460" y="470" width="280" height="120"/>
-        <text class="nname" x="476" y="497" text-anchor="start">docking_server</text>
-        <text class="nrole" x="476" y="518" text-anchor="start">역할 — 접점 붙이기 · 충전 대기</text>
-        <text class="nitem" x="476" y="538" text-anchor="start">전역 1개 — 도크는 공용 자원이라</text>
-        <text class="nitem" x="476" y="556" text-anchor="start">대수만큼 복제하지 않는다</text>
-        <text class="nitem" x="476" y="574" text-anchor="start">charge_target_pct 로 완료 판정</text>
-        <rect class="box-sim" x="30" y="650" width="1140" height="92"/>
-        <text class="nname" x="48" y="678" text-anchor="start">Isaac Sim 5.x</text>
-        <text class="npkg" x="48" y="698" text-anchor="start">sim_backend.py — 자체 RPC 서버 (ROS 2 Bridge 아님)</text>
-        <text class="nitem" x="48" y="724" text-anchor="start">손목 RSD455 RGB-D · Nova Carter base · M0609 + 흡착 컵 Ø50 · 3존 팹 씬</text>
-        <text class="nitem" x="700" y="724" text-anchor="start">observe_pose · scan_qr · 팔 동작 · 그리퍼 · 접점/충전(미구현)</text>
-        <path class="ln-service" d="M700,86 L700,134" marker-end="url(#f1-service)"/>
-        <text class="a-name t-service" x="712" y="106" text-anchor="start">/orchestrator/resume</text>
-        <text class="a-qual" x="712" y="119" text-anchor="start">std_srvs/SetBool · 서비스 (신규)</text>
-        <path class="ln-topic" d="M290,195 L454,195" marker-end="url(#f1-topic)"/>
-        <text class="a-name t-topic" x="364" y="173" text-anchor="middle">/perception/carrier_detected</text>
-        <text class="a-qual" x="364" y="185" text-anchor="middle">std_msgs/Bool · 토픽</text>
-        <path class="ln-service" d="M460,240 L296,240" marker-end="url(#f1-service)"/>
-        <text class="a-name t-service" x="378" y="257" text-anchor="middle">/perception/carrier_scan</text>
-        <text class="a-qual" x="378" y="269" text-anchor="middle">CarrierScan · 서비스</text>
-        <path class="ln-topic" d="M460,290 L296,290" marker-end="url(#f1-topic)"/>
-        <text class="a-name t-topic" x="378" y="307" text-anchor="middle">/orchestrator/state</text>
-        <text class="a-qual" x="378" y="319" text-anchor="middle">std_msgs/String · 토픽</text>
-        <path class="ln-action" d="M740,180 L904,180" marker-end="url(#f1-action)"/>
-        <text class="a-name t-action" x="822" y="158" text-anchor="middle">/navigation/navigate_to</text>
-        <text class="a-qual" x="822" y="170" text-anchor="middle">NavigateTo · 액션</text>
-        <path class="ln-action" d="M740,320 L904,320" marker-end="url(#f1-action)"/>
-        <text class="a-name t-action" x="822" y="298" text-anchor="middle">/manipulation/pick_carrier</text>
-        <text class="a-qual" x="822" y="310" text-anchor="middle">PickCarrier · 액션</text>
-        <path class="ln-action" d="M740,375 L904,375" marker-end="url(#f1-action)"/>
-        <text class="a-name t-action" x="822" y="353" text-anchor="middle">/manipulation/place_carrier</text>
-        <text class="a-qual" x="822" y="365" text-anchor="middle">PlaceCarrier · 액션</text>
-        <path class="ln-action" d="M700,420 L700,464" marker-end="url(#f1-action)"/>
-        <text class="a-name t-action" x="712" y="438" text-anchor="start">/docking/dock</text>
-        <text class="a-qual" x="712" y="451" text-anchor="start">Dock · 액션 (신규)</text>
-        <path class="ln-rpc" d="M160,310 L160,644" marker-end="url(#f1-ink)"/>
-        <path class="ln-rpc" d="M1040,410 L1040,644" marker-end="url(#f1-ink)"/>
-        <path class="ln-rpc" d="M600,590 L600,644" marker-end="url(#f1-ink)"/>
-        <text class="a-qual" x="172" y="470" text-anchor="start">sim_backend RPC</text>
-        <text class="a-qual" x="172" y="484" text-anchor="start">observe_pose · scan_qr</text>
-        <text class="a-qual" x="1028" y="470" text-anchor="end">sim_backend RPC</text>
-        <text class="a-qual" x="1028" y="484" text-anchor="end">팔 동작 · 흡착</text>
-        <text class="a-qual" x="612" y="622" text-anchor="start">RPC (미구현)</text>
-        <text class="grp" x="30" y="780" text-anchor="start">노드 6 + 웹 게이트웨이 · 인터페이스 8</text>
-        <text class="grp" x="30" y="802" text-anchor="start">토픽 2 · 서비스 2 · 액션 4</text>
-        <text class="nitem" x="560" y="780" text-anchor="start">외부 배선 — /robot1/amcl_pose (Nav2 AMCL → nav_server · carrier_code_reader)</text>
-        <text class="nitem" x="560" y="798" text-anchor="start">/robot1/cmd_vel (nav_server → Isaac Sim) · Nav2 planner·controller 는 쓰지 않는다</text>
-        <text class="nitem" x="560" y="816" text-anchor="start">설정 — carriers.yaml · frames.yaml → task_manager / grasp.yaml · place.yaml → pick_place_server</text>
+        <rect class="box-n" x="430" y="24" width="550" height="126"/>
+        <text class="nname" x="448" y="52" text-anchor="start">cobot3_web_bridge</text>
+        <text class="npkg" x="448" y="72" text-anchor="start">WEB/BACKEND — FastAPI 안의 rclpy 노드 · 전역 1개</text>
+        <text class="nitem" x="448" y="94" text-anchor="start">라우터·서비스는 rclpy 를 모른다 — Bridge 인터페이스 하나만 본다</text>
+        <text class="nitem" x="448" y="112" text-anchor="start">별도 스레드 MultiThreadedExecutor (asyncio 와 루프가 달라서)</text>
+        <text class="nitem" x="448" y="130" text-anchor="start">REST · WebSocket → 관제 UI (web/frontend)</text>
+        <rect class="box-sim" x="20" y="260" width="1360" height="440"/>
+        <text class="npkg" x="38" y="252" text-anchor="start">/robot1 · /robot2 — 미션 노드는 로봇마다 한 벌씩 (네임스페이스). 이름이 전부 상대이름이라 코드에 로봇 구분이 없다</text>
+        <text class="npkg" x="40" y="320" text-anchor="start">COBOT3_PERCEPTION</text>
+        <rect class="box-n" x="40" y="330" width="280" height="180"/>
+        <text class="nname" x="56" y="357" text-anchor="start">carrier_code_reader</text>
+        <text class="nrole" x="56" y="378" text-anchor="start">역할 — QR 판독 + 관측 자세 유지</text>
+        <text class="nitem" x="56" y="398" text-anchor="start">state==patrol 일 때만 폴링</text>
+        <text class="nitem" x="56" y="416" text-anchor="start">observe_pose 로 팔을 잡는다</text>
+        <text class="nitem" x="56" y="434" text-anchor="start">→ amcl_pose 로 선반 구역 판정</text>
+        <text class="nitem" x="56" y="452" text-anchor="start">판독은 sim_backend RPC</text>
+        <text class="npkg" x="530" y="280" text-anchor="start">COBOT3_ORCHESTRATOR</text>
+        <rect class="box-n" x="530" y="290" width="350" height="360"/>
+        <text class="nname" x="548" y="318" text-anchor="start">task_manager</text>
+        <text class="nrole" x="548" y="339" text-anchor="start">역할 — 미션 지휘 · 로봇마다 1개</text>
+        <text class="nitem" x="548" y="362" text-anchor="start">행동트리 (py_trees) · tick 0.1 s</text>
+        <text class="nitem" x="548" y="380" text-anchor="start">복구 > 웹 작업 > 캐리어 처리 > 순찰</text>
+        <text class="nitem" x="548" y="398" text-anchor="start">보면 정지(HOLD) → 그 자리 판독</text>
+        <text class="nitem" x="548" y="416" text-anchor="start">payload 해석 → variant → 목적지</text>
+        <text class="nitem" x="548" y="434" text-anchor="start">실패 = 그 자리 정지 (Freeze)</text>
+        <text class="nitem" x="548" y="452" text-anchor="start">단계마다 TraceEvent 발행</text>
+        <text class="nitem" x="548" y="470" text-anchor="start">shelves · stations · routing.yaml 을 읽는다</text>
+        <text class="nitem" x="548" y="488" text-anchor="start">config/reload 를 받으면 다시 읽는다</text>
+        <text class="nitem" x="548" y="512" text-anchor="start">★ 상대 로봇의 orchestrator/state 도 구독한다</text>
+        <text class="nitem" x="548" y="530" text-anchor="start">   (로더 차선을 한 대만 쓰게 하려고)</text>
+        <text class="nitem" x="548" y="554" text-anchor="start">★ 09 문서는 전역 1개로 적었지만, 코드는</text>
+        <text class="nitem" x="548" y="572" text-anchor="start">   네임스페이스 쪽으로 갔다 — 주의사항 §2</text>
+        <text class="npkg" x="1090" y="290" text-anchor="start">COBOT3_NAVIGATION</text>
+        <rect class="box-n" x="1090" y="300" width="280" height="120"/>
+        <text class="nname" x="1106" y="327" text-anchor="start">nav_server</text>
+        <text class="nrole" x="1106" y="348" text-anchor="start">역할 — 받은 좌표로 주행</text>
+        <text class="nitem" x="1106" y="368" text-anchor="start">Nav2 미사용 — cmd_vel 직접 주행</text>
+        <text class="nitem" x="1106" y="386" text-anchor="start">→ {ns}/cmd_vel → Isaac Sim</text>
+        <text class="nitem" x="1106" y="404" text-anchor="start">취소되면 CANCELED</text>
+        <text class="npkg" x="1090" y="450" text-anchor="start">COBOT3_MANIPULATION</text>
+        <rect class="box-n" x="1090" y="460" width="280" height="140"/>
+        <text class="nname" x="1106" y="487" text-anchor="start">pick_place_server</text>
+        <text class="nrole" x="1106" y="508" text-anchor="start">역할 — 파지점 계산 · pick/place</text>
+        <text class="nitem" x="1106" y="528" text-anchor="start">grasp.yaml · place.yaml</text>
+        <text class="nitem" x="1106" y="546" text-anchor="start">phase OBSERVE…STOW · MOVE…RETREAT</text>
+        <text class="nitem" x="1106" y="564" text-anchor="start">동작은 sim_backend RPC</text>
+        <text class="nitem" x="1106" y="582" text-anchor="start">★ flange_topview 미연결</text>
+        <text class="npkg" x="530" y="742" text-anchor="start">COBOT3_ORCHESTRATOR — 신규</text>
+        <rect class="box-n" x="530" y="752" width="350" height="150"/>
+        <text class="nname" x="548" y="780" text-anchor="start">event_logger</text>
+        <text class="nrole" x="548" y="801" text-anchor="start">역할 — TraceEvent 를 DB 에 append</text>
+        <text class="nitem" x="548" y="821" text-anchor="start">★ 전역 1개 — DB 커넥션을 가진 유일한 노드</text>
+        <text class="nitem" x="548" y="839" text-anchor="start">콜백은 블로킹하지 않는다 (큐에 넣고 반환)</text>
+        <text class="nitem" x="548" y="857" text-anchor="start">DB 가 죽으면 runs/trace_spool.jsonl 로 흘린다</text>
+        <text class="nitem" x="548" y="875" text-anchor="start">판단하지 않는다 — status 는 task_manager 가 실어 보낸다</text>
+        <text class="nitem" x="548" y="893" text-anchor="start">파라미터 db_dsn · spool_path</text>
+        <rect class="box-db" x="960" y="772" width="340" height="110"/>
+        <text class="nname" x="978" y="800" text-anchor="start">PostgreSQL</text>
+        <text class="npkg" x="978" y="820" text-anchor="start">ROS 아님 — psycopg2 직접 연결</text>
+        <text class="nitem" x="978" y="842" text-anchor="start">magazine_log · stack_log · carrier_log · task</text>
+        <text class="nitem" x="978" y="860" text-anchor="start">스키마는 docs/DB구성.md · docs/ERD.md</text>
+        <text class="npkg" x="40" y="742" text-anchor="start">COBOT3_DOCKING — 미구현</text>
+        <rect class="box-sim" x="40" y="752" width="340" height="110"/>
+        <text class="nname" x="58" y="780" text-anchor="start">docking_server</text>
+        <text class="nrole" x="58" y="801" text-anchor="start">역할 — 접점 붙이기 · 충전 대기</text>
+        <text class="nitem" x="58" y="821" text-anchor="start">★ 전역 1개 — 도크는 공용 자원이라</text>
+        <text class="nitem" x="58" y="839" text-anchor="start">Dock.action 의 robot_name 으로 로봇을 말한다</text>
+        <rect class="box-sim" x="20" y="980" width="1360" height="90"/>
+        <text class="nname" x="38" y="1008" text-anchor="start">Isaac Sim 5.x</text>
+        <text class="npkg" x="38" y="1028" text-anchor="start">sim_backend.py — 자체 RPC 서버 (ROS 2 Bridge 아님)</text>
+        <text class="nitem" x="38" y="1054" text-anchor="start">손목 RSD455 RGB-D · Nova Carter base · M0609 + 흡착 컵 Ø50 · 3존 팹 씬</text>
+        <text class="nitem" x="800" y="1054" text-anchor="start">observe_pose · scan_qr · 팔 동작 · 그리퍼</text>
+        <path class="ln-action" d="M596,150 L596,284" marker-end="url(#f1-action)"/>
+        <path class="ln-service" d="M616,150 L616,284" marker-end="url(#f1-service)"/>
+        <text class="a-name t-action" x="352" y="168" text-anchor="end">orchestrator/execute_task</text>
+        <text class="a-qual" x="362" y="168" text-anchor="start">ExecuteTask · 액션</text>
+        <text class="a-name t-service" x="352" y="188" text-anchor="end">orchestrator/command</text>
+        <text class="a-qual" x="362" y="188" text-anchor="start">RobotCommand · 서비스   ★ 서버 미구현</text>
+        <text class="a-name t-service" x="352" y="208" text-anchor="end">orchestrator/resume</text>
+        <text class="a-qual" x="362" y="208" text-anchor="start">std_srvs/SetBool · 서비스</text>
+        <text class="a-name t-service" x="352" y="228" text-anchor="end">config/reload</text>
+        <text class="a-qual" x="362" y="228" text-anchor="start">ReloadConfig · 서비스</text>
+        <text class="grp" x="40" y="146" text-anchor="start">웹 → 로봇 (네임스페이스 안으로)</text>
+        <path class="ln-topic" d="M800,284 L800,156" marker-end="url(#f1-topic)"/>
+        <text class="a-name t-topic" x="840" y="168" text-anchor="start">/trace/alert</text>
+        <text class="a-qual" x="930" y="168" text-anchor="start">RobotAlert · 토픽   ★ 절대이름 · 발행자 미구현</text>
+        <text class="a-name t-topic" x="840" y="188" text-anchor="start">orchestrator/state</text>
+        <text class="a-qual" x="960" y="188" text-anchor="start">std_msgs/String · 토픽 — 화면이 상태를 읽는다</text>
+        <text class="grp" x="840" y="146" text-anchor="start">로봇 → 웹</text>
+        <path class="ln-topic" d="M320,360 L524,360" marker-end="url(#f1-topic)"/>
+        <text class="a-name t-topic" x="422" y="340" text-anchor="middle">perception/carrier_detected</text>
+        <text class="a-qual" x="422" y="352" text-anchor="middle">std_msgs/Bool · 토픽</text>
+        <path class="ln-service" d="M530,410 L326,410" marker-end="url(#f1-service)"/>
+        <text class="a-name t-service" x="422" y="390" text-anchor="middle">perception/carrier_scan</text>
+        <text class="a-qual" x="422" y="402" text-anchor="middle">CarrierScan · 서비스</text>
+        <path class="ln-service" d="M530,450 L326,450" marker-end="url(#f1-service)"/>
+        <text class="a-name t-service" x="422" y="430" text-anchor="middle">perception/observe_pose</text>
+        <text class="a-qual" x="422" y="442" text-anchor="middle">std_srvs/Trigger · 서비스</text>
+        <path class="ln-topic" d="M530,490 L326,490" marker-end="url(#f1-topic)"/>
+        <text class="a-name t-topic" x="422" y="470" text-anchor="middle">orchestrator/state</text>
+        <text class="a-qual" x="422" y="482" text-anchor="middle">std_msgs/String · 토픽 (계약)</text>
+        <path class="ln-action" d="M880,330 L1084,330" marker-end="url(#f1-action)"/>
+        <text class="a-name t-action" x="982" y="310" text-anchor="middle">navigation/navigate_to</text>
+        <text class="a-qual" x="982" y="322" text-anchor="middle">NavigateTo · 액션</text>
+        <path class="ln-action" d="M880,380 L1084,380" marker-end="url(#f1-action)"/>
+        <text class="a-name t-action" x="982" y="360" text-anchor="middle">navigation/patrol_to</text>
+        <text class="a-qual" x="982" y="372" text-anchor="middle">NavigateTo · 액션 (순찰 전용)</text>
+        <path class="ln-action" d="M880,490 L1084,490" marker-end="url(#f1-action)"/>
+        <text class="a-name t-action" x="982" y="470" text-anchor="middle">manipulation/pick_carrier</text>
+        <text class="a-qual" x="982" y="482" text-anchor="middle">PickCarrier · 액션</text>
+        <path class="ln-action" d="M880,550 L1084,550" marker-end="url(#f1-action)"/>
+        <text class="a-name t-action" x="982" y="530" text-anchor="middle">manipulation/place_carrier</text>
+        <text class="a-qual" x="982" y="542" text-anchor="middle">PlaceCarrier · 액션</text>
+        <path class="ln-topic" d="M800,650 L800,746" marker-end="url(#f1-topic)"/>
+        <text class="a-name t-topic" x="814" y="706" text-anchor="start">/trace/event</text>
+        <text class="a-qual" x="814" y="720" text-anchor="start">TraceEvent · 토픽   ★ 절대이름</text>
+        <text class="a-qual" x="814" y="734" text-anchor="start">로봇이 몇 대든 여기로 모인다</text>
+        <path class="ln-db" d="M880,827 L954,827" marker-end="url(#f1-ink)"/>
+        <text class="a-qual" x="917" y="818" text-anchor="middle">append</text>
+        <path class="ln-action ln-dash" d="M560,650 L560,712 L300,712 L300,746" marker-end="url(#f1-action)"/>
+        <text class="a-name t-action" x="330" y="690" text-anchor="start">/docking/dock</text>
+        <text class="a-qual" x="432" y="690" text-anchor="start">Dock · 액션   ★ 미구현</text>
+        <path class="ln-rpc" d="M180,510 L180,974" marker-end="url(#f1-ink)"/>
+        <text class="a-qual" x="194" y="600" text-anchor="start">sim_backend RPC</text>
+        <text class="a-qual" x="194" y="614" text-anchor="start">observe_pose · scan_qr</text>
+        <path class="ln-rpc" d="M1230,600 L1230,974" marker-end="url(#f1-ink)"/>
+        <text class="a-qual" x="1216" y="660" text-anchor="end">sim_backend RPC</text>
+        <text class="a-qual" x="1216" y="674" text-anchor="end">팔 동작 · 흡착</text>
+        <text class="grp" x="20" y="1096" text-anchor="start">미션 노드 4 × 로봇 대수  ·  전역 노드 3 (event_logger · web_bridge · docking_server)  ·  인터페이스 13</text>
 
       </svg>
     </div>
     <figcaption>
-      <span class="k">화살표는 전부 task_manager 에서 나가거나 task_manager 로 들어온다.</span>
-      1차 대비 새로 생기는 것은 <code>docking_server</code>(신규 노드) ·
-      <code>web_gateway</code>(신규 노드) · <code>/docking/dock</code>(신규 액션) ·
-      <code>/orchestrator/resume</code>(std_srvs, 새 파일 없음) 넷이다.
-      <code>/wrist_camera</code> 같은 ROS 카메라 토픽은 없다 — Isaac 과는 전부
-      <code>sim_backend</code> 자체 RPC 로 말한다. <code>nav_server</code> 도 Nav2 의
-      <code>navigate_to_pose</code> 를 쓰지 않고 <code>cmd_vel</code> 로 직접 몬다.
+      <span class="k">1차 대비 실제로 붙은 것은 DB 쪽과 웹 쪽이다.</span>
+      <code>event_logger</code> 가 <code>/trace/event</code>(TraceEvent) 를 받아 <b>PostgreSQL</b> 에 쌓고,
+      웹 백엔드 안의 <code>cobot3_web_bridge</code> 가 <code>ExecuteTask</code> 액션과
+      <code>RobotCommand</code> · <code>resume</code> · <code>ReloadConfig</code> 세 서비스로 로봇에 지시한다.
+      <span class="k">둘 다 전역 1개다</span> — 미션 노드 넷은 로봇마다 한 벌씩 뜨고 이름이 전부 상대이름이라,
+      <code>/trace/event</code> · <code>/trace/alert</code> · <code>/docking/dock</code> 만 절대이름이다.
+      <code>RobotCommand</code>(서버 없음)와 <code>/trace/alert</code>(발행자 없음)는 정의만 돼 있고 아직 한쪽이 비어 있다.
+      <code>/wrist_camera</code> 같은 ROS 카메라 토픽은 여전히 없다 — Isaac 과는 <code>sim_backend</code> 자체 RPC 로 말한다.
     </figcaption>
   </figure>
 
@@ -837,10 +883,11 @@
   <ul class="plain">
     <li><span class="mk">·</span><span>08 문서의 <b>확정안(§01–03)</b>을 바탕으로 하되, 1차 시연 코드에서 실제로 달라진 것(Nav2 미사용, sim_backend RPC, <code>/orchestrator/state</code>)을 반영했다.</span></li>
     <li><span class="mk">·</span><span>08 문서의 <b>제안(§04–07)</b> 중 <b>명령 큐 제거</b>는 채택했고(그림에 큐가 없다), <b>언로더 스택 회수</b>는 넣지 않았다 — §6 참조.</span></li>
-    <li><span class="mk">·</span><span><b>전부 미구현이다.</b> <code>cobot3_docking</code> 은 지금 <code>console_scripts</code> 가 비어 있는 빈 껍데기고, <code>cobot3_web</code> 은 패키지 자체가 없다.</span></li>
+    <li><span class="mk">·</span><span><b>도킹만 미구현이다.</b> <code>cobot3_docking</code> 은 지금 <code>console_scripts</code> 가 비어 있는 빈 껍데기다. 웹은 ROS 패키지가 아니라 <code>web/backend</code>(FastAPI) 안에 <code>cobot3_web_bridge</code> 라는 rclpy 노드로 들어갔고, DB 쪽은 <code>event_logger</code> 노드로 붙었다.</span></li>
   </ul>
 
   <h4>§2 &nbsp;task_manager 를 전역 1개로 둔 선택</h4>
+  <div class="note warn"><b>코드는 이 문서와 반대로 갔다.</b> 이 절은 <code>task_manager</code> 를 전역 1개로 두는 전제로 쓰였는데, <code>feature/grasp</code> 의 <code>task_manager.py</code> 는 인터페이스 이름을 전부 <b>상대이름</b>으로 바꿔 <b>로봇당 1개</b>(네임스페이스)로 갔다. 그 파일 주석이 그 근거로 이 문서 §2 를 인용한다 — “본 놈이 가는 것이 코드가 아니라 배선으로 보장된다”. 아래 표의 <b>오른쪽 열</b>이 현재 코드다. 절대이름으로 남은 것은 <code>/trace/event</code> · <code>/trace/alert</code> · <code>/docking/dock</code> 셋뿐이고, <code>event_logger</code> · <code>cobot3_web_bridge</code> · <code>docking_server</code> 가 전역 1개다.</div>
   <p>지금은 로봇이 1대라 어느 쪽이든 같지만, <b>2대가 되는 순간 이 결정이 가장 먼저 흔들린다.</b>
     08 문서 §07-② 가 정한 원칙은 <b>“필드가 아니라 네임스페이스”</b> 다 —
     카메라 · 팔 · 베이스가 물리적으로 따로라 <code>perception</code> · <code>navigation</code> ·
@@ -849,7 +896,7 @@
 
   <div class="tbl-wrap">
     <table>
-      <thead><tr><th>2대가 되면</th><th>전역 1개 (이 문서)</th><th>로봇당 1개</th></tr></thead>
+      <thead><tr><th>2대가 되면</th><th>전역 1개 (이 문서의 전제)</th><th>로봇당 1개 (현재 코드)</th></tr></thead>
       <tbody>
         <tr><td>노드 수</td><td class="d">1 + (3×2) + docking + web = 9</td><td class="d">2 + (3×2) + docking + web = 10</td></tr>
         <tr><td>액션 클라이언트</td><td class="d"><code>/amr_1/…</code> · <code>/amr_2/…</code> 두 벌을 한 노드가 든다</td><td class="d">자기 네임스페이스 한 벌</td></tr>
@@ -918,7 +965,7 @@
     <li><span class="mk">·</span><span><b>다수결 판독 파라미터가 선언만 돼 있다.</b> <code>vote_window</code> · <code>vote_required</code> · <code>roi_fraction</code> · <code>publish_debug</code> 가 <code>declare_parameter</code> 만 되고 실제 판정에 안 쓰인다. 지금 판정은 <code>scan_qr(n_frames=3)</code> 의 평균이다.</span></li>
     <li><span class="mk">·</span><span><b>QR payload 가 숫자 한 글자</b>(<code>"1"</code> / <code>"2"</code>)다. <code>carriers.yaml</code> 의 <code>C3.MAG.A17.9</code> 형식 파싱이 안 붙어서, 같은 종류의 여러 개체를 구분하지 못한다 — 그 종류의 첫 항목을 쓴다.</span></li>
     <li><span class="mk">·</span><span><b><code>TaskOrder.msg</code> · <code>RegisterTask.srv</code> · <code>CycleLog.msg</code> 가 빈 정의로 남아 있다.</b> 필드가 하나도 없는데 <code>CMakeLists.txt</code> 에는 들어 있어 에러 없이 빌드된다 — 채워진 것으로 오인하기 쉽다. 웹을 붙이기로 한 이상 <code>RegisterTask</code> 는 그때 새로 정의하는 편이 낫다.</span></li>
-    <li><span class="mk">·</span><span><b><code>event_logger</code> 와 <code>/trace/event</code> 가 없다.</b> 노드도 없고 task_manager 에 발행 코드도 없다. 지금 기록 수단은 <code>/orchestrator/state</code> 토픽과 콘솔 로그뿐이다.</span></li>
+    <li><span class="mk">·</span><span><b><code>RobotCommand</code> 와 <code>/trace/alert</code> 는 한쪽이 비어 있다.</b> 둘 다 <code>CMakeLists.txt</code> 에 등록돼 빌드되고 웹 브리지에는 클라이언트·구독이 붙었는데, <code>RobotCommand</code> 는 서버가 없고(PAUSE·RESUME·SKIP·STOP 이 안 먹는다) <code>/trace/alert</code> 는 발행자가 없다(화면에 경보가 안 뜬다). <code>event_logger</code> 와 <code>/trace/event</code> 는 붙었다 — DB 는 SQLite 가 아니라 <b>PostgreSQL</b> 이다.</span></li>
     <li><span class="mk">·</span><span><b>좌표가 소스에 하드코딩돼 있다.</b> <code>PATROL_ROUTE</code> · <code>TEST_LOADER</code> 가 <code>task_manager.py</code> 상단에 박혀 있다. <code>dock_pads</code> · <code>pkg_loader</code> 를 추가할 때는 <code>frames.yaml</code> 로 가야 같은 문제가 반복되지 않는다.</span></li>
     <li><span class="mk">·</span><span><b>Nav2 의 회피 · 전역 경로계획을 안 쓴다.</b> <code>nav_server</code> 가 <code>amcl_pose</code> 를 보며 <code>cmd_vel</code> 로 직접 몬다(DWB 의 제자리회전 스윕 0.66 m 가 선반 여유 0.26~0.48 m 보다 넓어서 계속 막혔다). 경로 중간에 예상 못 한 장애물이 생기는 시나리오에는 이 접근이 안 맞는다.</span></li>
   </ul>
