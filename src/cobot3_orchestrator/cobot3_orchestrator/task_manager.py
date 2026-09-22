@@ -149,11 +149,13 @@ docs/08_ROS2_NODE_Graph.html 의 확정안(01-03)이 기준이다. 노드 5개 �
   발행  /trace/event                 TraceEvent.msg   ★ 절대이름. event_logger 가
                                      전역 1개라 로봇이 몇 대든 여기로 모인다
   서비스 orchestrator/resume         std_srvs/SetBool (웹 복구 — 얼어붙은 단계 재시도)
-  파일  shelves.yaml                 순찰 정차점. 뜰 때 한 번 읽는다. 웹 화면이
-                                     주인이고 ReloadConfig.srv 가 "task_manager
-                                     는 뜰 때 한 번" 이라고 정해 뒀다. 저장 즉시
-                                     반영(config/reload)은 아직 미구현 — 아래
-                                     "알려진 갭" 참고
+  서비스 config/reload               ReloadConfig.srv — 웹이 설정을 저장한 직후
+                                     부른다. scope 가 shelves · all 이면 순찰
+                                     경로를 다시 읽는다. 이름이 문서와 구현이
+                                     갈라져 있다 — DEFAULT_RELOAD_SERVICE 참고
+  파일  shelves.yaml                 순찰 정차점. 뜰 때 한 번 읽고, 그 뒤로는
+                                     config/reload 를 받을 때 다시 읽는다.
+                                     주인은 웹 관제 UI 「설정 > 선반」 탭이다
 
 ★ 이름 앞에 / 가 없다 — 전부 상대이름이고, 노드가 뜬 네임스페이스가 앞에
   붙는다. robot1 로 띄우면 /robot1/navigation/navigate_to 가 된다. 그래서 이
@@ -225,13 +227,14 @@ docs/08_ROS2_NODE_Graph.html 의 확정안(01-03)이 기준이다. 노드 5개 �
   - 순찰 중이 아닐 때(START · POSE · scan · pick · nav · place · return) 들어온
     carrier_detected 는 버린다. 물건은 그 자리에 그대로 있으므로 다음 순찰에
     다시 보인다.
-  - 순찰 경로를 저장 즉시 반영하지 못한다. shelves.yaml 을 뜰 때 한 번만
-    읽으므로, 화면에서 좌표를 고치면 노드를 다시 띄워야 한다. ReloadConfig.srv
-    (scope=shelves)가 이 용도로 이미 있으니 서버만 열면 되는데, 받자마자
-    self.patrol_route 를 갈아끼우면 안 된다 — 진행 중인 NavigateTo goal 은 옛
-    좌표로 가는 중이고 _NextWaypoint.idx 가 새 경로 길이를 벗어날 수 있다.
-    새 값을 대기시켜 뒀다가 POSE 잎에서 커밋하는 것이 맞다. 그 잎은 순찰에
-    재진입할 때마다 반드시 지나가고, 그 시점엔 베이스가 서 있다.
+  - 순찰 경로 반영은 "저장 즉시" 가 아니라 "다음 순찰 사이클부터" 다.
+    config/reload 를 받으면 새 좌표를 대기시켜 두고 POSE 잎이 커밋한다
+    (_on_reload_config ★). 주행 중인 목표를 바꾸지 않으려는 것이라 의도된
+    지연이지만, 로봇이 긴 미션 한 판을 도는 동안은 옛 좌표로 순찰한다.
+  - 순찰 중 경로가 바뀌면 START 는 다시 나가지 않는다(OneShot 이라 평생 한 번).
+    commit_pending_route 가 정차점 인덱스를 0 으로 되감아 새 경로의 첫 점부터
+    가게 하지만, "시작 자리에서 순찰 경로로 진입" 을 다시 하지는 않는다.
+    두 선반이 멀리 떨어져 있으면 그 사이를 순찰 잎이 직접 주행한다.
   - 관측 자세는 순찰 한 바퀴 내내 하나로 고정이다. 왕복 방향마다 층을 바꾸던
     방식(carrier_code_reader 의 POSE_BY_PATROL_TARGET)은 "시작점에서 한 번 잡고
     그대로 왕복한다" 로 바뀌었다. 그래서 아래 patrol_target 계약은 이제 이
@@ -259,6 +262,7 @@ docs/08_ROS2_NODE_Graph.html 의 확정안(01-03)이 기준이다. 노드 5개 �
     설정 파일로 옮겨야 한다(docs/02 §5 의 좌표 하드코딩 갭과 같은 자리).
 """
 
+import hashlib
 import math
 import sys
 import time
@@ -278,7 +282,7 @@ from std_srvs.srv import SetBool, Trigger
 
 from cobot3_interfaces.action import NavigateTo, PickCarrier, PlaceCarrier
 from cobot3_interfaces.msg import TraceEvent
-from cobot3_interfaces.srv import CarrierScan
+from cobot3_interfaces.srv import CarrierScan, ReloadConfig
 
 # ══════════════════════════════════════════════════════════════════════════
 #  좌표 — 아직 안 정해졌다. 아래 두 곳을 채워 넣어야 로봇이 실제로 움직인다.
@@ -344,6 +348,24 @@ DEFAULT_PATROL_ROUTE = [
 #   받는 쪽이 아직 없을 때 순찰만 먼저 돌려보기 위한 것이다 — 트리 모양이
 #   바뀌지 않으므로 로그의 트리 그림과 current_stage 가 그대로 유지된다.
 DEFAULT_OBSERVE_POSE_SERVICE = "perception/observe_pose"
+
+# 웹이 설정을 저장한 직후 "다시 읽어라" 를 보내는 서비스.
+#
+# ★ 이름이 문서와 구현이 갈라져 있다. ReloadConfig.srv 머리주석은 "/{robot}/
+#   config/reload — 노드마다 자기 이름 아래" 라 적혀 있어 노드 이름이 들어가는
+#   것처럼 읽히는데, 실제로 웹 백엔드가 만드는 클라이언트는
+#   web/backend/app/services/rosbridge.py 의
+#       node.create_client(ReloadConfig, f"/{robot}/config/reload")
+#   로 로봇당 하나다. 지금 붙는 쪽(웹)에 맞춰 상대이름 "config/reload" 를
+#   기본값으로 둔다 — 네임스페이스가 붙어 /robot1/config/reload 가 된다.
+#
+#   ☞ 같은 네임스페이스의 다른 노드(carrier_code_reader · nav_server ·
+#     pick_place_server)도 설정 yaml 을 읽으므로, 그쪽까지 이 서비스를 열면
+#     이름이 겹친다. 로봇당 하나로 갈지(이 노드가 대표로 받고 나머지는 각자
+#     다음 미션에 다시 읽는다) 노드마다 따로 둘지는 아직 정해지지 않았다
+#     (ReloadConfig.srv §11 #3 "WBS 0.5 는 아직 열려 있다"). 노드별로 가기로
+#     하면 이 파라미터만 바꾸면 된다.
+DEFAULT_RELOAD_SERVICE = "config/reload"
 
 # place 하러 갈 목적지 — 테스트 스테이션 로더 앞 주차 위치.
 # 지금은 매거진 1 · 2 를 전부 여기로 가져다 놓는다. (08 문서의 "매거진은 패키징
@@ -953,6 +975,9 @@ class ObservePoseLeaf(py_trees.behaviour.Behaviour):
         self.future = None
 
     def initialise(self):
+        # ★ 순찰 경로 갈아끼우기의 유일한 지점이다. 여기서 하는 이유는
+        #   TaskManager._on_reload_config 독스트링 참고.
+        self.node.commit_pending_route()
         self.future = None
         now = time.monotonic()
         self.server_deadline = now + SERVER_WAIT_S
@@ -1458,6 +1483,8 @@ def build_tree(node):
         "순찰 가지", memory=True, children=[start, pose, patrol])
 
     node.patrol_node = patrol
+    # 경로가 바뀌면 다음 정차점 인덱스를 되감아야 한다 (commit_pending_route).
+    node.patrol_waypoints = waypoints
 
     # 가지를 더한다면 여기다. 위에 있을수록 먼저 기회를 받는다 —
     # 배터리 선점(NavigateTo.action ★ hard_threshold_s)은 mission 위에,
@@ -1535,6 +1562,14 @@ class TaskManager(Node):
         self.declare_parameter("patrol_shelf", "")
         self.declare_parameter("patrol_route", DEFAULT_PATROL_ROUTE)
         self.patrol_route, self.patrol_route_source = self._resolve_patrol_route()
+        # 웹이 좌표를 고쳤을 때 갈아끼울 값. 바로 반영하지 않는 이유는
+        # _on_reload_config 독스트링 ★ 참고 — POSE 잎이 커밋한다.
+        self._pending_route = None
+        self.patrol_waypoints = None     # build_tree 가 채운다
+        self.declare_parameter("reload_service", DEFAULT_RELOAD_SERVICE)
+        reload_name = self.get_parameter("reload_service").value
+        if reload_name:
+            self.create_service(ReloadConfig, reload_name, self._on_reload_config)
 
         # 순찰을 시작하기 전에 팔을 세울 자세. 빈 이름이면 그 단계를 건너뛴다 —
         # 이유와 받는 쪽 조건은 DEFAULT_OBSERVE_POSE_SERVICE 주석과
@@ -1716,6 +1751,95 @@ class TaskManager(Node):
                 f"모두 숫자여야 한다. 화면에서 채워라.")
             return None, ""
         return route, f"shelves.yaml {shelf_id} ({how})"
+
+    def _on_reload_config(self, req, res):
+        """웹이 설정을 저장한 직후 부른다 (ReloadConfig.srv).
+
+        web/backend/app/routers/settings.py 의 _save() 가 저장할 때마다 로봇
+        전부에게 보낸다. 이 노드가 관심 있는 scope 는 shelves(순찰 정차점)와
+        all 뿐이고, 나머지는 조용히 성공시킨다 — "자기와 무관한 scope 를 받은
+        노드는 reloaded=true, revision=\"\" 로 조용히 성공시킨다" 가 그 파일이
+        정한 규칙이다. 웹이 노드마다 어떤 파일을 읽는지 알 필요가 없게 하려는
+        것이다.
+
+        ★ 받자마자 self.patrol_route 를 갈아끼우지 않는다.
+          지금 순찰 중이면 진행 중인 NavigateTo goal 이 옛 좌표로 가는 중이고,
+          _NextWaypoint.idx 도 옛 경로를 기준으로 돌고 있다. 새 값을
+          대기시켜 뒀다가 POSE 잎이 커밋한다 — 그 잎은 순찰에 재진입할 때마다
+          반드시 지나가고(START 경로든 RETURN 경로든), 그 시점엔 베이스가 서
+          있어서 목표가 바뀌어도 안전하다. 그래서 "저장 즉시" 가 아니라
+          "다음 순찰 사이클부터" 다.
+
+        ★ shelves.yaml 에서 이 로봇 경로를 못 찾으면 반영하지 않는다.
+          _resolve_patrol_route 는 못 찾으면 파라미터나 폴백으로 내려가는데,
+          reload 에서 그걸 받아들이면 잘 돌던 로봇이 저장 한 번에 옛 레이아웃
+          좌표로 떨어진다. 특히 웹이 assigned_robot 을 지우는 경우가 그렇다
+          (_resolve_patrol_route ★★). 그때는 reloaded=false 로 거절하고 지금
+          경로를 그대로 쓴다 — 웹이 그 사유를 로그에 남긴다.
+        """
+        if req.scope not in (ReloadConfig.Request.ALL, ReloadConfig.Request.SHELVES):
+            res.reloaded = True
+            res.revision = ""
+            return res
+
+        try:
+            route, source = self._resolve_patrol_route()
+        except Exception as e:                       # noqa: BLE001 — 사유를 웹에 돌려준다
+            res.reloaded = False
+            res.rejected_because = f"순찰 경로를 다시 읽지 못했다: {e}"
+            self.get_logger().warning(f"{res.rejected_because} — 지금 경로를 유지한다")
+            return res
+
+        if not source.startswith("shelves.yaml"):
+            res.reloaded = False
+            res.rejected_because = (
+                f"shelves.yaml 에서 {self.robot_id} 의 순찰 경로를 못 찾았다 "
+                f"(대신 고른 것: {source}). 지금 경로를 유지한다 — "
+                f"assigned_robot 이 지워지지 않았는지 확인해라.")
+            self.get_logger().warning(res.rejected_because)
+            return res
+
+        res.revision = self._shelves_revision()
+        res.reloaded = True
+        if route == self.patrol_route:
+            self.get_logger().info(f"reload — 순찰 경로가 그대로다 [{source}]")
+            return res
+
+        self._pending_route = (route, source)
+        self.get_logger().info(
+            f"reload — 새 순찰 경로를 받았다 [{source}]. 다음 순찰 시작"
+            f"(POSE 단계)에 적용한다. 지금 주행 중인 목표는 건드리지 않는다.")
+        return res
+
+    def _shelves_revision(self):
+        """shelves.yaml 내용의 sha256 앞 12자. 웹이 반영 여부를 판정한다."""
+        path = self.get_parameter("shelves_yaml").value or ""
+        try:
+            return hashlib.sha256(Path(path).read_bytes()).hexdigest()[:12]
+        except OSError:
+            return ""
+
+    def commit_pending_route(self):
+        """대기 중인 순찰 경로를 지금 적용한다. POSE 잎이 부른다.
+
+        정차점 인덱스를 0 으로 되감는다. 평소(RETURN 직후)에는 CycleDone 이
+        1 로 둔다 — 이미 patrol_route[0] 에 서 있으니 그 다음 점부터 잇는
+        것이다. 그런데 경로가 바뀌면 로봇이 서 있는 곳은 옛 경로의 시작점이라
+        새 경로의 시작점이 아니다. 그래서 새 경로의 첫 점부터 다시 간다.
+        """
+        if self._pending_route is None:
+            return
+        route, source = self._pending_route
+        self._pending_route = None
+        old = self.patrol_route
+        self.patrol_route = route
+        self.patrol_route_source = source
+        if self.patrol_waypoints is not None:
+            self.patrol_waypoints.idx = 0
+        self.get_logger().info(
+            "순찰 경로 적용 [" + source + "] "
+            + " → ".join(f"({x:.3f}, {y:.3f}, {yaw:.1f}°)" for x, y, yaw in route)
+            + f" (이전 {len(old)} 점 → 새 {len(route)} 점)")
 
     # ── 트리가 부르는 것들 ────────────────────────────────────────────────
     def on_freeze(self, stage, reason, node=None):
