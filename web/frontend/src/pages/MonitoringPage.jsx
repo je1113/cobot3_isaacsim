@@ -4,13 +4,291 @@ import {
 } from 'react'
 
 import {
-  requestRobotGoal,
   requestRobotPause,
   requestRobotResume,
 } from '../api/robots'
+import { fetchMapInfo } from '../api/map'
+import {
+  fetchShelves,
+  fetchStations,
+} from '../api/config'
 
 import useWebSocket from '../hooks/useWebSocket'
 import { useRobots } from '../contexts/MetaContext'
+
+function toNumber(value) {
+  if (
+    value === null ||
+    value === undefined ||
+    value === ''
+  ) {
+    return null
+  }
+
+  const n = Number(value)
+  return Number.isFinite(n)
+    ? n
+    : null
+}
+
+function toPoint(pose) {
+  if (!pose) {
+    return null
+  }
+
+  const x = toNumber(pose.x)
+  const y = toNumber(pose.y)
+
+  if (x === null || y === null) {
+    return null
+  }
+
+  return { x, y }
+}
+
+function midpoint(a, b) {
+  if (!a || !b) {
+    return a || b
+  }
+
+  return {
+    x: (a.x + b.x) / 2,
+    y: (a.y + b.y) / 2,
+  }
+}
+
+/**
+ * Top View — 실제 지도 이미지 대신 선반·스테이션·로봇 위치로 그리는
+ * 개략도. 격자 점유 지도(simple_factory_layout.png)는 흑백회색 3색뿐인
+ * 단순 도형이라 그대로 키워 보여줘도 알아보기 어려웠다(더 정밀한 지도도
+ * 지금은 필요 없다 — 지도 클릭으로 이동시키는 기능이 없다).
+ *
+ * worldBounds(=/api/map 의 origin/resolution/크기)로 화면 좌표계만
+ * map 프레임에 맞춘다 — 실제 지도 픽셀은 안 쓴다.
+ *
+ * map 프레임은 y 가 위로 증가하는데 SVG 화면좌표는 y 가 아래로 증가하므로
+ * toSvg() 에서 y 를 뒤집는다. 로봇 방향(theta, rad, 반시계)도 화면에서는
+ * 시계 방향 회전이 되므로 같이 뒤집는다.
+ */
+function FactoryTopView({
+  worldBounds,
+  shelves,
+  stations,
+  robots,
+  robotStates,
+}) {
+  if (!worldBounds) {
+    return (
+      <div className="monitor-topview-empty">
+        지도 정보를 불러오는 중…
+      </div>
+    )
+  }
+
+  const minX = worldBounds.origin[0]
+  const minY = worldBounds.origin[1]
+  const width =
+    worldBounds.width_px *
+    worldBounds.resolution
+  const height =
+    worldBounds.height_px *
+    worldBounds.resolution
+  const maxY = minY + height
+
+  function toSvg(point) {
+    return {
+      x: point.x - minX,
+      y: maxY - point.y,
+    }
+  }
+
+  return (
+    <svg
+      className="monitor-topview-svg"
+      viewBox={`0 0 ${width} ${height}`}
+      preserveAspectRatio="xMidYMid meet"
+    >
+      <rect
+        className="monitor-topview-floor"
+        x={0}
+        y={0}
+        width={width}
+        height={height}
+      />
+
+      {shelves.map((shelf) => {
+        const center = midpoint(
+          toPoint(
+            shelf.waypoint_start,
+          ),
+          toPoint(shelf.waypoint_end),
+        )
+
+        if (!center) {
+          return null
+        }
+
+        const p = toSvg(center)
+
+        return (
+          <g
+            key={shelf.shelf_id}
+            className="monitor-topview-shelf"
+          >
+            <rect
+              x={p.x - 0.6}
+              y={p.y - 0.35}
+              width={1.2}
+              height={0.7}
+              rx={0.08}
+            />
+
+            <text
+              x={p.x}
+              y={p.y}
+            >
+              {shelf.shelf_id}
+            </text>
+          </g>
+        )
+      })}
+
+      {stations.map((station) => {
+        const point = toPoint(
+          station.place_pose,
+        )
+
+        if (!point) {
+          return null
+        }
+
+        const p = toSvg(point)
+
+        return (
+          <g
+            key={
+              station.station_id
+            }
+            className={
+              `monitor-topview-station ${
+                station.station_type ===
+                'PACKAGING'
+                  ? 'packaging'
+                  : 'test'
+              }`
+            }
+          >
+            <rect
+              x={p.x - 0.5}
+              y={p.y - 0.5}
+              width={1}
+              height={1}
+              rx={0.15}
+            />
+
+            <text
+              x={p.x}
+              y={p.y}
+            >
+              {
+                station.station_id
+              }
+            </text>
+          </g>
+        )
+      })}
+
+      {robots.map(
+        (robotId, index) => {
+          const robot =
+            robotStates[robotId]
+
+          const point = toPoint(
+            robot?.position,
+          )
+
+          if (!point) {
+            return null
+          }
+
+          const p = toSvg(point)
+
+          const theta =
+            toNumber(
+              robot?.position
+                ?.theta,
+            ) ?? 0
+
+          // rad(반시계) → svg 화면 회전(시계) — y 를 뒤집은 것과 같은 이유.
+          const deg =
+            -(theta * 180) /
+            Math.PI
+
+          return (
+            <g
+              key={robotId}
+              className={
+                `monitor-topview-robot ${
+                  index === 0
+                    ? 'robot-one'
+                    : 'robot-two'
+                }`
+              }
+              transform={
+                `translate(${p.x}, ${p.y})`
+              }
+            >
+              <g
+                transform={
+                  `rotate(${deg})`
+                }
+              >
+                {/* 차체 — 위에서 본 AMR */}
+                <rect
+                  className="robot-body"
+                  x={-0.22}
+                  y={-0.3}
+                  width={0.44}
+                  height={0.55}
+                  rx={0.12}
+                />
+
+                {/* 좌우 바퀴 */}
+                <rect
+                  className="robot-wheel"
+                  x={-0.32}
+                  y={-0.09}
+                  width={0.1}
+                  height={0.24}
+                  rx={0.03}
+                />
+
+                <rect
+                  className="robot-wheel"
+                  x={0.22}
+                  y={-0.09}
+                  width={0.1}
+                  height={0.24}
+                  rx={0.03}
+                />
+
+                {/* 정면 표시(진행 방향) */}
+                <path
+                  className="robot-heading"
+                  d="M 0 -0.42 L 0.13 -0.2 L -0.13 -0.2 Z"
+                />
+              </g>
+
+              <text y={-0.5}>
+                {robotId}
+              </text>
+            </g>
+          )
+        },
+      )}
+    </svg>
+  )
+}
 
 function formatPosition(position) {
   if (!position) {
@@ -108,21 +386,6 @@ function MonitoringPage({
   } = useWebSocket()
 
   const [
-    selectedRobotId,
-    setSelectedRobotId,
-  ] = useState('')
-
-  // 고른 것이 없거나 목록에서 사라졌으면 첫 번째로 떨어진다.
-  const activeRobotId =
-    robots.includes(selectedRobotId)
-      ? selectedRobotId
-      : (robots[0] ?? '')
-
-  // 로봇별 map 은 전부 목록에서 만든다 — 대수가 늘어도 이 파일은 안 바뀐다.
-  const [lastGoals, setLastGoals] =
-    useState({})
-
-  const [
     pendingControl,
     setPendingControl,
   ] = useState({})
@@ -136,6 +399,59 @@ function MonitoringPage({
     events,
     setEvents,
   ] = useState([])
+
+  // Top View 는 실제 지도 이미지 대신 선반·스테이션·로봇 위치로 그린
+  // 개략도다(격자 지도는 3색뿐인 단순 도형이라 그대로 보여줘도 알아보기
+  // 어려웠다). world 범위(origin/resolution/크기)만 /api/map 에서 받아
+  // 화면 좌표계를 map 프레임에 맞춘다 — 세션 내내 안 바뀌니 한 번만 받는다.
+  const [worldBounds, setWorldBounds] =
+    useState(null)
+
+  // 선반·스테이션 위치 — 「설정」 화면이 편집하는 그 파일들을 그대로 읽는다.
+  // 좌표 자체가 바뀌는 일은 드물어서(설정 화면에서 저장할 때뿐) 마운트 시
+  // 한 번만 받는다 — 실시간으로 다시 받을 이유가 없다.
+  const [shelves, setShelves] =
+    useState([])
+
+  const [stations, setStations] =
+    useState([])
+
+  useEffect(() => {
+    let cancelled = false
+
+    fetchMapInfo()
+      .then((info) => {
+        if (!cancelled) {
+          setWorldBounds(info)
+        }
+      })
+      .catch(() => {
+        // 못 받아도 화면은 그대로 쓸 수 있어야 한다 — 아래 렌더링이
+        // worldBounds 없으면 빈 캔버스로 폴백한다.
+      })
+
+    fetchShelves()
+      .then((data) => {
+        if (!cancelled) {
+          setShelves(data.shelves ?? [])
+        }
+      })
+      .catch(() => {})
+
+    fetchStations()
+      .then((data) => {
+        if (!cancelled) {
+          setStations(
+            data.stations ?? [],
+          )
+        }
+      })
+      .catch(() => {})
+
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   function addEvent(message) {
     const now =
@@ -274,81 +590,6 @@ function MonitoringPage({
     )
   }
 
-  async function handleMapClick(
-    event,
-  ) {
-    const rect =
-      event.currentTarget
-        .getBoundingClientRect()
-
-    const xRatio =
-      (event.clientX - rect.left) /
-      rect.width
-
-    const yRatio =
-      (event.clientY - rect.top) /
-      rect.height
-
-    const goal = {
-      x_ratio:
-        Number(
-          xRatio.toFixed(5),
-        ),
-
-      y_ratio:
-        Number(
-          yRatio.toFixed(5),
-        ),
-    }
-
-    setLastGoals((prev) => ({
-      ...prev,
-      [activeRobotId]: goal,
-    }))
-
-    setControlError('')
-
-    addEvent(
-      `${activeRobotId} 지도 목표 지점 선택`,
-    )
-
-    setPendingControl(
-      (prev) => ({
-        ...prev,
-        [activeRobotId]:
-          'goal',
-      }),
-    )
-
-    try {
-      await requestRobotGoal(
-        activeRobotId,
-        goal,
-      )
-
-      addEvent(
-        `${activeRobotId} 이동 명령 전송`,
-      )
-    } catch (error) {
-      setControlError(
-        error instanceof Error
-          ? error.message
-          : '이동 명령 전송 실패',
-      )
-
-      addEvent(
-        `${activeRobotId} 이동 명령 전송 실패`,
-      )
-    } finally {
-      setPendingControl(
-        (prev) => ({
-          ...prev,
-          [activeRobotId]:
-            null,
-        }),
-      )
-    }
-  }
 
   async function pauseRobot(
     robotId,
@@ -399,9 +640,6 @@ function MonitoringPage({
   ) {
     setControlError('')
 
-    const savedGoal =
-      lastGoals[robotId]
-
     setPendingControl(
       (prev) => ({
         ...prev,
@@ -416,13 +654,10 @@ function MonitoringPage({
     try {
       await requestRobotResume(
         robotId,
-        savedGoal,
       )
 
       addEvent(
-        savedGoal
-          ? `${robotId} 저장된 목표 지점으로 재개 명령 전송`
-          : `${robotId} 현재 작업 재개 명령 전송`,
+        `${robotId} 현재 작업 재개 명령 전송`,
       )
     } catch (error) {
       setControlError(
@@ -457,7 +692,6 @@ function MonitoringPage({
           </h1>
 
           <p>
-            지도에서 목표 지점을 지정하고
             AMR을 개별적으로
             일시정지·재개합니다.
           </p>
@@ -497,119 +731,23 @@ function MonitoringPage({
               </h2>
 
               <p>
-                이동시킬 AMR을 선택한 뒤
-                지도에서 목표 지점을
-                클릭합니다.
+                공장 배치도입니다.
               </p>
             </div>
-
-            <div className="monitor-robot-selector">
-              {robots.map(
-                (robotId) => (
-                  <button
-                    key={
-                      robotId
-                    }
-                    type="button"
-                    className={
-                      activeRobotId ===
-                      robotId
-                        ? 'active'
-                        : ''
-                    }
-                    onClick={() =>
-                      setSelectedRobotId(
-                        robotId,
-                      )
-                    }
-                  >
-                    {robotId}
-                  </button>
-                ),
-              )}
-            </div>
           </div>
 
-          <div
-            className="monitor-map-surface"
-            onClick={
-              handleMapClick
-            }
-            role="presentation"
-          >
-            <div className="monitor-map-guide">
-              <strong>
-                실제 ROS Map 표시 영역
-              </strong>
-
-              <span>
-                지도 클릭 →
-                {activeRobotId}
-                목표 위치 전송
-              </span>
-            </div>
-
-            {robots.map(
-              (robotId) => {
-                const goal =
-                  lastGoals[
-                    robotId
-                  ]
-
-                if (!goal) {
-                  return null
-                }
-
-                return (
-                  <div
-                    key={
-                      robotId
-                    }
-                    className={
-                      // 색은 목록 순서로 정한다. 이름에 묶어 두면
-                      // 로봇 이름이 바뀌는 순간 마커가 회색이 된다.
-                      `monitor-goal-marker ${
-                        robots.indexOf(
-                          robotId,
-                        ) === 0
-                          ? 'robot-one'
-                          : 'robot-two'
-                      }`
-                    }
-                    style={{
-                      left:
-                        `${goal.x_ratio * 100}%`,
-                      top:
-                        `${goal.y_ratio * 100}%`,
-                    }}
-                  >
-                    <span />
-
-                    <strong>
-                      {robotId}
-                      {' '}
-                      GOAL
-                    </strong>
-                  </div>
-                )
-              },
-            )}
-          </div>
-
-          <div className="monitor-map-footer">
-            <span>
-              선택 로봇
-            </span>
-
-            <strong>
-              {activeRobotId}
-            </strong>
-
-            <span>
-              · 지도 클릭 위치는
-              재개를 위해 프론트에서
-              유지됩니다.
-            </span>
+          <div className="monitor-map-surface">
+            <FactoryTopView
+              worldBounds={
+                worldBounds
+              }
+              shelves={shelves}
+              stations={stations}
+              robots={robots}
+              robotStates={
+                robotStates
+              }
+            />
           </div>
         </section>
 
@@ -633,12 +771,9 @@ function MonitoringPage({
                   : pending ===
                       'resume'
                     ? '재개 요청 중'
-                    : pending ===
-                        'goal'
-                      ? '이동 명령 전송 중'
-                      : robot
-                          .current_state ??
-                        '연동 전'
+                    : robot
+                        .current_state ??
+                      '연동 전'
 
               return (
                 <article
@@ -715,19 +850,6 @@ function MonitoringPage({
                       </strong>
                     </div>
 
-                    <div>
-                      <span>
-                        마지막 Goal
-                      </span>
-
-                      <strong>
-                        {lastGoals[
-                          robotId
-                        ]
-                          ? '지도 선택 위치 저장됨'
-                          : '-'}
-                      </strong>
-                    </div>
                   </div>
 
                   <div className="monitor-control-buttons">

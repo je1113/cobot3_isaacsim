@@ -58,6 +58,19 @@ class Settings:
             "COBOT3_TAUGHT_POSES", _repo_root() / "isaacpjt/tools/out/taught_poses.yaml"
         )
     )
+    # MonitoringPage 의 Top View 좌표계 — Nav2 map_server 가 쓰는 그 정적 맵
+    # 파일에서 origin/resolution/크기만 읽는다(multi_navigation.launch.py 의
+    # map_file 과 같은 파일). 이미지 자체는 화면에 안 보여준다 — 점유격자
+    # PNG 가 단순 도형이라 그대로 보여줘도 못 알아봤다. 대신 이 범위 안에
+    # 선반·스테이션·로봇 위치를 직접 그린다(compat.py GET /map 참고). 새
+    # 범위를 만들지 않는 이유: 로봇이 실제로 이 지도로 로컬라이즈하니,
+    # 화면이 다른 범위를 쓰면 그린 위치가 실제 배치와 어긋난다.
+    nav_map_yaml: Path = field(
+        default_factory=lambda: _env_path(
+            "COBOT3_NAV_MAP_YAML",
+            _repo_root() / "src/cobot3_navigation/maps/simple_factory_layout.yaml",
+        )
+    )
 
     # ── 회수 스케줄러 (WBS 5.2) ──────────────────────────────────────
     pickup_tick_sec: float = float(os.environ.get("COBOT3_PICKUP_TICK_SEC", "5"))
