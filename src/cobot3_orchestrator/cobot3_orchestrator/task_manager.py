@@ -324,8 +324,8 @@ from cobot3_interfaces.srv import CarrierScan, ReloadConfig
 #   Shelf_01 중심은 (-1.741, +2.953), Shelf_02 중심은 (-1.741, -1.973) 이다.
 #   파라미터 없이 띄우면 로봇이 씬에 없는 자리로 가므로 __init__ 이 경고한다.
 DEFAULT_PATROL_ROUTE = [
-    -2.674, 1.613, 0.0,
-    -6.582, 1.344, 0.0,
+    -3.1, 1.9, 0.0,
+    0.1, 1.9, 0.0,
 ]
 
 # 순찰 시작 전에 "관측 자세를 잡아라" 고 말할 서비스. 상대이름이라 네임스페이스가
@@ -1574,7 +1574,7 @@ class TaskManager(Node):
         # 순찰을 시작하기 전에 팔을 세울 자세. 빈 이름이면 그 단계를 건너뛴다 —
         # 이유와 받는 쪽 조건은 DEFAULT_OBSERVE_POSE_SERVICE 주석과
         # ObservePoseLeaf 독스트링에 있다.
-        self.declare_parameter("observe_pose_service", DEFAULT_OBSERVE_POSE_SERVICE)
+        self.declare_parameter("observe_pose_service", "")
         self.observe_pose_name = self.get_parameter("observe_pose_service").value
         self.observe_pose = (self.create_client(Trigger, self.observe_pose_name)
                              if self.observe_pose_name else None)
