@@ -70,6 +70,8 @@
   /docking/dock 만 절대이름이 된다. 아직 미구현이라 이 launch 에 없다.
 """
 
+import os
+
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, OpaqueFunction
 from launch.substitutions import LaunchConfiguration
@@ -350,11 +352,31 @@ def _setup(context):
     #   그때 둘째 launch 까지 event_logger 를 띄우면 같은 이름의 노드가 둘이
     #   되어 /trace/event 를 양쪽이 받는다. 둘째에 false 를 준다.
     if _as_bool(LaunchConfiguration("event_logger").perform(context)):
+        # ★ db_dsn 을 여기서 명시적으로 넘긴다 — 안 그러면 event_logger 의
+        #   declare_parameter 기본값(os.environ.get("COBOT3_DB_DSN", ""))이
+        #   이 launch 를 실행한 셸의 환경에만 달린다. 실측: 그 셸에
+        #   COBOT3_DB_DSN 을 export 한 적이 없어서 이 노드가 계속 빈 DSN으로
+        #   떠 있었고, SCAN이 성공해 run이 생기고 pick·nav 단계까지 지나도
+        #   DB(magazine_log/stack_log/carrier_log)에 행이 하나도 안 쌓였다
+        #   (docs/DB구성.md §9 배선 자체는 정상 — /trace/event 구독도 붙어
+        #   있었다. 그냥 이 노드가 어느 DB 로 쓸지를 몰랐던 것뿐이다).
+        #
+        #   웹 백엔드(FastAPI, COBOT3_DSN)가 다른 머신에서 돌아도 DB는 보통
+        #   하나를 같이 본다 — 그 DSN과 같은 값을 여기 db_dsn launch 인자로
+        #   줘야 한다. 기본값은 COBOT3_DB_DSN 환경변수를 그대로 물려받는다
+        #   (전에 export 해 둔 셸이면 그대로 동작) — 그것도 없으면 빈 문자열
+        #   이고, event_logger 는 그 경우 자기 로그로 크게 경고하고 스풀
+        #   파일로만 흘린다(원인은 알 수 있어도 DB 에는 안 쌓인다).
+        db_dsn = LaunchConfiguration("db_dsn").perform(context)
+        if not db_dsn:
+            print("   !! db_dsn 이 비었다 — event_logger 가 스풀 파일로만 흘린다. "
+                  "-p db_dsn:=postgresql://... 로 주거나 COBOT3_DB_DSN 을 export 해라.")
         nodes.append(Node(
             package="cobot3_orchestrator",
             executable="event_logger",
             name="event_logger",
             output="screen",
+            parameters=[{"db_dsn": db_dsn}],
         ))
     return nodes
 
@@ -375,5 +397,12 @@ def generate_launch_description():
             description="미션 노드를 띄울 로봇 네임스페이스. 쉼표로 여러 개 "
                         "(예: robot1,robot2). 아는 이름은 robot1 · robot2 뿐이고, "
                         "다른 이름을 주면 좌표가 없어서 거절한다."),
+        DeclareLaunchArgument(
+            "db_dsn", default_value=os.environ.get("COBOT3_DB_DSN", ""),
+            description="event_logger 가 쓸 PostgreSQL DSN. 기본값은 이 launch 를 "
+                        "실행한 셸의 COBOT3_DB_DSN 환경변수다. 웹 백엔드가 다른 "
+                        "머신에서 돌아도(COBOT3_DSN) 보통 같은 DB 하나를 보므로 "
+                        "그 값과 같아야 한다. 비우면 event_logger 가 전부 스풀 "
+                        "파일(runs/trace_spool.jsonl)로만 흘리고 DB에는 안 쌓인다."),
         OpaqueFunction(function=_setup),
     ])
