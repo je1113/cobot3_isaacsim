@@ -88,6 +88,10 @@ const STATION_ROLLER_OFFSETS = [-1.8, -1.2, -0.6, 0, 0.6, 1.2, 1.8]
  * map 프레임은 y 가 위로 증가하는데 SVG 화면좌표는 y 가 아래로 증가하므로
  * toSvg() 에서 y 를 뒤집는다. 로봇 방향(theta, rad, 반시계)도 화면에서는
  * 시계 방향 회전이 되므로 같이 뒤집는다.
+ *
+ * 지도가 세로로 길어 화면에서 좁게 보이므로, 위 변환 결과를 화면 전체
+ * 기준으로 시계 방향 90도 더 돌려서(가로로 길게) 보여준다 — toSvg() 에서
+ * x/y 를 맞바꾸고, 로봇 회전각에 90도를 더한다.
  */
 function FactoryTopView({
   worldBounds,
@@ -112,27 +116,26 @@ function FactoryTopView({
   const height =
     worldBounds.height_px *
     worldBounds.resolution
-  const maxY = minY + height
-
+  // 화면을 가로로 길게 쓰기 위해 x/y 축을 맞바꿔 90도 회전시켜 그린다.
   function toSvg(point) {
     return {
-      x: point.x - minX,
-      y: maxY - point.y,
+      x: point.y - minY,
+      y: point.x - minX,
     }
   }
 
   return (
     <svg
       className="monitor-topview-svg"
-      viewBox={`0 0 ${width} ${height}`}
+      viewBox={`0 0 ${height} ${width}`}
       preserveAspectRatio="xMidYMid meet"
     >
       <rect
         className="monitor-topview-floor"
         x={0}
         y={0}
-        width={width}
-        height={height}
+        width={height}
+        height={width}
       />
 
       {shelves.map((shelf) => {
@@ -276,9 +279,11 @@ function FactoryTopView({
             ) ?? 0
 
           // rad(반시계) → svg 화면 회전(시계) — y 를 뒤집은 것과 같은 이유.
+          // +90 은 화면 전체를 가로로 돌린 것(toSvg 의 x/y 맞바꿈)에 맞춘 보정.
           const deg =
-            -(theta * 180) /
-            Math.PI
+            90 -
+            (theta * 180) /
+              Math.PI
 
           return (
             <g
