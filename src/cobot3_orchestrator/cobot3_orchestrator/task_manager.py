@@ -418,7 +418,14 @@ DEFAULT_EMPTY_SWEEPS = 1
 # 한다 — place.yaml 의 PLACE_SLOT_POSE_BASE_LINK(그 노드가 여기 도착했다는
 # 전제로 만든 base_link 상대 오프셋)가 이 좌표 기준이다. 원래 4.0 이었는데
 # 컨베이어 회전-여유 문제로 3.85 로 뺐다(nav_server.py 조향 버그 이력 참고).
-TEST_LOADER = (3.85, 0.0, 0.0)
+# ★ 2026-09-22: y 를 0.0 -> 4.60 으로 고쳤다. 0.0 은 옛 레이아웃 값이었다.
+#   지금 씬의 벨트는 y≈4.60 줄에 있고, 점유맵에서 그 줄의 여유를 훑으면
+#       x=2.25 -> 1.80   x=3.75 -> 0.30   x=3.85 -> 0.20   x=4.30 -> 0.00
+#   x=4.30 이 여유 0 인 게 벨트 자체다(12_place_test2.py BELT_PLACE_X 와 일치).
+#   로봇은 그 앞 x=3.85 에 선다(BELT_BASE_X). stations.yaml PKG-01 place_pose
+#   (3.75, 4.60) 와도 같은 자리다.
+#   x 는 원래대로 3.85 를 둔다 — 4.0 에서 컨베이어 회전-여유 때문에 뺀 값이다.
+TEST_LOADER = (3.85, 4.60, 0.0)
 
 # ── 로더 접근 차선 — 두 대가 같은 로더로 갈 때 ───────────────────────────
 # ★ 로더 주차점에서는 몸을 거의 못 돌린다.
@@ -470,12 +477,29 @@ SCAN = "scan"
 PICK = "pick"
 NAV = "nav"
 PLACE = "place"
-RETURN = "return"
+RETURN = "returning"   # /orchestrator/state 의 state= 값이자 트리 잎 이름.
+                       # ★ ExecuteTask feedback.stage 는 여전히 "return" 이다
+                       #   (.action 이 정한 넷 중 하나). TASK_STAGE 를 보라 —
+                       #   거기 값은 문자열로 따로 적혀 있어서 안 따라온다.
 # 우회 경로(로더 차선 조율)에서만 지나가는 단계들. 직행이면 NAV 하나로 끝난다.
 HOLD_BACK = "hold_back" # 픽업존에서 상대가 로더에 도착하기를 기다린다
 APPROACH = "approach"   # 대기 장소로 주행
 WAIT = "wait"           # 대기 자리에서 상대가 차선을 비우기를 기다린다
 PUSH = "push"           # 차선이 비면 대기 자리에서 로더로 주행
+
+# ── 스택 회수 (매거진을 놓은 뒤, 같은 사이클 안에서) ────────────────────
+# 포장 스테이션이 내놓은 스택을 집어 로더로 가져간다. stack_shelf 파라미터가
+# 빈 문자열이면 이 다섯 단계는 트리에 아예 안 들어간다 — 로봇마다 다르다
+# (지금은 robot1 만 스택을 맡는다. 스택은 하나뿐이라 둘이 가면 겹친다).
+#
+# ★ 이름은 mission_nodes.launch.py 의 LANE_STAGES 에 이미 적혀 있던 그대로다.
+#   그 목록은 "상대가 로더 차선을 쓰고 있다고 보는 단계" 인데, 스택 자리와
+#   검사 스테이션이 로더 곁이라 그 사이 로더로 들어가면 상대 경로를 가로지른다.
+STACK_NAV = "stack_nav"          # 스택 자리로 주행
+STACK_SCAN = "stack_scan"        # 거기서 QR 판독 (없으면 soft 실패 → 그냥 복귀)
+STACK_PICK = "stack_pick"        # 스택 집기
+STACK_DELIVER = "stack_deliver"  # 로더로 주행
+STACK_PLACE = "stack_place"      # 로더에 놓기
 
 # ── 생산 트래킹 (docs/DB구성.md) ──────────────────────────────────────────
 # DB 에 행이 남는 단계. scan 은 없다 — 판독 실패는 미션이 시작되지도 않은 것이라
@@ -483,7 +507,8 @@ PUSH = "push"           # 차선이 비면 대기 자리에서 로더로 주행
 # 우회 경로의 네 단계도 넣는다 — 대기 시간이 두 대 시연의 핵심 지표이고,
 # docs/DB구성.md §4 가 stage 를 TEXT 로 둔 이유가 "가지가 늘어날 자리" 다.
 # 값을 더하는 데 마이그레이션이 필요 없다.
-LOGGED_STAGES = (PICK, HOLD_BACK, APPROACH, WAIT, PUSH, NAV, PLACE, RETURN)
+LOGGED_STAGES = (PICK, HOLD_BACK, APPROACH, WAIT, PUSH, NAV, PLACE, RETURN,
+                 STACK_NAV, STACK_PICK, STACK_DELIVER, STACK_PLACE)
 
 # 실패 사유는 '단계' 가 정한다. return 은 같은 NavigateTo 액션이라 nav_error 다.
 # 그래서 액션 enum 에 없는 실패(TIMEOUT · SERVER_UNAVAILABLE · GOAL_REJECTED)도
@@ -492,10 +517,15 @@ STAGE_TO_REASON = {PICK: "pick_error", NAV: "nav_error",
                    PLACE: "place_error", RETURN: "nav_error",
                    # 우회 세 단계는 전부 주행/대기라 nav_error 로 모인다.
                    HOLD_BACK: "nav_error", APPROACH: "nav_error",
-                   WAIT: "nav_error", PUSH: "nav_error"}
+                   WAIT: "nav_error", PUSH: "nav_error",
+                   # 스택 구간도 같은 기준으로 모은다 — 주행은 nav_error,
+                   # 집기는 pick_error, 놓기는 place_error.
+                   STACK_NAV: "nav_error", STACK_DELIVER: "nav_error",
+                   STACK_PICK: "pick_error", STACK_PLACE: "place_error"}
 
 # 어디서 일어난 일인가. 순찰 중 발견 방식이라 슬롯 번호를 모르므로 place 만 채워진다.
-PORT_BY_STAGE = {PLACE: "test_loader", PUSH: "test_loader"}
+PORT_BY_STAGE = {PLACE: "test_loader", PUSH: "test_loader",
+                 STACK_PLACE: "test_loader", STACK_DELIVER: "test_loader"}
 
 # ── 웹 작업(ExecuteTask) 보고 ────────────────────────────────────────────
 # feedback.stage 는 .action 이 정한 넷(pick · nav · place · return)뿐이다.
@@ -503,12 +533,17 @@ PORT_BY_STAGE = {PLACE: "test_loader", PUSH: "test_loader"}
 # 로 모으는 것과 같은 기준이다. 목록에 없는 단계(scan · hold · 순찰)는 보고하지
 # 않는다: scan 은 run_id 가 아직 없고, 순찰은 작업 밖이다.
 TASK_STAGE = {PICK: "pick", NAV: "nav", HOLD_BACK: "nav", APPROACH: "nav",
-              WAIT: "nav", PUSH: "nav", PLACE: "place", RETURN: "return"}
+              WAIT: "nav", PUSH: "nav", PLACE: "place", RETURN: "return",
+              # 스택 구간도 .action 이 아는 넷으로 접어서 올린다.
+              STACK_NAV: "nav", STACK_DELIVER: "nav",
+              STACK_PICK: "pick", STACK_PLACE: "place"}
 
 # feedback.progress — goal.resume_progress 와 같은 축(0.0 처음부터 … 1.0 복귀
 # 끝)이라 단계마다 고정값이다. 화면이 막대로 그릴 뿐 로봇은 안 읽는다.
 TASK_PROGRESS = {PICK: 0.3, NAV: 0.5, HOLD_BACK: 0.4, APPROACH: 0.45,
-                 WAIT: 0.45, PUSH: 0.5, PLACE: 0.7, RETURN: 0.9}
+                 WAIT: 0.45, PUSH: 0.5, PLACE: 0.7, RETURN: 0.9,
+                 STACK_NAV: 0.72, STACK_SCAN: 0.75, STACK_PICK: 0.78,
+                 STACK_DELIVER: 0.82, STACK_PLACE: 0.86}
 
 # Freeze 가 얼어붙은 단계 → result.fail_reason. 하위 액션의 실패를 그대로
 # 올리는 것이라(.action 주석) 단계가 곧 사유다. 목록 밖(우회·순찰·시작·자세)
@@ -519,7 +554,8 @@ TASK_FAIL_REASON = {SCAN: ExecuteTask.Result.SCAN_FAIL,
 
 # 이 단계들 중 하나가 RUNNING 이면 미션이 시작된 것이다 — 취소가 와도 캐리어를
 # 놓지 않고 RETURN 까지 마친다(_execute_task).
-MISSION_STAGES = (HOLD, SCAN, PICK, HOLD_BACK, APPROACH, WAIT, PUSH, NAV, PLACE, RETURN)
+MISSION_STAGES = (HOLD, SCAN, PICK, HOLD_BACK, APPROACH, WAIT, PUSH, NAV, PLACE, RETURN,
+                  STACK_NAV, STACK_SCAN, STACK_PICK, STACK_DELIVER, STACK_PLACE)
 
 
 # 각 단계를 이만큼 기다려도 안 끝나면 실패로 본다. 단위 초.
@@ -1551,10 +1587,66 @@ def build_tree(node):
         make_goal=lambda: NavigateTo.Goal(pose=_to_pose(node.patrol_route[0])),
         timeout_s=NAV_TIMEOUT_S, moves_base=True), node, RETURN)
 
+    # ── 스택 회수 구간 (stack_shelf 를 준 로봇만) ────────────────────────
+    # 매거진을 놓은 직후, 같은 사이클 안에서 포장 스테이션 산출물을 집어 온다.
+    #
+    # ★ 왜 여기가 회수 타이머(web/backend pickup.py)가 아니라 트리인가
+    #   제대로 된 회수는 place 완료 → pending_pickup → ready_at 도래 → RECOVER
+    #   작업 배차 순서다. 그 고리는 웹·DB 쪽에 이미 있지만 이 노드에 RECOVER
+    #   미션이 없어서 아직 안 이어진다(PORT_BY_STAGE 가 stations.yaml 에 없는
+    #   "test_loader" 를 보내는 것도 같이 고쳐야 한다). 지금은 "매거진 놓고
+    #   바로 스택도 집어 온다" 만 시험하는 단계라, 사이클 안에 직렬로 붙인다.
+    #   회수 고리가 이어지면 이 구간은 RECOVER 가지로 옮겨 간다.
+    #
+    # ★ 스캔 실패는 실패가 아니다 — "스택이 아직 안 나왔다" 는 정상이다.
+    #   ScanLeaf 는 원래 soft 실패(Freeze 가 안 얼린다)라 FAILURE 를 올리는데,
+    #   그게 미션 Sequence 를 통째로 끊으면 RETURN 을 못 하고 로더 앞에 선 채
+    #   순찰로 떨어진다. 그래서 구간 전체를 FailureIsSuccess 로 감싼다 —
+    #   스택이 없으면 조용히 건너뛰고 복귀한다.
+    #   (집기·놓기의 진짜 실패는 그 안의 Freeze 가 먼저 얼리므로 안 삼켜진다.)
+    stack_leg = []
+    if node.stack_pose is not None:
+        stack_nav = Freeze("STACK_NAV", ActionLeaf(
+            STACK_NAV, node, node.nav, "navigation/navigate_to", NavigateTo.Result,
+            make_goal=lambda: NavigateTo.Goal(pose=_to_pose(node.stack_pose)),
+            timeout_s=NAV_TIMEOUT_S, moves_base=True), node, STACK_NAV)
+
+        # ScanLeaf 를 그대로 쓴다 — carrier_scan 은 amcl_pose 로 지금 어느 선반
+        # 구역인지 스스로 판정하므로(carrier_code_reader._current_shelf), 스택
+        # 자리에 서 있으면 PKG-OUT 의 arm_teach_pose 로 팔을 세운다.
+        # 읽은 결과는 블랙보드의 variant/qr_pose 를 덮어쓴다 — 아래 집기가
+        # 그대로 쓴다(스택 QR 은 tray_orange / tray_blue 로 풀린다).
+        stack_scan = Freeze("STACK_SCAN", ScanLeaf(STACK_SCAN, node), node, STACK_SCAN)
+
+        stack_pick = Freeze("STACK_PICK", ActionLeaf(
+            STACK_PICK, node, node.pick, "manipulation/pick_carrier", PickCarrier.Result,
+            make_goal=lambda: PickCarrier.Goal(variant=bb.variant, qr_pose=bb.qr_pose),
+            timeout_s=PICK_TIMEOUT_S,
+            feedback_cb=node.log_phase("STACK_PICK")), node, STACK_PICK)
+
+        stack_deliver = Freeze("STACK_DELIVER", ActionLeaf(
+            STACK_DELIVER, node, node.nav, "navigation/navigate_to", NavigateTo.Result,
+            make_goal=lambda: NavigateTo.Goal(pose=_to_pose(TEST_LOADER)),
+            timeout_s=NAV_TIMEOUT_S, moves_base=True), node, STACK_DELIVER)
+
+        stack_place = Freeze("STACK_PLACE", ActionLeaf(
+            STACK_PLACE, node, node.place, "manipulation/place_carrier",
+            PlaceCarrier.Result,
+            make_goal=lambda: PlaceCarrier.Goal(variant=bb.variant),
+            timeout_s=PLACE_TIMEOUT_S,
+            feedback_cb=node.log_phase("STACK_PLACE")), node, STACK_PLACE)
+
+        stack_leg = [py_trees.decorators.FailureIsSuccess(
+            name="스택 회수(있으면)",
+            child=py_trees.composites.Sequence(
+                "스택", memory=True,
+                children=[stack_nav, stack_scan, stack_pick,
+                          stack_deliver, stack_place]))]
+
     mission = py_trees.composites.Sequence(
         "캐리어 처리", memory=True,
         children=[Detected("detected?", node), Hold(HOLD, node),
-                  scan, pick, to_loader, place, ret,
+                  scan, pick, to_loader, place] + stack_leg + [ret,
                   CycleDone("사이클 완료", node, waypoints)])
 
     # ── 순찰 가지 ────────────────────────────────────────────────────────
@@ -1719,6 +1811,21 @@ class TaskManager(Node):
         self.declare_parameter("patrol_shelf", "")
         self.declare_parameter("patrol_route", DEFAULT_PATROL_ROUTE)
         self.patrol_route, self.patrol_route_source = self._resolve_patrol_route()
+        # ── 스택 회수 자리 ────────────────────────────────────────────────
+        # shelves.yaml 의 어느 선반을 "스택 자리" 로 볼 것인가. 빈 문자열이면
+        # 이 로봇은 스택을 안 맡고 트리에 그 구간이 들어가지 않는다.
+        #
+        # ★ 좌표를 파라미터로 받지 않고 선반 id 로 받는 이유 — 좌표의 주인은
+        #   웹 「설정 > 선반」 이고(그 화면이 shelves.yaml 을 쓴다), 관측 자세
+        #   (arm_teach_pose)도 같은 항목에 붙어 있다. id 로 가리키면 둘이
+        #   자동으로 같이 따라온다. 좌표를 여기 따로 적으면 또 갈라진다 —
+        #   grasp.yaml 과 place.yaml 이 갈라져서 pick 이 죽었던 일이 있다.
+        #
+        # ★ 스택은 씬에 하나뿐이라 한 대만 맡아야 한다. 두 대에 같은 id 를
+        #   주면 둘이 같은 자리로 간다.
+        self.declare_parameter("stack_shelf", "")
+        self.stack_shelf = self.get_parameter("stack_shelf").value or ""
+        self.stack_pose = self._resolve_stack_pose()
         # 웹이 좌표를 고쳤을 때 갈아끼울 값. 바로 반영하지 않는 이유는
         # _on_reload_config 독스트링 ★ 참고 — POSE 잎이 커밋한다.
         self._pending_route = None
@@ -1869,6 +1976,16 @@ class TaskManager(Node):
             self.get_logger().info(
                 f"순찰 경로 [{self.patrol_route_source}] {pts} — 두 점의 yaw 가 "
                 f"같으면 제자리 회전 없이 전진/후진 왕복한다")
+        if self.stack_pose is not None:
+            x, y, yaw = self.stack_pose
+            self.get_logger().info(
+                f"스택 회수 켜짐 — shelves.yaml {self.stack_shelf} "
+                f"({x:.3f}, {y:.3f}, {yaw:.1f}°). 매거진을 놓은 뒤 여기로 가서 "
+                f"집어 로더로 가져간다. 스택이 없으면 조용히 건너뛴다")
+        elif self.stack_shelf:
+            self.get_logger().warning(
+                f"stack_shelf={self.stack_shelf} 를 줬는데 좌표를 못 구했다 — "
+                f"스택 구간 없이 돈다(위 경고 참고)")
         if TEST_LOADER is None:
             self.get_logger().warning(
                 "TEST_LOADER 가 비어 있다 — pick 까지는 되지만 nav 단계에서 멈춘다. "
@@ -1914,6 +2031,41 @@ class TaskManager(Node):
         if route == _unflatten_route(DEFAULT_PATROL_ROUTE):
             return route, "DEFAULT_PATROL_ROUTE 폴백"
         return route, "patrol_route 파라미터"
+
+    def _resolve_stack_pose(self):
+        """stack_shelf 가 가리키는 선반의 정차 좌표. 안 쓰면 None.
+
+        shelves.yaml 의 waypoint_start 를 그대로 쓴다 — 스택 자리는 훑는
+        구간이 아니라 한 점이라 start 와 end 가 같다(PKG-OUT 이 그렇다).
+
+        못 찾으면 None 을 돌려주고 경고만 남긴다. 스택은 부가 작업이라
+        여기서 노드를 죽이지 않는다 — 매거진 사이클은 그대로 돌아야 한다.
+        """
+        if not self.stack_shelf:
+            return None
+        path = Path(self.get_parameter("shelves_yaml").value or "")
+        try:
+            doc = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+            shelves = [sh for sh in (doc.get("shelves") or []) if isinstance(sh, dict)]
+        except (OSError, yaml.YAMLError) as e:
+            self.get_logger().warning(
+                f"stack_shelf={self.stack_shelf} 인데 shelves.yaml({path}) 을 "
+                f"못 읽었다: {e} — 스택 회수를 끈다")
+            return None
+        sh = next((x for x in shelves
+                   if str(x.get("shelf_id")) == self.stack_shelf), None)
+        if sh is None:
+            self.get_logger().warning(
+                f"shelves.yaml 에 shelf_id={self.stack_shelf} 가 없다 — "
+                f"있는 것: {[str(x.get('shelf_id')) for x in shelves]}. "
+                f"스택 회수를 끈다")
+            return None
+        route = _shelf_route(sh)
+        if route is None:
+            self.get_logger().warning(
+                f"{self.stack_shelf} 의 waypoint 좌표가 덜 찼다 — 스택 회수를 끈다")
+            return None
+        return route[0]
 
     def _route_from_shelves(self, path, want_shelf):
         """shelves.yaml 에서 이 로봇의 선반을 찾아 경로로 바꾼다.

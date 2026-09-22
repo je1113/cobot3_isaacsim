@@ -83,7 +83,19 @@ shelves:
       - pass_id: 1
         level: 1
         direction: FORWARD
-        arm_teach_pose: [0.235391, 0.670242, 2.617961, 1.579533, 1.570796, 1.500994]
+    # ★ 2026-09-22: null 로 되돌렸다. 여기에 값이 있으면 carrier_code_reader.
+    #   _observe() 가 joints_deg 경로로 가고, 없으면 taught_poses.yaml 의
+    #   이름(pose_name)으로 간다 — 그 갈림은 이 칸 하나가 정한다.
+    #
+    #   472c208 이 채워 넣은 값은 옛 씬(x≈-6.5)에서 티칭된 것을 포팅한
+    #   잠정값이었고(그 커밋 주석이 "실측 확인 전까지는 잠정값" 이라고
+    #   적어 두었다), 그게 들어오면서 호출 경로가 조용히 바뀌었다.
+    #   실측으로 다시 티칭하기 전까지는 pose_name 경로를 쓴다.
+    #
+    #   ★ 폴백 이름은 진행 방향(patrol_target)에 따라 갈린다 —
+    #     1 → shelf_1_top_close_centered(2층), 0 → s1_bottom_scan(1층).
+    #     (carrier_code_reader.FALLBACK_POSE_BY_PATROL_TARGET)
+        arm_teach_pose: [null, null, null, null, null, null]
     # 위 포팅 시점에 찍었다 — 이 waypoint 에서 실측 재확인 후에도 그대로 둔다
     # (첫 완성 시점 기록 규칙, 이 파일 머리주석 참고).
     first_taught_at: '2026-09-22'
@@ -150,7 +162,19 @@ shelves:
       - pass_id: 1
         level: 1
         direction: FORWARD
-        arm_teach_pose: [0.235391, 0.670242, 2.617961, 1.579533, 1.570796, 1.500994]
+    # ★ 2026-09-22: null 로 되돌렸다. 여기에 값이 있으면 carrier_code_reader.
+    #   _observe() 가 joints_deg 경로로 가고, 없으면 taught_poses.yaml 의
+    #   이름(pose_name)으로 간다 — 그 갈림은 이 칸 하나가 정한다.
+    #
+    #   472c208 이 채워 넣은 값은 옛 씬(x≈-6.5)에서 티칭된 것을 포팅한
+    #   잠정값이었고(그 커밋 주석이 "실측 확인 전까지는 잠정값" 이라고
+    #   적어 두었다), 그게 들어오면서 호출 경로가 조용히 바뀌었다.
+    #   실측으로 다시 티칭하기 전까지는 pose_name 경로를 쓴다.
+    #
+    #   ★ 폴백 이름은 진행 방향(patrol_target)에 따라 갈린다 —
+    #     1 → shelf_1_top_close_centered(2층), 0 → s1_bottom_scan(1층).
+    #     (carrier_code_reader.FALLBACK_POSE_BY_PATROL_TARGET)
+        arm_teach_pose: [null, null, null, null, null, null]
     first_taught_at: '2026-09-22'
 
   # ── 포장 출력 선반 (스택 관측 자리) ──────────────────────────────────
@@ -177,5 +201,11 @@ shelves:
       - pass_id: 1
         level: 1
         direction: FORWARD
-        arm_teach_pose: [-1.622864, 1.012564, 2.10307, 1.579492, 1.570789, 1.588239]
+        # ★ 2026-09-22: null 로 되돌렸다. 여기 관절값이 있으면
+        #   carrier_code_reader._observe() 가 joints_deg 경로로 가는데,
+        #   그건 "실측 티칭됐다" 는 신호라 티칭 완료 판정까지 같이 켜진다.
+        #   이 자세(packaging_output_scan)는 taught_poses.yaml 에 이름으로
+        #   있으므로 carrier_code_reader 의 FALLBACK_POSE_BY_SHELF 가
+        #   PKG-OUT → packaging_output_scan 으로 이어 준다.
+        arm_teach_pose: [null, null, null, null, null, null]
     first_taught_at: '2026-09-22'

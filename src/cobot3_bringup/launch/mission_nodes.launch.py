@@ -177,6 +177,28 @@ LANE_STAGES = ["nav", "push", "place",
 # 노드를 두는 편이 낫다(docs/02 §2 의 docking_server 논리와 같다).
 PEER_OF = {"robot1": "robot2", "robot2": "robot1"}
 
+# ══════════════════════════════════════════════════════════════════════════
+#  스택 회수 — 누가 맡나
+#
+#  매거진을 로더에 놓은 뒤, 같은 사이클 안에서 포장 스테이션 산출물(스택)을
+#  집어 로더로 가져간다. 값은 shelves.yaml 의 shelf_id 다 — 좌표와 관측 자세
+#  (arm_teach_pose)가 그 항목에 같이 붙어 있어서 id 로 가리키면 둘이 같이
+#  따라온다.
+#
+#  ★ 스택은 씬에 하나뿐이라 한 대만 맡는다. 둘 다 주면 같은 자리로 간다.
+#    지금은 robot1 이 맡고 robot2 는 매거진만 돈다.
+#
+#  ★ 빈 문자열이면 그 로봇의 트리에 스택 구간이 아예 안 들어간다.
+#
+#  ☞ 이건 임시 배선이다. 제대로 된 회수는 place 완료 → pending_pickup →
+#    ready_at 도래 → RECOVER 작업 배차이고, 그 고리는 web/backend 의
+#    pickup.py 에 이미 있다. 다만 task_manager 에 RECOVER 미션이 없고
+#    PORT_BY_STAGE 가 stations.yaml 에 없는 "test_loader" 를 보내서 아직
+#    안 이어진다. 그때가 되면 이 파라미터는 지운다.
+# ══════════════════════════════════════════════════════════════════════════
+
+STACK_SHELF_BY_ROBOT = {"robot1": "PKG-OUT", "robot2": ""}
+
 
 # ══════════════════════════════════════════════════════════════════════════
 #  nav_server 파라미터
@@ -268,6 +290,8 @@ def _task_manager_params(ns, namespaces):
         # 로더 차선이 막혔을 때 비켜 서는 자리. 로봇마다 달라야 한다 —
         # 같은 점을 쓰면 대기 자리에서 둘이 부딪힌다(STAGING_BY_ROBOT 주석).
         "staging_pose": STAGING_BY_ROBOT[ns],
+        # 스택을 맡을 로봇만 값이 있다 (STACK_SHELF_BY_ROBOT 주석 참고).
+        "stack_shelf": STACK_SHELF_BY_ROBOT.get(ns, ""),
     }
 
     peer = PEER_OF.get(ns)
