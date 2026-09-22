@@ -42,9 +42,10 @@
      TEST_LOADER 쪽은 아래 "로더 차선 조율" 이 처리한다 — 한 대만 차선에
      들어가고 나머지는 대기 자리에서 기다린다. 다만 그건 출발 시점 판단으로
      커밋하므로 사각지대가 남아 있다(task_manager.py "알려진 갭" 참고).
-  2) sim_backend 가 nova_carter1 하나만 안다(ROBOT_PRIM_PATH 하드코딩).
-     robot2 의 scan · pick · place 는 sim_backend 를 손보기 전까지 실패한다.
-     주행(nav_server)은 sim_backend 를 쓰지 않으므로 robot2 도 지금 바로 된다.
+  2) sim_backend 가 이제 nova_carter1/nova_carter2 둘 다 안다(RobotRig,
+     robot_id="robot1"/"robot2" — pick_place_server/carrier_code_reader 가
+     자기 네임스페이스를 그대로 실어 보낸다). scan · pick · place 도 두
+     로봇 다 된다. 주행(nav_server)은 원래 sim_backend 를 안 썼다.
 """
 
 from launch import LaunchDescription

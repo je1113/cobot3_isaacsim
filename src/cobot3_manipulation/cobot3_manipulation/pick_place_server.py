@@ -175,6 +175,10 @@ class PickPlaceServer(Node):
         self.place = yaml.safe_load(place_path.read_text(encoding="utf-8"))["magazines"]
 
         self.sim = SimClient()
+        # sim_backend.py 가 로봇 두 대(robot1/robot2)를 한 소켓에서 같이
+        # 관리한다 — 네임스페이스를 그대로 robot_id 로 실어 보내야 RPC 가
+        # 어느 로봇을 움직일지 안다(_safe_call/_safe_call_place 참고).
+        self.robot_id = self.get_namespace().strip("/") or "robot1"
         cb = ReentrantCallbackGroup()
         self._server = ActionServer(
             self, PickCarrier, "manipulation/pick_carrier",
@@ -200,7 +204,7 @@ class PickPlaceServer(Node):
     def _poll_until(self, thread, goal_handle, feedback, phase_map=_PHASE):
         while thread.is_alive():
             try:
-                status = self.sim.get_status()
+                status = self.sim.get_status(self.robot_id)
                 feedback.phase = phase_map.get(status["phase"], feedback.phase)
                 goal_handle.publish_feedback(feedback)
             except SimClientError as e:
@@ -361,6 +365,7 @@ class PickPlaceServer(Node):
         return result
 
     def _safe_call_place(self, method, **kw):
+        kw.setdefault("robot_id", self.robot_id)
         try:
             return self.sim.call(method, **kw)
         except SimClientError as e:
@@ -374,6 +379,7 @@ class PickPlaceServer(Node):
         return result
 
     def _safe_call(self, method, **kw):
+        kw.setdefault("robot_id", self.robot_id)
         try:
             return self.sim.call(method, **kw)
         except SimClientError as e:

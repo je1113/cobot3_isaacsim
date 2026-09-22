@@ -149,6 +149,10 @@ class CarrierCodeReader(Node):
         self.declare_parameter("publish_debug", False)
         self.declare_parameter("shelves_yaml", str(SHELVES_YAML))
         self.sim = SimClient()
+        # sim_backend.py 가 로봇 두 대(robot1/robot2)를 한 소켓에서 같이
+        # 관리한다 — 네임스페이스를 그대로 robot_id 로 실어 보내야 observe_pose/
+        # scan_qr 이 어느 로봇의 팔·손목캠을 쓸지 안다.
+        self.robot_id = self.get_namespace().strip("/") or "robot1"
         self._load_shelves()
         self._srv = self.create_service(CarrierScan, "perception/carrier_scan", self._on_carrier_scan)
 
@@ -240,12 +244,12 @@ class CarrierCodeReader(Node):
         joints = self._teach_joints_deg(shelf)
         if joints is not None:
             self.sim.call("observe_pose", joints_deg=joints,
-                          timeout_s=timeout_s)
+                          robot_id=self.robot_id, timeout_s=timeout_s)
         else:
             pose = FALLBACK_POSE_BY_PATROL_TARGET.get(
                 self._patrol_target_idx, DEFAULT_POSE_NAME)
             self.sim.call("observe_pose", pose_name=pose,
-                          timeout_s=timeout_s)
+                          robot_id=self.robot_id, timeout_s=timeout_s)
 
     def _on_orchestrator_state(self, msg):
         new_state = None
@@ -288,7 +292,8 @@ class CarrierCodeReader(Node):
             if not self._armed:
                 self._observe(shelf)
                 self._armed = True
-            r = self.sim.call("scan_qr", timeout_s=5.0, expected_id=None, n_frames=1)
+            r = self.sim.call("scan_qr", timeout_s=5.0, expected_id=None, n_frames=1,
+                              robot_id=self.robot_id)
         except SimClientError as e:
             self.get_logger().warn(f"carrier_detected 폴링 실패: {e}")
             return
@@ -305,7 +310,7 @@ class CarrierCodeReader(Node):
             # 그 선반을 잡는다(amcl_pose 로 매번 다시 물어본다). 없으면
             # pose_name 폴백 — 이전 판과 같은 동작.
             self._observe(self._current_shelf(), timeout_s=60.0)
-            r = self.sim.call("scan_qr", expected_id=None, n_frames=3)
+            r = self.sim.call("scan_qr", expected_id=None, n_frames=3, robot_id=self.robot_id)
         except SimClientError as e:
             response.found = False
             self.get_logger().warn(f"carrier_scan: {e}")
