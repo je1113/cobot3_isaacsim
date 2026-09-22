@@ -221,7 +221,12 @@ READY_JOINTS_DEG = [0.0, 0.0, 90.0, 0.0, 90.0, 0.0]
 #
 #   이름을 주면 예전처럼 그 자세까지 옮긴다 — 2단계 부팅의 1단계(READY 로
 #   스냅)는 그대로 남으므로, 되돌리고 싶으면 값만 다시 넣으면 된다.
-BOOT_POSE_NAME = ""
+# ★ 2026-09-22 되돌림: 부팅 자세를 다시 SCAN 관측 자세로.
+#   ""(홈에서 멈춤)로 바꿨더니 그 판에서 pick 이 SLIP/NO_ATTACH 로 깨졌다.
+#   직전 판에서는 robot1 이 pick 을 통과해 nav 까지 갔었다. 원인을 가르려고
+#   부팅 자세 관련 변경을 통째로 되돌린다 — 홈 시작은 원인이 확인된 뒤에
+#   다시 넣는다.
+BOOT_POSE_NAME = "shelf_1_top_close_centered"
 
 # ★ 팔은 언제나 홈(READY_JOINTS_DEG)에서 시작한다.
 #
@@ -233,7 +238,10 @@ BOOT_POSE_NAME = ""
 #   실측: robot1 은 패트롤 자세로, robot2 는 픽 자세로 시작했다.
 #
 #   False 로 두면 _restore_state() 가 되살린 팔 자세를 그대로 쓴다.
-BOOT_ARM_HOME = True
+#   ☞ 2026-09-22 False 로 되돌림. 위 BOOT_POSE_NAME 주석 참고 — 이 스위치를
+#     켠 판에서 pick 이 깨졌다. 순간 스냅을 보간으로 고치기는 했지만(그 코드는
+#     남아 있다), 회귀 원인을 확실히 가르기 전까지는 꺼 둔다.
+BOOT_ARM_HOME = False
 
 # ★ 매거진/스택도 매 기동마다 씬 원위치에서 시작한다.
 #
