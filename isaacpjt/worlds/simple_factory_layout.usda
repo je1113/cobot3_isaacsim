@@ -221,6 +221,17 @@ def Xform "World"
 
             def Xform "Shelf_02"
             {
+                def Cube "MagazinePickupRegion"
+                {
+                    custom string spawn:description = "Full magazine must leave this region for 0.3 seconds before refill."
+                    uniform token purpose = "guide"
+                    token visibility = "invisible"
+                    double size = 1
+                    double3 xformOp:translate = (0, 0, 0.6654165297785304)
+                    double3 xformOp:scale = (2.74, 1.24, 0.26)
+                    uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:scale"]
+                }
+
                 quatf xformOp:orient = (1, 0, 0, 0)
                 float3 xformOp:scale = (1, 1, 1)
                 double3 xformOp:translate = (-1.7408262933538312, -1.9728728557184216, 0)
@@ -294,6 +305,17 @@ def Xform "World"
 
             def Xform "Shelf_01"
             {
+                def Cube "MagazinePickupRegion"
+                {
+                    custom string spawn:description = "Full magazine must leave this region for 0.3 seconds before refill."
+                    uniform token purpose = "guide"
+                    token visibility = "invisible"
+                    double size = 1
+                    double3 xformOp:translate = (0, 0, 0.6654165297785304)
+                    double3 xformOp:scale = (2.74, 1.24, 0.26)
+                    uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:scale"]
+                }
+
                 quatf xformOp:orient = (1, 0, 0, 0)
                 float3 xformOp:scale = (1, 1, 1)
                 double3 xformOp:translate = (-1.7408262933538312, 2.953089041056456, 0)
@@ -882,8 +904,17 @@ def Xform "World"
         }
     }
 
-    def Xform "Magazines"
+    def Xform "Magazines" (
+        prepend apiSchemas = ["OmniScriptingAPI"]
+    )
     {
+        asset[] omni:scripting:scripts = [@../scripts/magazine_spawner.py@]
+        custom asset spawn:orangeAsset = @../assets/magazine_1_orange_qr.usda@
+        custom asset spawn:blueAsset = @../assets/magazine_2_blue_qr.usda@
+        custom double spawn:confirmSeconds = 5.0
+        custom double spawn:warmupSeconds = 0.5
+        custom rel spawn:shelves = [</World/Magazines/shelf_1_magaines>, </World/Magazines/shelf_2_magaines>]
+
         quatd xformOp:orient = (1, 0, 0, 0)
         double3 xformOp:scale = (1, 1, 1)
         double3 xformOp:translate = (0, 0, 0)
@@ -891,6 +922,9 @@ def Xform "World"
 
         def Xform "shelf_1_magaines"
         {
+            custom rel spawn:slots = [</World/Magazines/shelf_1_magaines/top_magazines/magazine_1_orange>, </World/Magazines/shelf_1_magaines/top_magazines/magazine_2_blue>, </World/Magazines/shelf_1_magaines/top_magazines/magazine_1_orange_02>, </World/Magazines/shelf_1_magaines/top_magazines/magazine_2_blue_02>]
+            custom rel spawn:pickupRegion = </World/Environment/PickupZone/Shelf_01/MagazinePickupRegion>
+
             quatd xformOp:orient = (1, 0, 0, 0)
             double3 xformOp:scale = (1, 1, 1)
             double3 xformOp:translate = (1.0707670288812867, 0.5863591912997923, 0)
@@ -904,6 +938,7 @@ def Xform "World"
                 uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
 
                 def "magazine_1_orange" (
+                    active = false
                     prepend apiSchemas = ["PhysicsFilteredPairsAPI", "PhysxRigidBodyAPI"]
                     prepend payload = @../assets/magazine_1_orange_qr.usda@
                 )
@@ -917,6 +952,7 @@ def Xform "World"
                 }
 
                 def "magazine_2_blue" (
+                    active = false
                     prepend payload = @../assets/magazine_2_blue_qr.usda@
                 )
                 {
@@ -927,6 +963,7 @@ def Xform "World"
                 }
 
                 def "magazine_1_orange_02" (
+                    active = false
                     prepend payload = @../assets/magazine_1_orange_qr.usda@
                 )
                 {
@@ -938,6 +975,7 @@ def Xform "World"
                 }
 
                 def "magazine_2_blue_02" (
+                    active = false
                     prepend payload = @../assets/magazine_2_blue_qr.usda@
                 )
                 {
@@ -952,6 +990,9 @@ def Xform "World"
 
         def Xform "shelf_2_magaines"
         {
+            custom rel spawn:slots = [</World/Magazines/shelf_2_magaines/top_magazines/magazine_1_orange>, </World/Magazines/shelf_2_magaines/top_magazines/magazine_2_blue>, </World/Magazines/shelf_2_magaines/top_magazines/magazine_1_orange_02>, </World/Magazines/shelf_2_magaines/top_magazines/magazine_2_blue_02>]
+            custom rel spawn:pickupRegion = </World/Environment/PickupZone/Shelf_02/MagazinePickupRegion>
+
             quatd xformOp:orient = (1, 0, 0, 0)
             double3 xformOp:scale = (1, 1, 1)
             double3 xformOp:translate = (1.0707670288812867, 0.5863591912997923, 0)
@@ -965,6 +1006,7 @@ def Xform "World"
                 uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
 
                 def "magazine_1_orange" (
+                    active = false
                     prepend payload = @../assets/magazine_1_orange_qr.usda@
                 )
                 {
@@ -975,6 +1017,7 @@ def Xform "World"
                 }
 
                 def "magazine_2_blue" (
+                    active = false
                     prepend payload = @../assets/magazine_2_blue_qr.usda@
                 )
                 {
@@ -985,6 +1028,7 @@ def Xform "World"
                 }
 
                 def "magazine_1_orange_02" (
+                    active = false
                     prepend payload = @../assets/magazine_1_orange_qr.usda@
                 )
                 {
@@ -996,6 +1040,7 @@ def Xform "World"
                 }
 
                 def "magazine_2_blue_02" (
+                    active = false
                     prepend payload = @../assets/magazine_2_blue_qr.usda@
                 )
                 {
