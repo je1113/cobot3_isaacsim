@@ -116,6 +116,21 @@ FALLBACK_POSE_BY_PATROL_TARGET = {
 }
 DEFAULT_POSE_NAME = "shelf_1_top_close_centered"
 
+# ★ 선반마다 자세가 다른 경우는 위 표(진행 방향으로 층을 고르는 규칙)로 못
+#   맞춘다. 스택 자리(PKG-OUT)가 그렇다 — 매거진 선반이 아니라 포장 출력
+#   선반이고, taught_poses.yaml 에 전용 자세가 따로 있다.
+#
+#   이 표가 없던 동안에는 그 자세를 쓰려고 shelves.yaml 의 arm_teach_pose 에
+#   관절값을 직접 박아 넣었다. 그러면 _observe() 가 joints_deg 경로로 갈리는데,
+#   그건 "실측으로 티칭했다" 는 뜻이라 티칭 완료 판정(shapes.shelf_is_taught)
+#   까지 같이 켜진다. 자세를 고르려고 티칭 상태를 건드리는 셈이라 이름으로
+#   부르는 편이 맞다.
+#
+#   shelf_id 로 찾고, 없으면 위의 patrol_target 표로 내려간다.
+FALLBACK_POSE_BY_SHELF = {
+    "PKG-OUT": "packaging_output_scan",
+}
+
 
 def _add_ros_bridge_to_syspath():
     # colcon 빌드가 src/<pkg>/<pkg>/file.py 를 build/ 밑으로 복사하거나
@@ -296,13 +311,18 @@ class CarrierCodeReader(Node):
             self.sim.call("observe_pose", joints_deg=joints,
                           robot_id=self.robot_id, timeout_s=timeout_s)
         else:
-            pose = FALLBACK_POSE_BY_PATROL_TARGET.get(
-                self._patrol_target_idx, DEFAULT_POSE_NAME)
+            # 선반 전용 자세가 있으면 그걸 먼저 쓴다(FALLBACK_POSE_BY_SHELF).
+            # 없으면 진행 방향으로 층을 고르는 기존 규칙.
+            pose = FALLBACK_POSE_BY_SHELF.get(shelf_id)
+            how = f"선반 전용({shelf_id})"
+            if pose is None:
+                pose = FALLBACK_POSE_BY_PATROL_TARGET.get(
+                    self._patrol_target_idx, DEFAULT_POSE_NAME)
+                how = f"patrol_target={self._patrol_target_idx}"
             self.get_logger().info(
-                f"관측 자세: 폴백 '{pose}' "
-                f"(shelf={shelf_id}, patrol_target={self._patrol_target_idx}) "
-                f"— shelves.yaml 의 arm_teach_pose 가 비어 있어서 "
-                f"taught_poses.yaml 이름으로 간다")
+                f"관측 자세: 폴백 '{pose}' [{how}] "
+                f"(shelf={shelf_id}) — shelves.yaml 의 arm_teach_pose 가 "
+                f"비어 있어서 taught_poses.yaml 이름으로 간다")
             self.sim.call("observe_pose", pose_name=pose,
                           robot_id=self.robot_id, timeout_s=timeout_s)
 
