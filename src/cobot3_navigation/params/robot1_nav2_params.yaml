@@ -387,7 +387,8 @@ local_costmap:
         enabled: true
 
         cost_scaling_factor: 3.0
-        inflation_radius: 0.8
+        # 원래 값: 0.8  — 지역 창이 6x6 m 라 0.8 은 넓다. 감쇠(3.0)는 이미 가파르므로 범위만 줄인다.
+        inflation_radius: 0.6
 
 
 global_costmap:
@@ -406,7 +407,13 @@ global_costmap:
       transform_tolerance: 0.3
 
       footprint: "[ [0.14, 0.25], [0.14, -0.25], [-0.607, -0.25], [-0.607, 0.25] ]"
-      footprint_padding: 0.25
+      # 원래 값: 0.25  — 전역이 차체를 반폭 0.25 에 0.25 를 더해 실효 내접반경 0.50 m 로 봤다.
+#   그래서 장애물에서 50 cm 안쪽이 전부 253(계획 거부)이었고, 로더
+#   주차점·순찰 시작점이 계속 거부당했다(NAV/START 가 BLOCKED 로 죽음).
+#   지역 코스트맵(0.03)과 같은 값으로 맞춘다 — 전역이 벽에 더 붙는
+#   경로를 그려도 지역이 같은 기준으로 다시 검사하므로 실충돌 위험은
+#   안 늘어난다.
+      footprint_padding: 0.03
 
       always_send_full_costmap: true
 
@@ -445,8 +452,12 @@ global_costmap:
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
 
-        cost_scaling_factor: 0.3
-        inflation_radius: 1.0
+        # 원래 값: 0.3  — 0.3 은 감쇠가 너무 완만해 1 m 까지 높은 비용이 퍼졌다.
+#   cost = 252*exp(-f*(거리-내접)) 이라 f=0.3 이면 0.9 m 에서도 224 고,
+#   2.0 이면 같은 거리에서 113 으로 떨어져 통로 한가운데가 싸진다.
+        cost_scaling_factor: 2.0
+        # 원래 값: 1.0  — 좁은 통로에서 양쪽 팽창이 겹쳐 전 구간이 비싸지는 것을 줄인다.
+        inflation_radius: 0.7
 
   global_costmap_client:
     ros__parameters:
