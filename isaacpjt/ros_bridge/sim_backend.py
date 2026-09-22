@@ -775,14 +775,19 @@ class Backend:
         #   여기서 덮어써야 한다 — 이유는 BOOT_ARM_HOME 주석.
         #   베이스 pose 와 씬 오브젝트는 복원된 그대로 둔다.
         if BOOT_ARM_HOME:
+            # ★ 순간 스냅이 아니라 보간으로 옮긴다.
+            #   위 2단계 부팅 주석이 경고한 그대로다 — 뻗은 자세와 홈 사이를
+            #   한 프레임에 꺾으면 물리 충격이 생긴다("베이스가 물리 충격으로
+            #   넘어지는 게 실측 재현됐다"). 첫 부팅에서는 이미 READY 로
+            #   스냅한 직후라 움직일 게 없지만, _restore_state() 가 이전
+            #   세션의 뻗은 자세를 되살린 뒤에는 그 구간이 크다.
+            #   실측: 스냅으로 넣었더니 pick 이 SLIP/NO_ATTACH 로 깨졌다.
             for rig in self.rigs.values():
-                q = rig.robot.get_joint_positions()
-                for name, deg in zip(ARM_JOINTS, READY_JOINTS_DEG):
-                    q[rig.robot.get_dof_index(name)] = np.deg2rad(deg)
-                rig.robot.set_joint_positions(q)
+                self._servo_joint_deg(rig.robot_id, READY_JOINTS_DEG,
+                                      n_steps=SETTLE_STEPS)
             for _ in range(SETTLE_STEPS):
                 self.world.step(render=not HEADLESS)
-            print(f"  팔 시작 자세: 홈 {READY_JOINTS_DEG} (로봇 {len(self.rigs)}대)")
+            print(f"  팔 시작 자세: 홈 {READY_JOINTS_DEG} (로봇 {len(self.rigs)}대, 보간 이동)")
 
         st = self.frames["static_transforms"]
         self.R_l6_cam = quat_xyzw_to_mat(st["m0609_tool0__camera_link"]["quat_xyzw"])
