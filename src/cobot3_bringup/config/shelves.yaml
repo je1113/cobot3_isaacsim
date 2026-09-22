@@ -46,3 +46,30 @@ shelves:
     standoff_distance:
     scan_passes: []
     first_taught_at:
+
+  # ── 포장 출력 선반 (스택 관측 자리) ──────────────────────────────────
+  #  ★ 이건 매거진 선반이 아니다. carrier_code_reader 가 "지금 어느 자리에
+  #    서 있나" 를 이 목록의 구역으로 판정하고 그 자리의 arm_teach_pose 로
+  #    팔을 세우기 때문에, 스택 관측 자세를 물리는 자리가 여기다. 이 항목이
+  #    없으면 스택 앞에서도 매거진용 자세(shelf_1_top_close_centered)로
+  #    폴백해서 QR 이 화면에 안 들어온다.
+  #
+  #  waypoint 는 task_manager.py DEFAULT_STACK_PICK_ROUTE 의 마지막 점이고,
+  #  관절값은 isaacpjt/tools/out/taught_poses.yaml 의 packaging_output_scan
+  #  을 그대로 옮긴 것이다(그 파일은 도, 이 파일은 라디안 — meta.units).
+  #  둘 중 하나를 고치면 나머지도 같이 고쳐야 한다.
+  #
+  #  standoff_distance 0.35 는 구역 반경이다. 로봇이 이 안에 있으면 이
+  #  자세를 쓴다. 매거진 정차점(x 약 -0.6)과 겹치지 않는다.
+  #
+  #  ☞ 웹 「설정 > 선반」 탭에 선반 하나로 더 뜬다. 스캔 작업을 배정하지 말 것.
+  - shelf_id: PKG-OUT
+    waypoint_start: {x: 3.46, y: 1.70, theta: 0.0}
+    waypoint_end: {x: 3.46, y: 1.70, theta: 0.0}
+    standoff_distance: 0.35
+    scan_passes:
+      - pass_id: 1
+        level: 1
+        direction: FORWARD
+        arm_teach_pose: [-1.622864, 1.012564, 2.10307, 1.579492, 1.570789, 1.588239]
+    first_taught_at: '2026-09-22'

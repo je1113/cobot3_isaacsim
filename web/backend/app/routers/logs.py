@@ -25,7 +25,7 @@ from datetime import datetime
 from fastapi import APIRouter, Query
 from fastapi.responses import StreamingResponse
 
-from .. import db
+from .. import db, shapes
 from ..config import settings
 from ..errors import NotFound, Unprocessable
 
@@ -35,6 +35,22 @@ _LOG_COLS = """role, log_id, run_id::text AS run_id, qr_payload, kind_code, plan
                robot_id, stage, attempt,
                started_at, ended_at, duration_sec, succeeded, status::text AS status,
                fail_reason::text AS fail_reason, fail_detail, port"""
+
+
+# ── 로봇 이름 ────────────────────────────────────────────────────────
+# carrier_log.robot_id 는 네임스페이스('robot1')다(sql/001_schema.sql:59).
+# API 경계 밖으로 나가는 이름은 화면 이름('AMR-01')이어야 한다 — compat 의
+# /api/logs 가 log_row_out 으로 이미 그렇게 낸다. 여기만 'robot1' 을 그대로
+# 내보내면, 화면이 이쪽(/logs/page)으로 옮겨 오는 날 로봇 필터가 조용히
+# 아무것도 못 고른다. 필터 버튼은 /api/meta 의 화면 이름으로 만들어지기 때문이다.
+
+
+def _rows_out(rows: list[dict]) -> list[dict]:
+    """carrier_log 행들의 robot_id 를 화면 이름으로."""
+    return [
+        {**r, "robot_id": shapes.to_display(r["robot_id"])} if r.get("robot_id") else r
+        for r in rows
+    ]
 
 
 # ── 커서 ─────────────────────────────────────────────────────────────
@@ -70,7 +86,8 @@ async def list_logs(
 
     where, params = ["TRUE"], []
     if robot_id:
-        where.append("robot_id = %s"); params.append(robot_id)
+        # 화면 이름('AMR-01')으로 들어온다. 표에는 네임스페이스로 들어 있다.
+        where.append("robot_id = %s"); params.append(shapes.to_ns(robot_id))
     if role:
         where.append("role = %s"); params.append(role)
     if stage:
@@ -97,7 +114,7 @@ async def list_logs(
     has_more = len(rows) > limit
     rows = rows[:limit]
     return {
-        "items": rows,
+        "items": _rows_out(rows),
         "next_cursor": _encode(rows[-1]) if has_more and rows else None,
     }
 
@@ -117,7 +134,7 @@ async def get_run(run_id: str):
         (run_id,),
     )
     # run_id 하나가 '배정' 과 '이력' 두 세계를 잇는다 (§10-5).
-    return {"run_id": run_id, "task": task, "stages": rows}
+    return {"run_id": run_id, "task": task, "stages": _rows_out(rows)}
 
 
 @router.get("/carriers/{qr_payload}")
@@ -129,7 +146,7 @@ async def get_carrier(qr_payload: str):
     )
     if not rows:
         raise NotFound(f"그 캐리어의 기록이 없다: {qr_payload}", qr_payload=qr_payload)
-    return {"qr_payload": qr_payload, "history": rows}
+    return {"qr_payload": qr_payload, "history": _rows_out(rows)}
 
 
 @router.get("/tracking")
@@ -188,7 +205,7 @@ async def stats():
         "by_plant": by_plant,
         "failures": failures,
         "durations_sim_sec": durations,
-        "in_transit": in_transit,
+        "in_transit": _rows_out(in_transit),
     }
 
 
@@ -212,7 +229,8 @@ async def carrier_pairs():
 async def logs_csv(robot_id: str | None = None, failed_only: bool = False, limit: int = 10000):
     where, params = ["TRUE"], []
     if robot_id:
-        where.append("robot_id = %s"); params.append(robot_id)
+        # 화면 이름('AMR-01')으로 들어온다. 표에는 네임스페이스로 들어 있다.
+        where.append("robot_id = %s"); params.append(shapes.to_ns(robot_id))
     if failed_only:
         where.append("NOT succeeded")
     rows = await db.fetch(
@@ -220,6 +238,8 @@ async def logs_csv(robot_id: str | None = None, failed_only: bool = False, limit
         "ORDER BY ended_at DESC, log_id DESC LIMIT %s",
         (*params, min(limit, 100000)),
     )
+
+    rows = _rows_out(rows)
 
     def gen():
         buf = io.StringIO()
