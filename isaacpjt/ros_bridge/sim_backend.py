@@ -713,6 +713,8 @@ class Backend:
                 robot_articulation=rig.robot, kinematics_solver=rig.lula,
                 end_effector_frame_name=EE_LINK_NAME)
             rig.gripper = SurfaceGripperCtl(rig.gripper_node_path)
+        # ★ 공용 기본값. 실제 IK 에는 로봇별 _target_quat(robot_id) 를 쓴다 —
+        #   이 값은 차체 yaw 0 인 경우와 같고, 남겨 두는 건 참고용이다.
         self.target_quat = make_target_quat(APPROACH_ROLL_DEG, APPROACH_PITCH_DEG, GRIPPER_YAW_DEG)
 
         st = self.frames["static_transforms"]
@@ -786,6 +788,31 @@ class Backend:
             rig.robot.apply_action(ArticulationAction(
                 joint_positions=np.deg2rad(cur_deg), joint_indices=idx))
 
+    def _target_quat(self, robot_id):
+        """이 로봇의 접근 자세(그리퍼가 수직 아래를 보는 자세).
+
+        ★ 차체 yaw 를 90도 단위로 반올림해서 그만큼 같이 돌린다.
+          예전에는 self.target_quat 하나를 시작할 때 만들어 두고 모든 로봇이
+          그대로 썼다. 그건 **월드 기준 고정** 자세라(GRIPPER_YAW_DEG = 0),
+          차체가 어느 쪽을 보든 그리퍼는 항상 월드 +x 에 맞춰야 했다.
+          robot1 은 yaw 0 이라 우연히 맞았지만 robot2 는 yaw 180 이라
+          팔이 180도를 더 비틀어야 했고, 관절 한계에 걸려 IK 가 안 풀렸다
+          (실측: robot1 은 OBSERVE 통과, robot2 는 "관측 자세 IK 실패").
+
+        ★ 실제 yaw 를 그대로 안 쓰고 90도로 스냅하는 이유
+          잡을 대상의 방향은 선반이 정한다 — 매거진은 선반에 맞춰 놓여 있고
+          선반은 축에 정렬돼 있다(shelf_2 는 shelf_1 에서 180도 돌아 있다).
+          로봇의 주행 yaw 에는 정차 오차가 섞이는데, 그 오차까지 그리퍼에
+          그대로 옮기면 잡는 면이 그만큼 틀어진다. 90도 스냅은 "어느 선반
+          앞이냐" 만 뽑아내고 정차 오차는 버린다.
+        """
+        rig = self.rigs[robot_id]
+        _, base_q = get_world_pose(rig.chassis_link_path)
+        yaw_deg = math.degrees(yaw_of_quat(base_q))
+        snapped = round(yaw_deg / 90.0) * 90.0
+        return make_target_quat(APPROACH_ROLL_DEG, APPROACH_PITCH_DEG,
+                                GRIPPER_YAW_DEG + snapped)
+
     def _get_tcp_pose(self, robot_id):
         rig = self.rigs[robot_id]
         pos, quat = rig.robot.end_effector.get_world_pose()
@@ -812,6 +839,8 @@ class Backend:
         #   경로가 _servo_tcp 를 지나므로, 부르는 쪽이 잊어버릴 수 없다.
         #   비용은 prim pose 읽기 한 번이라 매 호출마다 해도 무해하다.
         self._sync_ik_base(robot_id)
+        # 이 로봇의 접근 자세. 차체 방향에 맞춰 돈다 — _target_quat 주석 참고.
+        target_quat = self._target_quat(robot_id)
         start = self._get_tcp_pose(robot_id)
         n_steps, dist = steps_for(start, goal_tcp)
         fail = 0
@@ -819,8 +848,8 @@ class Backend:
             self.world.step(render=not HEADLESS)
             tcp = start + ease(i / float(n_steps)) * (goal_tcp - start)
             action, solved = rig.solver.compute_inverse_kinematics(
-                target_position=tcp_to_flange(tcp, self.target_quat),
-                target_orientation=self.target_quat)
+                target_position=tcp_to_flange(tcp, target_quat),
+                target_orientation=target_quat)
             if solved:
                 rig.robot.apply_action(action)
                 fail = 0
@@ -1276,7 +1305,7 @@ class Backend:
         # 위)에 담도록 카메라/TCP 위치를 역산한다.
         h = float(fv["observe_cam_height_m"])
         du, dv = fv["observe_image_offset_px"]
-        R_tool = quat_to_matrix(self.target_quat)
+        R_tool = quat_to_matrix(self._target_quat(robot_id))
         R_wo = R_tool @ self.R_l6_cam @ self.R_cam_opt
         p_c = np.array([du / self.K[0, 0] * h, dv / self.K[1, 1] * h, h])
         cam_pos = prior_world - R_wo @ p_c
