@@ -7,8 +7,8 @@
                 double radius = 5
             }
             dictionary Perspective = {
-                double3 position = (4.875940955373279, -9.612578199630772, 4.008359071995757)
-                double3 target = (19.314628805440087, 31.181163418640008, -46.698516998476656)
+                double3 position = (-6.153545624217779, -14.98983681718451, 1.7189541728940032)
+                double3 target = (9.138121387628178, 28.213833729027392, -51.98347863349267)
             }
             dictionary Right = {
                 double3 position = (0, -5, 0)
@@ -1014,6 +1014,10 @@ def Xform "World"
                 prepend apiSchemas = ["PhysicsFilteredPairsAPI"]
             )
             {
+                custom string isaac:nameOverride (
+                    displayName = "Name Override"
+                    doc = "Name override for prim lookup in base name search"
+                )
                 prepend rel physics:filteredPairs = </World/Robots/nova_carter1/m0609/base_link>
                 rel physics:simulationOwner
                 quatd xformOp:orient = (1, 0, 0, 0)
@@ -1076,6 +1080,10 @@ def Xform "World"
 
             over "joint_wheel_left"
             {
+                custom string isaac:nameOverride = "left_wheel" (
+                    displayName = "Name Override"
+                    doc = "Name override for prim lookup in base name search"
+                )
                 float physics:lowerLimit = -inf
                 float physics:upperLimit = inf
                 float state:angular:physics:position = 0
@@ -1084,6 +1092,10 @@ def Xform "World"
 
             over "joint_wheel_right"
             {
+                custom string isaac:nameOverride = "right_wheel" (
+                    displayName = "Name Override"
+                    doc = "Name override for prim lookup in base name search"
+                )
                 float physics:lowerLimit = -inf
                 float physics:upperLimit = inf
                 float state:angular:physics:position = 0
@@ -1427,6 +1439,10 @@ def Xform "World"
                         float drive:angular:physics:maxForce = 2700
                         float drive:angular:physics:stiffness = 100000
                         float drive:angular:physics:targetPosition = 0.4
+                        string isaac:nameOverride = "m0609_joint_1" (
+                            displayName = "Name Override"
+                            doc = "Name override for prim lookup in base name search"
+                        )
                         float physics:lowerLimit = -360.00082
                         float physics:upperLimit = 360.00082
                         float state:angular:physics:position = 0
@@ -1439,6 +1455,10 @@ def Xform "World"
                         float drive:angular:physics:maxForce = 2700
                         float drive:angular:physics:stiffness = 100000
                         float drive:angular:physics:targetPosition = 0.4
+                        string isaac:nameOverride = "m0609_joint_2" (
+                            displayName = "Name Override"
+                            doc = "Name override for prim lookup in base name search"
+                        )
                         float physics:lowerLimit = -360.00082
                         float physics:upperLimit = 360.00082
                         float state:angular:physics:position = 0
@@ -1451,6 +1471,10 @@ def Xform "World"
                         float drive:angular:physics:maxForce = 2700
                         float drive:angular:physics:stiffness = 100000
                         float drive:angular:physics:targetPosition = 88.200005
+                        string isaac:nameOverride = "m0609_joint_3" (
+                            displayName = "Name Override"
+                            doc = "Name override for prim lookup in base name search"
+                        )
                         float physics:lowerLimit = -150.00035
                         float physics:upperLimit = 150.00035
                         float state:angular:physics:position = 0
@@ -1463,6 +1487,10 @@ def Xform "World"
                         float drive:angular:physics:maxForce = 2700
                         float drive:angular:physics:stiffness = 100000
                         float drive:angular:physics:targetPosition = -16.9
+                        string isaac:nameOverride = "m0609_joint_4" (
+                            displayName = "Name Override"
+                            doc = "Name override for prim lookup in base name search"
+                        )
                         float physics:lowerLimit = -360.00082
                         float physics:upperLimit = 360.00082
                         float state:angular:physics:position = 0
@@ -1475,6 +1503,10 @@ def Xform "World"
                         float drive:angular:physics:maxForce = 2700
                         float drive:angular:physics:stiffness = 100000
                         float drive:angular:physics:targetPosition = 90.4
+                        string isaac:nameOverride = "m0609_joint_5" (
+                            displayName = "Name Override"
+                            doc = "Name override for prim lookup in base name search"
+                        )
                         float physics:lowerLimit = -360.00082
                         float physics:upperLimit = 360.00082
                         float state:angular:physics:position = 0
@@ -1487,6 +1519,10 @@ def Xform "World"
                         float drive:angular:physics:maxForce = 2700
                         float drive:angular:physics:stiffness = 100000
                         float drive:angular:physics:targetPosition = -9.900001
+                        string isaac:nameOverride = "m0609_joint_6" (
+                            displayName = "Name Override"
+                            doc = "Name override for prim lookup in base name search"
+                        )
                         float physics:lowerLimit = -360.00082
                         float physics:upperLimit = 360.00082
                         float state:angular:physics:position = 0
@@ -1503,6 +1539,77 @@ def Xform "World"
                 point3f physics:localPos1 = (9.604432e-8, -2.336014e-7, -1.4160438e-8)
                 quatf physics:localRot0 = (1, 0, 0, 0)
                 quatf physics:localRot1 = (1, 0, 0, 0)
+            }
+
+            def OmniGraph "ros_joint_states"
+            {
+                token evaluationMode = "Automatic"
+                token evaluator:type = "execution"
+                token fabricCacheBacking = "StageWithoutHistory"
+                int2 fileFormatVersion = (1, 9)
+                token pipelineStage = "pipelineStageSimulation"
+
+                def OmniGraphNode "OnPlaybackTick"
+                {
+                    token node:type = "omni.graph.action.OnPlaybackTick"
+                    int node:typeVersion = 2
+                    custom double outputs:deltaSeconds
+                    custom double outputs:frame
+                    custom uint outputs:tick (
+                        customData = {
+                            bool isExecution = 1
+                        }
+                    )
+                    custom double outputs:time
+                }
+
+                def OmniGraphNode "Context"
+                {
+                    custom uchar inputs:domain_id
+                    custom bool inputs:useDomainIDEnvVar
+                    token node:type = "isaacsim.ros2.bridge.ROS2Context"
+                    int node:typeVersion = 2
+                    custom uint64 outputs:context
+                }
+
+                def OmniGraphNode "ReadSimTime"
+                {
+                    custom uint64 inputs:referenceTimeDenominator
+                    custom int64 inputs:referenceTimeNumerator
+                    custom bool inputs:resetOnStop = 1
+                    token node:type = "isaacsim.core.nodes.IsaacReadSimulationTime"
+                    int node:typeVersion = 1
+                    custom double outputs:simulationTime
+                }
+
+                def OmniGraphNode "PublisherJointState"
+                {
+                    custom uint64 inputs:context
+                    prepend uint64 inputs:context.connect = </World/Robots/nova_carter1/ros_joint_states/Context.outputs:context>
+                    custom uint inputs:execIn (
+                        customData = {
+                            bool isExecution = 1
+                        }
+                    )
+                    prepend uint inputs:execIn.connect = </World/Robots/nova_carter1/ros_joint_states/OnPlaybackTick.outputs:tick>
+                    custom string inputs:nodeNamespace = "robot1"
+                    custom string inputs:qosProfile
+                    custom uint64 inputs:queueSize
+                    custom rel inputs:targetPrim = </World/Robots/nova_carter1/chassis_link> (
+                        customData = {
+                            dictionary omni = {
+                                dictionary graph = {
+                                    string relType = "target"
+                                }
+                            }
+                        }
+                    )
+                    custom double inputs:timeStamp
+                    prepend double inputs:timeStamp.connect = </World/Robots/nova_carter1/ros_joint_states/ReadSimTime.outputs:simulationTime>
+                    custom string inputs:topicName = "joint_states"
+                    token node:type = "isaacsim.ros2.bridge.ROS2PublishJointState"
+                    int node:typeVersion = 1
+                }
             }
         }
 
@@ -1990,6 +2097,77 @@ def Xform "World"
                 point3f physics:localPos1 = (9.604432e-8, -2.336014e-7, -1.4160438e-8)
                 quatf physics:localRot0 = (1, 0, 0, 0)
                 quatf physics:localRot1 = (1, 0, 0, 0)
+            }
+
+            def OmniGraph "ros_joint_states"
+            {
+                token evaluationMode = "Automatic"
+                token evaluator:type = "execution"
+                token fabricCacheBacking = "StageWithoutHistory"
+                int2 fileFormatVersion = (1, 9)
+                token pipelineStage = "pipelineStageSimulation"
+
+                def OmniGraphNode "OnPlaybackTick"
+                {
+                    token node:type = "omni.graph.action.OnPlaybackTick"
+                    int node:typeVersion = 2
+                    custom double outputs:deltaSeconds
+                    custom double outputs:frame
+                    custom uint outputs:tick (
+                        customData = {
+                            bool isExecution = 1
+                        }
+                    )
+                    custom double outputs:time
+                }
+
+                def OmniGraphNode "Context"
+                {
+                    custom uchar inputs:domain_id
+                    custom bool inputs:useDomainIDEnvVar
+                    token node:type = "isaacsim.ros2.bridge.ROS2Context"
+                    int node:typeVersion = 2
+                    custom uint64 outputs:context
+                }
+
+                def OmniGraphNode "ReadSimTime"
+                {
+                    custom uint64 inputs:referenceTimeDenominator
+                    custom int64 inputs:referenceTimeNumerator
+                    custom bool inputs:resetOnStop = 1
+                    token node:type = "isaacsim.core.nodes.IsaacReadSimulationTime"
+                    int node:typeVersion = 1
+                    custom double outputs:simulationTime
+                }
+
+                def OmniGraphNode "PublisherJointState"
+                {
+                    custom uint64 inputs:context
+                    prepend uint64 inputs:context.connect = </World/Robots/nova_carter2/ros_joint_states/Context.outputs:context>
+                    custom uint inputs:execIn (
+                        customData = {
+                            bool isExecution = 1
+                        }
+                    )
+                    prepend uint inputs:execIn.connect = </World/Robots/nova_carter2/ros_joint_states/OnPlaybackTick.outputs:tick>
+                    custom string inputs:nodeNamespace = "robot2"
+                    custom string inputs:qosProfile
+                    custom uint64 inputs:queueSize
+                    custom rel inputs:targetPrim = </World/Robots/nova_carter2/chassis_link> (
+                        customData = {
+                            dictionary omni = {
+                                dictionary graph = {
+                                    string relType = "target"
+                                }
+                            }
+                        }
+                    )
+                    custom double inputs:timeStamp
+                    prepend double inputs:timeStamp.connect = </World/Robots/nova_carter2/ros_joint_states/ReadSimTime.outputs:simulationTime>
+                    custom string inputs:topicName = "joint_states"
+                    token node:type = "isaacsim.ros2.bridge.ROS2PublishJointState"
+                    int node:typeVersion = 1
+                }
             }
         }
     }
@@ -2617,6 +2795,44 @@ def "Render" (
                 custom bool overrideClipRange = 0
                 uniform int2 resolution = (1280, 720)
             }
+
+            def RenderProduct "Replicator_31" (
+                prepend apiSchemas = ["OmniRtxSettingsCommonAdvancedAPI_1", "OmniRtxSettingsRtAdvancedAPI_1", "OmniRtxSettingsPtAdvancedAPI_1", "OmniRtxPostColorGradingAPI_1", "OmniRtxPostChromaticAberrationAPI_1", "OmniRtxPostBloomPhysicalAPI_1", "OmniRtxPostMatteObjectAPI_1", "OmniRtxPostCompositingAPI_1", "OmniRtxPostDofAPI_1", "OmniRtxPostMotionBlurAPI_1", "OmniRtxPostTvNoiseAPI_1", "OmniRtxPostTonemapIrayReinhardAPI_1", "OmniRtxPostDebugSettingsAPI_1", "OmniRtxDebugSettingsAPI_1"]
+                hide_in_stage_window = true
+                no_delete = true
+            )
+            {
+                rel camera = </World/Robots/nova_carter1/chassis_link/sensors/XT_32/PandarXT_32_10hz>
+                custom string ogPostProcessPath = "/Render/OmniverseKit/HydraTextures/Replicator_31/PostRender"
+                bool omni:rtx:material:db:syncLoads = 1
+                bool omni:rtx:rt:ecoMode:enabled = 0
+                bool omni:rtx:scene:hydra:materialSyncLoads = 1
+                rel orderedVars = [
+                    </Render/Vars/GenericModelOutput>,
+                    </Render/Vars/RtxSensorMetadata>,
+                ]
+                custom bool overrideClipRange = 0
+                uniform int2 resolution = (1280, 720)
+            }
+
+            def RenderProduct "Replicator_32" (
+                prepend apiSchemas = ["OmniRtxSettingsCommonAdvancedAPI_1", "OmniRtxSettingsRtAdvancedAPI_1", "OmniRtxSettingsPtAdvancedAPI_1", "OmniRtxPostColorGradingAPI_1", "OmniRtxPostChromaticAberrationAPI_1", "OmniRtxPostBloomPhysicalAPI_1", "OmniRtxPostMatteObjectAPI_1", "OmniRtxPostCompositingAPI_1", "OmniRtxPostDofAPI_1", "OmniRtxPostMotionBlurAPI_1", "OmniRtxPostTvNoiseAPI_1", "OmniRtxPostTonemapIrayReinhardAPI_1", "OmniRtxPostDebugSettingsAPI_1", "OmniRtxDebugSettingsAPI_1"]
+                hide_in_stage_window = true
+                no_delete = true
+            )
+            {
+                rel camera = </World/Robots/nova_carter2/chassis_link/sensors/XT_32/PandarXT_32_10hz>
+                custom string ogPostProcessPath = "/Render/OmniverseKit/HydraTextures/Replicator_32/PostRender"
+                bool omni:rtx:material:db:syncLoads = 1
+                bool omni:rtx:rt:ecoMode:enabled = 0
+                bool omni:rtx:scene:hydra:materialSyncLoads = 1
+                rel orderedVars = [
+                    </Render/Vars/GenericModelOutput>,
+                    </Render/Vars/RtxSensorMetadata>,
+                ]
+                custom bool overrideClipRange = 0
+                uniform int2 resolution = (1280, 720)
+            }
         }
     }
 
@@ -2658,6 +2874,8 @@ def "Render" (
             </Render/OmniverseKit/HydraTextures/Replicator_28>,
             </Render/OmniverseKit/HydraTextures/Replicator_29>,
             </Render/OmniverseKit/HydraTextures/Replicator_30>,
+            </Render/OmniverseKit/HydraTextures/Replicator_31>,
+            </Render/OmniverseKit/HydraTextures/Replicator_32>,
         ]
     }
 
