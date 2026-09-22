@@ -5,6 +5,10 @@
     CAPTURE_BASE=shelf_1_b isaac_python isaacpjt/tools/capture_pose.py
     CAPTURE_BASE=shelf_2_a isaac_python isaacpjt/tools/capture_pose.py
     CAPTURE_BASE=shelf_2_b isaac_python isaacpjt/tools/capture_pose.py
+    # 12_place_test3.py 의 관측 자세(포장 출력 자리 앞)를 티칭할 때:
+    CAPTURE_BASE=packaging_output isaac_python isaacpjt/tools/capture_pose.py
+    #   자세를 잡은 뒤 이름을 "packaging_output_scan" 으로 Capture 하면
+    #   12_place_test3.py 가 taught_poses.yaml 에서 그 이름을 자동으로 찾아 쓴다.
 
   쓸 수 있는 정차 지점은 BASE_WAYPOINTS 에 있다. 시작하면 그 자리에서
   사거리에 드는 QR 표적 목록을 찍어 준다.
@@ -106,6 +110,11 @@ BASE_WAYPOINTS = {
     # 예전 값 — 12_place_test.py 의 WP_PICK 부근. 파지 테스트용으로 남겨 둔다.
     "shelf_1":   dict(xy=(-6.5,   1.4500), yaw_deg=0.0),
     "shelf_2":   dict(xy=(-6.5,  -1.6425), yaw_deg=0.0),
+    # 포장 출력 자리(packaging_flow.py SHELF_X=3.25/SHELF_SLOT_Y[0]=2.25) 앞
+    # 0.55 m — 12_place_test3.py 의 WP_STAGE_OUTPUT/OUTPUT_STANDOFF_M 과 같은
+    # 값이다. 거기서 관측 자세를 잡아 "packaging_output_scan" 으로 캡처하면
+    # 12_place_test3.py 가 그 이름을 자동으로 찾아 쓴다(OBSERVE_POSE_NAME).
+    "packaging_output": dict(xy=(3.25, 1.70), yaw_deg=0.0),
     "dock":      None,                    # 씬에 있는 자리 그대로 둔다
 }
 

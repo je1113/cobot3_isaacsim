@@ -171,3 +171,28 @@ s1_bottom_scan:
   - 0.26837
   qr_in_view: []
   captured_at: '2026-09-17 15:24:21'
+packaging_output_scan:
+  base_waypoint: packaging_output
+  joints_deg:
+  - 120.0
+  - 0.0
+  - 90.0
+  - -45.0
+  - 120.0
+  - 20.0
+  joints_rad:
+  - 2.094395
+  - 0.0
+  - 1.570796
+  - -0.785398
+  - 2.094395
+  - 0.349066
+  captured_at: '2026-09-22 00:00:00'
+  note: '★ capture_pose.py 로 실제로 뜬 값이 아니라 사람이 불러준 관절값을 그대로
+    적어 넣은 것이다 — base_link_world/tool0_world/camera_optical_world/qr_in_view
+    가 없다(순방향기구학을 실행할 시뮬이 없어 못 냈다). 12_place_test3.py 의
+    load_observe_joints_deg() 가 쓰는 joints_deg 만 채웠다. 실제로 그 자리에서
+    카메라가 스택 출력 자리(SHELF_SLOT_Y[0]=2.25)를 보는지, 선반/차체와
+    간섭은 없는지는 검증되지 않았다 — CAPTURE_BASE=packaging_output 으로
+    capture_pose.py 를 GUI 로 돌려 이 관절값으로 슬라이더를 맞추고 다시
+    Capture 해서 이 항목을 덮어쓸 것.'

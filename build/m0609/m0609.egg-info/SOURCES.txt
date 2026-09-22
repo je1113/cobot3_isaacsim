@@ -1,4 +1,3 @@
-LICENSE
 package.xml
 setup.cfg
 setup.py
@@ -10,7 +9,10 @@ setup.py
 ../../build/m0609/m0609.egg-info/zip-safe
 m0609/__init__.py
 m0609/m0609_color_detector.py
+m0609.egg-info/PKG-INFO
+m0609.egg-info/SOURCES.txt
+m0609.egg-info/dependency_links.txt
+m0609.egg-info/requires.txt
+m0609.egg-info/top_level.txt
+m0609.egg-info/zip-safe
 resource/m0609
-test/test_copyright.py
-test/test_flake8.py
-test/test_pep257.py

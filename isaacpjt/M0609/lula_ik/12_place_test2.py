@@ -4,6 +4,10 @@
 
     isaac_python 12_place_test2.py          (GUI 필수 — 아래 ★ 캡쳐 참고)
 
+    # ③④⑤(스택 → 검사 벨트)만 검증할 때 — packaging_flow.py 를 안 쓴다
+    SKIP_MAGAZINE=1 NAV=1 ROBOTS=1 isaac_python 12_place_test2.py
+    # SKIP_MAGAZINE 상세: 모듈 상수 SKIP_MAGAZINE 주석 참고
+
 12_place_test.py 와 무엇이 다른가
 ──────────────────────────────────
   12_place_test.py : USD 에서 대상의 GT pose 를 직접 읽어 집는다(인식 없음).
@@ -134,6 +138,39 @@ from cobot3_perception.qr_pose import (  # noqa: E402
 EE_LINK_NAME = "link_6"
 
 SPAWNED_STACKS_PATH = "/World/Environment/PackagingUnloaderZone/SpawnedStacks"
+
+# ★ SKIP_MAGAZINE=1 — 매거진→포장 벨트 구간(①②, magazine_mission)을 건너뛰고
+#   스택부터 시작한다. packaging_flow.py(OmniScriptingAPI)가 standalone
+#   스크립트에서는 보안 팝업 때문에 실행되지 않고, 그 우회를 시도해도 벨트가
+#   매거진을 트리거까지 못 실어 날라 바닥에 떨어지는 것까지 실측으로 확인
+#   됐다(12_place_test3.py 에서 먼저 겪은 문제) — 그 변환 자체는 별도로
+#   풀어야 할 문제로 두고, 여기서는 spawn_stack_directly() 로 스택을 직접
+#   만들어 QR 인식→PICK→Nav2 주행→PLACE(③④⑤, stack_mission)만 검증한다.
+#     SKIP_MAGAZINE=1 NAV=1 ROBOTS=1 isaac_python 12_place_test2.py
+#   ROBOTS=1 이어야 한다(stack_mission 은 한 대짜리 시나리오 전용).
+SKIP_MAGAZINE = os.environ.get("SKIP_MAGAZINE", "0") == "1"
+
+# 스택을 직접 놓을 자리 — /World/Environment/PackagingUnloaderZone/OutputShelf/
+# ShelfDeck 을 simple_factory_layout.usda 에서 직접 재서 낸 실측값이다
+# (12_place_test3.py 에서 먼저 검증). packaging_flow.py 가 가정한
+# SHELF_X(3.25)/SHELF_Z(0.64)는 이 실제 지오메트리와 어긋나 있던 값이라 안 쓴다.
+#   PackagingUnloaderZone(identity) → OutputShelf 로컬 translate
+#   (0, -1.8286350742021307, 0) → ShelfDeck 로컬 translate
+#   (3.8694130739117156, 2.8, 0.48) scale (0.35, 1.4, 0.12)
+#   → 윗면 world (3.8694, 0.9714, 0.54), x 반두께 0.175m.
+OUTPUT_SHELF_XY    = (3.8694130739117156, 0.9713649257978696)
+OUTPUT_SHELF_TOP_Z = 0.54
+# ★ 이 덱이 아주 좁다(반폭 0.175m, F3_STKO_1.usda 바깥 테두리 ±0.1613m —
+#   양쪽 여유 13.7mm 뿐). 15cm 높이에서 떨어뜨렸더니 옆으로 살짝만 쏠려도
+#   모서리에 걸려 바닥까지 떨어졌다(12_place_test3.py 실측) — 그래서 낙하
+#   높이를 거의 없앤다.
+OUTPUT_SHELF_DROP_M = 0.01
+# packaging_flow.py 의 ORANGE_STACK_PAYLOAD/BLUE_STACK_PAYLOAD 는 서로
+# 뒤바뀌어 있다(별도 확인된 버그) — 직접 만들 때는 그 상수를 안 거치므로
+# 맞는 자산(F3_STKO_1.usda = 실제 주황)을 쓴다. 상대경로가 아니라 절대경로를
+# 쓰는 이유: 이 prim 은 저장된 레이어가 아니라 런타임에 메모리에서 만들어서
+# 상대경로 앵커가 없다.
+STACK_DIRECT_PAYLOAD = str(ISAACPJT_DIR / "assets/F3_STKO_1.usda")
 
 
 class RobotCtx:
@@ -1997,33 +2034,60 @@ def scan_with_taught_pose(ctx, spec, joints_deg, label):
     return agg
 
 
-def wait_for_stack(timeout_s=STACK_SPAWN_TIMEOUT_S):
-    """packaging_flow.py 가 스폰한 스택이 멈출 때까지 기다린 뒤 (경로, 위치) 를 준다.
+def spawn_stack_directly():
+    """SKIP_MAGAZINE=1 일 때 쓴다 — packaging_flow.py 의 매거진→스택 변환을
+    거치지 않고, 스택 prim 을 SpawnedStacks 밑에 직접 만들어 OutputShelf 위에
+    (거의) 떨어뜨린다. 좌표/자산 출처는 모듈 상수 OUTPUT_SHELF_* 주석 참고.
+    """
+    stack_path = f"{SPAWNED_STACKS_PATH}/stack_001_manual"
+    stack = stage().DefinePrim(stack_path, "Xform")
+    stack.GetPayloads().AddPayload(STACK_DIRECT_PAYLOAD)
+    stack.CreateAttribute("flow:stackPayload", Sdf.ValueTypeNames.Asset).Set(
+        Sdf.AssetPath(STACK_DIRECT_PAYLOAD))
+    UsdGeom.XformCommonAPI(stack).SetTranslate(
+        Gf.Vec3d(OUTPUT_SHELF_XY[0], OUTPUT_SHELF_XY[1],
+                 OUTPUT_SHELF_TOP_Z + OUTPUT_SHELF_DROP_M))
+    print(f"   [SKIP_MAGAZINE] 스택 직접 스폰  {stack_path}  {STACK_DIRECT_PAYLOAD}")
+    return stack_path
 
-    ★ 좌표를 박지 않는다. packaging_flow.py 의 SHELF_X(3.25)/SHELF_Z(0.64)는
-      실제 ShelfDeck(x 3.694~4.044, 윗면 0.54)과 어긋나 있어 스택이 허공에서
-      떨어질 수 있다. 그래서 '어디에 놓이는지' 를 가정하지 않고 찾아간다.
+
+def wait_for_stack(timeout_s=STACK_SPAWN_TIMEOUT_S):
+    """스택이 멈출 때까지 기다린 뒤 (경로, 위치) 를 준다.
+
+    SKIP_MAGAZINE=1 이면 packaging_flow.py 를 기다리는 대신 여기서 직접
+    스폰한다(spawn_stack_directly). 아니면 원래대로 packaging_flow.py 가
+    SpawnedStacks 밑에 스택을 만들 때까지 폴링한다.
+
+    ★ (packaging_flow.py 경로일 때) 좌표를 박지 않는다 — SHELF_X(3.25)/
+      SHELF_Z(0.64)는 실제 ShelfDeck(x 3.694~4.044, 윗면 0.54)과 어긋나 있어
+      스택이 허공에서 떨어질 수 있다. 그래서 '어디에 놓이는지' 를 가정하지
+      않고 찾아간다 — SKIP_MAGAZINE 경로도 같은 이유로 낙하 후 실측한다.
     """
     section("WAIT — 스택 스폰")
-    root = stage().GetPrimAtPath(SPAWNED_STACKS_PATH)
-    if not root.IsValid():
-        raise RuntimeError(f"{SPAWNED_STACKS_PATH} 가 없다 — 새 레이아웃이 맞는지 확인할 것")
+
+    if SKIP_MAGAZINE:
+        found = spawn_stack_directly()
+    else:
+        root = stage().GetPrimAtPath(SPAWNED_STACKS_PATH)
+        if not root.IsValid():
+            raise RuntimeError(f"{SPAWNED_STACKS_PATH} 가 없다 — 새 레이아웃이 맞는지 확인할 것")
+
+        t0 = time.time()
+        found = None
+        while time.time() - t0 < timeout_s:
+            yield
+            kids = [c for c in root.GetChildren() if c.IsActive()]
+            if kids:
+                found = str(kids[0].GetPath())
+                break
+        if found is None:
+            raise RuntimeError(
+                f"{timeout_s:.0f}s 안에 스택이 스폰되지 않았다. 확인할 것:\n"
+                "      · packaging_flow.py 가 돌고 있는가 (Script Editor 에서 한 번 실행해야 한다)\n"
+                "      · 매거진이 포장 트리거(7.45, 4.60, 0.80 ±0.40/0.50/0.60)에 들어갔는가\n"
+                "      · 벨트의 surfaceVelocity 가 실제로 물체를 옮기는가")
 
     t0 = time.time()
-    found = None
-    while time.time() - t0 < timeout_s:
-        yield
-        kids = [c for c in root.GetChildren() if c.IsActive()]
-        if kids:
-            found = str(kids[0].GetPath())
-            break
-    if found is None:
-        raise RuntimeError(
-            f"{timeout_s:.0f}s 안에 스택이 스폰되지 않았다. 확인할 것:\n"
-            "      · packaging_flow.py 가 돌고 있는가 (Script Editor 에서 한 번 실행해야 한다)\n"
-            "      · 매거진이 포장 트리거(7.45, 4.60, 0.80 ±0.40/0.50/0.60)에 들어갔는가\n"
-            "      · 벨트의 surfaceVelocity 가 실제로 물체를 옮기는가")
-
     print(f"   스폰됨  {found}")
     payload = stage().GetPrimAtPath(found).GetAttribute("flow:stackPayload")
     payload_name = Path(str(payload.Get())).stem if payload and payload.Get() else "?"
@@ -2267,6 +2331,12 @@ def main():
     world = World(stage_units_in_meters=1.0)
     ctxs = build_ctxs()
 
+    if SKIP_MAGAZINE and len(ctxs) != 1:
+        print("   !! SKIP_MAGAZINE=1 은 ROBOTS=1 에서만 쓸 수 있다"
+              "(stack_mission 이 한 대짜리 시나리오 전용)")
+        simulation_app.close()
+        return
+
     section("SCENE")
     print(f"   로봇 {len(ctxs)}대: " + ", ".join(f"{c.name}({c.shelf_id})" for c in ctxs))
     task = Task2(name="qr_pick_place_2", ctxs=ctxs)
@@ -2329,16 +2399,21 @@ def main():
     station = BeltStation(BELT_BASE_X, BELT_Y_PACKAGING)
     t0 = time.time()
 
-    section("MISSION — 매거진 → 포장 벨트 (동시)")
-    results = run_concurrent(world, [
-        Mission(ctx.name,
-                magazine_mission(world, ctx, station, shelves[ctx.shelf_id],
-                                 scan_joints, target_quat))
-        for ctx in ctxs
-    ])
+    results = {}
+    if SKIP_MAGAZINE:
+        print("   SKIP_MAGAZINE=1 — 매거진→포장 벨트 구간(①②) 생략, "
+              "스택(③④⑤)부터 시작한다")
+    else:
+        section("MISSION — 매거진 → 포장 벨트 (동시)")
+        results = run_concurrent(world, [
+            Mission(ctx.name,
+                    magazine_mission(world, ctx, station, shelves[ctx.shelf_id],
+                                     scan_joints, target_quat))
+            for ctx in ctxs
+        ])
 
     # 한 대만 돌릴 때는 예전처럼 스택 구간까지 이어서 한다.
-    if len(ctxs) == 1 and str(results.get("robot1", "")).startswith("OK"):
+    if len(ctxs) == 1 and (SKIP_MAGAZINE or str(results.get("robot1", "")).startswith("OK")):
         section("MISSION — 스택 → 검사 벨트")
         results.update(run_concurrent(world, [
             Mission("robot1-stack", stack_mission(world, ctxs[0], scan_joints, target_quat))
