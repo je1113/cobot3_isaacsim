@@ -672,6 +672,7 @@ def Xform "World"
                     prepend payload = @../assets/F3_STKO_1.usda@
                 )
                 {
+                    custom asset flow:stackPayload = @../assets/F3_STKO_1.usda@
                     quatf xformOp:orient = (0.70710677, 0, 0, -0.70710677)
                     float3 xformOp:scale = (1, 1, 1)
                     double3 xformOp:translate = (3.83, 3.0586350742021307, 0.542)

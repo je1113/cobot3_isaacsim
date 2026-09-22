@@ -4,80 +4,87 @@
 벨트)에 놓기.
 
     isaac_python 12_place_test3.py   (GUI 기본. 헤드리스: PICK_HEADLESS=1)
+    SIM_WORLD_USD 로 다른 씬을 줄 수도 있다(기본값이 이미 아래 테스트 씬).
 
-12_place_test.py 를 그대로 뼈대로 쓴다 — **인식(비전) 없이** USD 에서 대상의
-실제(GT) pose 를 직접 읽고, Nav2 없이 베이스를 텔레포트한다. 성공 판정도
-12_place_test.py 와 같은 기준(project-plan.html S4/S6)을 쓴다.
+12_place_test.py 를 그대로 뼈대로 쓴다 — Nav2 없이 베이스를 텔레포트한다.
+파지점은 **손목 카메라로 QR 을 인식해 PnP 로 낸다**(12_place_test2.py 의
+QrVision/grasp_from_qr 과 같은 경로) — GT(measure_prim)는 "얼마나 맞았는지
+채점"에만 쓴다. 성공 판정도 12_place_test.py 와 같은 기준(project-plan.html
+S4/S6)을 쓴다.
 
-★★ 매거진→스택 변환은 안 한다 — packaging_flow.py 를 건너뛴다
-──────────────────────────────────────────────────────────────
-  원래 계획은 매거진을 포장 벨트에 놓고 packaging_flow.py(OmniScriptingAPI)
-  가 그걸 스택으로 바꿔 주길 기다리는 것이었다. 실측 결과 **standalone
-  스크립트에서는 이게 절대 안 된다:**
+★★ 스택은 테스트 씬(simple_factory_layout_test.usda)에 이미 놓여 있다
+──────────────────────────────────────────────────────────────────
+  이전 판은 packaging_flow.py(매거진→스택 변환, OmniScriptingAPI)를
+  standalone 스크립트에서 돌리는 게 안 돼서(스크립팅 보안 팝업 + 벨트
+  물리가 참조-로딩 경로에서 기대대로 안 붙음) 그 대안으로 스택을 직접
+  스폰해 자유낙하시키는 방식을 썼었다. 실측 결과 **그 방식도 문제가
+  있었다** — 방금 payload 로 붙인 PhysicsRigidBodyAPI/PhysicsCollisionAPI
+  가 PhysX 에 등록되기 전에 먼저 중력을 받아 ShelfDeck(0.54)을 그냥
+  관통해 바닥까지 떨어졌다(수직으로만 관통하니 로봇도 같은 XY 위에 서
+  있어서 "떨어진 스택 바로 옆" 처럼 보였다 — short_gripper payload 가
+  붙자마자 SurfaceGripper 노드를 못 찾던 것과 같은 종류의 지연이다).
 
-    omni.kit.scripting 의 ScriptManager 는 "이 USD 는 임의 코드를 실행하는
-    스크립트를 담고 있다. 신뢰하는가?" 라는 보안 팝업을 띄우고 사람이
-    Allow 를 눌러야만 실행을 허가한다(SETTINGS_IGNORE_WARNING =
-    "/app/scripting/ignoreWarningDialog", 기본 False — extscache/
-    omni.kit.scripting*/scripts/script_manager.py). 그 설정을 True 로
-    박아 팝업을 건너뛰게 해도(시도해 봤다), 매거진이 포장 트리거까지
-    벨트를 타고 가지 않고 그냥 바닥에 떨어져 버렸다 — 벨트 물리 자체가
-    이 로딩 경로(참조로 USD 를 붙이는 방식)에서 기대대로 안 붙는 것으로
-    보인다. 이건 이 스크립트가 검증하려는 것(관측 자세 대기 → pick →
-    테스트 스테이션 place)과 무관한 별개 문제라, **변환 자체는 포기하고
-    스택을 직접 만들어 출력 자리에 떨어뜨리는 것으로 시작한다.**
+  runtime 스폰 자체를 없애는 쪽으로 바꿨다 — simple_factory_layout_test.usda
+  (task_manager scenario:=static_test 용으로 만든 씬)에 스택 하나가
+  `/World/Environment/PackagingUnloaderZone/SpawnedStacks/stack_1` 로
+  ShelfDeck 윗면(z=0.54) 바로 위(z=0.542, 2mm 여유)에 미리 놓여 있다 —
+  이걸 그냥 쓴다. WORLD_USD 기본값이 이 씬이다.
 
 시나리오
 ────────
-  1) `spawn_stack_directly()` 로 스택 prim 을 SpawnedStacks 밑에 직접
-     만들고, **실제 OutputShelf/ShelfDeck**(아래 STACK_PREDICTED_XY 주석
-     참고 — simple_factory_layout.usda 를 직접 재서 낸 값) 윗면 조금
-     위에서 자유낙하시킨다. 자산은 F3_STKO_1.usda(주황)를 직접 골라
-     쓴다 — 참고로 packaging_flow.py 의 ORANGE_STACK_PAYLOAD/
-     BLUE_STACK_PAYLOAD 는 서로 뒤바뀌어 있다(별도로 확인한 버그, 여기선
-     그 경로를 안 타므로 영향 없음).
-  2) 스택이 나올 자리 앞에 로봇을 미리 세우고, 팔을 관측 자세로 고정한 채
-     스택이 멈출 때까지 기다린다(낙하 정착).
+  1) 씬을 열면 stack_1 이 이미 있다 — EXISTING_STACK_PATH 로 찾아서
+     wait_for_settle() 로 짧게(붙어 있던 2mm 여유가 가라앉는 정도) 안정을
+     기다린다. 로봇은 그동안 관측 자세를 유지한다.
        ★ 관측 자세 티칭 필요 — 아래 절 참고.
-  3) 스택이 멈추면 그 **실측(GT) 자리** 앞으로 다시 서서 PICK 하고, 검사
-     벨트(TestingZone, BELT_Y_TESTING)로 옮겨 PLACE 한다.
+  2) 안정된 자리 앞으로 다시 서서, 강성을 SCAN(1e5)으로 낮추고 손목캠으로
+     stack_1 의 QR 라벨(F3-STKO-1, 40mm, qr_label_ny/py)을 여러 장 찍어
+     PnP 로 자세를 낸다(estimate_qr_pose/aggregate_qr_poses) — 거기서
+     grasp.yaml 의 tray_1_orange 와 같은 T_QR_grasp_xyz 로 흡착점을 뽑는다
+     (grasp_from_qr). 인식 실패면 FAIL_NO_QR 로 중단한다.
+  3) 강성을 PICK(1e8)으로 되돌리고 그 QR 파지점으로 PICK, 검사 벨트
+     (TestingZone, BELT_Y_TESTING)로 옮겨 PLACE 한다.
 
-★ 관측 자세(observe pose) — 티칭이 필요하다
-─────────────────────────────────────────────
+★ 관측 자세(observe pose) — 티칭이 필요하다, 그리고 이제는 필수다
+───────────────────────────────────────────────────────────────
   taught_poses.yaml 에는 SHELF-A 매거진을 보는 자세 셋(shelf_1_top_scan,
   shelf_1_top_close_centered, s1_bottom_scan)만 있다. 이 스크립트가 대기하는
   자리(OutputShelf 앞, 대략 x=3.87, y=0.42)를 보는 자세는 **아무도 티칭한
-  적이 없다.**
+  적이 없다.** GT 를 읽던 예전 판에서는 이 자세가 안 맞아도(READY 폴백)
+  동작이 막히지 않았지만, 지금은 이 자세로 실제 QR 을 화면에 담아야 인식이
+  된다 — 안 찍혀 있으면(READY 폴백) 카메라가 stack_1 을 안 보고 있을
+  가능성이 커서 scan_qr() 이 거의 확실히 실패한다.
 
   티칭하는 법 (capture_pose.py 에 이 자리를 "packaging_output" 정차 지점으로
   이미 추가해 뒀다):
 
       CAPTURE_BASE=packaging_output isaac_python isaacpjt/tools/capture_pose.py
 
-  슬라이더로 자세를 잡고(스택이 놓일 자리 근처를 보도록) 이름을
+  슬라이더로 자세를 잡고(stack_1 의 -Y 면 QR 라벨이 화면에 들어오도록,
+  grasp.yaml flange_vision.observe_cam_height_m=0.25 근처 거리) 이름을
   "packaging_output_scan" 으로 Capture 하면 taught_poses.yaml 에 덧붙는다
-  — 이 스크립트의 load_observe_joints_deg() 가 그 이름을 자동으로 찾아
-  쓴다. 아직 안 찍혀 있으면 READY 자세로 폴백하면서 경고를 찍는다(GT
-  기반이라 그 자세에서 실제로 뭔가를 "인식"하진 않으므로 폴백이어도 당장
-  동작은 막히지 않는다 — 나중에 이 자리에 실제 QR/비전 인식을 붙일 때를
-  위한 준비다).
+  — 이 스크립트의 load_observe_joints_deg() 가 그 이름을 자동으로 찾아 쓴다.
 
 ★ 이 스크립트가 검증하지 못한 것
 ──────────────────────────────────
-  1. 매거진→스택 변환 자체(위에서 이미 포기했다 — packaging_flow.py 를
-     standalone 스크립트에서 돌리는 문제는 따로 풀어야 한다).
-  2. ShelfDeck 은 실측 지오메트리라 받쳐 줄 면은 있지만(x 반두께 0.175m 밖에
-     안 돼서), 낙하시킨 자리가 그 좁은 덱 위에 정확히 앉는지, 아니면 모서리에
-     걸려 미끄러지거나 떨어지는지는 실행해봐야 안다 — 그래서 PICK 목표는
-     예측 좌표가 아니라 낙하 후 실측한 자리를 쓴다.
-  3. stations.yaml 의 TEST-01 place_pose 는 아직 비어 있다(null). 이
-     스크립트는 검사 벨트의 실측 지오메트리 상수(BELT_BASE_X/BELT_Y_TESTING,
-     12_place_test2.py 에서 그대로 가져옴)를 쓰는데, 웹 설정(stations.yaml)
-     에는 아직 이 값이 반영돼 있지 않다 — 이 트라이얼로 검증되면 그 값을
-     TEST-01.place_pose 에 채워 넣을 것.
+  1. 매거진→스택 변환 자체(packaging_flow.py 를 standalone 스크립트에서
+     돌리는 문제 — 위 절 참고). 이 스크립트는 그 변환을 거치지 않고 이미
+     스택이 있는 테스트 씬을 쓴다.
+  2. QR 인식이 실제로 되는지 — 관측 자세가 안 타칭돼 있으면(위 절)
+     scan_qr() 이 거의 확실히 실패한다. 티칭돼 있어도 라벨이 40mm 라
+     매거진(50mm)보다 작고, 씬 조명이 어두워 대비를 펴야(cv2.normalize)
+     디코딩됐다(12_place_test2.py 실측) — 여기서도 같은 보정을 넣었지만
+     이 씬에서 실제로 읽히는지는 돌려봐야 안다.
+  3. stations.yaml 의 TEST-01 place_pose 는 이제
+     {x: 3.85, y: -2.705314596908152, theta: 0.0}(BELT_BASE_X/BELT_Y_TESTING,
+     12_place_test2.py 에서 그대로 가져온 값)로 채워져 있다 — 다만 이 값은
+     simple_factory_layout.usda 를 재서 낸 것이지, 이 트라이얼을 Isaac 에서
+     끝까지 돌려 PLACE 성공을 확인한 값은 아니다(stations.yaml 쪽 주석도
+     같이 남겨 뒀다). 이 트라이얼이 실제로 통과하면 그 "미확인" 주석을
+     지울 것.
 """
 
 import os
+import sys
 
 from isaacsim import SimulationApp
 
@@ -88,7 +95,9 @@ simulation_app = SimulationApp({"headless": HEADLESS})
 #   "매거진→스택 변환은 안 한다" 절 참고. 그래서 omni.kit.scripting 확장도
 #   더 이상 켤 필요가 없다.
 
+import ctypes
 import dataclasses
+import math
 import time
 from pathlib import Path
 from typing import Optional
@@ -114,11 +123,19 @@ from isaacsim.core.utils.types import ArticulationAction
 THIS_DIR   = Path(__file__).resolve().parent
 M0609_DIR  = THIS_DIR.parent
 ISAACPJT_DIR = M0609_DIR.parent
+WS_ROOT      = ISAACPJT_DIR.parent
 
-WORLD_USD        = str(ISAACPJT_DIR / "worlds/simple_factory_layout.usda")
+WORLD_USD        = os.environ.get("SIM_WORLD_USD") or str(
+    ISAACPJT_DIR / "worlds/simple_factory_layout_test.usda")
 URDF_PATH        = str(M0609_DIR / "doosan-robot2/urdf/m0609_isaac_sim.urdf")
 DESCRIPTION_PATH = str(M0609_DIR / "descriptor/m0609_description.yaml")
 TAUGHT_POSES     = ISAACPJT_DIR / "tools/out/taught_poses.yaml"
+FRAMES_YAML      = WS_ROOT / "src/cobot3_bringup/config/frames.yaml"
+
+# qr_pose 는 numpy+cv2 만 쓴다 — rclpy 를 import 하지 않아 Isaac 의 python 에서
+# 그대로 불린다(12_place_test2.py QrVision 독스트링과 같은 이유).
+sys.path.insert(0, str(WS_ROOT / "src/cobot3_perception"))
+from cobot3_perception.qr_pose import estimate_qr_pose, aggregate_qr_poses  # noqa: E402
 
 
 # ══════════════════════════════════════════════════════════════
@@ -130,6 +147,7 @@ EE_LINK_NAME    = "link_6"
 EE_LINK_PATH    = f"{ROBOT_PRIM_PATH}/{EE_LINK_NAME}"
 BASE_LINK_PATH  = f"{ROBOT_PRIM_PATH}/base_link"
 GRIPPER_PRIM    = f"{ROBOT_PRIM_PATH}/short_gripper"
+CAMERA_PRIM     = f"{GRIPPER_PRIM}/rsd455/RSD455/Camera_OmniVision_OV9782_Color"
 
 ARTICULATION_ROOT_CANDIDATES = [
     f"{BASE_XFORM_PATH}/chassis_link",
@@ -137,9 +155,11 @@ ARTICULATION_ROOT_CANDIDATES = [
 ]
 
 # packaging_flow.py 가 스폰했을 스택들이 자식으로 붙는 곳(12_place_test2.py
-# 와 동일 경로) — 여기선 packaging_flow.py 대신 이 스크립트가 직접 그 자리에
-# 스택 prim 을 만든다(spawn_stack_directly() 참고).
+# 와 동일 경로). simple_factory_layout_test.usda 에는 이미 stack_1 이 하나
+# 저장돼 있다 — 이 스크립트는 아무것도 스폰하지 않고 그 prim 을 그대로 쓴다
+# (모듈 docstring "스택은 테스트 씬에 이미 놓여 있다" 절 참고).
 SPAWNED_STACKS_PATH = "/World/Environment/PackagingUnloaderZone/SpawnedStacks"
+EXISTING_STACK_PATH = f"{SPAWNED_STACKS_PATH}/stack_1"
 
 
 # ══════════════════════════════════════════════════════════════
@@ -148,7 +168,9 @@ SPAWNED_STACKS_PATH = "/World/Environment/PackagingUnloaderZone/SpawnedStacks"
 ARM_JOINTS = ["joint_1", "joint_2", "joint_3",
               "joint_4", "joint_5", "joint_6"]
 
-DRIVE_STIFFNESS = 1e8
+DRIVE_STIFFNESS      = 1e8   # 파지/이송
+DRIVE_STIFFNESS_SCAN = 1e5   # 관측(QR 스캔) — 1e8 이면 잔진동으로 디코딩이 깨진다
+                              # (sim_backend.py/12_place_test2.py 실측과 동일)
 DRIVE_DAMPING   = 1e4
 DRIVE_MAX_FORCE = 1e8
 
@@ -172,40 +194,27 @@ BELT_Y_TESTING   = -2.705314596908152     # +X 로 흐른다 — 검사 벨트(T
 BELT_PLACE_X = 4.30   # 벨트에 올려놓는 x (프레임 앞면 4.2 보다 안쪽)
 BELT_BASE_X  = 3.85   # 벨트 앞에 서는 베이스 x
 
-# 출력 자리 — /World/Environment/PackagingUnloaderZone/OutputShelf/ShelfDeck
-# 를 직접 재서 낸 값이다(simple_factory_layout.usda 에서 계산):
-#   PackagingUnloaderZone 은 identity, OutputShelf 로컬 translate
-#   (0, -1.8286350742021307, 0), ShelfDeck 로컬 translate
-#   (3.8694130739117156, 2.8000000000000003, 0.48) scale (0.35, 1.4, 0.12)
-#   → 윗면 world (3.8694, 0.9714, 0.54), x 반두께 0.175 / y 반길이 0.7.
-# packaging_flow.py 가 가정한 SHELF_X(3.25)/SHELF_Z(0.64)는 이 실제
-# ShelfDeck 과 어긋나 있던 값이라(12_place_test2.py 헤더에 이미 기록됨)
-# 더는 안 쓴다 — spawn_stack_directly() 가 이 실측 자리 바로 위에서
-# 스택을 떨어뜨린다.
-STACK_PREDICTED_XY = (3.8694130739117156, 0.9713649257978696)
-SHELF_Z            = 0.54   # ShelfDeck 윗면 world z (실측)
-# ★ ShelfDeck 이 아주 좁다(반폭 0.175m, 스택 바깥 테두리 ±0.1613m — 양쪽
-#   여유 13.7mm 뿐). 15cm 높이에서 떨어뜨렸더니 옆으로 살짝만 쏠려도 모서리에
-#   걸려 바닥까지 떨어졌다(실측). 그래서 낙하 높이를 거의 없애 옆으로 쏠릴
-#   시간 자체를 줄인다 — 그래도 "떨어뜨린다"는 되지만 안전하게.
-DROP_HEIGHT_M      = 0.01
+# 출력 자리 — simple_factory_layout_test.usda 에 이미 놓여 있는 stack_1 의
+# world 좌표를 직접 재서 낸 값이다:
+#   PackagingUnloaderZone 은 identity, SpawnedStacks 로컬 translate
+#   (0, -1.8286350742021307, 0), stack_1 로컬 translate
+#   (3.83, 3.0586350742021307, 0.542) → world (3.83, 1.23, 0.542).
+# ShelfDeck 윗면 world z 는 0.54(OutputShelf 로컬 translate y=-1.8286350742021307,
+# ShelfDeck 로컬 translate (3.8694130739117156, 2.8000000000000003, 0.48)
+# scale (0.35, 1.4, 0.12) → 윗면 (3.8694, 0.9714, 0.54)) 라서, stack_1 은 덱
+# 중심(0.9714)이 아니라 그보다 +y 로 약 26cm 치우친 자리에 z=0.542(덱 위
+# 2mm)로 놓여 있다 — 중심이 아니어도 덱 폭(y 반길이 0.7) 안이라 문제없다.
+STACK_XY = (3.83, 1.23)
 OUTPUT_STANDOFF_M  = 0.55   # SHELF_STANDOFF_M(12_place_test2.py)과 같은 규약 — 대상 앞 0.55 m
-
-# packaging_flow.py 의 ORANGE_STACK_PAYLOAD/BLUE_STACK_PAYLOAD 는 서로
-# 뒤바뀌어 있다(별도 확인된 버그) — 여기선 그 상수를 안 거치고 직접
-# 골라 쓰므로 맞는 자산(F3_STKO_1.usda = 실제 주황)을 쓴다. 상대경로가
-# 아니라 절대경로를 쓰는 이유: 이 prim 은 저장된 레이어가 아니라 런타임에
-# 메모리에서 만드므로 상대경로 앵커가 없다.
-STACK_PAYLOAD_ASSET = str(ISAACPJT_DIR / "assets/F3_STKO_1.usda")
 
 # (베이스 world xyz, yaw_deg) — yaw 는 world +x 축 기준
 WP_STAGE_OUTPUT = (
-    np.array([STACK_PREDICTED_XY[0], STACK_PREDICTED_XY[1] - OUTPUT_STANDOFF_M, CARTER_Z]),
+    np.array([STACK_XY[0], STACK_XY[1] - OUTPUT_STANDOFF_M, CARTER_Z]),
     0.0,
 )
 WP_PLACE_TEST = (np.array([BELT_BASE_X, BELT_Y_TESTING, CARTER_Z]), 0.0)
 
-STACK_SETTLE_TIMEOUT_S = 30.0   # 자유낙하 + 정착을 기다리는 상한
+STACK_SETTLE_TIMEOUT_S = 10.0   # 이미 놓여 있는 스택이 안정되길 기다리는 상한(2mm 여유뿐이라 짧다)
 STACK_SETTLE_TOL_M     = 0.002
 STACK_SETTLE_FRAMES    = 60
 
@@ -270,6 +279,50 @@ FAIL_SLIP        = 3
 FAIL_TIMEOUT     = 5
 FAIL_UNREACHABLE = 6
 FAIL_PLACE_ERROR = 7
+FAIL_NO_QR       = 8   # 12_place_test2.py 와 같은 코드 — QR 인식 실패
+
+
+# ══════════════════════════════════════════════════════════════
+#  카메라 / QR 인식 — 12_place_test2.py 의 QrVision/CarrierSpec 을 로봇
+#  한 대짜리로 단순화해 가져온다. GT(measure_prim) 대신 손목 카메라로 QR
+#  을 읽어 파지점을 낸다 — 모듈 docstring 참고.
+# ══════════════════════════════════════════════════════════════
+@dataclasses.dataclass
+class CarrierSpec:
+    """QR 한 장에서 파지점까지 가는 데 필요한 값 전부."""
+    name: str
+    expected_id: Optional[str]   # 디코드 문자열. None 이면 아무거나 받는다
+    qr_side_m: float             # 라벨 한 변 (m)
+    t_qr_grasp: np.ndarray       # QR 프레임에서 흡착점까지 (x_qr, y_qr, z_qr)
+
+    @property
+    def data_side_m(self) -> float:
+        """QR 데이터 영역 한 변 — 29모듈 중 데이터가 21모듈(12_place_test2.py
+        CarrierSpec 과 동일한 유도)."""
+        return self.qr_side_m * 21.0 / 29.0
+
+
+# T_QR_grasp 값 출처: grasp.yaml 의 tray_1_orange/tray_2_blue 를 그대로
+# 가져온다(그 파일 주석 — 매거진과 같은 규칙으로 에셋 기하에서 유도, 매거진
+# 두 값을 역산해 규칙이 맞는 것을 확인했다). 이 테스트 씬의 stack_1 은
+# F3_STKO_1.usda(주황) payload 라 "F3-STKO" 를 쓴다.
+STACK_SPECS = {
+    "F3-STKO": CarrierSpec("stack_orange", None, 0.040, np.array([0.1373, -0.0530, 0.06845])),
+    "F3-STKB": CarrierSpec("stack_blue",   None, 0.040, np.array([0.1373, -0.0570, 0.06845])),
+}
+
+QR_FRAMES       = 3    # 여러 장 찍어 중앙값으로 모은다(aggregate_qr_poses)
+QR_SETTLE_STEPS = 30   # 강성을 SCAN 으로 낮춘 뒤 흔들림이 가라앉을 시간
+DEPTH_AOV_NAME  = "DistanceToImagePlaneSD"   # ★ Replicator 애노테이터 이름이 아니다
+                                              # (sim_backend.py DEPTH_AOV_NAME 참고)
+
+with open(FRAMES_YAML, "r", encoding="utf-8") as _fh:
+    _frames = yaml.safe_load(_fh)
+_st = _frames["static_transforms"]
+_CI = _frames["wrist_camera"]["camera_info_observed"]
+CAMERA_K    = np.array(_CI["k"], dtype=float).reshape(3, 3)
+CAMERA_DIST = np.array(_CI["d"], dtype=float)
+# R_L6_CAM/R_CAM_OPT 는 quat_to_matrix() 가 정의된 뒤에 계산한다(아래 참고).
 
 
 # ══════════════════════════════════════════════════════════════
@@ -306,6 +359,20 @@ def quat_to_matrix(q):
         [2 * (x * y + z * w),     1 - 2 * (x * x + z * z), 2 * (y * z - x * w)],
         [2 * (x * z - y * w),     2 * (y * z + x * w),     1 - 2 * (x * x + y * y)],
     ])
+
+
+def quat_xyzw_to_mat(q):
+    x, y, z, w = q
+    n = np.linalg.norm([x, y, z, w])
+    x, y, z, w = x / n, y / n, z / n, w / n
+    return quat_to_matrix([w, x, y, z])
+
+
+# frames.yaml 은 xyzw 순서라 quat_to_matrix(wxyz) 정의 뒤에야 계산할 수 있다
+# (위 "카메라 / QR 인식" 절에서 CAMERA_K/CAMERA_DIST 는 이미 읽어 뒀다).
+R_L6_CAM  = quat_xyzw_to_mat(_st["m0609_tool0__camera_link"]["quat_xyzw"])
+T_L6_CAM  = np.array(_st["m0609_tool0__camera_link"]["xyz"], dtype=float)
+R_CAM_OPT = quat_xyzw_to_mat(_st["camera_link__camera_color_optical_frame"]["quat_xyzw"])
 
 
 def tcp_to_flange(tcp_pos, quat):
@@ -464,6 +531,133 @@ def holding(gripped):
     for item in gripped:
         flat.extend(item) if isinstance(item, (list, tuple)) else flat.append(item)
     return any(str(x).strip() not in ("", "None") for x in flat)
+
+
+def set_arm_stiffness(value):
+    """관측(SCAN, 낮게) ↔ 파지/이송(PICK, 높게) 를 오간다 — DRIVE_STIFFNESS_SCAN
+    정의부 주석 참고. OutputPickPlaceTask._setup_arm_drives() 는 부팅 시
+    DRIVE_STIFFNESS(PICK 값)로 한 번 세팅만 하므로, 관측 단계에서 낮췄다가
+    PICK 전에 다시 여기로 되돌려야 한다."""
+    for prim in Usd.PrimRange(stage().GetPrimAtPath(ROBOT_PRIM_PATH)):
+        if prim.GetName() not in ARM_JOINTS:
+            continue
+        for drive_type in ["angular", "linear"]:
+            drive = UsdPhysics.DriveAPI.Get(prim, drive_type)
+            if drive:
+                drive.GetStiffnessAttr().Set(value)
+
+
+# ══════════════════════════════════════════════════════════════
+#  손목 카메라 — QR 스캔용 캡쳐. sim_backend.py _ensure_camera_warm()/
+#  _capture_frame() 을 로봇 한 대짜리로 그대로 옮겼다(같은 이유: Isaac Sim
+#  5.1.0 rc.19 에서 rep.create.render_product() 의 rgb 애노테이터가 항상
+#  빈 프레임을 줘서, omni.kit.widget.viewport.capture 로 우회한다 — GUI
+#  필요, headless 불가).
+# ══════════════════════════════════════════════════════════════
+def _pycapsule_to_bytes(capsule, size):
+    ctypes.pythonapi.PyCapsule_GetName.restype = ctypes.c_char_p
+    ctypes.pythonapi.PyCapsule_GetName.argtypes = [ctypes.py_object]
+    name = ctypes.pythonapi.PyCapsule_GetName(capsule)
+    ctypes.pythonapi.PyCapsule_GetPointer.restype = ctypes.c_void_p
+    ctypes.pythonapi.PyCapsule_GetPointer.argtypes = [ctypes.py_object, ctypes.c_char_p]
+    ptr = ctypes.pythonapi.PyCapsule_GetPointer(capsule, name)
+    if not ptr:
+        raise RuntimeError("PyCapsule 에서 포인터를 못 가져왔다")
+    return bytes((ctypes.c_uint8 * size).from_address(ptr))
+
+
+_capture_ready = [False]     # 뷰포트에 depth AOV 를 한 번 등록했는지
+_pending_capture = [None]    # GC 되면 콜백이 안 온다 — 끝날 때까지 붙잡아둔다
+
+
+def optical_pose():
+    l6_p, l6_q = get_world_pose(EE_LINK_PATH)
+    R_l6 = quat_to_matrix(l6_q)
+    return R_l6 @ R_L6_CAM @ R_CAM_OPT, l6_p + R_l6 @ T_L6_CAM
+
+
+def capture_frame(world, timeout_frames=180):
+    from omni.kit.viewport.utility import get_active_viewport
+    from omni.kit.widget.viewport.capture import MultiAOVByteCapture
+
+    viewport = get_active_viewport()
+    if viewport is None:
+        raise RuntimeError("활성 뷰포트를 찾을 수 없다")
+
+    result = {}
+
+    def _on_rgb(buffer, buffer_size, width, height, byte_format):
+        raw = _pycapsule_to_bytes(buffer, buffer_size)
+        arr = np.frombuffer(raw, dtype=np.uint8, count=buffer_size)
+        result["rgb"] = arr.reshape(height, width, 4)[:, :, :3][:, :, ::-1].copy()
+
+    def _on_depth(buffer, buffer_size, width, height, byte_format):
+        raw = _pycapsule_to_bytes(buffer, buffer_size)
+        arr = np.frombuffer(raw, dtype=np.float32, count=width * height)
+        result["depth"] = arr.reshape(height, width).astype(np.float64).copy()
+
+    cap = MultiAOVByteCapture(["", DEPTH_AOV_NAME], [_on_rgb, _on_depth])
+    _pending_capture[0] = cap
+    viewport.schedule_capture(cap)
+    for _ in range(timeout_frames):
+        world.step(render=True)
+        if "rgb" in result and "depth" in result:
+            _pending_capture[0] = None
+            return result["rgb"], result["depth"]
+    _pending_capture[0] = None
+    raise RuntimeError("프레임 캡쳐 타임아웃 — rgb/depth 콜백이 오지 않았다")
+
+
+def ensure_camera_warm(world, force=False):
+    from omni.kit.viewport.utility import get_active_viewport, add_aov_to_viewport
+    import carb.settings
+
+    viewport = get_active_viewport()
+    if viewport is None:
+        raise RuntimeError(
+            "활성 뷰포트를 찾을 수 없다 — QR 스캔은 GUI 에서만 된다(헤드리스면 안 통한다)")
+    viewport.camera_path = CAMERA_PRIM
+    if force or not _capture_ready[0]:
+        carb.settings.get_settings().set("/app/hydra/renderSettings/saveUsdAttributes", False)
+        add_aov_to_viewport(viewport, DEPTH_AOV_NAME)
+        _capture_ready[0] = False
+    for _ in range(30):
+        world.step(render=True)
+    capture_frame(world, timeout_frames=240)   # 워밍업 검증 — 실패하면 예외를 올린다
+    _capture_ready[0] = True
+
+
+def scan_qr(world, spec, n_frames=QR_FRAMES):
+    """여러 장을 찍어 중앙값으로 모은다(aggregate_qr_poses) — 12_place_test2.py
+    QrVision.scan() 과 동일."""
+    import cv2
+    obs = []
+    for i in range(n_frames):
+        bgr, depth = capture_frame(world)
+        R_opt, p_opt = optical_pose()
+        # ★ 씬 조명이 어두워 흰 라벨이 낮게 찍힌다 — 대비를 펴 주면 디코딩된다
+        #   (12_place_test2.py 실측과 동일). 기하는 안 건드린다.
+        bgr = cv2.normalize(bgr, None, 0, 255, cv2.NORM_MINMAX)
+        o = estimate_qr_pose(bgr, depth, CAMERA_K, CAMERA_DIST, R_opt, p_opt,
+                             expected_id=spec.expected_id,
+                             data_side_m=spec.data_side_m)   # ★ 스택은 40mm 라 기본값과 다르다
+        obs.append(o)
+        print(f"      frame {i}  ok={o.ok}  decoded={o.decoded!r}  {o.reason}")
+    return aggregate_qr_poses(obs)
+
+
+def grasp_from_qr(agg, spec):
+    """QR 자세 → 흡착점(월드). sim_backend.scan_qr/12_place_test2.py 의
+    grasp_from_qr() 과 같은 QR 프레임 구성이다:
+      x_qr : yaw 로 정해지는 수평 방향(라벨의 '오른쪽')
+      y_qr : 월드 -Z (라벨의 '아래'. 캐리어가 똑바로 서 있다는 가정)
+      z_qr : x×y (라벨 안쪽)
+    """
+    yaw = float(agg.yaw_rad)
+    x_qr = np.array([math.cos(yaw), math.sin(yaw), 0.0])
+    y_qr = np.array([0.0, 0.0, -1.0])
+    R_qr = np.column_stack([x_qr, y_qr, np.cross(x_qr, y_qr)])
+    return np.asarray(agg.center_world, dtype=float) + R_qr @ spec.t_qr_grasp, yaw
 
 
 # ══════════════════════════════════════════════════════════════
@@ -853,41 +1047,26 @@ def vec(v, digits=3):
 
 
 # ══════════════════════════════════════════════════════════════
-#  스텝 1 — 스택을 직접 스폰해서 출력 자리에 떨어뜨린다
-#  (packaging_flow.py 의 매거진→스택 변환을 안 쓴다 — 모듈 docstring 참고)
+#  스텝 1 — 이미 놓여 있는 스택을 찾아 안정을 기다린다
+#  (테스트 씬에 stack_1 이 이미 있다 — 모듈 docstring 참고. 아무것도
+#  스폰하지 않는다 — 예전 판은 여기서 런타임에 직접 스폰했는데, 방금 붙인
+#  payload 의 PhysicsRigidBodyAPI/PhysicsCollisionAPI 가 PhysX 에 등록되기
+#  전에 먼저 중력을 받아 ShelfDeck 을 그냥 관통해 바닥까지 떨어지는 문제가
+#  실측됐다 — 그 경로 자체를 없앤다.)
 # ══════════════════════════════════════════════════════════════
-def spawn_stack_directly(xy=STACK_PREDICTED_XY, drop_height=DROP_HEIGHT_M):
-    """packaging_flow.py._spawn_stack() 을 흉내 내어, SpawnedStacks 밑에
-    스택 prim 을 직접 만들고 출력 자리 위에서 자유낙하시킨다.
-
-    payload 는 STACK_PAYLOAD_ASSET(F3_STKO_1.usda, 주황)를 고정으로 쓴다 —
-    packaging_flow.py 를 안 거치므로 그쪽의 색상 매핑 버그와 무관하다.
-    """
-    section("STEP 1 — 스택 직접 스폰 (출력 자리에 떨어뜨리기)")
-    stack_path = f"{SPAWNED_STACKS_PATH}/stack_001_manual"
-    stack = stage().DefinePrim(stack_path, "Xform")
-    stack.GetPayloads().AddPayload(STACK_PAYLOAD_ASSET)
-    stack.CreateAttribute("flow:stackPayload", Sdf.ValueTypeNames.Asset).Set(
-        Sdf.AssetPath(STACK_PAYLOAD_ASSET))
-    UsdGeom.XformCommonAPI(stack).SetTranslate(
-        Gf.Vec3d(xy[0], xy[1], SHELF_Z + drop_height))
-    print(f"   스폰  {stack_path}  {STACK_PAYLOAD_ASSET}")
-    print(f"   낙하 시작 자리  [{xy[0]:+.3f} {xy[1]:+.3f} {SHELF_Z + drop_height:+.3f}]"
-          f"  (SHELF_Z + {drop_height*1000:.0f} mm 위)")
-    return stack_path
-
-
 def wait_for_settle(world, robot, hold_action, prim_path, timeout_s=STACK_SETTLE_TIMEOUT_S):
-    """prim 이 자유낙하 후 멈출 때까지 기다린 뒤 (위치, 자세, payload 이름) 을 준다.
+    """prim 이 안정될 때까지 기다린 뒤 (위치, 자세, payload 이름) 을 준다.
+    stack_1 은 ShelfDeck 위 2mm 에 저장돼 있어(모듈 docstring 참고) 오래
+    걸리지 않는다 — 그 2mm 가 가라앉는 것만 기다리는 정도다.
 
-    ★ 좌표를 박지 않는다 — SHELF_Z 자리에 진짜 받쳐 줄 지오메트리가 있는지
-      확인 안 됐다(모듈 docstring 참고). 바닥까지 떨어질 수도 있다. 그래서
-      PICK 목표는 예측 좌표가 아니라 여기서 실측한 자리를 쓴다.
+    ★ 좌표를 박지 않는다 — STACK_XY/저장된 z 를 그대로 믿지 않고 여기서
+      실측한 자리를 PICK 목표로 쓴다. 씬 파일이 나중에 바뀌어도(위치를
+      조금 옮기거나 물리가 살짝 다르게 안착해도) 안전하다.
 
     hold_action: 대기 중 매 스텝 다시 걸어 줄 관절 목표(관측 자세). 안 걸면
     팔이 흘러내린다.
     """
-    section("WAIT — 낙하 정착 (관측 자세 유지)")
+    section("WAIT — 스택 안정 대기 (관측 자세 유지)")
     t0 = time.time()
     payload = stage().GetPrimAtPath(prim_path).GetAttribute("flow:stackPayload")
     payload_name = Path(str(payload.Get())).stem if payload and payload.Get() else "?"
@@ -934,7 +1113,7 @@ def reachability_check_place(world, robot, lula, solver, teleporter, target_quat
 #  스텝 3 — PICK(실측 자리) → TRANSPORT(텔레포트) → PLACE(테스트 스테이션)
 # ══════════════════════════════════════════════════════════════
 def run_trial(world, robot, lula, solver, gripper, teleporter, target_quat,
-              stack_path, stack_pos, stack_quat, payload_name):
+              stack_path, stack_pos, stack_quat, payload_name, observe_action):
     t0 = time.time()
 
     # ── 실측 자리 앞으로 정밀 이동 ──────────────────────────────
@@ -945,9 +1124,41 @@ def run_trial(world, robot, lula, solver, gripper, teleporter, target_quat,
         world.step(render=not HEADLESS)
     sync_ik_base_pose(lula)
 
+    # ── OBSERVE — 손목캠으로 QR 을 읽어 파지점을 낸다 ─────────────
+    # ★ GT(measure_prim) 로 좌표를 미리 아는 대신, 매거진 pick 과 같은
+    #   경로(estimate_qr_pose → grasp_from_qr)로 실제로 인식한다 — GT 는
+    #   '맞았는지 채점' 에만 쓴다(12_place_test2.py 와 같은 원칙).
+    section("OBSERVE — QR 인식")
+    key = "F3-STKB" if "STKB" in payload_name else "F3-STKO"
+    stack_spec = STACK_SPECS[key]
+    print(f"   스택 사양   {stack_spec.name}  라벨 {stack_spec.qr_side_m*1000:.0f} mm  "
+          f"data_side {stack_spec.data_side_m*1000:.2f} mm")
+
+    set_arm_stiffness(DRIVE_STIFFNESS_SCAN)   # 잔진동으로 디코딩이 깨지지 않는 값으로
+    for _ in range(QR_SETTLE_STEPS):
+        robot.apply_action(observe_action)
+        world.step(render=not HEADLESS)
+    ensure_camera_warm(world)
+    agg = scan_qr(world, stack_spec)
+    set_arm_stiffness(DRIVE_STIFFNESS)        # PICK 은 다시 파지 강성으로
+
+    if not agg.ok:
+        print(f"\n   스택 QR 인식 실패({agg.reason}) — 중단. 관측 자세가 실제로 QR 을"
+              " 보고 있는지 확인할 것(모듈 docstring '관측 자세' 절 참고).")
+        return TrialResult(
+            fail_code=FAIL_NO_QR, cycle_time_s=time.time() - t0,
+            lift_rise_mm=0.0, tilt_deg=0.0,
+            place_pos_error_mm=None, place_orient_error_deg=None,
+        )
+
+    grasp_world, _yaw = grasp_from_qr(agg, stack_spec)
+    # height 는 PLACE 목표 높이 계산에 그대로 필요해서 GT 로 잰다 — 파지점
+    # 자체(grasp_world)만 QR 로 바꾼 것이다.
     center_xy, top_z, height = measure_prim(stack_path)
-    grasp_world = np.array([center_xy[0], center_xy[1], top_z])
-    print(f"   [{payload_name}] 파지점 {vec(grasp_world, 4)}  높이 {height*1000:.1f} mm")
+    gt = np.array([center_xy[0], center_xy[1], top_z])
+    err_mm = float(np.linalg.norm(grasp_world - gt)) * 1000.0
+    print(f"   [{payload_name}] QR 파지점 {vec(grasp_world, 4)}   GT {vec(gt, 4)}   "
+          f"차이 {err_mm:.1f} mm   높이 {height*1000:.1f} mm")
 
     # ── 1) PICK ────────────────────────────────────────────
     pick_fsm = PickFSM(robot, gripper, grasp_world, stack_path)
@@ -1117,15 +1328,15 @@ def main():
         world.step(render=not HEADLESS)
     print(f"   관측 자세 고정  {observe_joints_deg}")
 
-    # ── STEP 2 — 스택을 직접 스폰해서 떨어뜨리고 정착을 기다린다 ──
-    stack_path = spawn_stack_directly()
+    # ── STEP 2 — 이미 놓여 있는 스택(stack_1)의 안정을 기다린다 ──
+    stack_path = EXISTING_STACK_PATH
     filter_collision(GRIPPER_PRIM, stack_path)
     stack_pos, stack_quat, payload_name = wait_for_settle(world, robot, observe_action, stack_path)
 
     # ── STEP 3 — PICK → 테스트 스테이션 PLACE ───────────────────
     section("STEP 3 — PICK → 테스트 스테이션 PLACE")
     result = run_trial(world, robot, lula, solver, gripper, teleporter, target_quat,
-                        stack_path, stack_pos, stack_quat, payload_name)
+                        stack_path, stack_pos, stack_quat, payload_name, observe_action)
 
     section("결과")
     print(f"   fail_code={result.fail_code}  cycle_time={result.cycle_time_s:.2f}s  "

@@ -61,6 +61,57 @@ shelf_1_top_scan:
     - 922.2
     - 571.4
   captured_at: '2026-09-17 14:46:52'
+packaging_output_scan:
+  base_waypoint: packaging_output
+  base_link_world:
+  - 3.45786
+  - 1.70424
+  - -0.0
+  base_link_quat_wxyz:
+  - 0.999774
+  - 1.6e-05
+  - -0.000786
+  - 0.021261
+  m0609_base_world:
+  - 3.25069
+  - 1.69542
+  - 0.54888
+  joints:
+    joint_1: -92.9833
+    joint_2: 58.0156
+    joint_3: 120.497
+    joint_4: 90.4982
+    joint_5: 89.9996
+    joint_6: 90.9994
+  joints_deg:
+  - -92.9833
+  - 58.0156
+  - 120.497
+  - 90.4982
+  - 89.9996
+  - 90.9994
+  joints_rad:
+  - -1.622864
+  - 1.012564
+  - 2.10307
+  - 1.579492
+  - 1.570789
+  - 1.588239
+  tool0_world:
+  - 3.37438
+  - 1.33507
+  - 0.53335
+  tool0_quat_wxyz:
+  - -0.493628
+  - 0.497198
+  - -0.502103
+  - 0.506969
+  camera_optical_world:
+  - 3.40912
+  - 1.3233
+  - 0.57849
+  qr_in_view: []
+  captured_at: '2026-09-22 14:53:13'
 shelf_1_top_close_centered:
   base_waypoint: shelf_1
   base_link_world:
@@ -171,28 +222,3 @@ s1_bottom_scan:
   - 0.26837
   qr_in_view: []
   captured_at: '2026-09-17 15:24:21'
-packaging_output_scan:
-  base_waypoint: packaging_output
-  joints_deg:
-  - 120.0
-  - 0.0
-  - 90.0
-  - -45.0
-  - 120.0
-  - 20.0
-  joints_rad:
-  - 2.094395
-  - 0.0
-  - 1.570796
-  - -0.785398
-  - 2.094395
-  - 0.349066
-  captured_at: '2026-09-22 00:00:00'
-  note: '★ capture_pose.py 로 실제로 뜬 값이 아니라 사람이 불러준 관절값을 그대로
-    적어 넣은 것이다 — base_link_world/tool0_world/camera_optical_world/qr_in_view
-    가 없다(순방향기구학을 실행할 시뮬이 없어 못 냈다). 12_place_test3.py 의
-    load_observe_joints_deg() 가 쓰는 joints_deg 만 채웠다. 실제로 그 자리에서
-    카메라가 스택 출력 자리(SHELF_SLOT_Y[0]=2.25)를 보는지, 선반/차체와
-    간섭은 없는지는 검증되지 않았다 — CAPTURE_BASE=packaging_output 으로
-    capture_pose.py 를 GUI 로 돌려 이 관절값으로 슬라이더를 맞추고 다시
-    Capture 해서 이 항목을 덮어쓸 것.'
