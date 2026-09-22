@@ -807,6 +807,25 @@ class Backend:
 
     def _servo_tcp(self, robot_id, goal_tcp, phase_name):
         rig = self.rigs[robot_id]
+        # ★ IK 를 풀기 전에 Lula 에게 팔 베이스가 지금 어디인지 알려준다.
+        #
+        #   왜 여기서 매번 하는가 — goal_tcp 도 _get_tcp_pose 도 월드 좌표인데,
+        #   Lula 솔버는 "팔 베이스가 어디 있는지" 를 따로 들고 있다. 베이스가
+        #   움직였는데 그걸 안 갱신하면 솔버는 옛 자리 기준으로 풀어서 목표가
+        #   작업공간 밖으로 나간다 — 증상은 언제나 "IK 실패" 다.
+        #
+        #   예전에는 주행이 teleport_base() 였고 거기서 _sync_ik_base() 를
+        #   불러 줬다. 그런데 주행이 실제 Nav2 로 바뀌면서 아무도 teleport_base
+        #   를 부르지 않게 됐고(그 메서드 독스트링 ★ 참고), 그 순간부터 이
+        #   동기화가 통째로 빠졌다. 솔버는 로봇이 뜬 자리(도크)를 계속 믿었다.
+        #   실측: 순찰로 선반 앞까지 간 로봇 두 대가 OBSERVE 에서 100% "관측
+        #   자세 IK 실패". prior 거리를 아무리 줄여도(0.795 -> 0.712) 그대로였다.
+        #
+        #   12_place_test2.py 는 베이스를 옮길 때마다 sync_ik_base_pose() 를
+        #   부른다(7 군데). 같은 일을 여기 한 곳에서 한다 — IK 를 쓰는 모든
+        #   경로가 _servo_tcp 를 지나므로, 부르는 쪽이 잊어버릴 수 없다.
+        #   비용은 prim pose 읽기 한 번이라 매 호출마다 해도 무해하다.
+        self._sync_ik_base(robot_id)
         start = self._get_tcp_pose(robot_id)
         n_steps, dist = steps_for(start, goal_tcp)
         fail = 0
@@ -834,6 +853,10 @@ class Backend:
         메서드는 그대로 두고, 임시 nav_server 만 실제 Nav2 클라이언트로
         바뀐다(이 백엔드는 안 바뀐다). ★ 지금은 아무 ROS 노드도 이 메서드를
         안 부른다 — 실제 Nav2(multi_navigation.launch.py)로 이미 대체됐다.
+
+        ★★ 이 메서드가 안 불리면서 _sync_ik_base() 도 같이 죽어 있었다.
+        그래서 지금은 _servo_tcp() 가 IK 마다 직접 동기화한다(그쪽 주석 참고).
+        여기 호출은 남겨 둔다 — 텔레포트는 IK 경로를 안 지나므로 필요하다.
 
         ★ 한 번에 점프하지 않는다 — 목표까지 여러 스텝에 걸쳐 조금씩
         set_world_pose() 를 다시 부른다(_servo_base). 12_place_test.py 실측:

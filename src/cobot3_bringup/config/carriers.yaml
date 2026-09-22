@@ -8,6 +8,15 @@
 #    task_manager               carrier_id → variant → frames.yaml 로 흡착 파라미터
 #    gen_carrier_assets.py      어느 prim 에 어느 qr_payload 를 인쇄할지  (예정)
 #
+#  ★ variant 와 prim 은 다른 것이다 — 이름이 비슷해서 헷갈리기 쉽다.
+#      variant  품목 종류. grasp.yaml / place.yaml 의 키다.
+#      prim     씬의 실제 오브젝트 이름. USD 가 정하므로 여기서 못 바꾼다.
+#    2026-09-22 에 yaml 키에서 슬롯 번호를 뺐다(magazine_1_orange ->
+#    magazine_orange). 바꾼 건 variant 뿐이고 prim 은 그대로다.
+#    그때 grasp.yaml 만 바뀌고 place.yaml · task_manager._variant_of 가
+#    안 따라와서 pick 이 NO_FLANGE 로 죽었다 — 겉보기엔 팔이 못 닿는
+#    것처럼 보여서 한참 헤맸다. 한 곳을 바꾸면 세 곳을 같이 봐야 한다.
+#
 #  frames.yaml 과의 분업
 #    frames.yaml   형상 — 변형별 치수 · 플랜지 · QR 위치. 생성물, 손대지 않음.
 #    carriers.yaml 재고 — 어느 개체가 어느 변형인가. 사람이 관리.
@@ -23,7 +32,7 @@
 
 # ── 매거진 — 씬의 4개체 (frames.yaml observation_poses 의 prim 이름과 대응) ──
 MAG-A17:
-  variant: magazine_1_orange
+  variant: magazine_orange
   prim: magazine_1_orange
   qr_payload: "C3.MAG.A17.9"
   # plant_id:   ""            # ← 생산 트래킹 붙일 때 채운다
@@ -32,30 +41,30 @@ MAG-A17:
   # produced_on: ""
 
 MAG-A18:
-  variant: magazine_1_orange
+  variant: magazine_orange
   prim: magazine_1_orange_02
   qr_payload: "C3.MAG.A18.A"
 
 MAG-B03:
-  variant: magazine_2_blue
+  variant: magazine_blue
   prim: magazine_2_blue
   qr_payload: "C3.MAG.B03.5"
 
 MAG-B04:
-  variant: magazine_2_blue
+  variant: magazine_blue
   prim: magazine_2_blue_02
   qr_payload: "C3.MAG.B04.6"
 
 # ── 트레이 스택 — 아직 씬에 QR 이 없다. frames.yaml 에 tray_* 변형이 들어오고
 #    QR 에셋이 붙으면 그때 활성. produced_from 은 05 §2-6 의 계보(스택 → 매거진). ──
 STK-C41:
-  variant: tray_1_orange
+  variant: tray_orange
   prim: tray_1_orange
   qr_payload: "C3.STK.C41.1"
   produced_from: MAG-A17
 
 STK-C42:
-  variant: tray_2_blue
+  variant: tray_blue
   prim: tray_2_blue
   qr_payload: "C3.STK.C42.2"
   produced_from: MAG-B03
