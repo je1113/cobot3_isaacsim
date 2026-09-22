@@ -7,8 +7,8 @@
                 double radius = 5
             }
             dictionary Perspective = {
-                double3 position = (7.855051718594679, -18.351372323003247, 14.583967995669228)
-                double3 target = (-25.8945895829022, 58.938601930967565, -50.681235800291304)
+                double3 position = (-9.047062550537742, 1.9177254747787078, 10.411673049577862)
+                double3 target = (91.24140841144653, -9.534852036156773, -61.57411982214257)
             }
             dictionary Right = {
                 double3 position = (0, -5, 0)
@@ -536,8 +536,13 @@ def Xform "World"
                     uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
                 }
 
-                def Cube "MachineTop"
+                def Cube "MachineTop" (
+                    prepend apiSchemas = ["MaterialBindingAPI"]
+                )
                 {
+                    rel material:binding = </World/Robots/nova_carter1/Looks/Blue> (
+                        bindMaterialAs = "weakerThanDescendants"
+                    )
                     float3[] primvars:displayColor = [(0.72, 0.23, 0.18)]
                     uniform token primvars:displayColor:interpolation = "constant"
                     double size = 1
@@ -715,8 +720,13 @@ def Xform "World"
                     uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
                 }
 
-                def Cube "MachineTop"
+                def Cube "MachineTop" (
+                    prepend apiSchemas = ["MaterialBindingAPI"]
+                )
                 {
+                    rel material:binding = </World/Robots/nova_carter1/Looks/Yellow> (
+                        bindMaterialAs = "weakerThanDescendants"
+                    )
                     float3[] primvars:displayColor = [(0.72, 0.23, 0.18)]
                     uniform token primvars:displayColor:interpolation = "constant"
                     double size = 1
@@ -835,8 +845,13 @@ def Xform "World"
                     uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
                 }
 
-                def Cube "MachineTop"
+                def Cube "MachineTop" (
+                    prepend apiSchemas = ["MaterialBindingAPI"]
+                )
                 {
+                    rel material:binding = </World/Robots/nova_carter1/Looks/Green> (
+                        bindMaterialAs = "weakerThanDescendants"
+                    )
                     float3[] primvars:displayColor = [(0.72, 0.23, 0.18)]
                     uniform token primvars:displayColor:interpolation = "constant"
                     double size = 1
