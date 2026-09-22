@@ -349,8 +349,8 @@ from cobot3_interfaces.srv import CarrierScan, ReloadConfig
 #   Shelf_01 중심은 (-1.741, +2.953), Shelf_02 중심은 (-1.741, -1.973) 이다.
 #   파라미터 없이 띄우면 로봇이 씬에 없는 자리로 가므로 __init__ 이 경고한다.
 DEFAULT_PATROL_ROUTE = [
-    -2.674, 1.613, 0.0,
-    -6.582, 1.344, 0.0,
+    -3.1, 1.9, 0.0,
+    0.1, 1.9, 0.0,
 ]
 
 # 순찰 시작 전에 "관측 자세를 잡아라" 고 말할 서비스. 상대이름이라 네임스페이스가
@@ -1552,19 +1552,25 @@ def build_tree(node):
     #   경로와 RETURN 경로를 둘 다 덮는다(ObservePoseLeaf 독스트링 참고).
     patrol = Freeze("PATROL", py_trees.decorators.SuccessIsRunning(
         name="순찰", child=ActionLeaf(
-            PATROL, node, node.nav, "navigation/navigate_to",
-            NavigateTo.Result, make_goal=waypoints, timeout_s=NAV_TIMEOUT_S,
-            ok_fail_reasons=(NavigateTo.Result.CANCELED,),
-            moves_base=True)), node, PATROL)
+            PATROL, node, # ★ PATROL만 direct driving
+            node.patrol_nav, "navigation/patrol_to",
+            NavigateTo.Result, make_goal=waypoints,
+            timeout_s=NAV_TIMEOUT_S,
+            ok_fail_reasons=(NavigateTo.Result.CANCELED,),moves_base=True,),),
+            node,PATROL,)
 
     start = py_trees.decorators.OneShot(
-        "START(1회)",
+        "START(1회)", 
         child=Freeze("START", ActionLeaf(
-            START, node, node.nav, "navigation/navigate_to", NavigateTo.Result,
-            make_goal=lambda: NavigateTo.Goal(pose=_to_pose(node.patrol_route[0])),
-            timeout_s=NAV_TIMEOUT_S, moves_base=True), node, START),
-        policy=py_trees.common.OneShotPolicy.ON_SUCCESSFUL_COMPLETION)
-
+            START, node,
+            # Nav2
+            node.nav, "navigation/navigate_to",
+            NavigateTo.Result, make_goal=lambda: NavigateTo.Goal(
+            pose=_to_pose(node.patrol_route[0])),
+                        timeout_s=NAV_TIMEOUT_S, moves_base=True,),
+                        node, START,),
+        policy=(py_trees.common.OneShotPolicy.ON_SUCCESSFUL_COMPLETION),)
+    
     pose = Freeze("POSE", ObservePoseLeaf(POSE, node), node, POSE)
 
     patrol_branch = py_trees.composites.Sequence(
@@ -1671,6 +1677,7 @@ class TaskManager(Node):
         # 콜백 그룹도 스레드도 없다. 잎이 블로킹하지 않아서 단일 스레드로 충분하다.
         self.carrier_scan = self.create_client(CarrierScan, "perception/carrier_scan")
         self.nav = ActionClient(self, NavigateTo, "navigation/navigate_to")
+        self.patrol_nav = ActionClient(self, NavigateTo, "navigation/patrol_to",)
         self.pick = ActionClient(self, PickCarrier, "manipulation/pick_carrier")
         self.place = ActionClient(self, PlaceCarrier, "manipulation/place_carrier")
         self.create_subscription(
@@ -1743,7 +1750,7 @@ class TaskManager(Node):
         # 순찰을 시작하기 전에 팔을 세울 자세. 빈 이름이면 그 단계를 건너뛴다 —
         # 이유와 받는 쪽 조건은 DEFAULT_OBSERVE_POSE_SERVICE 주석과
         # ObservePoseLeaf 독스트링에 있다.
-        self.declare_parameter("observe_pose_service", DEFAULT_OBSERVE_POSE_SERVICE)
+        self.declare_parameter("observe_pose_service", "")
         self.observe_pose_name = self.get_parameter("observe_pose_service").value
         self.observe_pose = (self.create_client(Trigger, self.observe_pose_name)
                              if self.observe_pose_name else None)
