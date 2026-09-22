@@ -81,8 +81,8 @@ shelves:
     assigned_robot: robot1
     # 양 끝 매거진 정면. 한 자리에서 네 개를 다 잡을 수는 없다 —
     # 매거진 스팬이 1.8 m 라 중앙에 서면 양 끝이 팔 도달거리(0.9 m) 밖이다.
-    waypoint_start: {x: -2.4408, y: 2.0364, theta: 0.0}
-    waypoint_end: {x: -0.6408, y: 2.0364, theta: 0.0}
+    waypoint_start: {x: -3.1, y: 1.9, theta: 0.0}
+    waypoint_end: {x: 0.1, y: 1.9, theta: 0.0}
     standoff_distance: 0.45      # 전면 기둥면 기준 (매거진 기준으로는 0.55)
     scan_passes:
       - pass_id: 1

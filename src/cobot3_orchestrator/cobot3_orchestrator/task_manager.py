@@ -1464,19 +1464,25 @@ def build_tree(node):
     #   경로와 RETURN 경로를 둘 다 덮는다(ObservePoseLeaf 독스트링 참고).
     patrol = Freeze("PATROL", py_trees.decorators.SuccessIsRunning(
         name="순찰", child=ActionLeaf(
-            PATROL, node, node.nav, "navigation/navigate_to",
-            NavigateTo.Result, make_goal=waypoints, timeout_s=NAV_TIMEOUT_S,
-            ok_fail_reasons=(NavigateTo.Result.CANCELED,),
-            moves_base=True)), node, PATROL)
+            PATROL, node, # ★ PATROL만 direct driving
+            node.patrol_nav, "navigation/patrol_to",
+            NavigateTo.Result, make_goal=waypoints,
+            timeout_s=NAV_TIMEOUT_S,
+            ok_fail_reasons=(NavigateTo.Result.CANCELED,),moves_base=True,),),
+            node,PATROL,)
 
     start = py_trees.decorators.OneShot(
-        "START(1회)",
+        "START(1회)", 
         child=Freeze("START", ActionLeaf(
-            START, node, node.nav, "navigation/navigate_to", NavigateTo.Result,
-            make_goal=lambda: NavigateTo.Goal(pose=_to_pose(node.patrol_route[0])),
-            timeout_s=NAV_TIMEOUT_S, moves_base=True), node, START),
-        policy=py_trees.common.OneShotPolicy.ON_SUCCESSFUL_COMPLETION)
-
+            START, node,
+            # Nav2
+            node.nav, "navigation/navigate_to",
+            NavigateTo.Result, make_goal=lambda: NavigateTo.Goal(
+            pose=_to_pose(node.patrol_route[0])),
+                        timeout_s=NAV_TIMEOUT_S, moves_base=True,),
+                        node, START,),
+        policy=(py_trees.common.OneShotPolicy.ON_SUCCESSFUL_COMPLETION),)
+    
     pose = Freeze("POSE", ObservePoseLeaf(POSE, node), node, POSE)
 
     patrol_branch = py_trees.composites.Sequence(
@@ -1538,6 +1544,7 @@ class TaskManager(Node):
         # 콜백 그룹도 스레드도 없다. 잎이 블로킹하지 않아서 단일 스레드로 충분하다.
         self.carrier_scan = self.create_client(CarrierScan, "perception/carrier_scan")
         self.nav = ActionClient(self, NavigateTo, "navigation/navigate_to")
+        self.patrol_nav = ActionClient(self, NavigateTo, "navigation/patrol_to",)
         self.pick = ActionClient(self, PickCarrier, "manipulation/pick_carrier")
         self.place = ActionClient(self, PlaceCarrier, "manipulation/place_carrier")
         self.create_subscription(
