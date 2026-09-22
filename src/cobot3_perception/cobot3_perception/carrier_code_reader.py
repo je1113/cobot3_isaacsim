@@ -36,8 +36,9 @@ found·header·payload·qr_pose 가 그대로 실려 나가므로, scan_now 트�
 sweep_scan.py 가 검증한 것과 같다 — 팔을 관측 자세(observe_pose)로 고정해
 두고 베이스가 지나가는 동안 손목 카메라를 계속 디코드 시도한다. QR 판독
 가능 거리가 0.45m 안쪽뿐이라(frames.yaml qr.measured_1280x720), 이 자세는
-patrol 이 실제로 선반 앞(SHELF_ZONE, amcl_pose 로 판정)을 지날
-때만 잡는다 — 그 전까지 팔을 건드리면 개활지 회전 구간과 간섭할 수 있고,
+patrol 이 실제로 선반 앞(shelves.yaml 의 waypoint±standoff 영역, amcl_pose
+로 판정)을 지날 때만 잡는다 — 그 전까지 팔을 건드리면 개활지 회전 구간과
+간섭할 수 있고,
 PICK/PLACE 중(HOLD~PLACE, /orchestrator/state 로 판정)에는 pick_place_server
 가 같은 팔을 쓰고 있어 절대 건드리면 안 된다. 한 번 감지해서 발행하면 그
 구역에 머무는 동안은 재폴링하지 않는다(task_manager 가 HOLD 로 넘어가길
@@ -64,40 +65,52 @@ geometry_msgs/Pose 다 — 좌표계는 header.frame_id 하나로 말한다.
 
 층별 관측 자세: PATROL_ROUTE 는 두 점 사이 직선 왕복이다(task_manager.py).
 task_manager 가 /orchestrator/state 에 patrol_target(지금 향하는 인덱스)을
-같이 발행하고, 이 노드는 그걸 보고 POSE_BY_PATROL_TARGET 로 관절값을 고른다
-— PATROL_ROUTE[1](끝점, 선반)로 가는 중이면 2층(shelf_1_top_close_centered),
-PATROL_ROUTE[0](시작점)으로 돌아가는 중이면 1층(s1_bottom_scan).
+같이 발행하고, 이 노드는 그걸 보고 선반 scan_passes 중 쓸 층(패스)을 고른다
+— 끝점(1)으로 가는 중이면 가장 높은 level(2층), 시작점(0)으로 돌아가는
+중이면 가장 낮은 level(1층). 그 패스의 arm_teach_pose(shelves.yaml, rad)가
+6 칸 다 찼으면 그 관절값을 observe_pose 에 직접 넘기고, 아직 null 이면
+(미티칭) taught_poses.yaml 의 pose_name 으로 폴백한다(FALLBACK_…).
 
-★ 알려진 한계: 두 관측 자세 다 taught_poses.yaml 의 같은 베이스 위치
-(x≈-6.5, y=1.45) 기준으로 티칭됐다. SHELF_ZONE 안 어디서든 같은 관절값을
-쓰므로, 구역 가장자리(x=-7.05/-4.55 근처)에서 선반과 팔이 간섭하지 않는지는
-시뮬에서 직접 확인이 필요하다.
+★ 알려진 한계: 폴백 pose_name 두 개(shelf_1_top_close_centered,
+s1_bottom_scan)는 taught_poses.yaml 의 같은 베이스 위치(x≈-6.5, y=1.45)
+기준으로 티칭됐다. 관절값 티칭이 끝나면 이 폴백은 죽게 된다 — 그 전까지는
+각 선반 어디서든 같은 관절값을 쓰므로, 구역 가장자리에서 선반과 팔이
+간섭하지 않는지는 시뮬에서 직접 확인이 필요하다.
 """
 
+import math
 import sys
 from pathlib import Path
 
 import rclpy
+import yaml
 from rclpy.node import Node
 
 from cobot3_interfaces.srv import CarrierScan
 from geometry_msgs.msg import Pose, PoseWithCovarianceStamped
 from std_msgs.msg import Bool, String
 
-# taught_poses.yaml 의 shelf_1_top_close_centered 가 전제하는 베이스 위치
-# (x=-6.498, y=1.45) 주변. QR 감지가 잘 안 걸린다는 실측 피드백으로 원래
-# ((-6.85,-4.65) / (1.10,1.80))보다 넓혔다 — nav_server.py 의 같은 이름
-# 상수와 반드시 같은 값이어야 한다. 개활지(y=0.30, task_manager.py
-# PATROL_ROUTE)는 여전히 확실히 빠지게 Y 하한을 1.0 으로 잡았다.
-SHELF_ZONE_X = (-7.10, -4.40)
-SHELF_ZONE_Y = (1.00, 1.65)
 
-# task_manager 가 /orchestrator/state 로 알려주는 patrol_target(지금 향하는
-# PATROL_ROUTE 인덱스)과 층별 관측 자세를 잇는다. PATROL_ROUTE[1](끝점, 선반
-# 쪽)로 가는 중이면 2층, PATROL_ROUTE[0](시작점)으로 돌아가는 중이면 1층 —
-# taught_poses.yaml 에 그 두 자세(shelf_1_top_close_centered, s1_bottom_scan)
-# 가 이미 있다.
-POSE_BY_PATROL_TARGET = {
+def _find_ws_root():
+    p = Path(__file__).resolve()
+    for _ in range(10):
+        if (p / "isaacpjt").is_dir():
+            return p
+        if p.parent == p:
+            break
+        p = p.parent
+    raise RuntimeError("cobot3_ws 를 못 찾았다")
+
+
+WS_ROOT = _find_ws_root()
+SHELVES_YAML = WS_ROOT / "src/cobot3_bringup/config/shelves.yaml"
+
+# ★ 미티칭(null arm_teach_pose)일 때만 쓰는 폴백 자세. task_manager 가
+# /orchestrator/state 로 알려주는 patrol_target(지금 향하는 PATROL_ROUTE
+# 인덱스)과 층을 잇는다 — 끝점(1)으로 가는 중이면 2층, 시작점(0)으로
+# 돌아가는 중이면 1층. taught_poses.yaml 에 그 두 자세가 이미 있다.
+# shelves.yaml 의 arm_teach_pose 가 6 칸 다 채워진 순간 이 폴백은 안 쓰인다.
+FALLBACK_POSE_BY_PATROL_TARGET = {
     1: "shelf_1_top_close_centered",
     0: "s1_bottom_scan",
 }
@@ -134,7 +147,9 @@ class CarrierCodeReader(Node):
         self.declare_parameter("vote_required", 3)
         self.declare_parameter("output_frame", "base_link")
         self.declare_parameter("publish_debug", False)
+        self.declare_parameter("shelves_yaml", str(SHELVES_YAML))
         self.sim = SimClient()
+        self._load_shelves()
         self._srv = self.create_service(CarrierScan, "perception/carrier_scan", self._on_carrier_scan)
 
         # ── ① /perception/carrier_detected — patrol 중 선반 구역 실시간 감시 ──
@@ -157,14 +172,80 @@ class CarrierCodeReader(Node):
     def _on_amcl_pose(self, msg):
         self._base_pose = (msg.pose.pose.position.x, msg.pose.pose.position.y)
 
-    def _in_shelf_zone(self):
-        if self._base_pose is None:
-            return False
-        x, y = self._base_pose
-        return SHELF_ZONE_X[0] <= x <= SHELF_ZONE_X[1] and SHELF_ZONE_Y[0] <= y <= SHELF_ZONE_Y[1]
+    # ── shelves.yaml ────────────────────────────────────────────────────
+    def _load_shelves(self):
+        path = Path(self.get_parameter("shelves_yaml").value)
+        doc = yaml.safe_load(path.read_text(encoding="utf-8"))
+        self._shelves = doc["shelves"]
+        self.get_logger().info(
+            f"shelves.yaml({path}) 로드 — 선반 {len(self._shelves)} 개")
 
-    def _current_pose_name(self):
-        return POSE_BY_PATROL_TARGET.get(self._patrol_target_idx, DEFAULT_POSE_NAME)
+    @staticmethod
+    def _shelf_zone(shelf):
+        """선반마다 QR 폴링 구역. waypoint_start~end(베이스가 도는 직선)를
+        standoff_distance 만큼 상하좌우로 키운 사각형이다 — 그 직선이 이미
+        전면 기둥에서 standoff_distance 만큼 물러나 있으므로, 이 여유는
+        도착·회전·미세정렬이 빚는 오버슈트를 삼키는 역할이다.
+        """
+        a, b = shelf["waypoint_start"], shelf["waypoint_end"]
+        d = float(shelf.get("standoff_distance") or 0.5)
+        xs = (min(a["x"], b["x"]) - d, max(a["x"], b["x"]) + d)
+        ys = (min(a["y"], b["y"]) - d, max(a["y"], b["y"]) + d)
+        return xs, ys
+
+    def _shelf_at(self, x, y):
+        for shelf in self._shelves:
+            xs, ys = self._shelf_zone(shelf)
+            if xs[0] <= x <= xs[1] and ys[0] <= y <= ys[1]:
+                return shelf
+        return None
+
+    def _current_shelf(self):
+        if self._base_pose is None:
+            return None
+        return self._shelf_at(*self._base_pose)
+
+    def _select_pass(self, shelf):
+        """해당 선반의 관측 패스. patrol_target 이 1(끝점=선반 쪽)이거나
+        아직 모르면 가장 높은 level(2층), 0(시작점 복귀)이면 가장 낮은
+        level(1층) — 폴백 FALLBACK_… 이 patrol_target 1/0 에 2층/1층을 묶은
+        것과 같은 규칙이다. 패스가 없으면 None.
+        """
+        passes = (shelf or {}).get("scan_passes") or []
+        if not passes:
+            return None
+        levels = sorted({int(p.get("level") or 1) for p in passes})
+        want = levels[-1] if self._patrol_target_idx != 0 else levels[0]
+        for p in passes:
+            if int(p.get("level") or 1) == want:
+                return p
+        return passes[0]
+
+    def _teach_joints_deg(self, shelf):
+        """관측 패스의 arm_teach_pose(shelves.yaml, rad 단위)를 도로 바꿔
+        반환한다. 6 칸이 전부 채워져 있어야(티칭 완료) 하며 하나라도 null
+        이면 None — 그 패스는 아직 못 쓴다.
+        """
+        p = self._select_pass(shelf)
+        joints = (p or {}).get("arm_teach_pose")
+        if not joints or not all(j is not None for j in joints):
+            return None
+        return [math.degrees(float(j)) for j in joints]
+
+    def _observe(self, shelf, timeout_s=15.0):
+        """관측 자세로 팔을 고정한다. shelves.yaml arm_teach_pose 가 티칭돼
+        있으면 그 관절값(도)을 observe_pose 에 직접 넘기고, 아니면
+        taught_poses.yaml pose_name 으로 폴백한다.
+        """
+        joints = self._teach_joints_deg(shelf)
+        if joints is not None:
+            self.sim.call("observe_pose", joints_deg=joints,
+                          timeout_s=timeout_s)
+        else:
+            pose = FALLBACK_POSE_BY_PATROL_TARGET.get(
+                self._patrol_target_idx, DEFAULT_POSE_NAME)
+            self.sim.call("observe_pose", pose_name=pose,
+                          timeout_s=timeout_s)
 
     def _on_orchestrator_state(self, msg):
         new_state = None
@@ -191,7 +272,8 @@ class CarrierCodeReader(Node):
         if self._orchestrator_state != "patrol":
             return
 
-        if not self._in_shelf_zone():
+        shelf = self._current_shelf()
+        if shelf is None:
             # 구역 밖이다 — 다음에 구역에 다시 들어올 때 재관측하도록 초기화.
             self._armed = False
             self._found = False
@@ -204,7 +286,7 @@ class CarrierCodeReader(Node):
 
         try:
             if not self._armed:
-                self.sim.call("observe_pose", pose_name=self._current_pose_name(), timeout_s=15.0)
+                self._observe(shelf)
                 self._armed = True
             r = self.sim.call("scan_qr", timeout_s=5.0, expected_id=None, n_frames=1)
         except SimClientError as e:
@@ -219,7 +301,10 @@ class CarrierCodeReader(Node):
     # ── ③④ /perception/carrier_scan ─────────────────────────────────────
     def _on_carrier_scan(self, request, response):
         try:
-            self.sim.call("observe_pose", pose_name=self._current_pose_name())
+            # HOLD 로 세운 자리는 patrol 이 지난 선반 앞이라 _current_shelf 가
+            # 그 선반을 잡는다(amcl_pose 로 매번 다시 물어본다). 없으면
+            # pose_name 폴백 — 이전 판과 같은 동작.
+            self._observe(self._current_shelf(), timeout_s=60.0)
             r = self.sim.call("scan_qr", expected_id=None, n_frames=3)
         except SimClientError as e:
             response.found = False

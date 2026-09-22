@@ -189,6 +189,48 @@ def _bright_quad_candidates(gray, min_px=40, max_frac=0.5):
     _, bw = cv2.threshold(gray, 200, 255, cv2.THRESH_BINARY)
     bw = cv2.morphologyEx(bw, cv2.MORPH_CLOSE, np.ones((9, 9), np.uint8))
     cnts, _ = cv2.findContours(bw, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    raw = [cv2.boundingRect(c) for c in cnts]
+
+    # ★ 조각을 먼저 합친다. 라벨은 흰 바탕에 검은 모듈이 박혀 있어서 임계화하면
+    #   **한 라벨이 여러 조각으로 쪼개진다.** 실측: 라벨 자리에서 153x103 과
+    #   83x66 두 조각이 따로 잡혔고, 그 조각만 잘라 주면 detect() 가 QR 을
+    #   못 찾아 꼭짓점이 하나도 안 나왔다(밝은후보 4개, out=0). 9x9 닫기로는
+    #   파인더 패턴(모듈 7칸 ~ 70px)만 한 검은 영역을 못 메운다. 상자를
+    #   합치는 쪽이 커널을 키우는 것보다 안전하다 — 커널을 키우면 라벨이
+    #   선반 배경까지 빨아들인다.
+    boxes = _merge_nearby_boxes(raw)
+
+    out = []
+    for (x, y, cw, ch) in boxes:
+        if not (min_px <= cw <= w * max_frac and min_px <= ch <= h * max_frac):
+            continue
+        if not (0.5 <= cw / float(ch) <= 2.0):     # 라벨은 정사각형에 가깝다
+            continue
+        out.append((x, y, cw, ch))
+    out.sort(key=lambda b: -b[2] * b[3])
+    return out
+
+
+def _texture_quad_candidates(gray, min_px=60, max_frac=0.5):
+    """QR 라벨처럼 **흑백 전환이 조밀한** 영역의 bbox 를 큰 것부터 돌려준다.
+
+    ★ 왜 밝기(_bright_quad_candidates)만으로는 부족한가 — 라벨이 배경보다
+      어두울 수 있다. 실측: shelf_2 매거진은 180도 돌아 있어 조명을 반대로
+      받는다. 그 라벨은 뒤쪽 흰 벽보다 **어둡게** 찍혀서, 밝기 임계(200)로는
+      벽이 잡히고 라벨은 안 잡힌다 — 후보가 0~1개 나오는데 전부 엉뚱한 자리라
+      꼭짓점을 하나도 못 얻었다(0/3 프레임). 같은 프레임에서 이 대비 기반
+      탐색은 179x178 짜리 라벨을 정확히 집어내고 cv2.detect 도 성공한다.
+
+      QR 은 밝기와 무관하게 "검은 모듈과 흰 모듈이 촘촘히 번갈아 나오는 사각형"
+      이다. 그 성질을 직접 본다 — Laplacian 으로 경계 밀도를 재고, 닫기로
+      뭉쳐서 덩어리를 만든다.
+    """
+    h, w = gray.shape[:2]
+    g = cv2.GaussianBlur(gray, (5, 5), 0)
+    edge = cv2.convertScaleAbs(cv2.Laplacian(g, cv2.CV_32F, ksize=3))
+    _, bw = cv2.threshold(edge, 40, 255, cv2.THRESH_BINARY)
+    bw = cv2.morphologyEx(bw, cv2.MORPH_CLOSE, np.ones((31, 31), np.uint8))
+    cnts, _ = cv2.findContours(bw, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     out = []
     for c in cnts:
         x, y, cw, ch = cv2.boundingRect(c)
@@ -198,6 +240,67 @@ def _bright_quad_candidates(gray, min_px=40, max_frac=0.5):
             continue
         out.append((x, y, cw, ch))
     out.sort(key=lambda b: -b[2] * b[3])
+    return out
+
+
+def _label_candidates(gray):
+    """라벨 후보 — 대비 기반을 먼저, 밝기 기반을 그다음에.
+
+    대비 기반이 밝기와 무관해서 더 일반적이다(실측 6/6). 밝기 기반은 남겨
+    둔다 — 두 방식이 서로 다른 프레임에서 성공한 적이 있어 버릴 이유가 없다.
+    """
+    seen, out = set(), []
+    for b in list(_texture_quad_candidates(gray)) + list(_bright_quad_candidates(gray)):
+        if b in seen:
+            continue
+        seen.add(b)
+        out.append(b)
+    return out
+
+
+def _merge_nearby_boxes(boxes, pad_frac=0.35, max_iters=4):
+    """맞닿거나 가까운 bbox 를 하나로 합친다 (합쳐진 것 + 원본 둘 다 돌려준다).
+
+    원본도 남기는 이유: 합친 상자가 배경까지 삼켜 버린 경우에도 원래 조각으로
+    한 번 더 시도할 수 있게 하려는 것이다. 호출부가 큰 것부터 몇 개만 쓴다.
+    """
+    cur = [tuple(b) for b in boxes]
+    merged = list(cur)
+    for _ in range(max_iters):
+        used = [False] * len(cur)
+        nxt = []
+        changed = False
+        for i, (x1, y1, w1, h1) in enumerate(cur):
+            if used[i]:
+                continue
+            px, py = pad_frac * w1, pad_frac * h1
+            ax1, ay1, ax2, ay2 = x1 - px, y1 - py, x1 + w1 + px, y1 + h1 + py
+            for j in range(i + 1, len(cur)):
+                if used[j]:
+                    continue
+                x2, y2, w2, h2 = cur[j]
+                qx, qy = pad_frac * w2, pad_frac * h2
+                bx1, by1, bx2, by2 = x2 - qx, y2 - qy, x2 + w2 + qx, y2 + h2 + qy
+                if ax1 < bx2 and bx1 < ax2 and ay1 < by2 and by1 < ay2:
+                    nx1, ny1 = min(x1, x2), min(y1, y2)
+                    nx2, ny2 = max(x1 + w1, x2 + w2), max(y1 + h1, y2 + h2)
+                    x1, y1, w1, h1 = nx1, ny1, nx2 - nx1, ny2 - ny1
+                    px, py = pad_frac * w1, pad_frac * h1
+                    ax1, ay1, ax2, ay2 = x1 - px, y1 - py, x1 + w1 + px, y1 + h1 + py
+                    used[j] = True
+                    changed = True
+            used[i] = True
+            nxt.append((x1, y1, w1, h1))
+        cur = nxt
+        merged.extend(cur)
+        if not changed:
+            break
+    # 중복 제거(순서 유지)
+    seen, out = set(), []
+    for b in merged:
+        if b not in seen:
+            seen.add(b)
+            out.append(b)
     return out
 
 
@@ -299,7 +402,7 @@ def detect_qr_quads(gray_or_bgr):
     #   화면 전체로는 못 찾아도 라벨 주변만 주면 찾는다(위 주석 참고).
     gray = gray_or_bgr if gray_or_bgr.ndim == 2 else cv2.cvtColor(gray_or_bgr, cv2.COLOR_BGR2GRAY)
     h, w = gray.shape[:2]
-    cands = _bright_quad_candidates(gray)
+    cands = _label_candidates(gray)
     if dbg:
         print(f"      [qr] ext={ext_text!r}  out={len(out)}  밝은후보={len(cands)}  "
               f"상위={[tuple(c) for c in cands[:3]]}")
@@ -314,8 +417,14 @@ def detect_qr_quads(gray_or_bgr):
         sides = [float(np.linalg.norm(quad[i] - quad[(i + 1) % 4])) for i in range(4)]
         if min(sides) / max(sides) < 0.7:      # 정사각형에서 너무 멀면 QR 이 아니다
             continue
-        out.append((quad, _decode_text(sub) or ext_text))
-        if out[-1][1]:
+        # ★ 텍스트는 **이 crop 에 대해** 얻는다. 프레임 전체의 ext_text 를 그냥
+        #   갖다 붙이면, 라벨이 아닌 밝은 사각형(선반 모서리 등)에도 '1' 이
+        #   붙어서 그대로 반환된다 — 실측: 그렇게 잡힌 엉뚱한 꼭짓점으로 평면을
+        #   맞춰 "벽면 법선이 77.3도 기울어 있다" 로 끝났다. crop 단위로 물어야
+        #   아닌 것은 빈 문자열이 되어 다음 후보로 넘어간다.
+        txt = _decode_text(sub) or _external_decode(sub)
+        out.append((quad, txt))
+        if txt:
             return out
     return out
 

@@ -147,12 +147,17 @@ class RobotCtx:
     name 은 로그 이름이자 **Nav2 네임스페이스**다(/robot1, /robot2).
     """
 
-    def __init__(self, name, carter, shelf_id, magazine, via=()):
+    def __init__(self, name, carter, shelf_id, magazine, via=(), staging=None,
+                 staging_via=()):
         self.name = name
         self.carter = carter
         self.shelf_id = shelf_id
         self.magazine = magazine
         self.via = via
+        # 벨트 자리를 기다리는 동안 미리 가 있을 자리 (x, y, yaw_rad). 로봇마다
+        # 다르게 준다 — 같은 곳에서 기다리면 둘이 서로 들이받는다.
+        self.staging = staging
+        self.staging_via = staging_via
         # setup 에서 채운다
         self.robot = None
         self.lula = None
@@ -271,7 +276,76 @@ SHELF_STANDOFF_M = 0.55
 # 0.00 m 고, 실제로도 매번 (-0.16, +2.47) 에서 멈췄다(선반 동쪽 전면 모서리).
 # 이 점을 거치면 두 구간 모두 최소여유 0.45 m 로 로봇 반경 0.35 m 를 넘긴다.
 # (경유점 후보를 맵 위에서 격자 탐색해 고른 값 중 경로가 가장 짧은 것)
-AISLE_EXIT_VIA = ((0.0, 2.0),)
+# ══════════════════════════════════════════════════════════════
+#  경로 — 로봇 크기를 제대로 넣고 다시 잡은 값
+#
+#  ★ 처음엔 로봇 반경을 0.35 m 로 잡고 "여유 0.40 m 면 안전" 이라고 했는데
+#    **틀렸다.** nav2 파라미터의 실제 풋프린트는
+#      [[0.14, 0.25], [0.14, -0.25], [-0.607, -0.25], [-0.607, 0.25]]
+#    즉 폭 0.5 m(반폭 0.25), 길이 0.747 m 인데 base_link 가 앞쪽에 치우쳐
+#    **뒤로 0.607 m** 나간다. 외접 반경이 0.656 m 다(+패딩 0.03).
+#    그래서 기준을 둘로 나눈다:
+#      · 직진 통과      여유 >= 0.40  (반폭 0.25 + 여유)
+#      · 제자리 회전    여유 >= 0.70  (외접 0.656 + 여유)
+#
+#  ★ 실제로 robot2 가 SHELF-B 앞에서 **넘어졌다.** 그 자리 여유는 0.40 m 인데
+#    yaw=pi 로 서 있다가 북동쪽 대기 지점을 보려고 약 128도 제자리 회전을
+#    했고, 뒤로 0.607 m 나간 몸이 Shelf_02 를 쓸었다. robot1 이 무사했던 건
+#    회전각이 34도로 작았기 때문이지 경로가 안전해서가 아니었다.
+#
+#  ★ 그래서 선반에서는 **회전하지 않고 빠져나온다.** 같은 y 를 유지한 채
+#    +x 로만 움직이면 된다 — robot1(yaw 0)은 전진, robot2(yaw pi)는 목표가
+#    등 뒤라 nav_server 가 조향 없이 후진한다(steer_err = 0). 회전은 여유가
+#    0.76~0.79 m 인 탈출 지점에 도착한 뒤에 한다.
+# ══════════════════════════════════════════════════════════════
+# 통로 동쪽 탈출점 — **Nav2 목표를 두 번에 나누기 위한** 지점이다.
+#
+# ★ 왜 다시 넣었나: Nav2 의 전역 계획은 선반을 피해 돌아가지만, 지역 계획
+#   (DWB)이 지름길을 탄다. 지역 코스트맵을 만드는 라이다가 전방 180도만 보기
+#   때문에(angle_min/max = ±90°) 옆에 있는 선반이 안 보인다. 실측: robot1 이
+#   pick 자세에서 대기 지점으로 바로 보냈더니 매번 북쪽 Shelf_01 로 파고들어
+#   (-2.42, +2.44) — 선반 전면에서 0.05 m — 에 갇혔고 planner 실패 16 건이
+#   났다. 같은 실행에서 직선이 통로 안에 머무는 robot2 는 실패 0 건이었다.
+#
+#   목표를 통로 안 지점으로 한 번 끊어 주면 DWB 의 지역 목표가 통로가 되어
+#   코너를 파고들 이유가 없어진다. 선반과 같은 y 로 동쪽으로만 나온다.
+#   A->E1 구간 여유 0.45 m, B->E2 0.40 m (로봇 반폭 0.25 m).
+#   두 탈출점 모두 여유 ~1.0 m 라 거기서 방향을 바꿔도 된다(외접 0.656 m).
+SHELF_EXIT_ROBOT1 = ((0.60, 2.0364),)
+SHELF_EXIT_ROBOT2 = ((0.60, -1.0636),)
+
+# 벨트 **정서쪽** 공용 접근점. 여기서만 벨트로 들어간다.
+#
+# ★ 왜 정서쪽인가: 접근 방향(heading 0)이 벨트 최종 yaw(0)와 같아서 벨트 앞에서
+#   제자리 회전을 하지 않는다. 벨트 접안점 여유는 0.20 m 뿐이라 거기서 돌면
+#   뒤로 0.607 m 나간 몸이 걸린다. 이 점의 여유 1.80 m, 여기서 벨트까지 0.90 m.
+BELT_APPROACH_P = (2.25, 4.60)
+
+# 경유점·주차 지점은 이만큼 안에 들어오면 도달한 것으로 본다.
+# nav_server 의 도착 판정(DRIVE_POS_TOL = 8 cm)과 Nav2 의 goal checker 는
+# **마지막 접안**에나 필요한 값이다. 통과만 하면 되는 지점에까지 요구하면,
+# 조향 오차가 커질수록 속도를 0 으로 줄이는 제어 특성 때문에 목표 근처에서
+# 기어가다 타임아웃이 난다(실측: 0.33 m 를 남기고 180 초 소진).
+VIA_REACHED_TOL_M = 0.60
+
+# 벨트 자리를 기다리는 동안 미리 가 있을 자리. (x, y, yaw_rad)
+#
+# ★ 둘 다 벨트 **남쪽**이다. robot1 을 북쪽(3.00, 6.00)에 뒀을 때 Shelf_01 을
+#   돌아 넘어가야 했고, 지역 코스트맵을 만드는 라이다가 전방 180도만 보는 탓에
+#   왼쪽 선반을 놓쳐 DWB 가 코너를 파고들었다 — 팽창영역에 갇혀 Nav2 가
+#   "failed to plan from (-2.11, 2.40)" 로 출발조차 못 했다. 남쪽으로만 움직인
+#   robot2 는 같은 실행에서 planner 실패가 0 건이었다.
+#
+#   robot1 (4.50, 2.75)  벨트까지 1.96 m  여유 1.05 m   탈출점에서 구간 0.90
+#   robot2 (3.25, 3.75)  벨트까지 1.04 m  여유 0.81 m   탈출점에서 구간 0.81
+#   둘 사이 1.60 m (외접 0.656 두 대분 1.32 m 보다 넓다)
+#
+# ★ 배정이 교차한다(가까운 선반↔먼 대기 지점). 각자의 탈출점에서 상대편
+#   대기 지점으로 가는 구간이 더 넓기 때문이다 — robot2 의 탈출점에서
+#   (4.50, 2.75) 로 가는 직선은 여유가 0.21 m 까지 좁아진다.
+# yaw 는 접근점 P 를 향하게 준다 — 자리를 얻으면 곧바로 출발한다.
+STAGING_ROBOT1 = (4.50, 2.75, 2.4534)
+STAGING_ROBOT2 = (3.25, 3.75, 2.4371)
 
 
 # ══════════════════════════════════════════════════════════════
@@ -816,7 +890,16 @@ class Task2(BaseTask):
             self._gripper_paths[ctx.name] = node_path
             print(f"   gripper      {node_path}")
 
+            # ★ 그리퍼만이 아니라 **로봇 전체**와 걸러야 한다.
+            #   팔을 READY 로 접으면 매거진이 차체 가까이 온다. 주행 진동에
+            #   차체나 다른 링크에 스치면 그 충격이 흡착 한계를 넘겨 떨어진다.
+            #   실측: 질량 1 kg(무게 ~10 N)인데 한계는 coaxial 200 N /
+            #   shear 100 N 이라 하중으로는 절대 안 풀린다. 그런데 열린 공간
+            #   직진 중에 두 대 다 놓쳤다(robot1 35s, robot2 24s) — 남는
+            #   설명은 충돌 충격뿐이다.
             filter_collision(ctx.gripper_prim, ctx.magazine)
+            filter_collision(ctx.carter, ctx.magazine)
+            filter_collision(ctx.arm, ctx.magazine)
 
             ee_path = find_prim_path(ctx.arm, EE_LINK_NAME)
             root_path = resolve_articulation_root(ctx.articulation_candidates, ctx.arm)
@@ -853,6 +936,19 @@ def set_joints_deg(robot, joints_deg):
 CARRY_RAMP_STEPS = 150
 
 
+def carry_pose_action(robot):
+    """반송 자세(READY) 목표. (관절 인덱스, 목표 라디안, ArticulationAction).
+
+    ★ 이걸 따로 뺀 이유: 접은 **뒤에도 계속 걸어 줘야** 한다. 벨트 자리를
+      기다리는 동안 목표를 안 걸었더니 팔이 흘러내려 매거진을 놓쳤다
+      (실측: 대기 중 gripped=True -> False). hold_ik 가 "목표를 매 스텝 다시
+      건다" 고 적어 둔 것과 같은 문제다 — 한 번만 걸면 안 된다.
+    """
+    idx = np.array([robot.get_dof_index(name) for name in ARM_JOINTS])
+    target = np.deg2rad(np.array(READY_JOINTS_DEG, dtype=float))
+    return idx, target, ArticulationAction(joint_positions=target, joint_indices=idx)
+
+
 def set_carry_pose(robot, gripper=None, n_steps=CARRY_RAMP_STEPS):
     """PICK 을 끝낸 팔을 READY(0, 0, 90, 0, 90, 0)로 접는다. 주행 직전에 부른다.
 
@@ -872,9 +968,7 @@ def set_carry_pose(robot, gripper=None, n_steps=CARRY_RAMP_STEPS):
 
     반환: 접고 나서도 흡착이 남아 있으면 True (gripper 를 안 주면 항상 True).
     """
-    idx = np.array([robot.get_dof_index(name) for name in ARM_JOINTS])
-    target = np.deg2rad(np.array(READY_JOINTS_DEG, dtype=float))
-    action = ArticulationAction(joint_positions=target, joint_indices=idx)
+    idx, target, action = carry_pose_action(robot)
     for _ in range(n_steps):
         robot.apply_action(action)
         yield
@@ -920,7 +1014,23 @@ def sync_ik_base_pose(ctx):
 # 네임스페이스는 이제 로봇마다 다르다 — NavDriver 인스턴스가 들고 있고,
 # 여기 있는 건 한 대만 돌릴 때의 기본값이다.
 NAV_NAMESPACE = os.environ.get("NAV_NS", "robot1")
-NAV_ACTION_TYPE = "cobot3_interfaces/action/NavigateTo"
+
+# ★ 이송 구간은 Nav2 본래 스택(navigate_to_pose)에 맡긴다.
+#
+#   왜 바꿨나 — cobot3_navigation/nav_server 는 목표를 향해 직선으로 밀고,
+#   조향 오차가 45도를 넘으면 전진 속도를 0 으로 만들고 **제자리 회전**만 한다
+#   (nav_server.py:223 speed_scale). 그 회전이 어디서 일어날지는 컨트롤러가
+#   정하지 경로가 정하지 않는다. 실측: robot2 가 선반 옆 여유 0.39 m 지점에서
+#   돌기 시작해(cmd_vel linear.x=-0.0, angular.z=0.15, 위치 4초간 고정)
+#   뒤로 0.607 m 나간 몸이 Shelf_02 를 때렸다. 경유점을 아무리 잘 잡아도
+#   막을 수 없는 문제다.
+#
+#   Nav2 는 풋프린트를 알고(코스트맵 footprint) 장애물을 피해 경로를 짜므로
+#   경유점을 손으로 계산할 필요도 없어진다. 대신 pick 자리의 정밀 정지는
+#   여전히 텔레포트다 — Nav2 의 도착 허용오차는 주행용이지 파지용이 아니다.
+NAV2_ACTION_TYPE    = "nav2_msgs/action/NavigateToPose"
+PRECISE_ACTION_TYPE = "cobot3_interfaces/action/NavigateTo"
+NAV_ACTION_TYPE = NAV2_ACTION_TYPE          # 기동 점검용(하나만 확인하면 된다)
 NAV_DRIVE_TIMEOUT_S = 180.0
 
 # Nav2 를 쓸지 텔레포트로 갈지. nav_server 가 안 떠 있으면 NAV=0 으로 돌린다.
@@ -1056,45 +1166,85 @@ def _ros2_run_blocking(args, env, timeout_s):
 #    죽는다(_ros2_spawn 독스트링 참고). 같은 posix_spawn 경로를 쓴다.
 QR_DECODE_PYTHON = os.environ.get("QR_DECODE_PYTHON", "/usr/bin/python3")
 
-_QR_DECODE_SNIPPET = (
-    "import sys,cv2;"
-    "img=cv2.imread(sys.argv[1]);"
-    "d=cv2.wechat_qrcode_WeChatQRCode();"
-    "r=d.detectAndDecode(img);"
-    "t=[x for x in (r[0] if isinstance(r,tuple) else r) if x];"
-    "print(t[0] if t else '')"
+# ★ 상주 프로세스로 둔다. 호출마다 새로 띄우면 파이썬+OpenCV 임포트에만
+#   0.27 초가 든다(실측). 한 번의 SCAN 에서 프레임 3장 x (전체 1회 + 후보
+#   최대 6회) = 최대 21회를 부르므로 로봇당 5.7 초, 두 대면 10 초가 넘는다.
+#   그동안 _ros2_run_blocking 이 world.step() 을 안 밟아 **시뮬 전체가 멈춘다**
+#   — 다른 로봇도, use_sim_time 인 AMCL/nav_server 도 같이 선다.
+#   상주시키면 한 번만 임포트하고 이후엔 경로 한 줄에 결과 한 줄이라 수 ms 다.
+_QR_SERVER_SRC = (
+    "import sys, cv2\n"
+    "d = cv2.wechat_qrcode_WeChatQRCode()\n"
+    "sys.stdout.write('READY\\n'); sys.stdout.flush()\n"
+    "for line in sys.stdin:\n"
+    "    p = line.strip()\n"
+    "    if not p:\n"
+    "        continue\n"
+    "    try:\n"
+    "        img = cv2.imread(p)\n"
+    "        r = d.detectAndDecode(img)\n"
+    "        t = [x for x in (r[0] if isinstance(r, tuple) else r) if x]\n"
+    "        out = t[0] if t else ''\n"
+    "    except Exception:\n"
+    "        out = ''\n"
+    "    sys.stdout.write(out + '\\n'); sys.stdout.flush()\n"
 )
 
-_qr_ext_ok = None          # None=아직 모름, True/False=확인됨
+_qr_srv = None          # (pid, 쓰기 fd, 읽기 파일객체)
+_qr_srv_failed = False
+
+
+def _qr_server():
+    """상주 디코더를 띄우고 (pid, w_fd, r_file) 을 돌려준다. 실패하면 None."""
+    global _qr_srv, _qr_srv_failed
+    if _qr_srv is not None or _qr_srv_failed:
+        return _qr_srv
+    try:
+        in_r, in_w = os.pipe()          # 부모 -> 자식 (경로)
+        out_r, out_w = os.pipe()        # 자식 -> 부모 (결과)
+        exe = shutil.which(QR_DECODE_PYTHON) or QR_DECODE_PYTHON
+        pid = os.posix_spawn(
+            exe, [exe, "-c", _QR_SERVER_SRC], _clean_ros2_env(),
+            file_actions=[
+                (os.POSIX_SPAWN_DUP2, in_r, 0),
+                (os.POSIX_SPAWN_DUP2, out_w, 1),
+                (os.POSIX_SPAWN_CLOSE, in_w),
+                (os.POSIX_SPAWN_CLOSE, out_r),
+            ],
+        )
+        os.close(in_r); os.close(out_w)
+        rf = os.fdopen(out_r, "r")
+        if rf.readline().strip() != "READY":
+            raise RuntimeError("디코더가 READY 를 안 보냈다")
+        _qr_srv = (pid, in_w, rf)
+        print(f"   QR 외부 디코더 상주 시작  pid={pid}  ({QR_DECODE_PYTHON})")
+    except Exception as e:
+        print(f"   !! 외부 QR 디코더를 못 띄웠다: {type(e).__name__}: {e}")
+        print(f"      {QR_DECODE_PYTHON} 에 opencv-contrib 가 있는지 확인할 것")
+        _qr_srv_failed = True
+        _qr_srv = None
+    return _qr_srv
 
 
 def _external_qr_decode(image):
-    """프레임을 임시 PNG 로 떨구고 바깥 파이썬으로 디코딩한다. 실패하면 ""."""
-    global _qr_ext_ok
-    if _qr_ext_ok is False:
+    """프레임/크롭을 임시 PNG 로 떨구고 상주 디코더에 물어본다. 실패하면 ""."""
+    global _qr_srv, _qr_srv_failed
+    srv = _qr_server()
+    if srv is None:
         return ""
     import cv2
+    pid, w_fd, rf = srv
     tmp = DUMP_DIR / "_extdecode.png"
     try:
         DUMP_DIR.mkdir(parents=True, exist_ok=True)
         if not cv2.imwrite(str(tmp), image):
             return ""
-        rc, out = _ros2_run_blocking(
-            [QR_DECODE_PYTHON, "-c", _QR_DECODE_SNIPPET, str(tmp)],
-            _clean_ros2_env(), timeout_s=20.0,
-        )
+        os.write(w_fd, (str(tmp) + "\n").encode())
+        return rf.readline().strip()
     except Exception as e:
-        print(f"   !! 외부 QR 디코더 실행 실패: {type(e).__name__}: {e}")
-        _qr_ext_ok = False
+        print(f"   !! 외부 QR 디코더 통신 실패: {type(e).__name__}: {e}")
+        _qr_srv, _qr_srv_failed = None, True
         return ""
-    if rc != 0:
-        if _qr_ext_ok is None:      # 첫 실패에만 이유를 찍는다
-            print(f"   !! 외부 QR 디코더 rc={rc} — {QR_DECODE_PYTHON} 에 "
-                  f"opencv-contrib 가 있는지 확인할 것: {out.strip()[-200:]}")
-        _qr_ext_ok = False
-        return ""
-    _qr_ext_ok = True
-    return out.strip().splitlines()[-1].strip() if out.strip() else ""
 
 
 set_external_decoder(_external_qr_decode)
@@ -1111,10 +1261,15 @@ class NavDriver:
 
     def __init__(self, ns):
         self.ns = ns
-        self.action_name = f"/{ns}/navigation/navigate_to" if ns else "/navigation/navigate_to"
+        # 긴 이송은 Nav2(회피), 마지막 접안은 nav_server(정밀). 이유는 위 주석.
+        self.nav2_action    = f"/{ns}/navigate_to_pose" if ns else "/navigate_to_pose"
+        self.precise_action = (f"/{ns}/navigation/navigate_to" if ns
+                               else "/navigation/navigate_to")
         # go_to_pick 이 sync_localization 결과를 여기 남기고 go_to_place 가 읽는다.
         # 기본 False — 한 번도 동기화한 적 없으면 주행하지 않는다.
         self.localized = False
+        # 주행 중 놓쳐서 중단했는지 — 호출부가 원인을 구분할 수 있게 남긴다
+        self.dropped_while_driving = False
 
     def _run_stepping(self, args, timeout_s):
         """ros2 CLI 를 돌리며 기다리는 동안 매 루프 yield 한다.
@@ -1217,18 +1372,27 @@ class NavDriver:
         print(f"   [{self.ns}] !! AMCL 위치 동기화 실패 — 이 상태로 주행하면 엉뚱한 데로 간다")
         return False
 
-    def drive_to(self, x, y, yaw_deg, timeout_s=NAV_DRIVE_TIMEOUT_S, gripper=None):
+    def drive_to(self, x, y, yaw_deg, timeout_s=NAV_DRIVE_TIMEOUT_S, gripper=None,
+                 hold_robot=None, hold_action=None, precise=False, gt_path=None):
         yaw = math.radians(yaw_deg)
-        goal_yaml = (
-            "{pose: {header: {frame_id: 'map'}, "
+        pose_part = (
+            "pose: {header: {frame_id: 'map'}, "
             "pose: {position: {x: %.6f, y: %.6f, z: 0.0}, "
-            "orientation: {z: %.6f, w: %.6f}}}}" % (
+            "orientation: {z: %.6f, w: %.6f}}}" % (
                 float(x), float(y), math.sin(yaw / 2.0), math.cos(yaw / 2.0),
             )
         )
+        if precise:
+            # cobot3_interfaces/NavigateTo — goal 은 pose 하나
+            action, atype = self.precise_action, PRECISE_ACTION_TYPE
+            goal_yaml = "{%s}" % pose_part
+        else:
+            # nav2_msgs/NavigateToPose — pose + behavior_tree
+            action, atype = self.nav2_action, NAV2_ACTION_TYPE
+            goal_yaml = "{%s, behavior_tree: ''}" % pose_part
         try:
             pid, r_fd = _ros2_spawn(
-                ["ros2", "action", "send_goal", self.action_name, NAV_ACTION_TYPE, goal_yaml],
+                ["ros2", "action", "send_goal", action, atype, goal_yaml],
                 _clean_ros2_env(),
             )
         except Exception as e:
@@ -1242,15 +1406,42 @@ class NavDriver:
         # gripped=True 였는데 PLACE MOVE 시작 직후 바로 놓친 걸로 나온 실측
         # 이후 추가: 5초마다 찍어서 "주행 중 어디서 떨어졌는지" vs "PLACE
         # 전환 시점 문제인지"를 다음 실행에서 구분할 수 있게 한다.
-        last_log = time.time()
+        last_log = t_start = time.time()
         while time.time() < deadline:
+            # ★ 주행하는 동안에도 반송 자세를 매 스텝 다시 건다. 안 걸면 팔이
+            #   흔들려 흡착이 풀린다 — 실측: 8 m 를 달린 robot2 가 주행 도중
+            #   gripped=False 가 됐다. 한 대만 돌렸을 때는 로봇이 선반에 걸려
+            #   거의 안 움직여서 이 문제가 안 보였다.
+            if hold_robot is not None and hold_action is not None:
+                hold_robot.apply_action(hold_action)
             yield
             result = _ros2_poll(pid, r_fd, chunks)
             if result is not None:
                 break
-            if gripper is not None and time.time() - last_log >= 5.0:
+            if gripper is not None and time.time() - last_log >= 2.0:
                 last_log = time.time()
-                print(f"   [{self.ns}] ...주행 중  gripped={holding(gripper.gripped())}")
+                held = holding(gripper.gripped())
+                if not held:
+                    # ★ 놓친 채로 계속 달릴 이유가 없다. 도착해서 reattach 가
+                    #   실패할 때까지 두면 '어디서' 떨어졌는지도 모른다.
+                    print(f"   [{self.ns}] !! 주행 중 캐리어를 놓쳤다 "
+                          f"(출발 {time.time() - t_start:.0f}s 경과) — 주행 중단")
+                    _ros2_kill(pid, r_fd)
+                    self.dropped_while_driving = True
+                    return False
+                # ★ AMCL 좌표만 찍으면 "로봇이 엉뚱한 데 갔다" 와 "AMCL 이
+                #   틀렸다" 를 구분할 수 없다. USD 에서 읽은 실제 좌표를 같이
+                #   찍어 둔다 — 실측으로 두 대가 목표 반대편 10 m 밖에 있는
+                #   것처럼 나온 적이 있는데, 그때 어느 쪽이 거짓인지 몰랐다.
+                gt = ""
+                if gt_path is not None:
+                    try:
+                        gp, _ = get_world_pose(gt_path)
+                        gt = f"  실제({gp[0]:+.2f},{gp[1]:+.2f})"
+                    except Exception:
+                        gt = ""
+                print(f"   [{self.ns}] ...주행 중  gripped={held}  "
+                      f"({time.time() - t_start:.0f}s){gt}")
 
         if result is None:
             print(f"   [{self.ns}] !! 주행 타임아웃({timeout_s:.0f}s) — send_goal 강제 종료")
@@ -1335,13 +1526,14 @@ def go_to_pick(ctx, x, y, yaw_rad, label):
     return True
 
 
-def go_to_place(ctx, x, y, yaw_rad, label):
+def go_to_place(ctx, x, y, yaw_rad, label, via=None, loose=False, precise=False):
     """place 자리로 — 캐리어를 들고 가므로 실제로 주행한다.
 
     via: 목표 전에 거쳐 갈 (x, y) 목록. 회피가 없는 nav_server 를 쓰기 때문에
          장애물을 피하는 책임이 호출부에 있다 — 아래 주석 참고."""
     yaw_deg = math.degrees(yaw_rad)
-    nav, gripper, robot, via = ctx.nav, ctx.gripper, ctx.robot, ctx.via
+    nav, gripper, robot = ctx.nav, ctx.gripper, ctx.robot
+    via = ctx.via if via is None else via
     if nav is None:
         print(f"   [{ctx.name}] TELEPORT → {label}  ({x:+.3f}, {y:+.3f}, {yaw_deg:+.1f}°)  [NAV=0]")
         yield from ctx.teleporter.go([x, y, CARTER_Z], yaw_rad)
@@ -1356,14 +1548,13 @@ def go_to_place(ctx, x, y, yaw_rad, label):
         # 방향으로 밀고 나간다 — 캐리어를 든 채로.
         print(f"   [{ctx.name}] !! {label} 주행 취소 — AMCL 이 로봇 위치를 모른다")
         return False
-    # ★ nav_server 는 회피를 하지 않는다 — 목표를 향해 직선으로 민다
-    #   ("Nav2(navigate_to_pose)는 이제 아예 안 쓴다", nav_server.py 독스트링).
-    #   그래서 목표를 한 번에 주면 중간에 뭐가 있든 그대로 들이받는다.
-    #   실측: SHELF-A pick 자세 → 포장 벨트 직선은 점유맵 기준 최소여유가
-    #   0.00 m 다(선반을 관통한다). 실제로도 매번 (-0.16, +2.47) 에서 멈췄고,
-    #   그 자리는 Shelf_01(x -2.957..-0.520, y +2.489..+3.414) 의 동쪽 전면
-    #   모서리다. 통로로 빠져나오는 경유점을 거치면 두 구간 모두 최소여유
-    #   0.45 m 로 로봇 반경(0.35 m)을 넘긴다.
+    # ★ 경유점은 이제 기본적으로 비어 있다. Nav2 가 코스트맵에서 풋프린트를
+    #   보고 알아서 돌아가기 때문이다. nav_server 를 쓰던 때는 회피가 없어서
+    #   선반을 관통하는 직선을 피하려고 여기서 손으로 경유점을 끼워 넣어야
+    #   했다 — 그 방식은 결국 실패했다. 컨트롤러가 조향 오차 45도를 넘기면
+    #   아무 데서나 제자리 회전을 시작하는데, 그 자리를 경로가 정할 수 없다.
+    # 주행 내내 유지할 반송 자세. robot 이 없으면(NAV=0 경로) 유지하지 않는다.
+    carry_action = carry_pose_action(robot)[2] if robot is not None else None
     pts = [(float(vx), float(vy)) for vx, vy in via] + [(float(x), float(y))]
     for i, (px, py) in enumerate(pts):
         if i + 1 < len(pts):
@@ -1377,7 +1568,31 @@ def go_to_place(ctx, x, y, yaw_rad, label):
             leg_yaw = yaw_deg
             leg_label = label
         print(f"   [{ctx.name}] NAV → {leg_label}  ({px:+.3f}, {py:+.3f}, {leg_yaw:+.1f}°)")
-        if not (yield from nav.drive_to(px, py, leg_yaw, gripper=gripper)):
+        if not (yield from nav.drive_to(px, py, leg_yaw, gripper=gripper,
+                                        hold_robot=robot, hold_action=carry_action,
+                                        precise=precise, gt_path=ctx.base_link)):
+            # ★ 경유점은 **통과점이지 도킹 자세가 아니다.** nav_server 의
+            #   도착 판정(8 cm)은 마지막 목표에나 필요한 값이고, 경유점에서는
+            #   그 정밀도를 못 맞춰 타임아웃이 난다 — 실측: robot2 가 후진으로
+            #   탈출 지점까지 갔다가 0.33 m 를 남기고 180 초를 소진했다.
+            #   충분히 가까우면 다음 구간으로 넘어간다. 마지막 목표는 예외 없다.
+            # loose=True 면 마지막 목표도 느슨하게 받는다 — 대기/후퇴 자리는
+            # '주차' 지점이지 도킹 자세가 아니다. 벨트 접안만 엄격하다.
+            if i + 1 < len(pts) or loose:
+                here = yield from nav._read_amcl_pose()
+                if here is not None:
+                    gap = math.hypot(here[0] - px, here[1] - py)
+                    if gap <= VIA_REACHED_TOL_M:
+                        print(f"   [{ctx.name}] {leg_label} 못 붙었지만 {gap:.2f} m 까지 왔다 "
+                              f"— 통과점이므로 다음 구간으로 간다")
+                        continue
+                    try:
+                        gp, _ = get_world_pose(ctx.base_link)
+                        gts = f"  실제({gp[0]:+.2f},{gp[1]:+.2f})"
+                    except Exception:
+                        gts = ""
+                    print(f"   [{ctx.name}] !! {leg_label} 에서 {gap:.2f} m 떨어져 멈췄다  "
+                          f"AMCL({here[0]:+.2f},{here[1]:+.2f}){gts}")
             return False
     for _ in range(BASE_MOVE_SETTLE_STEPS):
         yield
@@ -1591,8 +1806,19 @@ class PickFSM:
             return
         if self.step % 10 or holding(self._gripper.gripped()):
             return
-        self.done, self.fail_code = True, FAIL_SLIP
-        print(f"   !! 놓쳤다  {self.NAMES[self.state]}  {self.step}/{self.n_steps}")
+        print(f"   {self.tag}!! 놓쳤다  {self.NAMES[self.state]}  {self.step}/{self.n_steps}")
+        if self.state != 3:
+            # LIFT 중에 놓쳤으면 캐리어가 떨어져 자리가 바뀐다. 옛 파지점으로
+            # 다시 내려가 봐야 헛손질이라 여기서 끝낸다.
+            self.done, self.fail_code = True, FAIL_SLIP
+            return
+        # ★ HOLD 중 놓침은 실패로 끝내지 않고 **간격을 한 칸 더 내려 재시도**한다.
+        #   두 로봇 모두 "시도 1/4 +5 mm 안 붙음 -> 시도 2/4 +2 mm 붙음" 으로
+        #   간신히 붙은 뒤 HOLD 초반(10/120)에 풀렸다 — 파지가 불가능한 게
+        #   아니라 여유가 빠듯한 것이다. HOLD 시점엔 아직 들어올리기 전이라
+        #   캐리어가 원래 자리에 그대로 있으므로 같은 파지점으로 다시 가면 된다.
+        self.grip_ok = False
+        self._retry_or_fail()
 
     def _check_grip(self):
         ok = holding(self._gripper.gripped())
@@ -1601,10 +1827,14 @@ class PickFSM:
         if ok:
             self.grip_ok = True
             return True
+        return self._retry_or_fail()
+
+    def _retry_or_fail(self):
+        """간격 사다리(GRIP_GAPS)를 한 칸 내려 DESCEND 부터 다시. 소진되면 실패."""
         self.attempt += 1
         if self.attempt >= len(GRIP_GAPS):
             self.done, self.fail_code = True, FAIL_SLIP
-            print("   흡착 실패 — GRIP_GAPS 소진")
+            print(f"   {self.tag}흡착 실패 — GRIP_GAPS 소진")
             return False
         self._gripper.open()
         self.gripper = "open"
@@ -1860,12 +2090,32 @@ def magazine_mission(world, ctx, station, shelf, scan_joints, target_quat):
     if not (yield from set_carry_pose(ctx.robot, ctx.gripper)):
         return "DROP_ON_FOLD"
 
-    # ── 벨트 자리 중재 ───────────────────────────────────────
+    # ── ① 벨트 근처 대기 지점까지는 자리가 없어도 미리 간다 ─────────
+    #   선반 앞에서 기다리면, 자리가 비고 나서야 8 m 를 달린다. 대기 지점은
+    #   벨트에서 1.7 m 라 자리가 비는 즉시 짧은 구간만 남는다.
+    #   로봇마다 다른 자리를 준다 — 같은 곳에서 기다리면 둘이 부딪힌다.
+    if ctx.staging is not None:
+        sx, sy, syaw = ctx.staging
+        section(f"STAGING — 벨트 앞 대기 지점 {tag}")
+        if not (yield from go_to_place(ctx, sx, sy, syaw, "대기 지점",
+                                       via=ctx.staging_via, loose=True)):
+            return "STAGING_FAIL"
+
+    # ── ② 벨트 자리 중재 ───────────────────────────────────────
     dist = station.distance_from(ctx)
     station.request(tag, dist)
     print(f"   [{tag}] 벨트 자리 요청  현재 거리 {dist:.2f} m")
     waited = 0
+    _, _, carry_action = carry_pose_action(ctx.robot)
     while not station.try_acquire(tag):
+        # ★ 기다리는 동안에도 반송 자세를 계속 건다. 안 걸면 팔이 흘러내려
+        #   서 있기만 하는데도 매거진을 놓친다(실측).
+        ctx.robot.apply_action(carry_action)
+        if waited % 30 == 0 and not holding(ctx.gripper.gripped()):
+            # 빈손으로 주행해 봐야 벨트에 도착해서야 실패한다 — 여기서 끝낸다.
+            print(f"   [{tag}] !! 대기 중 캐리어를 놓쳤다 — 미션 중단")
+            station.request(tag, float("inf"))   # 대기열에서 사실상 빼 둔다
+            return "DROP_WHILE_WAITING"
         if waited % 120 == 0:
             print(f"   [{tag}] ...벨트 자리 대기 (점유: {station.owner})  "
                   f"gripped={holding(ctx.gripper.gripped())}")
@@ -1875,7 +2125,21 @@ def magazine_mission(world, ctx, station, shelf, scan_joints, target_quat):
 
     try:
         section(f"TRANSPORT — 포장 벨트 {tag}")
-        if not (yield from go_to_place(ctx, BELT_BASE_X, BELT_Y_PACKAGING, 0.0, "포장 벨트")):
+        # ① Nav2 로 공용 접근점 P 까지 (회피가 필요한 구간)
+        px, py = BELT_APPROACH_P
+        if not (yield from go_to_place(ctx, px, py, 0.0, "벨트 접근점", loose=True)):
+            if ctx.nav is not None and ctx.nav.dropped_while_driving:
+                return "DROP_WHILE_DRIVING"
+            return "DRIVE_FAIL"
+        # ② 접안은 **정밀 주행기**(nav_server)로. Nav2 의 도착 허용오차는
+        #    xy 0.25 m / yaw 14도라 팔이 벨트에 못 닿는다 — 실측: 0.30 m,
+        #    25.5도 벗어나 섰더니 배치점까지 0.70 m 가 되어 IK 가 600 번
+        #    전부 실패했다. 여기는 여유 0.90 m 의 열린 직선이고 접근 방향이
+        #    최종 yaw 와 같아서, 직선으로 미는 nav_server 가 잘 맞는다.
+        if not (yield from go_to_place(ctx, BELT_BASE_X, BELT_Y_PACKAGING, 0.0,
+                                       "포장 벨트(정밀)", precise=True)):
+            if ctx.nav is not None and ctx.nav.dropped_while_driving:
+                return "DROP_WHILE_DRIVING"
             return "DRIVE_FAIL"
         sync_ik_base_pose(ctx)
         print(f"   [{tag}] 주행 후 파지 상태  gripped={holding(ctx.gripper.gripped())}")
@@ -1893,6 +2157,22 @@ def magazine_mission(world, ctx, station, shelf, scan_joints, target_quat):
         code = yield from run_fsm(ctx.robot, ctx.solver, place, target_quat, f"PLACE {tag}")
         if code != FAIL_OK:
             return f"PLACE_FAIL({code})"
+
+        # ── ③ 벨트에서 **물러난 뒤에** 자리를 반납한다 ───────────────
+        #   ★ 놓기만 하고 그 자리에 서 있으면, 다음 로봇이 바로 그 좌표로
+        #     주행해 들이받는다 — nav_server 는 회피를 안 하고 상대 로봇을
+        #     장애물로도 못 본다. 반납은 실제로 비켜 준 뒤에 해야 맞다.
+        if ctx.staging is not None:
+            sx, sy, syaw = ctx.staging
+            yield from set_carry_pose(ctx.robot)      # 빈손이지만 팔은 접고 간다
+            # 벨트에서 P 는 등 뒤라 정밀 주행기가 회전 없이 후진해서 뺀다.
+            qx, qy = BELT_APPROACH_P
+            if not (yield from go_to_place(ctx, qx, qy, 0.0, "접근점(후퇴)",
+                                           loose=True, precise=True)):
+                print(f"   [{tag}] !! 접근점까지 후퇴 실패 — 벨트 앞에 남는다")
+            elif not (yield from go_to_place(ctx, sx, sy, syaw, "대기 지점(후퇴)",
+                                             loose=True)):
+                print(f"   [{tag}] !! 대기 지점까지 후퇴 실패")
     finally:
         # ★ 실패해도 반드시 반납한다 — 안 그러면 상대가 영원히 기다린다.
         station.release(tag)
@@ -1970,14 +2250,16 @@ def build_ctxs():
     n = int(os.environ.get("ROBOTS", "2"))
     ctxs = [RobotCtx(name="robot1", carter="/World/Robots/nova_carter1",
                      shelf_id="SHELF-A", magazine=MAGAZINE_SHELF_1,
-                     via=AISLE_EXIT_VIA)]
+                     via=SHELF_EXIT_ROBOT1,
+                     staging=STAGING_ROBOT1, staging_via=SHELF_EXIT_ROBOT1)]
     if n >= 2:
         # ★ SHELF-B → 포장 벨트는 직선으로 가도 된다. 점유맵에서 재 보면
         #   그 구간의 최소여유가 0.40 m 로 로봇 반경(0.35 m)을 넘긴다 —
         #   SHELF-A 쪽(0.00 m, 선반 관통)과 달리 경유점이 필요 없다.
         ctxs.append(RobotCtx(name="robot2", carter="/World/Robots/nova_carter2",
                              shelf_id="SHELF-B", magazine=MAGAZINE_SHELF_2,
-                             via=()))
+                             via=SHELF_EXIT_ROBOT2,
+                             staging=STAGING_ROBOT2, staging_via=SHELF_EXIT_ROBOT2))
     return ctxs
 
 
@@ -2038,7 +2320,8 @@ def main():
             return
         for ctx in ctxs:
             ctx.nav = NavDriver(ctx.name)
-            print(f"   nav          {ctx.nav.action_name}")
+            print(f"   nav          이송 {ctx.nav.nav2_action}  /  "
+                  f"접안 {ctx.nav.precise_action}")
     else:
         print("   nav          꺼짐 (NAV=0) — 텔레포트로 이동한다")
 
