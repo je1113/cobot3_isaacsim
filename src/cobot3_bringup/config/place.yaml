@@ -1,51 +1,63 @@
 # ══════════════════════════════════════════════════════════════════════
 #  PlaceCarrier.action ★ 블록의 place_yaml. variant → base_link 기준
-#  배치 자세(슬롯 바닥) 표. pick_place_server 가 goal.variant 로 찾는다.
+#  배치 자세 표. pick_place_server 가 goal.variant 로 찾는다.
 #
-#  ★ 알려진 갭: 로더 슬롯 지오메트리가 아직 씬에 없다(PlaceCarrier.action
-#  주석 참고). 두 매거진 variant 모두 지금은 isaacpjt/M0609/lula_ik/
-#  12_place_test.py 가 검증한 지점 하나(PLACE_TARGET_XY/CONVEYOR_BELT_Z,
-#  task_manager.py TEST_LOADER=(3.85, 0.0, 0.0) 도착 시점 기준)를 그대로
-#  쓴다. 로더 실물이 정해지면 variant 별로 갈라야 한다("스택 → 테스트
-#  로더"는 아직 씬에 tray QR 이 없어 해당 없음 — carriers.yaml 참고).
+#  ★ 절 이름은 magazines 지만 스택(tray_*)도 여기 들어간다 —
+#    pick_place_server 가 yaml["magazines"] 로 읽기 때문이다. 이름을 바꾸려면
+#    그 노드도 같이 고쳐야 한다(docs/DB구성.md 가 carriers: 로 바꾸자고 한 자리).
 #
-#  ★ 바닥(z=0) 스테이징에서 컨베이어 벨트 위(z=0.6, GUI로 직접 측정)로
-#  바꿨다 — 바닥은 팔 마운트 높이(~0.63m)에서 도달 한계 근처까지 뻗어야
-#  해서 MOVE 도중 흡착을 놓치는 문제가 있었는데, 벨트 높이는 마운트
-#  높이와 비슷해 훨씬 자연스러운 자세가 된다(12_place_test.py 실측 확인).
-#  position 은 TEST_LOADER=(3.85,0,yaw0) 에 선 base_link 기준
-#  PLACE_TARGET_XY=(4.1,0.0), z=CONVEYOR_BELT_Z(0.6) 오프셋이다:
-#    dx = 4.1 - 3.85 = 0.25
-#    dz = 0.6 - CARTER_Z(0.07963398335074101) = 0.520366016649259
+#  ── 값을 어떻게 뽑았나 ────────────────────────────────────────────────
+#  position 은 로봇이 그 스테이션 정차점에 **도착한 뒤의** base_link 기준
+#  오프셋이다. 두 정차점 모두 yaw 0 이라 base +x 가 월드 +x 와 같다.
+#
+#      매거진  정차점 (3.75, 4.60)  →  목표 월드 (4.25, 4.60)   dx 0.50
+#      스택    정차점 (3.70, -2.705) → 목표 월드 (4.25, -2.705) dx 0.55
+#
+#  z 는 "흡착한 플랜지 윗면" 을 옮기는 자리다(PICK 과 같은 관례,
+#  sim_backend.get_place_slot_pose_base_link 의 place_ref_z 와 같은 식).
+#  그래서 벨트 윗면에 물체 높이를 더하고 차체 높이를 뺀다:
+#      z = BELT_TOP(0.5407) + 물체높이 - CARTER_Z(0.07963)
+#
+#  ★ 2026-09-22 에 값을 전부 다시 뽑았다. 이전 값은 두 군데가 틀려 있었다.
+#    1) 목표가 (4.10, 0.00) 이었는데 그 자리에는 벨트가 없다. 씬의
+#       PackagingZone 프림에 translate (0, 4.6, 0) 이 걸려 있어서 포장 투입
+#       벨트가 월드 y 4.05~5.15 에 있는데, 좌표는 그 이동 전 값이었다.
+#       매거진이 허공에서 놓여 바닥으로 떨어졌다.
+#    2) z 에 물체 높이를 안 더해서, 벨트가 제자리에 있었어도 팔이 매거진을
+#       벨트 속으로 0.08 m 밀어 넣었을 값이었다.
+#
+#  ★ dx 를 0.25 에서 늘린 이유: 벨트 서쪽 끝이 x 4.05 라, 목표를 그보다
+#    충분히 안쪽에 둬야 물체가 끝에 걸치지 않는다. 가장 긴 것이 스택
+#    (0.329) 이라 반길이 0.165 에 여유를 더해 목표를 4.25 로 잡았다.
+#    팔 도달거리는 매거진 0.71 m, 스택 0.76 m 다 — 스택 쪽이 작업 반경
+#    권장치(0.75, 도달거리 0.9 의 83%)를 0.01 m 넘지만 한계(0.9)에는
+#    한참 못 미친다. 정차점을 더 동쪽으로 옮기면 제자리회전 여유가 25도로
+#    떨어져 도크로 나갈 때 장애물을 쳐서, 도달거리 쪽을 택했다.
+#
+#  ★ 벨트가 물건을 끌고 간다(PhysxSurfaceVelocityAPI, 0.2 m/s, +x).
+#    그래서 로봇 두 대가 같은 자리에 놓아도 된다 — 먼저 놓은 것은 다음
+#    로봇이 올 때쯤 몇 미터 밖으로 실려 나가 있다.
 # ══════════════════════════════════════════════════════════════════════
 meta:
   units: m
-  source: isaacpjt/M0609/lula_ik/12_place_test.py PLACE_TARGET_XY/CONVEYOR_BELT_Z (WP_PLACE=TEST_LOADER 기준 오프셋)
+  source: 씬에서 직접 잰 벨트 윗면(0.5407) + 캐리어 높이. 정차점은 task_manager.py
+    TEST_LOADER / DEFAULT_STACK_DELIVER_ROUTE.
 
 magazines:
+  # ── 매거진 → 포장 투입 벨트 (정차점 3.75, 4.60) ──────────────────────
   magazine_1_orange:
-    position: [0.25, 0.0, 0.520366016649259]
+    position: [0.50, 0.0, 0.603094]
     quat_wxyz: [1.0, 0.0, 0.0, 0.0]
   magazine_2_blue:
-    position: [0.25, 0.0, 0.520366016649259]
+    position: [0.50, 0.0, 0.567094]
     quat_wxyz: [1.0, 0.0, 0.0, 0.0]
 
-  # ── 트레이 스택 → 검사 스테이션 (static_test 시나리오) ─────────────────
-  # ★ 미실측. 절 이름은 그대로 magazines 다 — pick_place_server 가
-  #   yaml["magazines"] 로 읽는다(docs/DB구성.md 가 carriers: 로 바꾸자고 한
-  #   자리. 바꾸려면 그 노드도 같이 고쳐야 한다).
-  #   정차점은 task_manager.py DEFAULT_STACK_DELIVER_ROUTE 의 마지막 점
-  #   (3.70, -2.705, yaw 0) 이고, 목표는 검사 컨베이어(TestingZone BeltTop,
-  #   x≥4.05, 윗면 z 0.5407) 서쪽 끝 위 (4.10, -2.705) 다:
-  #     dx = 4.10 - 3.70 = 0.40   (로더 0.25 보다 긴 것은 컨베이어 상판이
-  #                                x 4.05 부터 로봇 앞으로 튀어나와 있어 정차점을
-  #                                0.15 m 뒤로 뺐기 때문이다)
-  #     dz = 0.5407 + 스택 높이 - CARTER_Z(0.0796)  — "판 윗면" 규약
-  #          (sim_backend.get_place_slot_pose_base_link 와 같은 식).
-  #          주황 0.0777 → 0.5388,  파랑 0.0970 → 0.5581
+  # ── 트레이 스택 → 검사 투입 벨트 (정차점 3.85, -2.705) ───────────────
+  # ★ 미실측. 에셋(isaacpjt/assets/F3_STKO_1.usda / F3_STKB_1.usda)의 전체
+  #   높이에서 위 식으로 계산했다. Isaac 에서 확인하지 않았다.
   tray_1_orange:
-    position: [0.40, 0.0, 0.5388]
+    position: [0.55, 0.0, 0.538794]
     quat_wxyz: [1.0, 0.0, 0.0, 0.0]
   tray_2_blue:
-    position: [0.40, 0.0, 0.5581]
+    position: [0.55, 0.0, 0.558094]
     quat_wxyz: [1.0, 0.0, 0.0, 0.0]

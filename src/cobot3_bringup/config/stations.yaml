@@ -9,8 +9,9 @@
 #    순서라서 리스트다. 숫자는 여기서는 숫자, 화면으로 나갈 때 문자열
 #    (shapes.py 가 번역한다). 미입력은 null.
 #
-#  ★ task_manager.py:210 의 TEST_LOADER = (3.85, 0.0, 0.0) 상수가 하던 일을
-#    이 파일로 옮긴다. 그 상수를 지울 때 place_pose 와 값이 같은지 볼 것.
+#  ★ task_manager.py 의 TEST_LOADER 상수가 하던 일을 이 파일로 옮긴다.
+#    그 상수를 지울 때 place_pose 와 값이 같은지 볼 것 —
+#    isaacpjt/tools/check_staging_poses.py 가 둘이 같은지 검사한다.
 #
 #  ★ station_type      : '' | PACKAGING | TEST | STORAGE
 #    completion_signal : '' | TIMER | VISION | 'TIMER + VISION' | EXTERNAL
@@ -24,7 +25,11 @@ stations:
   - station_id: PKG-01
     station_type: PACKAGING
     # 로봇이 place 하려고 서는 자리 (map 프레임).
-    place_pose: {x: 3.85, y: 0.0, theta: 0.0}
+    # ★ 2026-09-22: y 를 0.0 에서 4.60 으로 옮겼다. 씬의 PackagingZone 프림에
+    #   translate (0, 4.6, 0) 이 걸려 있어 포장 투입 벨트가 월드 y 4.05~5.15 에
+    #   있는데, 이 좌표는 그 이동 전 값이라 로봇이 허공에 매거진을 놓고 있었다.
+    #   x 3.75 는 그 자리의 제자리회전 여유(25도)를 보고 고른 값이다.
+    place_pose: {x: 3.75, y: 4.60, theta: 0.0}
     place_arm_pose: [null, null, null, null, null, null]
     # ⚠️ 실측 필요. 이 값이 그대로 "회수 가능 시각 = place 완료 + process_time"
     #    이 된다. 너무 짧으면 회수하러 가서 헛탕 치고 재시도만 쌓인다.

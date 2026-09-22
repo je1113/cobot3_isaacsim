@@ -249,9 +249,16 @@ def main():
     lx, ly = _loader_pose()
     launch = _literals(LAUNCH)
     staging = launch["STAGING_BY_ROBOT"]
-    # 이탈 목적지 = RETURN 이 향하는 순찰 시작점.
+    # 이탈 목적지 — 아래 _egress_y 가 "로더에서 후진해 나온 뒤 어느 쪽으로
+    # 흐르는가" 의 부호를 이 점에서 뽑는다. 이 브랜치에는 순찰이 없어서 옛
+    # PATROL_ROUTE 대신 도크 경로의 첫 점을 쓴다.
+    #
+    # ★ 로더 이탈점(DEFAULT_LOADER_EXIT_ROUTE)을 쓰면 안 된다. 그 점은 로더와
+    #   같은 y 에 있는 일직선 후진 지점이라 부호가 0 이 되고, copysign 이
+    #   그걸 +1(북쪽)로 읽어 대기 자리 쪽으로 흐르는 것처럼 나온다. 실제로는
+    #   거기서 남쪽(스택이든 도크든)으로 꺾으므로 반대다.
     tm = _literals(WS / "src/cobot3_orchestrator/cobot3_orchestrator/task_manager.py")
-    ret = tm["PATROL_ROUTE"][0][:2]
+    ret = tm["DEFAULT_DOCK_ROUTE"][:2]
 
     fails = []
 
@@ -263,14 +270,19 @@ def main():
     print(f"지도 {grid.w}x{grid.h} res={grid.res} origin=({grid.ox:.3f},{grid.oy:.3f})")
     print(f"로더 주차점 ({lx}, {ly})   제자리회전 스윕 반경 {sweep:.3f} m")
 
-    # 이탈 궤적을 순찰 시작점으로 잡는데, 그 좌표가 지도 밖이면 근사가 무의미하다.
-    # 실패로 세지는 않는다 — 이 도구가 볼 일이 아니라 순찰 경로 쪽 문제다.
-    for i, wp in enumerate(tm["PATROL_ROUTE"]):
-        inside = (grid.ox <= wp[0] <= grid.ox + grid.w * grid.res
-                  and grid.oy <= wp[1] <= grid.oy + grid.h * grid.res)
-        if not inside:
-            print(f"  ⚠ PATROL_ROUTE[{i}] ({wp[0]}, {wp[1]}) 가 지도 밖이다 — "
-                  f"AMCL 이 그 자리를 못 잡고, 아래 이탈 근사도 못 믿는다")
+    # 좌표가 지도 밖이면 AMCL 이 그 자리를 못 잡는다. 실패로 세지는 않는다 —
+    # 이 도구가 보는 것은 대기 자리이고, 나머지는 경로 쪽 문제다.
+    for name in ("DEFAULT_SCAN_ROUTE", "DEFAULT_APPROACH_ROUTE",
+                 "DEFAULT_STACK_PICK_ROUTE", "DEFAULT_STACK_DELIVER_ROUTE",
+                 "DEFAULT_LOADER_EXIT_ROUTE", "DEFAULT_DOCK_ROUTE"):
+        flat = tm.get(name) or []
+        for i in range(0, len(flat), 3):
+            x, y = flat[i], flat[i + 1]
+            inside = (grid.ox <= x <= grid.ox + grid.w * grid.res
+                      and grid.oy <= y <= grid.oy + grid.h * grid.res)
+            if not inside:
+                print(f"  ⚠ {name}[{i // 3}] ({x}, {y}) 가 지도 밖이다 — "
+                      f"AMCL 이 그 자리를 못 잡는다")
 
     # ★ 반경 판정의 중심이 두 곳에 적혀 있다. task_manager 는 TEST_LOADER 상수를
     #   쓰고, 이 도구와 웹 설정은 stations.yaml 을 읽는다. stations.yaml 주석이
