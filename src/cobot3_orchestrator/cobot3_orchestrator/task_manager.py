@@ -30,7 +30,19 @@ docs/08_ROS2_NODE_Graph.html 의 확정안(01-03)이 기준이다. 노드 5개 �
      │   ├─ HOLD                       로봇이 실제로 설 때까지 기다린다
      │   ├─ SCAN                       carrier_scan 서비스 → 종류·위치
      │   ├─ PICK                       멈춘 그 자리에서 집는다
-     │   ├─ NAV                        목적지로 주행
+     │   ├─ [?] 배송                   Selector, memory=True — 경로를 고른다
+     │   │   ├─ [→] 직행               상대 state 가 아래 넷이 아니면 이쪽
+     │   │   │   ├─ 상대 한가?         상대 state 가 nav · push · place ·
+     │   │   │   │                     return 중 하나인가. 아래 "배송 경로를
+     │   │   │   │                     고르는 기준" 참고
+     │   │   │   └─ NAV                로더로 바로 주행
+     │   │   └─ [→] 우회               상대 state 가 그 넷 중 하나면 이쪽
+     │   │       ├─ HOLD_BACK          픽업존에서 — 상대가 로더에 멈출
+     │   │       │                     때까지. 대기 장소가 로더 앞이라 그
+     │   │       │                     구역에 둘이 같이 들어가면 안 된다
+     │   │       ├─ APPROACH           대기 장소로 주행
+     │   │       ├─ WAIT               대기 장소에서 — 상대가 로더를 비울 때까지
+     │   │       └─ PUSH               로더로 주행
      │   ├─ PLACE                      배치
      │   ├─ RETURN                     순찰 시작 좌표로 복귀
      │   └─ 사이클 완료
@@ -55,6 +67,40 @@ docs/08_ROS2_NODE_Graph.html 의 확정안(01-03)이 기준이다. 노드 5개 �
   다시 tick 하면 안 된다. memory=True 면 지난 tick 에 RUNNING 이던 자식부터
   이어친다. 위의 최상위 Selector 와 조합하면 "픽 하는 중에도 우선순위는 매 tick
   보되, 이미 끝난 스캔은 다시 하지 않는다" 가 된다.
+
+  ── 배송 경로를 고르는 기준 ────────────────────────────────────────────
+  기준은 "상대가 로더 접근 차선을 쓰고 있는가" 하나다. 쓰고 있다고 보는 단계가
+  peer_busy_stages 파라미터이고, 기본값은 DEFAULT_PEER_BUSY_STAGES 의 넷이다
+  (launch 의 LANE_STAGES 와 같은 값이어야 한다. 단위테스트가 검사한다).
+
+      nav     직행 가지로 로더로 바로 가는 중
+      push    대기 자리에서 로더로 들어가는 중 — 이름만 다른 "목적지로 가는 중"
+      place   로더에 붙어서 내려놓는 중
+      return  로더에서 후진으로 나오는 중 — 이탈선이 접근선과 같은 선이라,
+              이걸 빼면 대기하던 로봇이 출발하는 순간 정면으로 만난다
+
+  목록에 없는 단계는 전부 "안 쓴다" 로 본다. patrol · hold · scan · pick 은 로더와
+  무관하고, approach(대기 자리로 가는 중)와 wait(대기 자리에 정차)은 차선 밖이다.
+  ★ approach 와 wait 을 목록에 넣으면 교착이다 — 두 로봇이 같은 목록을 쓰므로
+    양쪽이 서로의 대기를 기다리고 아무도 움직이지 않는다. 이 둘이 목록 밖에
+    있다는 것이 교착 부재의 근거이고, test_peer_yield.py 가 그걸 검사한다.
+
+  ★ 우회 가지는 두 번 기다린다. 대기 장소가 로더 바로 앞이라 거기로 가는 것
+    자체가 로더 구역에 들어가는 것이기 때문이다.
+        HOLD_BACK  픽업존에서. 상대가 로더 구역 안에서 움직이는 중
+                   (nav · push · return)이면 움직이지 않는다. 상대가 로더에
+                   멈춰 있는 동안(place)에만 대기 장소로 올라간다.
+        WAIT       대기 장소에서. 상대가 로더를 비울 때까지 기다린다.
+    앞의 것이 구역 진입을 막고, 뒤의 것이 로더 진입을 막는다.
+
+  예외 하나: 상대 상태를 한 번도 못 받았으면 상대가 안 떠 있다고 보고 직행한다
+  (peer_state_topic 이 비었거나 한 대만 띄운 경우). 한 번이라도 받은 뒤 소식이
+  끊기면 마지막으로 들은 단계를 그대로 쓴다 — 수신 시각으로 "묵었으면 양보" 하지
+  않는 이유는 peer_busy() 독스트링에 있다.
+
+  ★ 이 판단은 PICK 직후 한 번이다. 배송 Selector 가 memory=True 라 고른 가지를
+    끝까지 들고 가므로, 직행을 고른 뒤에 상대가 차선에 들어오면 로더에서
+    마주친다. 아래 "알려진 갭" 참고.
 
 상태 저장
   "지금 어느 단계인가" 는 저장하지 않는다. 어느 잎이 RUNNING 인지가 답이고,
@@ -86,6 +132,10 @@ docs/08_ROS2_NODE_Graph.html 의 확정안(01-03)이 기준이다. 노드 5개 �
   액션  manipulation/pick_carrier    PickCarrier.action
   액션  manipulation/place_carrier   PlaceCarrier.action
   발행  orchestrator/state           std_msgs/String  (상태 · 실패 단계 확인용)
+  구독  <peer_state_topic>           std_msgs/String  ★ 절대이름. 상대 로봇의
+                                     orchestrator/state 를 그대로 읽는다. 로더
+                                     접근 차선을 한 대만 쓰게 하려고 본다.
+                                     파라미터가 비어 있으면 구독하지 않는다.
   발행  /trace/event                 TraceEvent.msg   ★ 절대이름. event_logger 가
                                      전역 1개라 로봇이 몇 대든 여기로 모인다
   서비스 orchestrator/resume         std_srvs/SetBool (웹 복구 — 얼어붙은 단계 재시도)
@@ -159,6 +209,22 @@ docs/08_ROS2_NODE_Graph.html 의 확정안(01-03)이 기준이다. 노드 5개 �
     나 있다 (build_tree 참고).
   - TraceEvent 발행은 붙었다 — Freeze.update() 한 곳에서 pick·nav·place·return
     넷을 전부 낸다. 스키마와 그 근거는 docs/DB구성.md.
+  - 로더 차선 조율은 출발 시점의 판단으로 커밋한다. PICK 직후 상대를 한 번 보고
+    직행/우회를 고르면 그 가지를 끝까지 들고 가므로, 직행을 고른 뒤에 상대가
+    차선에 들어오면 로더에서 마주친다. 대기 자리를 무조건 경유하게 만들면
+    판단 지점이 항상 로더 몇 초 앞이 되어 이 사각지대가 없어지는데, 로더가
+    비어 있는 흔한 경우의 정차 비용을 아끼는 쪽을 골랐다. 사각지대를 줄이려면
+    peer_busy_stages 를 넓힌다(예: 상대의 pick 도 넣으면 상대가 출발하기까지
+    SCAN·PICK 을 거쳐야 하므로 겹칠 틈이 줄어든다).
+  - 조율은 로봇 두 대를 전제로 한 배선이다. 상대가 하나라고 보고 토픽 하나를
+    구독하고, 양쪽이 같은 규칙을 쓴다. 그래서 순서를 정하는 장치가 없다 —
+    둘이 같은 순간에 대기 자리를 떠나면 차선에서 만난다. 막으려면 판단 지점을
+    대기 자리 한 곳으로 모으고(무조건 경유) 거기서 순서를 정해야 한다.
+    세 대 이상이면 도크처럼 전역 조정 노드를 두는 편이 낫다
+    (docs/02 §2 의 docking_server 논리와 같다).
+  - 대기 자리 좌표가 아직 launch 상수다. pkg_loader 가 씬에 들어오면 로더마다
+    대기 자리가 따로 필요하고, 그때 frames.yaml 이 아니라 사람이 관리하는
+    설정 파일로 옮겨야 한다(docs/02 §5 의 좌표 하드코딩 갭과 같은 자리).
 """
 
 import math
@@ -169,7 +235,7 @@ from pathlib import Path
 
 import py_trees
 import rclpy
-from geometry_msgs.msg import PoseStamped
+from geometry_msgs.msg import PoseStamped, PoseWithCovarianceStamped
 from py_trees.common import Access, Status
 from rclpy.action import ActionClient
 from rclpy.clock import Clock, ClockType
@@ -221,6 +287,39 @@ PATROL_ROUTE = [
 # 컨베이어 회전-여유 문제로 3.85 로 뺐다(nav_server.py 조향 버그 이력 참고).
 TEST_LOADER = (3.85, 0.0, 0.0)
 
+# ── 로더 접근 차선 — 두 대가 같은 로더로 갈 때 ───────────────────────────
+# ★ 로더 주차점에서는 몸을 거의 못 돌린다.
+#   base_link 가 차체 앞쪽에 있어서 제자리회전 스윕 반경이 앞 0.286 m, 뒤
+#   0.656 m 로 비대칭이다(robot1_nav2_params.yaml 의 footprint). 점유격자에서
+#   주차점(stations.yaml PKG-01 place_pose) 최근접 장애물이 0.30 m 이므로,
+#   footprint 사각형을 실제로 돌려 보면 yaw 오차 9도에서 뒷모서리가 닿는다.
+#
+#   즉 로더에는 거의 정렬된 상태로 들어가야 한다. 도착 yaw 오차가 남으면
+#   nav_server 의 _fine_align 이 그 자리에서 몸을 돌리다 장애물을 친다.
+#   그리고 place.yaml 의 배치 자세가 base_link 기준 앞으로 0.25 m 라, yaw 가
+#   틀어진 채로 PLACE 하면 배치 목표 자체가 엉뚱한 곳으로 간다.
+#
+# ★ 이탈선이 접근선과 겹친다. 배치를 마친 로봇은 후진으로 나오는데, nav_server
+#   가 ALIGN_MAX_W(0.15 rad/s) 상한으로 천천히 돌기 때문에 로더 뒤 1.35 m
+#   가량은 접근선을 그대로 따라 나오고 그 뒤부터 순찰 시작점 쪽으로 흐른다.
+#   그래서 대기 자리는 그 흐름의 반대쪽으로 비껴서 잡는다.
+#
+# 아래 기본값은 이 세 조건을 전부 통과한 점이다.
+#       robot1 ( 0.80, -0.40)  도착각 +7.5도 · 로더 3.08 m · 이탈여유 0.32 m
+#       robot2 (-0.80,  0.00)  도착각 +0.0도 · 로더 4.65 m · 이탈여유 0.32 m
+#
+# ★ 로봇마다 달라야 한다 — 같은 점을 쓰면 대기 자리에서 둘이 부딪힌다.
+#   mission_nodes.launch.py 가 로봇별로 넘긴다.
+#
+# ★ 지도를 새로 만들면 반드시 다시 검증해라.
+#       python3 isaacpjt/tools/check_staging_poses.py
+#   좌표를 점유격자에서 골랐는데 레이아웃을 손보면 지도가 바뀐다. 실제로 한 번
+#   바뀌면서(원점이 x -10.075 에서 -6.575 로 이동) 그전에 고른 대기 자리 하나가
+#   장애물 안으로 들어갔고, 로더를 막고 있던 것도 동쪽 컨베이어에서 북쪽
+#   스테이션으로 바뀌었다. 그 도구가 지도·launch·stations.yaml 을 직접 읽으므로
+#   값을 두 곳에 적어 둘 필요가 없다.
+DEFAULT_STAGING_POSE = [0.80, -0.40, 0.0]
+
 # ★ 순찰 가지를 주석처리해 둔 동안 쓰는 임시 스위치 — carrier_detected 는
 # "순찰 중"에만 받아들이는데(patrolling 게이트), 순찰이 없으니 그 경로로는
 # 영원히 안 들어온다. True 면 노드가 뜨자마자 detected 를 강제로 세워서
@@ -240,20 +339,31 @@ PICK = "pick"
 NAV = "nav"
 PLACE = "place"
 RETURN = "return"
+# 우회 경로(로더 차선 조율)에서만 지나가는 단계들. 직행이면 NAV 하나로 끝난다.
+HOLD_BACK = "hold_back" # 픽업존에서 상대가 로더에 도착하기를 기다린다
+APPROACH = "approach"   # 대기 장소로 주행
+WAIT = "wait"           # 대기 자리에서 상대가 차선을 비우기를 기다린다
+PUSH = "push"           # 차선이 비면 대기 자리에서 로더로 주행
 
 # ── 생산 트래킹 (docs/DB구성.md) ──────────────────────────────────────────
 # DB 에 행이 남는 단계. scan 은 없다 — 판독 실패는 미션이 시작되지도 않은 것이라
 # 남길 행이 없고, 판독 성공 시각은 pick 행의 started_at 이 곧 그것이다 (§4-6).
-LOGGED_STAGES = (PICK, NAV, PLACE, RETURN)
+# 우회 경로의 네 단계도 넣는다 — 대기 시간이 두 대 시연의 핵심 지표이고,
+# docs/DB구성.md §4 가 stage 를 TEXT 로 둔 이유가 "가지가 늘어날 자리" 다.
+# 값을 더하는 데 마이그레이션이 필요 없다.
+LOGGED_STAGES = (PICK, HOLD_BACK, APPROACH, WAIT, PUSH, NAV, PLACE, RETURN)
 
 # 실패 사유는 '단계' 가 정한다. return 은 같은 NavigateTo 액션이라 nav_error 다.
 # 그래서 액션 enum 에 없는 실패(TIMEOUT · SERVER_UNAVAILABLE · GOAL_REJECTED)도
 # 갈 곳이 있다. DB 의 fail_reason ENUM 네 값과 같아야 한다.
 STAGE_TO_REASON = {PICK: "pick_error", NAV: "nav_error",
-                   PLACE: "place_error", RETURN: "nav_error"}
+                   PLACE: "place_error", RETURN: "nav_error",
+                   # 우회 세 단계는 전부 주행/대기라 nav_error 로 모인다.
+                   HOLD_BACK: "nav_error", APPROACH: "nav_error",
+                   WAIT: "nav_error", PUSH: "nav_error"}
 
 # 어디서 일어난 일인가. 순찰 중 발견 방식이라 슬롯 번호를 모르므로 place 만 채워진다.
-PORT_BY_STAGE = {PLACE: "test_loader"}
+PORT_BY_STAGE = {PLACE: "test_loader", PUSH: "test_loader"}
 
 
 # 각 단계를 이만큼 기다려도 안 끝나면 실패로 본다. 단위 초.
@@ -298,6 +408,100 @@ PREEMPT_WHILE_DRIVING = True
 # 반응 지연의 상한이 이 값이다 — carrier_detected 가 와서 주행 취소가 나가기까지
 # 최대 0.1 초.
 TICK_PERIOD_S = 0.1
+
+# ── 로더 차선 조율 ───────────────────────────────────────────────────────
+# 상대가 차선을 쓰고 있다고 보는 단계들. 여기 들어 있으면 기다린다.
+#   nav     직행 가지로 로더로 바로 가는 중
+#   push    대기 자리에서 로더로 들어가는 중
+#   place   로더에 붙어서 내려놓는 중
+#   return  로더에서 후진으로 차선을 빠져나오는 중 — 접근선과 같은 선이다
+# 'approach'(대기 자리로 가는 중)와 'wait'(대기 자리에 정차)는 넣지 않는다.
+# 둘 다 차선 밖이라 방해되지 않고, ★ 넣으면 교착이다 — 양쪽이 서로의 대기를
+# 기다리면 아무도 안 움직인다. 두 로봇이 이 목록을 똑같이 쓰므로 이 규칙이
+# 곧 교착 부재의 근거다. isaacpjt/tools/test_peer_yield.py 가 이걸 검사한다.
+DEFAULT_PEER_BUSY_STAGES = [NAV, PUSH, PLACE, RETURN]
+
+# ── 대기를 푸는 기준: 로더 반경 ───────────────────────────────────────────
+# ★ 시간으로 재지 않는 이유
+#   이 파일의 타임아웃은 전부 time.monotonic() 즉 벽시계다. 그런데 Isaac 을 GUI
+#   렌더로 돌리면 시뮬이 실시간보다 느려서, 벽시계로 본 이동 속도가 nav_server 의
+#   지령 상한(개활지 1.2 m/s)과 전혀 다르고 머신·렌더 설정마다 또 다르다.
+#   TraceEvent.msg §4-2 가 사이클 타임을 시뮬 시각으로 재는 이유가 같은 것이다.
+#   그래서 "상대가 나간 뒤 N 초" 로 두면 N 을 정할 근거가 없다. 대신 상대가 로더
+#   주차점에서 얼마나 떨어져 있는지를 보면 속도와 무관하다.
+#
+# 판정은 로더 주차점(stations.yaml PKG-01 place_pose, 코드에서는 TEST_LOADER)을
+# 중심으로 한 반경이다. 상대의 amcl_pose 와 그 점의 거리를 잰다.
+DEFAULT_LOADER_CLEAR_RADIUS_M = 1.0
+# ★ 파라미터다 — 시뮬에서 보면서 조정할 값이라 소스 상수로 두지 않았다.
+#       ros2 param set /robot2/task_manager loader_clear_radius_m 2.0
+#
+# ★ 1.0 은 시작값이고 낙관적인 쪽이다. 상대가 로더에서 후진해 나오는 경로가
+#   이쪽 진입 경로와 같은 선이라, 기하로 따지면 더 커야 한다.
+#       3.05 m  상대가 이쪽 대기 자리의 x 를 지나가는 거리
+#       4.15 m  이탈 궤적이 접근선을 1.35 m 따라 나온 뒤 14도로 흐르는 것을
+#               감안해, 이쪽 진입선과의 횡간격이 차체 폭 합(0.50 m) + 여유
+#               0.20 m 를 넘는 지점까지의 거리
+#   1.0 m 시점의 상대는 아직 접근선 위(y≈0)에 있다. 그때 출발하면 둘이 중간에서
+#   마주칠 수 있다. 시뮬에서 볼 첫 증상이 그것이고, 그러면 이 값을 올린다.
+#   ★ 위 3.05 · 4.15 도 nav_server 코드에서 유도한 이탈 궤적 근사의 산물이다
+#     (실측 아님). 절대값으로 믿지 말 것.
+
+# 대기 자리에서 이만큼 기다려도 안 비면 실패로 본다. 넘으면 다른 실패와 똑같이
+# Freeze 되어 웹에 뜬다.
+#
+# ★ 이건 "성능" 문턱이 아니라 "아무도 안 온다" 문턱이다. 정상 대기의 상한은 상대
+#   한 사이클인데 시뮬 속도에 따라 몇 분이 될 수 있으므로 넉넉히 둔다. 상대가
+#   얼어붙은 경우는 이 타임아웃이 아니라 PEER_FROZEN 이 먼저 잡으므로, 이 값이
+#   커도 실패가 늦게 드러나지는 않는다.
+PEER_WAIT_TIMEOUT_S = 1800.0
+
+# 조건이 풀린 뒤 이만큼 더 서 있는다.
+#
+# ★ 지금은 형식적인 값이다. 풀리는 경로가 전부 위치나 완료 상태를 보기 때문에,
+#   이 잎이 SUCCESS 를 낼 때 상대는 이미 반경 밖이다. 상태가 예상 밖으로 건너뛸
+#   때의 최소 여유로만 남긴다.
+PEER_CLEAR_DWELL_S = 2.0
+
+# ── 상대 단계를 두 종류로 가른다 ─────────────────────────────────────────
+# 반경만으로 전부 판정할 수는 없다. 거리가 같아도 방향이 다르기 때문이다.
+#
+#   다가오는 중 (nav · push · place)
+#       상대가 로더로 향하고 있거나 붙어 있다. 지금 반경 밖이어도 곧 들어온다.
+#       거리를 보면 "멀다" 는 오답이 나온다. 그래서 단계가 끝날 때까지 기다린다.
+#
+#   떠나는 중 (return)  ← PEER_LEAVING_STAGES
+#       상대가 로더에서 멀어지고 있다. 여기서만 거리가 답을 준다. 반경을 벗어난
+#       순간 진입해도 되므로, return 이 순찰 시작점까지 6.5 m 를 다 가는 것을
+#       기다리지 않는다.
+#
+# ★ 앞으로 들어올 자리다. docs/03 의 "매거진 place 후 스택 있으면 가지러 감" 이
+#   붙으면 그 단계도 갈라 넣어야 한다 — 다만 그건 "머무는" 동작이라 다가오는
+#   쪽도 떠나는 쪽도 아니다. 반경으로는 안 풀리고 별도 처리가 필요하다.
+PEER_LEAVING_STAGES = [RETURN]
+
+# HOLD_BACK 이 픽업존에서 붙잡고 있는 상대 단계 — 상대가 로더 구역 안에서
+# '움직이고 있는' 동안이다.
+#
+# ★ 대기 장소가 로더 바로 앞이라 거기로 가는 것 자체가 로더 구역에 들어가는
+#   것이다. 그 구역에서 상대가 움직이고 있으면 둘이 같은 공간에서 엇갈린다.
+#   nav_server 에 회피가 없으므로 그게 곧 충돌이다.
+#
+#       nav · push  상대가 로더로 들어오는 중
+#       return      상대가 로더에서 빠져나가는 중 — 들어올 때와 같은 공간을 쓴다
+#
+#   ★ place 는 일부러 뺐다. 상대가 로더에 '멈춰' 있는 유일한 구간이고, 바로
+#     그때가 이쪽이 대기 장소까지 올라가기에 안전한 때다. 여기서 올라가 둬야
+#     상대가 비키는 순간 바로 들어갈 수 있다 — 그게 대기 장소를 두는 이유다.
+#
+#   그래서 우회 가지가 두 번 기다린다. HOLD_BACK 이 구역 진입을 막고,
+#   WAIT 이 로더 진입을 막는다.
+HOLD_BACK_STAGES = [NAV, PUSH, RETURN]
+
+# 상태 발행 주기. 이 값이 상대가 보는 정보의 최대 지연이다 — 1 초로 두면
+# 상대가 1 초 묵은 값으로 출발 판단을 한다. 메시지가 짧은 문자열이라
+# 올려도 비용이 없다. (carrier_code_reader 는 변화만 보므로 영향 없다.)
+STATE_PUBLISH_PERIOD_S = 0.2
 
 
 def _find_ws_root():
@@ -655,6 +859,153 @@ class Hold(py_trees.behaviour.Behaviour):
         return Status.SUCCESS
 
 
+class PeerClear(py_trees.behaviour.Behaviour):
+    """상대 로봇이 로더 차선을 쓰고 있지 않은가. 배송 경로를 고르는 분기 조건이다.
+
+    "쓰고 있다" 의 기준은 node.peer_busy() 가 정한다 — 상대 state 가
+    peer_busy_stages(기본 nav · push · place · return) 중 하나인가. 왜 그 넷이고
+    왜 approach · wait 은 아닌지는 모듈 독스트링의 "배송 경로를 고르는 기준" 에
+    적어 뒀다.
+
+        SUCCESS  직행 가지 — 지금까지처럼 로더로 바로 간다
+        FAILURE  우회 가지 — 차선 밖 대기 자리로 가서 기다린다
+
+    FAILURE 가 에러가 아니라 경로 선택이라 Freeze 로 감싸지 않는다. 감싸면
+    로봇이 얼어붙는다.
+
+    ★ PICK 직후 한 번만 평가된다. 감싸는 Selector 가 memory=True 라 한 번 고른
+      가지를 끝까지 들고 가기 때문이다. 즉 출발 시점의 판단으로 커밋한다 —
+      직행을 고른 뒤에 상대가 차선에 들어오면 로더에서 마주친다. 이 사각지대를
+      없애려면 대기 자리를 무조건 경유해야 하는데(그러면 판단 지점이 항상 로더
+      몇 초 앞이 된다), 지금은 로더가 비어 있는 흔한 경우의 정차 비용을 아끼는
+      쪽을 골랐다. 사각지대를 줄이려면 peer_busy_stages 를 넓히면 된다.
+    """
+
+    def __init__(self, name, node):
+        super().__init__(name)
+        self.node = node
+
+    def update(self):
+        busy, why = self.node.peer_busy()
+        if busy:
+            self.node.get_logger().info(f"로더 차선 사용 중({why}) — 대기 자리로 우회한다")
+            self.feedback_message = f"우회 — 상대 {why}"
+            return Status.FAILURE
+        self.feedback_message = f"직행 — {why}"
+        return Status.SUCCESS
+
+
+class WaitForPeer(py_trees.behaviour.Behaviour):
+    """차선 밖 대기 자리에서 상대가 차선을 비우기를 기다린다.
+
+    액션 클라이언트도 스레드도 future 도 없다. 캐시된 상대 상태를 읽어
+    RUNNING 이나 SUCCESS 를 돌려주는 조건 잎이다.
+
+    실패는 둘이다. 어느 쪽이든 Freeze 가 받아서 그 자리에 세우고 웹으로 보낸다.
+      PEER_FROZEN       상대가 차선 안에서 얼어붙었다. 물리적으로 비켜지지
+                        않으므로 기다려 봐야 소용없다. 사람이 상대를 풀어야 한다.
+      PEER_WAIT_TIMEOUT PEER_WAIT_TIMEOUT_S 를 넘겼다.
+
+    풀리는 조건은 둘 중 먼저 오는 것이다.
+      상태 변화  상대가 양보 목록을 벗어나면 PEER_CLEAR_DWELL_S 뒤에 진입한다.
+                 상한 단계로 이미 세고 있었으면 그 시각을 기준으로 쓰므로,
+                 상대가 상한보다 빨리 끝내면 추가 대기 없이 바로 간다.
+      반경       상대가 로더에서 멀어지는 중인 단계(PEER_LEAVING_STAGES)에
+                 있고, 로더 주차점에서 loader_clear_radius_m 밖으로 나갔으면
+                 아직 그 단계여도 진입한다. 상대 위치를 못 받으면 이 경로는
+                 쓰지 않고 상태 변화만 기다린다.
+    어느 경로든 상대가 로더 반경 안에 있으면 먼저 막힌다 — 상태와 무관하다.
+
+    상대를 한 번도 본 적이 없으면(peer_busy 가 "상대 없음") 즉시 통과한다 —
+    한 대만 띄웠을 때 영원히 기다리는 걸 막는다.
+    """
+
+    def __init__(self, name, node, stages=None, use_radius=True, arrive_log=""):
+        """stages      기다릴 상대 단계. None 이면 peer_busy_stages 전체.
+        use_radius  로더 반경으로도 판정할지. 로더에서 멀리 떨어져 기다리는
+                    자리(픽업존)에서는 반경이 의미가 없어서 끈다.
+        arrive_log  이 잎에 처음 들어갈 때 남길 로그 한 줄.
+        """
+        super().__init__(name)
+        self.node = node
+        self.stages = stages
+        self.use_radius = use_radius
+        self.arrive_log = arrive_log
+        self.soft = False
+
+    def _busy(self):
+        """(기다려야 하나, 이유). stages 가 있으면 그 목록으로만 본다."""
+        if self.stages is None:
+            return self.node.peer_busy()
+        stage = self.node.peer_stage()
+        if stage is None:
+            return False, "상대 없음"
+        if stage in self.stages:
+            return True, f"state={stage}"
+        return False, f"state={stage}"
+
+    def initialise(self):
+        self.deadline = time.monotonic() + PEER_WAIT_TIMEOUT_S
+        self._clear_since = None
+        # ★ Freeze 가 DB 행을 만들 때 getattr 로 읽어 간다. 안 넣으면 조용히
+        #   now 로 대체되어 duration_sec 이 0 으로 찍힌다(에러는 안 난다).
+        self.started_stamp, self.started_wall = self.node.now_pair()
+        # 즉시 알린다 — 상대가 이 값을 보고 자기 차례를 판단한다.
+        # set_patrol_target 이 같은 이유로 즉시 발행하는 것과 같다.
+        self.node.publish_state()
+        if self.arrive_log:
+            self.node.get_logger().info(self.arrive_log)
+
+    def update(self):
+        if self.node.peer_frozen():
+            self.feedback_message = f"PEER_FROZEN(state={self.node.peer_stage()})"
+            return Status.FAILURE
+        if time.monotonic() > self.deadline:
+            self.feedback_message = f"PEER_WAIT_TIMEOUT({PEER_WAIT_TIMEOUT_S:.0f}s)"
+            return Status.FAILURE
+
+        now = time.monotonic()
+        stage = self.node.peer_stage()
+        busy, why = self._busy()
+        dist = self.node.peer_dist_to_loader() if self.use_radius else None
+        need = self.node.loader_clear_radius_m
+
+        # ① 위치가 먼저다. 상대가 로더 반경 안에 있으면 상태와 무관하게 기다린다.
+        #    상태 목록이 못 잡는 경우(엉뚱한 단계인데 물리적으로 로더에 붙어 있다)
+        #    까지 덮는 안전망이고, 실제로 로더에 들어가려는 이 순간이 그 안전망이
+        #    의미를 갖는 유일한 자리다.
+        if dist is not None and dist < need:
+            self._clear_since = None
+            self.feedback_message = f"대기 — 상대가 로더 {dist:.2f}/{need:.2f} m"
+            return Status.RUNNING
+
+        # ② 상대가 로더에서 멀어지는 중이면, 반경을 벗어난 것으로 충분하다.
+        #    단계가 끝날 때까지(return 이면 6.5 m 를 다 갈 때까지) 기다리지 않는다.
+        if busy and stage in PEER_LEAVING_STAGES:
+            if dist is None:
+                # 위치를 못 받는다. 거리 판정을 포기하고 상태 변화를 기다린다.
+                self.feedback_message = f"대기 — 상대 {why} (위치 모름)"
+                return Status.RUNNING
+            busy, why = False, f"로더 {dist:.2f} m 밖"
+
+        # ③ 상대가 로더로 다가오는 중이면 거리와 무관하게 기다린다. 지금 멀어도
+        #    곧 들어오므로, 거리를 보면 "멀다" 는 오답이 나온다.
+        if busy:
+            self._clear_since = None
+            self.feedback_message = f"대기 — 상대 {why}"
+            return Status.RUNNING
+
+        if self._clear_since is None:
+            self._clear_since = now
+            self.node.get_logger().info(f"로더가 비었다 — {why}")
+        if now - self._clear_since < PEER_CLEAR_DWELL_S:
+            self.feedback_message = f"로더 비었음 — 여유 대기 ({why})"
+            return Status.RUNNING
+
+        self.feedback_message = f"로더 비었음 — 진입 ({why})"
+        return Status.SUCCESS
+
+
 class CycleDone(py_trees.behaviour.Behaviour):
     """배치와 복귀까지 끝났다. 손이 비었다고 확정하고 순찰로 돌아간다."""
 
@@ -792,11 +1143,63 @@ def build_tree(node):
         timeout_s=PICK_TIMEOUT_S,
         feedback_cb=node.log_phase("PICK")), node, PICK)
 
-    # 목적지 좌표로 주행. 지금은 매거진 1 · 2 전부 test_loader 로 간다.
+    # ── 배송 — PICK 직후 상대를 한 번 보고 두 경로 중 하나를 고른다 ──────
+    # 직행: 상대가 로더 차선을 안 쓰고 있다. 지금까지와 같이 로더로 바로 간다.
+    # 우회: 상대가 로더로 가고 있거나 내려놓고 있다. 차선 밖 대기 자리로 가서
+    #       차선이 비기를 기다린 뒤 들어간다.
+    #
+    # Selector memory=True 가 중요하다 — 한 번 고른 가지를 그 가지가 끝날 때까지
+    # 들고 간다. memory=False 면 매 tick 상대를 다시 보고, 주행 중에 상대가
+    # 차선에 들어오는 순간 직행 가지가 무효화된다. 그러면 미션 Sequence 가
+    # memory=True 라 PICK 부터 다시 시작해 버린다 — 이미 캐리어를 들고 있는데
+    # 또 집으려 든다(docs/02 §3-4 가 복구 가지에서 지적한 것과 같은 함정).
+    #
+    # 그 대신 사각지대가 생긴다. 직행을 고른 뒤 상대가 차선에 들어오면 로더에서
+    # 마주친다. 없애려면 대기 자리를 무조건 경유해 판단 지점을 항상 로더 몇 초
+    # 앞에 두면 되는데, 로더가 비어 있는 흔한 경우의 정차 비용을 아끼는 쪽을
+    # 골랐다. peer_busy_stages 를 넓히면 사각지대가 줄어든다.
+    #
+    # ★ nav 와 push 는 목적지가 같지만 잎 객체를 따로 만든다. py_trees 잎은
+    #   트리에서 한 자리만 차지한다(docs/02 §4-5). 그리고 stage 가 갈려 있어야
+    #   DB 의 UNIQUE(run_id, stage, attempt) 에서 두 행이 안 부딪힌다 —
+    #   같은 이름이면 뒤 행이 ON CONFLICT DO NOTHING 으로 조용히 사라진다.
     nav = Freeze("NAV", ActionLeaf(
         NAV, node, node.nav, "navigation/navigate_to", NavigateTo.Result,
         make_goal=lambda: NavigateTo.Goal(pose=_to_pose(TEST_LOADER)),
         timeout_s=NAV_TIMEOUT_S, moves_base=True), node, NAV)
+
+    direct = py_trees.composites.Sequence(
+        "직행", memory=True,
+        children=[PeerClear("상대 한가?", node), nav])
+
+    approach = Freeze("APPROACH", ActionLeaf(
+        APPROACH, node, node.nav, "navigation/navigate_to", NavigateTo.Result,
+        make_goal=lambda: NavigateTo.Goal(pose=_to_pose(node.staging_pose)),
+        timeout_s=NAV_TIMEOUT_S, moves_base=True), node, APPROACH)
+
+    # ★ 대기 장소가 로더 바로 앞이라, 거기로 가는 것 자체가 로더 구역에 들어가는
+    #   것이다. 그 구역에서 상대가 움직이고 있으면(들어오든 나가든) 둘이 같은
+    #   공간에서 엇갈린다. 그래서 픽업존에서 먼저 기다린다 — 상대가 로더에
+    #   '멈춰 있는' 동안(place)에만 올라간다.
+    hold_back = Freeze("HOLD_BACK", WaitForPeer(
+        HOLD_BACK, node, stages=HOLD_BACK_STAGES, use_radius=False,
+        arrive_log="상대가 로더로 오는 중 — 픽업존에서 기다린다"),
+        node, HOLD_BACK)
+
+    wait = Freeze("WAIT", WaitForPeer(
+        WAIT, node, arrive_log="대기 장소 도착 — 로더가 비기를 기다린다"),
+        node, WAIT)
+
+    push = Freeze("PUSH", ActionLeaf(
+        PUSH, node, node.nav, "navigation/navigate_to", NavigateTo.Result,
+        make_goal=lambda: NavigateTo.Goal(pose=_to_pose(TEST_LOADER)),
+        timeout_s=NAV_TIMEOUT_S, moves_base=True), node, PUSH)
+
+    detour = py_trees.composites.Sequence(
+        "우회", memory=True, children=[hold_back, approach, wait, push])
+
+    to_loader = py_trees.composites.Selector(
+        "배송", memory=True, children=[direct, detour])
 
     # 놓을 자리는 종류로 정해진다 — 좌표를 넘기지 않는다.
     place = Freeze("PLACE", ActionLeaf(
@@ -818,7 +1221,7 @@ def build_tree(node):
     mission = py_trees.composites.Sequence(
         "캐리어 처리", memory=True,
         children=[Detected("detected?", node), Hold(HOLD, node),
-                  scan, pick, nav, place, ret,
+                  scan, pick, to_loader, place, ret,
                   CycleDone("사이클 완료", node, waypoints)])
 
     # ★ 순찰 가지 통째로 주석처리 — patrol 좌표/전환 로직이 아직 이상해서
@@ -918,13 +1321,60 @@ class TaskManager(Node):
         self._frozen_node = None     # 얼어붙은 Freeze. _on_resume 이 푼다
         self.create_service(SetBool, "orchestrator/resume", self._on_resume)
 
+        # ── 로더 차선 조율 (두 대가 같은 로더로 갈 때) ────────────────────
+        # ★ build_tree 가 self.staging_pose 를 읽으므로 트리 조립보다 먼저다.
+        self.declare_parameter("peer_state_topic", "")
+        self.declare_parameter("peer_pose_topic", "")
+        self.declare_parameter("loader_clear_radius_m", DEFAULT_LOADER_CLEAR_RADIUS_M)
+        self.declare_parameter("peer_busy_stages", DEFAULT_PEER_BUSY_STAGES)
+        self.declare_parameter("staging_pose", DEFAULT_STAGING_POSE)
+        self.staging_pose = tuple(self.get_parameter("staging_pose").value)
+        self.loader_clear_radius_m = float(self.get_parameter("loader_clear_radius_m").value)
+        # 빈 문자열은 걸러낸다 — rclpy 는 빈 리스트의 타입을 못 정해서 [""] 로
+        # 넘기는 경우가 있고, 그게 그대로 들어오면 아무 단계에도 안 맞는다.
+        self._peer_busy_stages = tuple(
+            x for x in self.get_parameter("peer_busy_stages").value if x)
+        self._peer_stage = None       # 마지막으로 본 상대 단계
+        self._peer_xy = None          # 상대 베이스 위치 (map). 없으면 None
+        self._peer_failed = False     # 상대가 얼어붙었나 (FAILED 토큰)
+        self._peer_last_rx = 0.0      # 마지막 수신 시각 (monotonic). 0 = 한 번도 못 받음
+        peer_topic = self.get_parameter("peer_state_topic").value
+        if peer_topic:
+            # ★ 절대이름이다. 상대의 orchestrator/state 를 그대로 읽는다.
+            #   상대이름으로 두면 자기 자신을 구독한다.
+            self.create_subscription(String, peer_topic, self._on_peer_state, 10)
+            self.get_logger().info(
+                f"로더 차선 조율 켜짐 — 구독 {peer_topic}, "
+                f"양보 대상 {list(self._peer_busy_stages)}, "
+                f"대기 자리 {tuple(round(v, 3) for v in self.staging_pose)}, "
+                f"이탈 판정 거리 {self.loader_clear_radius_m:.2f} m")
+        # ★ 이 노드가 위치를 구독하는 유일한 자리다. 원래 task_manager 는 로봇
+        #   위치를 모른다(기하는 navigation·manipulation 담당). 예외를 둔 이유는
+        #   "상대가 차선을 비켰나" 를 시뮬 속도와 무관하게 판정하려면 시간이 아니라
+        #   거리를 봐야 하고, 그 거리를 알 방법이 이것뿐이기 때문이다.
+        #   못 받으면 거리 판정을 포기하고 상태 변화만 기다린다 — 느리지만 안전하다.
+        peer_pose_topic = self.get_parameter("peer_pose_topic").value
+        if peer_pose_topic:
+            self.create_subscription(
+                PoseWithCovarianceStamped, peer_pose_topic, self._on_peer_pose, 10)
+            self.get_logger().info(f"상대 위치 구독 {peer_pose_topic}")
+        elif peer_topic:
+            self.get_logger().warning(
+                "peer_pose_topic 이 비어 있다 — 상대가 차선을 비웠는지 거리로 못 "
+                "재므로 return 이 끝날 때까지 기다린다. 안전하지만 느리다.")
+        else:
+            self.get_logger().info(
+                "peer_state_topic 이 비어 있다 — 조율 없이 항상 직행한다 "
+                "(한 대만 띄울 때의 기본값)")
+
         self.patrol_node = None          # build_tree 가 채운다
         self.tree = py_trees.trees.BehaviourTree(build_tree(self))
         self.tree.add_post_tick_handler(self._on_post_tick)
         self.tree.setup()
 
         self.create_timer(TICK_PERIOD_S, self.tree.tick)
-        self.create_timer(1.0, self._publish_state)
+        # 이 주기가 상대가 보는 정보의 최대 지연이다 — 상수 주석 참고.
+        self.create_timer(STATE_PUBLISH_PERIOD_S, self._publish_state)
 
         self.get_logger().info("task_manager ready — 행동트리 tick 시작")
         if not PATROL_ROUTE:
@@ -1147,6 +1597,87 @@ class TaskManager(Node):
         if snapshot != self._last_snapshot:
             self._last_snapshot = snapshot
             self.get_logger().info("\n" + snapshot)
+
+    # ── 로더 차선 조율 ────────────────────────────────────────────────────
+    def _on_peer_state(self, msg):
+        """상대 task_manager 의 orchestrator/state 를 읽는다.
+
+        문자열 형식은 _publish_state 가 만드는 것과 같고, 파싱도
+        cobot3_perception/carrier_code_reader._on_orchestrator_state 와 같다.
+        그 노드와 마찬가지로 모르는 필드는 그냥 무시한다.
+        """
+        stage, failed = None, False
+        for part in msg.data.split("|"):
+            part = part.strip()
+            if part.startswith("state="):
+                stage = part[len("state="):]
+            elif part == "FAILED":
+                failed = True
+        self._peer_stage = stage
+        self._peer_failed = failed
+        self._peer_last_rx = time.monotonic()
+
+    def _on_peer_pose(self, msg):
+        self._peer_xy = (msg.pose.pose.position.x, msg.pose.pose.position.y)
+
+    def peer_stage(self):
+        return self._peer_stage
+
+    def peer_dist_to_loader(self):
+        """상대 베이스와 로더 주차점의 거리. 위치를 모르면 None.
+
+        중심이 TEST_LOADER 다 — stations.yaml PKG-01 place_pose 와 같은 점이고,
+        로봇이 place 하려고 서는 자리다. WaitForPeer 가 이 거리를
+        loader_clear_radius_m 과 비교한다.
+        """
+        if self._peer_xy is None:
+            return None
+        return math.hypot(self._peer_xy[0] - TEST_LOADER[0],
+                          self._peer_xy[1] - TEST_LOADER[1])
+
+    def peer_frozen(self):
+        """상대가 차선 안에서 얼어붙었나.
+
+        얼어붙은 자리가 차선 안이면 기다려도 안 비켜진다 — Freeze 는 tick 마다
+        RUNNING 만 돌려주고 자동 복귀가 없으므로, 사람이 상대를 풀어야 한다.
+        그래서 기다리지 않고 이쪽도 실패로 올려 같이 웹에 뜨게 한다.
+        """
+        return bool(self._peer_failed
+                    and self._peer_stage in self._peer_busy_stages)
+
+    def peer_busy(self):
+        """(양보해야 하나, 사람이 읽을 이유) 한 쌍.
+
+        판단 두 갈래다.
+          한 번도 못 받았다  상대가 안 떠 있다고 보고 통과시킨다. 한 대만 띄우고
+                            영원히 기다리는 걸 막는다.
+          단계가 목록에 있다 양보한다.
+
+        ★ 소식이 끊겨도 마지막으로 들은 단계를 그대로 쓴다. 수신 시각으로
+          "묵었으면 양보" 규칙을 두려다 접었다. 위험한 방향은 이미 막혀 있다 —
+          상대가 차선 단계에서 죽으면 마지막 메시지가 그 단계이므로 계속 양보한다.
+          반대로 순찰 중에 죽은 상대(개활지에 서 있다)까지 양보 대상으로 만들면,
+          죽은 로봇 때문에 살아 있는 로봇이 대기 자리에서 얼어붙는다.
+          남는 구멍은 "링크가 끊긴 채 상대가 멀쩡히 차선에 진입" 하나인데, 그건
+          수십 초짜리 무음이 필요해서 짧은 문턱으로는 못 잡는다.
+
+        age 는 판단에 안 쓰고 로그에만 남긴다 — 얼마나 신선한 값으로 정했는지가
+        나중에 원인 추적에 필요하다.
+        """
+        if not self._peer_busy_stages or self._peer_last_rx == 0.0:
+            return False, "상대 없음"
+        age = time.monotonic() - self._peer_last_rx
+        if self._peer_stage in self._peer_busy_stages:
+            return True, f"state={self._peer_stage} ({age:.1f}s 전)"
+        return False, f"state={self._peer_stage} ({age:.1f}s 전)"
+
+    def publish_state(self):
+        """잎이 자기 상태를 즉시 알려야 할 때 부른다.
+
+        set_patrol_target 이 즉시 발행하는 것과 같은 이유다 — 다음 주기를
+        기다리면 그 사이 상대가 묵은 값으로 출발 판단을 한다.
+        """
+        self._publish_state()
 
     def _publish_state(self):
         # 얼어붙었으면 그 단계가 상태다 — 이전 판의 "상태는 실패한 그 상태 그대로
