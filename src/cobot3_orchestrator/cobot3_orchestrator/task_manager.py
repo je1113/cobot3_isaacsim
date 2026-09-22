@@ -149,15 +149,20 @@ docs/08_ROS2_NODE_Graph.html 의 확정안(01-03)이 기준이다. 노드 5개 �
   발행  /trace/event                 TraceEvent.msg   ★ 절대이름. event_logger 가
                                      전역 1개라 로봇이 몇 대든 여기로 모인다
   서비스 orchestrator/resume         std_srvs/SetBool (웹 복구 — 얼어붙은 단계 재시도)
+  파일  shelves.yaml                 순찰 정차점. 뜰 때 한 번 읽는다. 웹 화면이
+                                     주인이고 ReloadConfig.srv 가 "task_manager
+                                     는 뜰 때 한 번" 이라고 정해 뒀다. 저장 즉시
+                                     반영(config/reload)은 아직 미구현 — 아래
+                                     "알려진 갭" 참고
 
 ★ 이름 앞에 / 가 없다 — 전부 상대이름이고, 노드가 뜬 네임스페이스가 앞에
   붙는다. robot1 로 띄우면 /robot1/navigation/navigate_to 가 된다. 그래서 이
   노드는 자기가 어느 로봇인지 모르고, 알 필요도 없다 — /robot1 의 task_manager
   에게는 /robot1 의 서버만 보인다. "본 놈이 가는 것" 이 코드가 아니라 배선으로
-  보장된다(docs/02 §2). 로봇을 늘릴 때 이 파일에서 고칠 것은 없다 — 로봇마다
-  다른 값(순찰 경로 · 대기 자리 · 상대 토픽)은 전부 파라미터이고, 로봇별 표는
-  mission_nodes.launch.py 에 있다. 아래 좌표 상수는 파라미터를 안 줬을 때의
-  폴백일 뿐이다.
+  보장된다(docs/02 §2). 로봇을 늘릴 때 이 파일에서 고칠 것은 없다 — 순찰 경로는
+  shelves.yaml 의 assigned_robot 으로 배정하고(웹 화면이 그 파일의 주인이다),
+  나머지 로봇별 값(대기 자리 · 상대 토픽)은 mission_nodes.launch.py 의 표에서
+  파라미터로 온다. 아래 좌표 상수는 둘 다 없을 때의 폴백일 뿐이다.
 
   예외가 하나 생길 예정이다: docking_server 는 도크가 공용 자원이라 전역 1개로
   두므로 /docking/dock 만 절대이름이고, 대신 Dock.action 의 robot_name 필드로
@@ -220,6 +225,13 @@ docs/08_ROS2_NODE_Graph.html 의 확정안(01-03)이 기준이다. 노드 5개 �
   - 순찰 중이 아닐 때(START · POSE · scan · pick · nav · place · return) 들어온
     carrier_detected 는 버린다. 물건은 그 자리에 그대로 있으므로 다음 순찰에
     다시 보인다.
+  - 순찰 경로를 저장 즉시 반영하지 못한다. shelves.yaml 을 뜰 때 한 번만
+    읽으므로, 화면에서 좌표를 고치면 노드를 다시 띄워야 한다. ReloadConfig.srv
+    (scope=shelves)가 이 용도로 이미 있으니 서버만 열면 되는데, 받자마자
+    self.patrol_route 를 갈아끼우면 안 된다 — 진행 중인 NavigateTo goal 은 옛
+    좌표로 가는 중이고 _NextWaypoint.idx 가 새 경로 길이를 벗어날 수 있다.
+    새 값을 대기시켜 뒀다가 POSE 잎에서 커밋하는 것이 맞다. 그 잎은 순찰에
+    재진입할 때마다 반드시 지나가고, 그 시점엔 베이스가 서 있다.
   - 관측 자세는 순찰 한 바퀴 내내 하나로 고정이다. 왕복 방향마다 층을 바꾸던
     방식(carrier_code_reader 의 POSE_BY_PATROL_TARGET)은 "시작점에서 한 번 잡고
     그대로 왕복한다" 로 바뀌었다. 그래서 아래 patrol_target 계약은 이제 이
@@ -255,6 +267,7 @@ from pathlib import Path
 
 import py_trees
 import rclpy
+import yaml
 from geometry_msgs.msg import PoseStamped, PoseWithCovarianceStamped
 from py_trees.common import Access, Status
 from rclpy.action import ActionClient
@@ -291,10 +304,12 @@ from cobot3_interfaces.srv import CarrierScan
 # _fine_align 도 거의 돌지 않는다(허용오차 5도). 그래서 "전진/후진 반복" 이
 # 순찰의 기본 거동이고, 선반 여유가 좁아도 성립한다.
 #
-# ★ 아래는 폴백일 뿐이다. 실제 값은 patrol_route 파라미터로 들어온다.
-#   로봇마다 다른 선반을 돌아야 해서 모듈 상수로 두면 두 대가 같은 경로를
-#   돌다 선반 앞에서 부딪힌다. 로봇별 표는 mission_nodes.launch.py 의
-#   PATROL_ROUTE_BY_ROBOT 이고, staging_pose 와 같은 3단 구조다.
+# ★ 아래는 마지막 폴백일 뿐이다. 실제 값의 주인은 shelves.yaml 이고, 그 파일의
+#   주인은 웹 관제 UI 「설정 > 선반」 탭이다. 이 노드는 뜰 때 자기 네임스페이스와
+#   같은 assigned_robot 을 가진 선반을 찾아 waypoint_start → waypoint_end 를
+#   순찰 경로로 쓴다. 고르는 규칙 전체는 _resolve_patrol_route 독스트링에 있다.
+#   로봇마다 다른 선반을 돌아야 해서 모듈 상수로 두면 두 대가 같은 경로를 돌다
+#   선반 앞에서 부딪힌다.
 #
 # ★ 파라미터는 평탄화해서 받는다 — rclpy 파라미터에 double[][] 타입이 없어서
 #   중첩 리스트를 못 넘긴다. [x0, y0, yaw0, x1, y1, yaw1, ...] 로 주고 세 개씩
@@ -572,6 +587,11 @@ def _find_ws_root():
 
 WS_ROOT = _find_ws_root()
 
+# 순찰 정차점의 주인. 웹 관제 UI 「설정 > 선반」 탭이 읽고 쓰는 파일이고
+# (그 파일 머리주석과 docs/DB구성.md §10-1), cobot3_perception/
+# carrier_code_reader.py 도 같은 파일에서 관측 자세를 읽는다.
+DEFAULT_SHELVES_YAML = WS_ROOT / "src/cobot3_bringup/config/shelves.yaml"
+
 # isaacpjt 는 ament 패키지가 아니라 그냥으로는 import 되지 않는다. carrier_code.py 는
 # 의존성 없는 순수 파이썬이고 QR 코드 규칙의 유일한 주인이라, 복사본을 만드는 대신
 # 경로를 열어 그 파일 하나를 쓴다 — cobot3_perception/carrier_code_reader.py 가
@@ -639,6 +659,34 @@ def _unflatten_route(flat):
             f"한다. 정차점 하나가 (x, y, yaw_deg) 세 칸이다. "
             f"mission_nodes.launch.py 의 이 로봇 항목을 확인해라.")
     return [tuple(vals[i:i + 3]) for i in range(0, len(vals), 3)]
+
+
+def _shelf_route(shelf):
+    """shelves.yaml 의 선반 하나 → 순찰 경로 [(x, y, yaw_deg), ...].
+
+    waypoint_start → waypoint_end 두 점이다. 선반 하나에 정차점이 정확히 둘이라
+    지금의 전진/후진 왕복(두 점 사이 직선)과 그대로 맞는다 — 정차점 개수를 늘릴
+    일이 생기면 그때 이 함수만 고치면 된다.
+
+    ★ 단위가 다르다. shelves.yaml 은 meta.units 가 "m, rad" 라 theta 가
+      라디안인데, 이 파일의 좌표는 yaw_deg 다. 변환을 빼먹으면 SHELF-B 의
+      theta=3.14159 가 3.14 도가 되어 로봇이 선반을 등진 채 선다.
+
+    좌표가 하나라도 비어 있으면 None 을 돌려준다. 화면의 미입력은 null 로
+    저장되는데(web/backend/app/shapes.py 의 to_number), 반쯤 채워진 좌표로
+    주행 goal 을 내는 것이 제일 나쁘다.
+    """
+    route = []
+    for key in ("waypoint_start", "waypoint_end"):
+        wp = shelf.get(key)
+        if not isinstance(wp, dict):
+            return None
+        try:
+            x, y, theta = (float(wp[k]) for k in ("x", "y", "theta"))
+        except (KeyError, TypeError, ValueError):
+            return None
+        route.append((x, y, math.degrees(theta)))
+    return route
 
 
 def _to_pose(xy_yaw_deg):
@@ -1482,10 +1530,11 @@ class TaskManager(Node):
 
         # ── 순찰 경로 (로봇마다 다른 선반을 돈다) ─────────────────────────
         # ★ 트리 조립보다 먼저다 — 잎들이 self.patrol_route 를 읽는다.
-        #   평탄화해서 받는 이유는 DEFAULT_PATROL_ROUTE 주석 참고.
+        #   출처를 고르는 규칙은 _resolve_patrol_route 독스트링에 있다.
+        self.declare_parameter("shelves_yaml", str(DEFAULT_SHELVES_YAML))
+        self.declare_parameter("patrol_shelf", "")
         self.declare_parameter("patrol_route", DEFAULT_PATROL_ROUTE)
-        self.patrol_route = _unflatten_route(
-            self.get_parameter("patrol_route").value)
+        self.patrol_route, self.patrol_route_source = self._resolve_patrol_route()
 
         # 순찰을 시작하기 전에 팔을 세울 자세. 빈 이름이면 그 단계를 건너뛴다 —
         # 이유와 받는 쪽 조건은 DEFAULT_OBSERVE_POSE_SERVICE 주석과
@@ -1555,21 +1604,118 @@ class TaskManager(Node):
         self.create_timer(STATE_PUBLISH_PERIOD_S, self._publish_state)
 
         self.get_logger().info("task_manager ready — 행동트리 tick 시작")
+        pts = " → ".join(f"({x:.3f}, {y:.3f}, {yaw:.1f}°)"
+                         for x, y, yaw in self.patrol_route)
         if _unflatten_route(DEFAULT_PATROL_ROUTE) == self.patrol_route:
             self.get_logger().warning(
-                "patrol_route 가 폴백값 그대로다 — 이건 옛 레이아웃"
-                "(선반 x≈-6.5) 좌표라 지금 씬에는 맞지 않는다. 로봇이 씬에 "
-                "없는 자리로 간다. PATROL_ROUTE_BY_ROBOT 를 확인해라.")
+                f"순찰 경로가 폴백값 그대로다 [{self.patrol_route_source}] — "
+                f"이건 옛 레이아웃(선반 x≈-6.5) 좌표라 지금 씬에는 맞지 않는다. "
+                f"로봇이 씬에 없는 자리로 간다. 위 경고에 왜 shelves.yaml 을 "
+                f"못 썼는지 적혀 있다.")
         else:
             self.get_logger().info(
-                "순찰 경로 "
-                + " → ".join(f"({x:.3f}, {y:.3f}, {yaw:.1f}°)"
-                             for x, y, yaw in self.patrol_route)
-                + " — 두 점의 yaw 가 같으면 제자리 회전 없이 전진/후진 왕복한다")
+                f"순찰 경로 [{self.patrol_route_source}] {pts} — 두 점의 yaw 가 "
+                f"같으면 제자리 회전 없이 전진/후진 왕복한다")
         if TEST_LOADER is None:
             self.get_logger().warning(
                 "TEST_LOADER 가 비어 있다 — pick 까지는 되지만 nav 단계에서 멈춘다. "
                 "task_manager.py 상단에 좌표를 넣어라.")
+
+    # ── 순찰 경로 고르기 ──────────────────────────────────────────────────
+    def _resolve_patrol_route(self):
+        """이 로봇이 돌 순찰 경로와 그 출처를 정한다. (경로, 출처설명) 을 준다.
+
+        출처는 셋이고 이 순서로 고른다. 어느 것이 이겼는지는 시작 로그에 반드시
+        찍는다 — 두 출처가 조용히 경쟁하면 "왜 저기로 가지" 를 추적할 수 없다.
+
+            1) shelves.yaml 에서 이 로봇에게 배정된 선반. 배정은 선반의
+               assigned_robot 이 네임스페이스(self.robot_id)와 같은 것으로 본다.
+               좌표의 주인은 웹 화면이다 — 「설정 > 선반」 탭이 이 파일을 읽고
+               쓴다(그 파일 머리주석, docs/DB구성.md §10-1).
+            2) patrol_route 파라미터. launch 가 평탄화 좌표를 직접 준 경우다.
+            3) DEFAULT_PATROL_ROUTE 폴백. 옛 레이아웃 좌표라 크게 경고한다.
+
+        patrol_shelf 파라미터를 주면 1) 에서 배정을 무시하고 그 shelf_id 를
+        쓴다 — 시험용이고, assigned_robot 이 화면에 붙기 전까지의 다리이기도
+        하다. shelves_yaml 을 빈 문자열로 두면 1) 을 통째로 건너뛴다.
+
+        ★ 1) 이 실패해도 예외를 던지지 않고 2) 로 내려간다. 대신 왜 실패했는지
+          반드시 경고로 남긴다. 조용히 옛 좌표로 도는 것이 제일 나쁘다.
+
+        ★★ assigned_robot 은 웹이 지울 수 있다 — 알고 있어야 한다.
+          web/backend/app/shapes.py 의 shelf_in() 이 고정된 키 목록으로 dict 를
+          새로 만들기 때문에, 그 목록에 없는 필드는 화면에서 「설정 > 선반」 을
+          한 번 저장하는 순간 조용히 사라진다. shelf_in/shelf_out 양쪽에
+          assigned_robot 이 추가되기 전까지, 저장 한 번에 이 로봇이 자기 선반을
+          잃는다. 그래서 아래에서 그 경우를 따로 짚어 경고한다.
+        """
+        path = self.get_parameter("shelves_yaml").value or ""
+        if path:
+            route, source = self._route_from_shelves(
+                Path(path), self.get_parameter("patrol_shelf").value or "")
+            if route:
+                return route, source
+
+        route = _unflatten_route(self.get_parameter("patrol_route").value)
+        if route == _unflatten_route(DEFAULT_PATROL_ROUTE):
+            return route, "DEFAULT_PATROL_ROUTE 폴백"
+        return route, "patrol_route 파라미터"
+
+    def _route_from_shelves(self, path, want_shelf):
+        """shelves.yaml 에서 이 로봇의 선반을 찾아 경로로 바꾼다.
+
+        못 찾거나 좌표가 덜 찼으면 (None, "") 을 주고, 왜인지는 경고로 남긴다.
+        """
+        try:
+            doc = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+            shelves = [sh for sh in (doc.get("shelves") or []) if isinstance(sh, dict)]
+        except (OSError, yaml.YAMLError) as e:
+            self.get_logger().warning(f"shelves.yaml({path}) 을 못 읽었다: {e}")
+            return None, ""
+
+        ids = [str(sh.get("shelf_id")) for sh in shelves]
+        if want_shelf:
+            picked = [sh for sh in shelves if str(sh.get("shelf_id")) == want_shelf]
+            how = f"patrol_shelf={want_shelf}"
+            if not picked:
+                self.get_logger().warning(
+                    f"shelves.yaml 에 shelf_id={want_shelf} 가 없다 — 있는 것: {ids}")
+                return None, ""
+        else:
+            picked = [sh for sh in shelves
+                      if str(sh.get("assigned_robot") or "") == self.robot_id]
+            how = f"assigned_robot={self.robot_id}"
+            if not picked:
+                if not any("assigned_robot" in sh for sh in shelves):
+                    self.get_logger().warning(
+                        "shelves.yaml 의 어느 선반에도 assigned_robot 이 없다. "
+                        "웹의 shapes.py(shelf_in/shelf_out)에 그 필드가 없으면 "
+                        "화면에서 「설정 > 선반」 을 한 번 저장할 때 지워진다 — "
+                        "방금 저장하지 않았는지 확인해라 "
+                        "(_resolve_patrol_route 독스트링 ★★).")
+                else:
+                    assigned = {str(sh.get("shelf_id")): sh.get("assigned_robot")
+                                for sh in shelves}
+                    self.get_logger().warning(
+                        f"shelves.yaml 에 assigned_robot={self.robot_id} 인 선반이 "
+                        f"없다. 지금 배정: {assigned}")
+                return None, ""
+
+        if len(picked) > 1:
+            self.get_logger().warning(
+                f"{how} 에 맞는 선반이 {len(picked)} 개다 "
+                f"({[str(sh.get('shelf_id')) for sh in picked]}) — 첫 번째를 쓴다. "
+                f"한 로봇에 두 선반을 배정하면 어느 쪽을 도는지 알 수 없다.")
+
+        shelf_id = str(picked[0].get("shelf_id"))
+        route = _shelf_route(picked[0])
+        if route is None:
+            self.get_logger().warning(
+                f"shelves.yaml 의 {shelf_id} 에 waypoint 좌표가 덜 찼다 — "
+                f"waypoint_start · waypoint_end 의 x · y · theta 여섯 칸이 "
+                f"모두 숫자여야 한다. 화면에서 채워라.")
+            return None, ""
+        return route, f"shelves.yaml {shelf_id} ({how})"
 
     # ── 트리가 부르는 것들 ────────────────────────────────────────────────
     def on_freeze(self, stage, reason, node=None):
