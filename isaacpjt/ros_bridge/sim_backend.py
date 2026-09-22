@@ -18,12 +18,21 @@ Isaac Sim 쪽 실행 백엔드 — 진짜 rclpy 노드들이 이 파일을 로�
 프로토콜: TCP, 줄 단위 JSON. 요청 {"id":.., "method":.., "params":{..}}
          응답 {"id":.., "result":..} 또는 {"id":.., "error":..}
 
-실행:
-    isaac_python isaacpjt/ros_bridge/sim_backend.py
-    SIM_BACKEND_PORT=8765 isaac_python isaacpjt/ros_bridge/sim_backend.py
+실행 (워크스페이스 루트에서):
+    ./isaacpjt/ros_bridge/run_sim_backend.sh
+    SIM_BACKEND_PORT=8765 ./isaacpjt/ros_bridge/run_sim_backend.sh
+    ./isaacpjt/ros_bridge/run_sim_backend.sh --check    # Isaac 안 띄우고 환경만 검사
+
+    ★ isaac_python 으로 직접 띄우지 마라. ROS 를 source 한 셸(ros_set)의
+      PYTHONPATH(3.12 site-packages)와 LD_LIBRARY_PATH(/opt/ros/jazzy/lib)를
+      물려받아 SimulationApp(...) 생성자에서 죽는다(실측 2026-09-22: Segmentation
+      fault) — 이 파일의 코드는 한 줄도 돌지 않는다. 이 파일은 rclpy 를 import
+      하지 않지만 아래에서 isaacsim.ros2.bridge 확장을 켜기 때문에, Isaac 이
+      번들한 브릿지 lib(3.11 용)이 /opt/ros/jazzy/lib(3.12 용)보다 먼저 잡혀야
+      한다. 격리 내용과 이유는 run_sim_backend.sh 머리 주석.
 
 머신이 둘일 때 (ROS 는 일반 PC, Isaac 은 GPU PC):
-    GPU PC   isaac_python isaacpjt/ros_bridge/sim_backend.py     # 0.0.0.0 에 바인드한다
+    GPU PC   ./isaacpjt/ros_bridge/run_sim_backend.sh              # 0.0.0.0 에 바인드한다
              hostname -I                                        # 이 IP 를
     ROS PC   export SIM_BACKEND_HOST=<그 IP>                      # 여기에 준다
              nc -vz <그 IP> 8765                                 # succeeded 면 연결 OK

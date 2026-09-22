@@ -6,10 +6,13 @@ simple_factory_layout.usda 가 over 로 연결을 끊어 놨다. 손목 카메�
 그래프가 없어서 /camera_info 를 받을 수가 없다. 이 스크립트가 그 그래프를
 런타임에 만든다.
 
-단독 실행:
-    ros_set                       # /opt/ros/jazzy 소싱
-    isaac_ros                     # Isaac ROS2 bridge 라이브러리 경로 등록
-    isaac_python isaacpjt/tools/wrist_camera_ros.py
+단독 실행 (워크스페이스 루트에서):
+    ISAAC_SCRIPT=isaacpjt/tools/wrist_camera_ros.py ./isaacpjt/ros_bridge/run_sim_backend.sh
+
+    ★ 예전 레시피 `ros_set; isaac_ros; isaac_python ...` 로 띄우지 마라 — ros_set
+      이 심은 3.12 PYTHONPATH/LD_LIBRARY_PATH 를 물려받아 SimulationApp 에서
+      죽는다(sim_backend.py 와 같은 이유 — 이 스크립트도 ros2 bridge 를 켠다).
+      격리 내용과 이유는 isaacpjt/ros_bridge/run_sim_backend.sh 머리 주석.
 
     # 다른 터미널에서
     ros2 topic echo /wrist_camera/color/camera_info --once

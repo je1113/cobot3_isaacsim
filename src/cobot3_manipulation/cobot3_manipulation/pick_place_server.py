@@ -16,7 +16,9 @@ pick_place_server — PickCarrier · PlaceCarrier 액션 서버.
 
 시뮬 실행 방법 (실제 Isaac API 호출은 전부 sim_backend.py 프로세스가 한다.
 이유는 isaacpjt/ros_bridge/sim_backend.py 상단 주석 참고):
-    isaac_python isaacpjt/ros_bridge/sim_backend.py     # 터미널 1
+    ./isaacpjt/ros_bridge/run_sim_backend.sh            # 터미널 1
+      (isaac_python 으로 직접 띄우지 마라 — ROS 셸의 3.12 환경을 물려받아
+       SimulationApp 에서 죽는다. 이유는 run_sim_backend.sh 머리 주석)
     ros_set && source install/setup.bash
     ros2 run cobot3_manipulation pick_place_server      # 터미널 2
 

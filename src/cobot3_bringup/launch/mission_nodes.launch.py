@@ -23,8 +23,10 @@
   "DEFAULT_PATROL_ROUTE 폴백" 경고를 찍는다 — 그 경고가 보이면 정상이다.
 
 씬은 매거진 둘(로봇당 하나)과 스택 하나만 놓인 시험용을 쓴다:
-    SIM_WORLD_USD=$HOME/cobot3_ws/isaacpjt/worlds/simple_factory_layout_test.usda \\
-        isaac_python isaacpjt/ros_bridge/sim_backend.py
+    SIM_WORLD_USD=isaacpjt/worlds/simple_factory_layout_test.usda \\
+        ./isaacpjt/ros_bridge/run_sim_backend.sh
+  (isaac_python 으로 직접 띄우지 마라 — ROS 셸의 3.12 PYTHONPATH/LD_LIBRARY_PATH
+   를 물려받아 SimulationApp 에서 죽는다. 이유는 run_sim_backend.sh 머리 주석.)
 
 ★ 로그는 tee 로 받아라
   노드가 import 단계에서 즉사하면(Traceback 한 장 찍고 exit code 1) 그
@@ -40,7 +42,7 @@
 
 이 launch 가 책임지는 건 애플리케이션 노드뿐이다. 아래는 따로 띄워야 한다
 (이 순서로):
-    1) isaac_python isaacpjt/ros_bridge/sim_backend.py   # Isaac Sim + RPC 서버
+    1) ./isaacpjt/ros_bridge/run_sim_backend.sh          # Isaac Sim + RPC 서버 (isaac_python 직접 X)
     2) ros2 launch cobot3_navigation multi_navigation.launch.py   # Nav2 (robot1/robot2)
     3) ros2 launch cobot3_bringup tf.launch.py                    # m0609 팔 TF
     4) ros2 launch cobot3_bringup mission_nodes.launch.py         # 이 launch

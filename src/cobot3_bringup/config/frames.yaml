@@ -141,7 +141,10 @@ wrist_camera:
     camera_info: /wrist_camera/color/camera_info
     depth: /wrist_camera/depth/image_rect_raw
   # 이 토픽들은 씬에 없다. isaacpjt/tools/wrist_camera_ros.py 가 런타임에 만든다.
-  #     ros_set && isaac_ros && isaac_python isaacpjt/tools/wrist_camera_ros.py
+  #     ISAAC_SCRIPT=isaacpjt/tools/wrist_camera_ros.py ./isaacpjt/ros_bridge/run_sim_backend.sh
+  # ★ 예전 레시피 `ros_set && isaac_ros && isaac_python ...` 로 띄우지 마라 —
+  #   ros_set 이 심은 3.12 PYTHONPATH 와 /opt/ros/jazzy/lib 을 물려받아
+  #   SimulationApp 에서 죽는다. 이유는 run_sim_backend.sh 머리 주석.
   #
   # 아래는 실제로 camera_info 토픽에서 받아 적어 둔 값이다 (1280x720 기준).
   # 참고용이고, 파이프라인은 반드시 토픽에서 읽어야 한다 — 해상도를 바꾸면 달라진다.
