@@ -148,6 +148,37 @@ class CarrierCodeReader(Node):
         self.declare_parameter("output_frame", "base_link")
         self.declare_parameter("publish_debug", False)
         self.declare_parameter("shelves_yaml", str(SHELVES_YAML))
+        # ★ 순찰 중 QR 폴링(= 팔을 관측 자세로 올리는 일)을 끄는 스위치.
+        #
+        #   왜 필요한가 — 팔은 충돌 계산에 안 들어간다. Nav2 코스트맵이 아는
+        #   차체는 nav2 params 의 footprint(앞으로 0.14 m)뿐이고, 순찰은
+        #   collision_monitor 도 거치지 않는다(nav_server 가 cmd_vel 에 직접
+        #   쓴다). 그런데 관측 자세는 팔을 앞으로 길게 뻗는다 — 예를 들어
+        #   taught_poses.yaml 의 s1_bottom_scan 은 J2=90°(어깨 수평)라
+        #   M0609 리치 900 mm 가 거의 그대로 나간다. 선반 앞 여유가
+        #   0.40~0.45 m 인 통로에서 그 팔을 뻗으면 아무도 안 막아준다.
+        #
+        #   그래서 베이스 순찰만 먼저 검증할 때 이걸 끈다. 끄면 이 노드는
+        #   carrier_scan 서비스(HOLD 뒤 정지 상태에서 부르는 쪽)만 담당하고,
+        #   주행 중에는 팔에 손대지 않는다.
+        self.declare_parameter("patrol_scan", True)
+        # ★ "QR 이 보인다" 와 "QR 옆에 왔다" 는 다르다.
+        #
+        #   손목캠은 매거진을 한참 앞에서부터 비스듬히 본다. 보이자마자
+        #   carrier_detected 를 올리면 task_manager 가 그 자리에서 HOLD 하고,
+        #   PICK 은 "멈춘 그 자리에서" 집으려 든다. 그런데 그 자리는 매거진
+        #   정면이 아니다 — 실측: robot1 이 매거진에서 진행방향으로 0.45 m
+        #   못 미친 곳에 섰고, 매거진까지 직선거리가 0.76 m 가 됐다(티칭 0.55).
+        #   팔이 그만큼 대각선으로 못 뻗어서 손목캠이 파지점 위로 못 가고
+        #   pick 이 NO_FLANGE 로 죽었다.
+        #
+        #   그래서 진행방향(base_link +x) 오프셋이 이 값 안에 들어왔을 때만
+        #   감지로 친다. 그 전에는 계속 폴링만 하고 로봇은 그대로 지나간다.
+        #   성공 경로였던 12_place_test2.py 의 go_to_pick 도 매거진 x 까지
+        #   주행해서 정면에 선 뒤에 집는다 — 같은 조건을 만드는 것이다.
+        #
+        #   0 이하로 두면 이 게이트를 끈다(예전처럼 보이는 즉시 감지).
+        self.declare_parameter("detect_align_tol_m", 0.15)
         self.sim = SimClient()
         # sim_backend.py 가 로봇 두 대(robot1/robot2)를 한 소켓에서 같이
         # 관리한다 — 네임스페이스를 그대로 robot_id 로 실어 보내야 observe_pose/
@@ -167,10 +198,17 @@ class CarrierCodeReader(Node):
         self._armed = False    # 이번 구역 체류 동안 observe_pose 를 이미 호출했는지
         self._found = False    # 이번 구역 체류 동안 이미 감지해서 발행했는지
         hz = float(self.get_parameter("decode_hz").value)
+        self._patrol_scan = bool(self.get_parameter("patrol_scan").value)
+        self._align_tol = float(self.get_parameter("detect_align_tol_m").value)
         self.create_timer(1.0 / hz, self._detect_tick)
 
         self.get_logger().info(
             f"carrier_code_reader ready [{self.get_namespace()}]")
+        if not self._patrol_scan:
+            self.get_logger().warning(
+                "patrol_scan=False — 순찰 중 QR 폴링을 끈다. 주행 중에 팔을 "
+                "관측 자세로 올리지 않는다(팔은 충돌 계산에 안 들어간다). "
+                "carrier_scan 서비스는 그대로 동작한다.")
 
     # ── carrier_detected ────────────────────────────────────────────────
     def _on_amcl_pose(self, msg):
@@ -240,14 +278,31 @@ class CarrierCodeReader(Node):
         """관측 자세로 팔을 고정한다. shelves.yaml arm_teach_pose 가 티칭돼
         있으면 그 관절값(도)을 observe_pose 에 직접 넘기고, 아니면
         taught_poses.yaml pose_name 으로 폴백한다.
+
+        ★ 어느 자세를 골랐는지 반드시 남긴다. 폴백 경로는 진행 방향
+          (patrol_target)에 따라 2층/1층 자세를 번갈아 쓰는데
+          (FALLBACK_POSE_BY_PATROL_TARGET), 시험 씬의 매거진은
+          top_magazines 뿐이라 1층 자세로는 못 본다. 그러면 scan 이
+          NOT_FOUND 로 죽는데, 로그만 봐서는 "왜 한 방향에서만 실패하지" 를
+          알 수가 없다. shelf 가 None 인 것도 같이 찍는다 — 구역 밖이면
+          선반별 티칭값 대신 이 폴백으로 떨어지기 때문이다.
         """
         joints = self._teach_joints_deg(shelf)
+        shelf_id = (shelf or {}).get("shelf_id", "구역밖(None)")
         if joints is not None:
+            self.get_logger().info(
+                f"관측 자세: shelves.yaml {shelf_id} 티칭값 "
+                f"{[round(j, 1) for j in joints]}")
             self.sim.call("observe_pose", joints_deg=joints,
                           robot_id=self.robot_id, timeout_s=timeout_s)
         else:
             pose = FALLBACK_POSE_BY_PATROL_TARGET.get(
                 self._patrol_target_idx, DEFAULT_POSE_NAME)
+            self.get_logger().info(
+                f"관측 자세: 폴백 '{pose}' "
+                f"(shelf={shelf_id}, patrol_target={self._patrol_target_idx}) "
+                f"— shelves.yaml 의 arm_teach_pose 가 비어 있어서 "
+                f"taught_poses.yaml 이름으로 간다")
             self.sim.call("observe_pose", pose_name=pose,
                           robot_id=self.robot_id, timeout_s=timeout_s)
 
@@ -273,6 +328,8 @@ class CarrierCodeReader(Node):
         self._orchestrator_state = new_state
 
     def _detect_tick(self):
+        if not self._patrol_scan:
+            return
         if self._orchestrator_state != "patrol":
             return
 
@@ -299,9 +356,45 @@ class CarrierCodeReader(Node):
             return
 
         if r.get("ok"):
-            self.get_logger().info(f"QR 감지: {r.get('decoded')}")
+            # ★ 진행방향 정렬 게이트 — declare_parameter 주석 참고.
+            #   qr_pose_base_link 는 base_link 기준이고 +x 가 로봇 정면이다.
+            #   매거진은 옆(±y)에 있으므로, x 성분이 곧 "아직 얼마나 덜 왔나" 다.
+            along = None
+            pos = ((r.get("qr_pose_base_link") or {}).get("position")) or []
+            if len(pos) >= 1:
+                along = float(pos[0])
+            if self._align_tol > 0.0 and along is not None \
+                    and abs(along) > self._align_tol:
+                self.get_logger().info(
+                    f"QR 보임({r.get('decoded')}) — 아직 {along:+.2f} m 덜 왔다 "
+                    f"(허용 ±{self._align_tol:.2f} m). 계속 간다",
+                    throttle_duration_sec=2.0)
+                return
+            self.get_logger().info(
+                f"QR 감지: {r.get('decoded')}"
+                + (f" (진행방향 오프셋 {along:+.2f} m)" if along is not None else ""))
             self._found = True
             self._detected_pub.publish(Bool(data=True))
+            return
+
+        # ★ 실패 이유를 반드시 남긴다. scan_qr 는 왜 실패했는지 reason 으로
+        #   돌려주는데(sim_backend.scan_qr -> aggregate_qr_poses.reason),
+        #   여기서 그냥 버리면 "QR 이 화면에 보이는데 왜 인식이 안 되지" 를
+        #   추적할 단서가 하나도 없다. 실제로 그래서 한참 헤맸다.
+        #
+        #   이유마다 손볼 곳이 다르다:
+        #     "QR 이 안 보인다"            관측 자세/정차 위치 — 화면에 안 들어왔다
+        #     "decode 실패"                들어왔지만 못 읽는다 — 거리·해상도·흐림
+        #     "깊이 영상이 없다"           카메라 깊이 스트림 문제
+        #     "탐색창 안 유효 깊이 점이 N" 깊이는 오는데 QR 자리에 값이 없다
+        #     "벽면 법선이 N도 기울어"     자세가 비스듬하다
+        #
+        #   폴링이 5 Hz 라 throttle 로 묶는다 — 같은 이유가 초당 다섯 번
+        #   찍히면 로그가 다른 것을 덮는다.
+        reason = r.get("reason") or "(이유 없음)"
+        self.get_logger().warning(
+            f"QR 인식 실패 [{shelf.get('shelf_id')}]: {reason}",
+            throttle_duration_sec=3.0)
 
     # ── ③④ /perception/carrier_scan ─────────────────────────────────────
     def _on_carrier_scan(self, request, response):

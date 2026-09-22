@@ -143,8 +143,18 @@ amcl:
     tf_broadcast: true
     transform_tolerance: 1.0
 
-    update_min_a: 0.2
-    update_min_d: 0.25
+    # ★ robot1 과 같은 값이어야 한다. 이 둘은 "필터를 갱신(=amcl_pose 를 발행)
+    #   하기 전에 로봇이 얼마나 움직여야 하는가" 다. robot2 만 AMCL 기본값
+    #   (0.25 m / 0.2 rad)으로 남아 있어서 위치를 25 cm 마다 한 번씩만 알았다.
+    #
+    #   그러면 순찰 주행이 깨진다 — nav_server 의 도착 판정 반경
+    #   POSITION_TOLERANCE 가 0.12 m 인데 위치 갱신 간격이 그보다 넓으면
+    #   정차점을 그냥 지나친다. 방향은 goal 시작 때 고정되므로 그대로 밀고
+    #   가다가 DRIVE_TIMEOUT_S 까지 엉뚱한 곳으로 간다.
+    #
+    #   즉 update_min_d < POSITION_TOLERANCE 여야 한다.
+    update_min_a: 0.03
+    update_min_d: 0.05
 
     z_hit: 0.5
     z_max: 0.05
@@ -249,24 +259,34 @@ controller_server:
 
       debug_trajectory_details: true
 
-      min_vel_x: 0.0
+      # ★ robot1 과 같은 값이어야 한다. 두 대는 같은 기체이고 같은 통로를
+      #   다닌다. 여기만 Nav2 기본값에 가까운 거친 값으로 남아 있어서
+      #   robot2 가 robot1 보다 3~4 배 빠르고 6 배 급하게 가속했다.
+      #
+      # ★ min_vel_x 가 특히 중요하다. 0.0 이면 DWB 가 **후진 궤적을 아예
+      #   만들지 않는다.** 선반 앞처럼 좁은 데서 후진이 막히면 빠져나오는
+      #   길이 제자리 회전뿐인데, 이 기체는 base_link 가 앞에 치우쳐 있어
+      #   뒤로 0.607 m 나간다(외접 0.656 m). 선반 앞 여유는 0.40 m 뿐이다 —
+      #   12_place_test2.py 에 "robot2 가 SHELF-B 앞에서 넘어졌다" 로 기록된
+      #   사고가 정확히 그 상황이다. 후진을 열어 둬야 회전하지 않고 나온다.
+      min_vel_x: -0.25
       min_vel_y: 0.0
 
-      max_vel_x: 0.8
+      max_vel_x: 0.25
       max_vel_y: 0.0
-      max_vel_theta: 0.7
+      max_vel_theta: 0.3
 
       min_speed_xy: 0.0
-      max_speed_xy: 1.0
+      max_speed_xy: 0.25
       min_speed_theta: 0.0
 
-      acc_lim_x: 2.5
+      acc_lim_x: 0.4
       acc_lim_y: 0.0
-      acc_lim_theta: 3.5
+      acc_lim_theta: 0.8
 
-      decel_lim_x: -2.5
+      decel_lim_x: -0.4
       decel_lim_y: 0.0
-      decel_lim_theta: -3.5
+      decel_lim_theta: -0.8
 
       vx_samples: 20
       vy_samples: 5
@@ -567,25 +587,27 @@ velocity_smoother:
     scale_velocities: false
     feedback: "OPEN_LOOP"
 
+    # ★ 위 FollowPath 와 같은 이유로 robot1 과 맞춘다. 스무더 한계가
+    #   컨트롤러 한계보다 높으면 컨트롤러를 조여도 의미가 없다.
     max_velocity:
-      - 0.8
+      - 0.25
       - 0.0
-      - 0.7
+      - 0.3
 
     min_velocity:
-      - -0.8
+      - -0.25
       - 0.0
-      - -0.7
+      - -0.3
 
     max_accel:
-      - 2.5
+      - 0.4
       - 0.0
-      - 3.5
+      - 0.8
 
     max_decel:
-      - -2.5
+      - -0.4
       - 0.0
-      - -3.5
+      - -0.8
 
     velocity_timeout: 1.0
 

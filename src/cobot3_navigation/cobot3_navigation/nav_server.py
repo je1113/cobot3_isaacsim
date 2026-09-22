@@ -37,12 +37,6 @@ from rclpy.action import (
 from rclpy.callback_groups import ReentrantCallbackGroup
 from rclpy.executors import MultiThreadedExecutor
 from rclpy.node import Node
-from rclpy.qos import (
-    DurabilityPolicy,
-    QoSProfile,
-    ReliabilityPolicy,
-)
-
 from cobot3_interfaces.action import NavigateTo
 
 
@@ -82,6 +76,45 @@ TURN_IN_PLACE_ANGLE = math.radians(30.0)
 
 DRIVE_TIMEOUT_S = 300.0
 
+# goal 을 받고 amcl_pose 를 기다리는 한도. 넘으면 BLOCKED 로 끊는다.
+AMCL_WAIT_TIMEOUT_S = 10.0
+
+# ★ Nav2 가 goal 을 거절했을 때 다시 보내는 횟수와 간격.
+#
+#   왜 필요한가 — bt_navigator 의 액션 서버는 lifecycle 이 ACTIVE 가 되기
+#   전에는 들어온 goal 을 그냥 거절한다. 그런데 wait_for_server() 는 서버가
+#   "존재"하기만 하면 통과하므로, Nav2 가 아직 활성화 중일 때 mission_nodes 가
+#   먼저 START 를 내면 이 창에 걸린다. 실측: "[NAV2] sending goal" 101 ms 뒤
+#   "[NAV2] goal rejected", 그 뒤 task_manager 가 BLOCKED 로 얼어붙었다.
+#   같은 시점에 다른 클라이언트로 같은 goal 을 보내면 accepted 였다.
+#
+#   한 번 거절됐다고 미션 전체를 멈출 이유가 없다 — 몇 초 기다렸다 다시
+#   보내면 대개 통과한다. 그래도 계속 거절되면 그때는 진짜 문제이므로
+#   BLOCKED 로 올린다(무한 재시도는 원인을 숨긴다).
+NAV2_GOAL_RETRIES = 5
+NAV2_GOAL_RETRY_WAIT_S = 2.0
+
+# ★ 순찰 goal 을 받고 나서 바퀴를 굴리기 전에 제자리에 서 있는 시간.
+#
+#   왜 필요한가 — 팔이 올라가는 동안 베이스가 이미 움직이기 때문이다.
+#   QR 관측 자세를 올리는 주체는 carrier_code_reader 이고, 그 노드는
+#   /orchestrator/state 가 "patrol" 이고 amcl_pose 가 선반 구역 안일 때
+#   sim_backend 에 observe_pose 를 부른다(그 노드 _detect_tick 의 _armed).
+#   그 호출은 블로킹이고 최대 15 s 인데, 그 사이 베이스를 세워 주는 쪽이
+#   아무도 없었다 — nav_server 는 별도 프로세스라 팔을 기다리지 않는다.
+#   0.12 m/s 로 15 s 면 1.8 m 다. 선반 구역을 지나쳐 버리고 팔은 허공을 본다.
+#
+#   ★ 이 정지가 "PATROL goal 수락 뒤" 에 있는 것이 핵심이다.
+#     task_manager 의 PATROL 잎은 goal 을 보낸 순간부터 RUNNING 이고,
+#     /orchestrator/state 는 그때 이미 "patrol" 이다. 그래서 여기서 서 있는
+#     동안 carrier_code_reader 가 팔을 올린다. 이 정지를 트리 쪽(POSE 앞)에
+#     두면 그 시점 상태는 "pose" 라서 팔이 아예 안 올라간다.
+#
+#   기본값을 observe_pose 의 블로킹 한도(15 s)에 맞춘 이유: 정지가 그보다
+#   짧으면 팔이 올라가는 중에 다시 굴러가서 원래 문제로 돌아간다.
+#   0 으로 두면 이 단계를 끈다.
+DEFAULT_PATROL_START_HOLD_S = 15.0
+
 
 # ============================================================
 # Math
@@ -114,6 +147,22 @@ class NavServer(Node):
         self._amcl_pose = None
         self._last_patrol_log = 0.0
 
+        # 순찰 goal 마다 출발 전 제자리 정지 (DEFAULT_PATROL_START_HOLD_S 주석).
+        #   ros2 run ... --ros-args -p patrol_start_hold_s:=10.0
+        self.declare_parameter(
+            "patrol_start_hold_s",
+            DEFAULT_PATROL_START_HOLD_S,
+        )
+
+        self._patrol_start_hold_s = max(
+            0.0,
+            float(
+                self.get_parameter(
+                    "patrol_start_hold_s"
+                ).value
+            ),
+        )
+
         self._cb_group = ReentrantCallbackGroup()
 
         # ====================================================
@@ -121,15 +170,18 @@ class NavServer(Node):
         # direct patrol에서 사용
         # ====================================================
 
-        amcl_qos = QoSProfile(depth=1)
-        amcl_qos.reliability = ReliabilityPolicy.RELIABLE
-        amcl_qos.durability = DurabilityPolicy.TRANSIENT_LOCAL
+        # ★ 기본 QoS 로 받는다 — TRANSIENT_LOCAL 로 두면 한 개도 못 받는다.
+        #   Nav2 amcl 은 amcl_pose 를 VOLATILE 로 낸다. VOLATILE 발행 +
+        #   TRANSIENT_LOCAL 구독은 DDS 가 비호환으로 판정해서 연결은 맺히지만
+        #   메시지가 흐르지 않는다("incompatible QoS ... policy: DURABILITY").
+        #   그러면 아래 _execute_patrol 의 AMCL 대기 루프를 영영 못 빠져나온다.
+        #   같은 토픽을 읽는 carrier_code_reader · task_manager 도 기본 QoS 다.
 
         self.create_subscription(
             PoseWithCovarianceStamped,
             "amcl_pose",
             self._on_amcl_pose,
-            amcl_qos,
+            10,
         )
 
         # ====================================================
@@ -203,6 +255,8 @@ class NavServer(Node):
 
         self.get_logger().info(
             f"PATROL : {ns}/navigation/patrol_to"
+            f"  (출발 전 정지 "
+            f"{self._patrol_start_hold_s:.1f}s)"
         )
 
     # ========================================================
@@ -302,48 +356,95 @@ class NavServer(Node):
         nav2_goal.pose = target_pose
         nav2_goal.behavior_tree = ""
 
-        self.get_logger().info(
-            "[NAV2] sending goal"
-        )
-
-        send_future = self._nav2_client.send_goal_async(
-            nav2_goal
-        )
-
         # ----------------------------------------------------
-        # Goal acceptance
+        # Goal 전송 + 수락 (거절되면 재시도)
+        #
+        # 자세한 이유는 NAV2_GOAL_RETRIES 주석.
         # ----------------------------------------------------
 
-        while rclpy.ok() and not send_future.done():
+        nav2_goal_handle = None
 
-            if goal_handle.is_cancel_requested:
+        for attempt in range(1, NAV2_GOAL_RETRIES + 1):
 
-                self.get_logger().info(
-                    "[NAV2] canceled before acceptance"
-                )
+            self.get_logger().info(
+                f"[NAV2] sending goal "
+                f"({attempt}/{NAV2_GOAL_RETRIES})"
+            )
 
-                return self._cancel_custom_goal(
+            send_future = self._nav2_client.send_goal_async(
+                nav2_goal
+            )
+
+            while rclpy.ok() and not send_future.done():
+
+                if goal_handle.is_cancel_requested:
+
+                    self.get_logger().info(
+                        "[NAV2] canceled before acceptance"
+                    )
+
+                    return self._cancel_custom_goal(
+                        goal_handle,
+                        result,
+                    )
+
+                time.sleep(CONTROL_PERIOD_S)
+
+            if not rclpy.ok():
+
+                return self._abort_custom_goal(
                     goal_handle,
                     result,
                 )
 
-            time.sleep(CONTROL_PERIOD_S)
+            handle = send_future.result()
 
-        if not rclpy.ok():
+            if handle is not None and handle.accepted:
 
-            return self._abort_custom_goal(
-                goal_handle,
-                result,
-            )
+                nav2_goal_handle = handle
+                break
 
-        nav2_goal_handle = send_future.result()
+            # ★ 둘을 구분해서 찍는다. 전에는 두 경우가 같은 문구
+            #   ("goal rejected")로 나와서, 서버가 거절한 것인지 응답이
+            #   아예 안 온 것인지 로그만 보고 가를 수 없었다.
+            why = ("응답 없음(future 가 결과를 안 냈다)"
+                   if handle is None else "서버가 거절했다")
 
-        if (
-            nav2_goal_handle is None
-            or not nav2_goal_handle.accepted
-        ):
+            if attempt < NAV2_GOAL_RETRIES:
+
+                self.get_logger().warning(
+                    f"[NAV2] goal 수락 실패 — {why}. "
+                    f"{NAV2_GOAL_RETRY_WAIT_S:.0f}s 뒤 재시도 "
+                    f"({attempt}/{NAV2_GOAL_RETRIES}). "
+                    f"Nav2 가 아직 활성화 중일 수 있다"
+                )
+
+                deadline = (
+                    time.monotonic()
+                    + NAV2_GOAL_RETRY_WAIT_S
+                )
+
+                while (
+                    rclpy.ok()
+                    and time.monotonic() < deadline
+                ):
+
+                    if goal_handle.is_cancel_requested:
+
+                        return self._cancel_custom_goal(
+                            goal_handle,
+                            result,
+                        )
+
+                    time.sleep(CONTROL_PERIOD_S)
+
+        if nav2_goal_handle is None:
+
             self.get_logger().error(
-                "[NAV2] goal rejected"
+                f"[NAV2] goal rejected — "
+                f"{NAV2_GOAL_RETRIES}회 모두 실패. "
+                f"bt_navigator 가 ACTIVE 인지 확인해라 "
+                f"(ros2 lifecycle get <ns>/bt_navigator)"
             )
 
             return self._abort_custom_goal(
@@ -532,6 +633,15 @@ class NavServer(Node):
         # AMCL 기다리기
         # ----------------------------------------------------
 
+        # ★ 무한 대기 금지. amcl_pose 가 안 오는 이유(Nav2 미기동 · 네임스페이스
+        #   오타 · QoS 비호환)는 기다린다고 낫지 않는다. 바로 실패로 끊어서
+        #   task_manager 쪽 NAV_TIMEOUT_S(300 s) 보다 먼저 원인을 드러낸다.
+
+        amcl_deadline = (
+            time.monotonic()
+            + AMCL_WAIT_TIMEOUT_S
+        )
+
         while (
             rclpy.ok()
             and self._amcl_pose is None
@@ -542,6 +652,23 @@ class NavServer(Node):
                 self._stop()
 
                 return self._cancel_custom_goal(
+                    goal_handle,
+                    result,
+                )
+
+            if time.monotonic() > amcl_deadline:
+
+                self._stop()
+
+                self.get_logger().error(
+                    f"[PATROL] amcl_pose 없음 "
+                    f"({AMCL_WAIT_TIMEOUT_S:.0f}s) — "
+                    f"Nav2/amcl 이 떠 있는지, "
+                    f"{self.get_namespace().rstrip('/')}/amcl_pose 가 "
+                    f"발행되는지 확인해라"
+                )
+
+                return self._abort_custom_goal(
                     goal_handle,
                     result,
                 )
@@ -558,9 +685,63 @@ class NavServer(Node):
             )
 
         # ----------------------------------------------------
+        # 출발 전 제자리 정지
+        #
+        # 팔이 관측 자세로 올라갈 시간을 준다.
+        # 자세한 이유는 DEFAULT_PATROL_START_HOLD_S 주석.
+        # ----------------------------------------------------
+
+        if self._patrol_start_hold_s > 0.0:
+
+            self.get_logger().info(
+                f"[PATROL] 출발 전 정지 "
+                f"{self._patrol_start_hold_s:.1f}s "
+                f"— 관측 자세 대기"
+            )
+
+            hold_deadline = (
+                time.monotonic()
+                + self._patrol_start_hold_s
+            )
+
+            while (
+                rclpy.ok()
+                and time.monotonic() < hold_deadline
+            ):
+
+                # 서 있는 동안에도 계속 0 을 보낸다. 앞 goal 이 남긴 속도나
+                # 다른 발행자의 cmd_vel 이 있어도 확실히 멈춰 있게 한다.
+                self._stop()
+
+                if goal_handle.is_cancel_requested:
+
+                    self.get_logger().info(
+                        "[PATROL] canceled (정지 중)"
+                    )
+
+                    return self._cancel_custom_goal(
+                        goal_handle,
+                        result,
+                    )
+
+                time.sleep(CONTROL_PERIOD_S)
+
+            if not rclpy.ok():
+
+                self._stop()
+
+                return self._abort_custom_goal(
+                    goal_handle,
+                    result,
+                )
+
+        # ----------------------------------------------------
         # FORWARD / REVERSE
         #
         # goal 시작 시 딱 한 번 결정한다.
+        #
+        # ★ 정지가 끝난 뒤에 읽는다 — 서 있는 동안 amcl 이 자세를 다시
+        #   수렴시킬 수 있어서, 굴리기 직전 값으로 방향을 정하는 편이 맞다.
         # ----------------------------------------------------
 
         start_x = self._amcl_pose.position.x

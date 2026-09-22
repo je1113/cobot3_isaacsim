@@ -269,8 +269,23 @@ class PickPlaceServer(Node):
         self._poll_until(t0, goal_handle, feedback)
         r0 = holder0.get("r")
         if r0 is None or not r0.get("ok"):
+            # ★ prior 를 같이 찍는다. 이유만으로는 "멀어서 못 봤다" 와
+            #   "엉뚱한 데를 봤다" 가 안 갈린다 — 손목캠을 어디로 보냈는지가
+            #   있어야 QR prior 가 틀린 것인지 거리가 문제인지 판단할 수 있다.
+            #   (flange_topview 의 이유 문구별 뜻)
+            #     "충분히 큰 성분이 없다 (최대 N px, 기대 M px)"  거리 문제.
+            #         N 이 M 보다 많이 작으면 멀다 — 정차선을 매거진 쪽으로.
+            #     "예상 위치가 화면 밖이다 uv=(...)"             prior 가 틀렸다.
+            #     "... 영역이 탐색 창 안에 없다"                  prior 가 틀렸다.
+            #     "크기 불일치 W x H mm"                         다른 물체를 봤다.
+            #     "depth 도 color 도 없다"                       카메라 스트림 문제.
+            pos = (prior_pose or {}).get("position") or []
+            where = (f"({pos[0]:+.3f}, {pos[1]:+.3f}, {pos[2]:+.3f})"
+                     if len(pos) == 3 else "?")
             self.get_logger().warn(
-                f"OBSERVE(손목캠) 실패: {(r0 or {}).get('reason', '응답 없음')} — 파지를 중단한다")
+                f"OBSERVE(손목캠) 실패: {(r0 or {}).get('reason', '응답 없음')} — "
+                f"파지를 중단한다 [variant={goal.variant}, "
+                f"prior(base_link)={where}]")
             return self._abort(goal_handle, result, "NO_FLANGE")
         flange_pose_base_link = {"position": r0["position"], "quat_wxyz": r0["quat_wxyz"]}
 

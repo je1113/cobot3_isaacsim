@@ -4,14 +4,39 @@
     ros2 launch cobot3_bringup mission_nodes.launch.py                       # robot1 한 대
     ros2 launch cobot3_bringup mission_nodes.launch.py robots:=robot1,robot2   # 두 대
 
-★ 이 브랜치에는 순찰이 없다
-  task_manager 는 고정 좌표를 따라 한 판만 돈다(그 파일 머리주석 참고).
-  순찰·웹 배차(ExecuteTask)·선반 설정 다시읽기는 트리에서 들어냈다. 그래서
-  이 launch 도 시나리오를 고르지 않는다 — 넘기는 것은 로봇별 좌표와 순서뿐이다.
+★ task_manager 는 순찰 판이다 (main 머지 이후)
+  트리는 START → POSE → PATROL 과 캐리어 처리 가지를 둘 다 들고 있고,
+  웹 배차(ExecuteTask)·선반 설정 다시읽기도 살아 있다. 한때 이 브랜치에
+  순찰을 들어낸 판이 있었지만 origin/main 쪽으로 정리됐다.
+
+★ 아래 좌표표 중 지금 실제로 넘어가는 것은 STAGING_BY_ROBOT 뿐이다
+  SCAN_ROUTE · ROW_EXIT · DOCK_ROUTE · LANE_PRIORITY 는 순찰 없는 판의
+  task_manager 가 받던 파라미터다. 지금 task_manager 는 그 이름을
+  declare_parameter 하지 않는다. rclpy 는 선언되지 않은 override 를
+  예외도 경고도 없이 버리므로, 계속 넘기면 "좌표를 줬는데 왜 저기로 가지"
+  를 추적할 수 없다. 그래서 넘기지 않고 값만 남겨 둔다 — 받는 쪽이 다시
+  생기면 _task_manager_params 에서 되살려라.
+
+★ patrol_route 는 일부러 안 넘긴다
+  웹(「설정 > 선반」 → shelves.yaml 의 assigned_robot)이 주기로 한 값이다.
+  그때까지 task_manager 는 DEFAULT_PATROL_ROUTE 로 폴백하고 시작 로그에
+  "DEFAULT_PATROL_ROUTE 폴백" 경고를 찍는다 — 그 경고가 보이면 정상이다.
 
 씬은 매거진 둘(로봇당 하나)과 스택 하나만 놓인 시험용을 쓴다:
     SIM_WORLD_USD=$HOME/cobot3_ws/isaacpjt/worlds/simple_factory_layout_test.usda \\
         isaac_python isaacpjt/ros_bridge/sim_backend.py
+
+★ 로그는 tee 로 받아라
+  노드가 import 단계에서 즉사하면(Traceback 한 장 찍고 exit code 1) 그
+  Traceback 은 화면에만 뜬다. ~/.ros/log/<실행>/launch.log 에는
+  "process has died ... exit code 1" 만 남고 이유는 안 남는다. output="both"
+  로 바꿔도 이 시스템은 노드별 로그 파일을 만들지 않는다(확인함). 그래서:
+
+      ros2 launch cobot3_bringup mission_nodes.launch.py robots:=robot1 \
+          2>&1 | tee ~/mission.log
+
+  실제로 carrier_code_reader · pick_place_server 가 이렇게 죽었을 때
+  원인을 못 찾았다.
 
 이 launch 가 책임지는 건 애플리케이션 노드뿐이다. 아래는 따로 띄워야 한다
 (이 순서로):
@@ -77,10 +102,14 @@ MISSION_NODES = [
 #  ★ 스택·검사·로더이탈 경로는 로봇마다 다르지 않아서 여기서 안 넘긴다 —
 #    task_manager.py 의 기본값을 그대로 쓴다. 스택은 하나뿐이고 한 대만
 #    맡으므로 둘이 같은 좌표를 써도 겹치지 않는다.
+#
+#  ★ 지금 task_manager 에게 실제로 넘어가는 것은 STAGING_BY_ROBOT 뿐이다.
+#    나머지 표는 받는 쪽이 없다 — 위 머리주석의 두 번째 ★ 참고.
 # ══════════════════════════════════════════════════════════════════════════
 
 # 도크 → 스캔 자리. 자기 줄을 따라 서쪽으로 나간 뒤 선반 줄 동쪽 끝으로
 # 올라가고, 마지막 구간은 회전 없이 들어간다(robot1 후진 · robot2 전진).
+# ☞ 지금은 안 넘어간다 (받는 파라미터가 없다). 로봇 이름 검증에만 쓴다.
 SCAN_ROUTE_BY_ROBOT = {
     "robot1": [3.5, -6.591, 180.0,   1.0, 2.036, 0.0,     -0.641, 2.036, 0.0],
     "robot2": [3.5, -7.575, 180.0,   1.0, -1.056, 180.0,  -0.516, -1.056, 180.0],
@@ -88,6 +117,7 @@ SCAN_ROUTE_BY_ROBOT = {
 
 # 스캔 자리에서 선반 줄을 벗어나는 동쪽 이탈점. 이 점 없이 바로 북상하면
 # 차체가 선반을 친다. 아래 대기 자리와 이어 붙여 approach_route 가 된다.
+# ☞ 지금은 안 넘어간다 (받는 파라미터가 없다).
 ROW_EXIT_BY_ROBOT = {
     "robot1": [1.50, 2.036, 0.0],
     "robot2": [1.50, -1.056, 180.0],
@@ -107,6 +137,7 @@ STAGING_BY_ROBOT = {
 # 로더(또는 검사 스테이션) → 도크. 마지막 점이 도크이고 씬의 시작 자세와 같다.
 # 둘째 점은 자기 줄 위이고 이웃 줄과 0.98 m 떨어져 있어, 거기서 도는 꼬리
 # 스윕(0.656 m)이 이웃을 안 친다.
+# ☞ 지금은 안 넘어간다 (받는 파라미터가 없다).
 DOCK_ROUTE_BY_ROBOT = {
     "robot1": [3.0, -4.6, 90.0,   3.0, -6.3, 180.0,     5.5, -6.591, 180.0],
     "robot2": [3.0, -4.6, 90.0,   3.0, -7.575, 180.0,   5.5, -7.575, 180.0],
@@ -116,6 +147,7 @@ DOCK_ROUTE_BY_ROBOT = {
 # 꼬리 스윕이 이웃을 안 치므로(task_manager.py "출발 게이트") robot2 가 1 이다.
 # 그 순서가 로더에서도 이어져 robot2 가 먼저 place 하고 스택을 맡는 것이
 # 기본 흐름이다.
+# ☞ 지금은 안 넘어간다 (받는 파라미터가 없다).
 LANE_PRIORITY_BY_ROBOT = {"robot1": 2, "robot2": 1}
 
 # 상대가 차선을 쓰고 있다고 보는 단계. task_manager.py 의
@@ -135,6 +167,68 @@ LANE_STAGES = ["nav", "push", "place",
 PEER_OF = {"robot1": "robot2", "robot2": "robot1"}
 
 
+# ══════════════════════════════════════════════════════════════════════════
+#  nav_server 파라미터
+#
+#  순찰 goal 하나를 받을 때마다, 바퀴를 굴리기 전에 이만큼 제자리에 선다.
+#  그 사이 carrier_code_reader 가 팔을 관측 자세로 올린다 — 안 세우면 팔이
+#  올라가는 15 초 동안 베이스가 1.8 m 를 가서 선반 구역을 지나쳐 버린다.
+#  (근거는 nav_server.py DEFAULT_PATROL_START_HOLD_S 주석)
+#
+#  ★ 이 정지는 순찰 왕복 편도(약 27 s)에 그대로 더해진다. 줄이려면 여기서
+#    줄이되, carrier_code_reader 의 observe_pose 블로킹 한도(15 s)보다 짧으면
+#    팔이 올라가는 중에 다시 굴러가서 원래 문제로 돌아간다.
+#  ★ 0 으로 두면 이 단계를 끈다.
+# ══════════════════════════════════════════════════════════════════════════
+
+PATROL_START_HOLD_S = 15.0
+
+
+def _nav_server_params():
+    return {"patrol_start_hold_s": PATROL_START_HOLD_S}
+
+
+# ══════════════════════════════════════════════════════════════════════════
+#  carrier_code_reader 파라미터
+#
+#  순찰 중 QR 폴링 — 곧 "주행 중에 팔을 관측 자세로 올릴지" 다.
+#
+#  ★ 끌 수 있게 해 둔 이유(기본은 켬): 팔이 충돌 계산에 안 들어간다. Nav2 코스트맵이 아는
+#    차체는 footprint(앞으로 0.14 m)뿐이고, 순찰은 collision_monitor 도
+#    거치지 않는다(nav_server 가 cmd_vel 에 직접 쓴다). 그런데 폴백 관측
+#    자세(taught_poses.yaml 의 s1_bottom_scan)는 J2=90° 라 팔이 앞으로 거의
+#    다 뻗는다. 선반 앞 여유가 0.40~0.45 m 인 통로에서 그러면 박는다.
+#
+#  ★ 더 근본적으로, 그 폴백 자세들은 **옛 레이아웃에서 티칭된 값**이다.
+#    taught_poses.yaml 의 base_link_world 가 x≈-6.5 인데 지금 선반은
+#    x[-2.825,-0.325] 다. 선반을 정면으로 마주보던 시절 자세라, 선반 옆을
+#    따라 지나가는 지금 구조에는 기하가 맞지 않는다. Shelf_02 용 자세는
+#    아예 없어서 robot2 도 shelf_1 자세를 쓴다.
+#
+#  ★ 켜려면: 먼저 지금 레이아웃에서 두 선반의 관측 자세를 다시 티칭해
+#    shelves.yaml 의 arm_teach_pose 6 칸을 채워라. 채워지면
+#    carrier_code_reader 가 폴백 대신 그 값을 쓴다(_teach_joints_deg).
+#    자세가 안 맞은 채로 순찰하다 팔이 박으면, 원인을 가르기 위해
+#    여기를 False 로 두고 베이스 주행만 따로 볼 수 있다.
+# ══════════════════════════════════════════════════════════════════════════
+
+PATROL_SCAN = True
+
+#  ★ 감지를 "QR 이 보인다" 가 아니라 "QR 옆에 왔다" 로 좁히는 허용오차(m).
+#    손목캠은 매거진을 한참 앞에서부터 비스듬히 본다. 보이자마자 멈추면
+#    매거진 정면이 아니라 비스듬히 먼 자리에 서고, 팔이 거기까지 못 뻗어
+#    pick 이 NO_FLANGE 로 죽는다(실측: 진행방향 0.45 m 못 미쳐 정차,
+#    매거진까지 0.76 m — 티칭 0.55).
+#    base_link +x(로봇 정면) 오프셋이 이 값 안에 들어와야 감지로 친다.
+#    0 이하면 게이트를 끈다.
+DETECT_ALIGN_TOL_M = 0.15
+
+
+def _carrier_code_reader_params():
+    return {"patrol_scan": PATROL_SCAN,
+            "detect_align_tol_m": DETECT_ALIGN_TOL_M}
+
+
 def _task_manager_params(ns, namespaces):
     """task_manager 하나에 넘길 파라미터.
 
@@ -150,13 +244,19 @@ def _task_manager_params(ns, namespaces):
             f"넣고 check_staging_poses.py 로 검증해라. 지금 아는 로봇: "
             f"{sorted(SCAN_ROUTE_BY_ROBOT)}")
 
+    # ★ 여기 넣는 이름은 task_manager 가 declare_parameter 하는 것뿐이어야 한다.
+    #   rclpy 는 선언 안 된 override 를 조용히 버린다 — 예외도 경고도 없다.
+    #   그래서 오타나 "받는 쪽이 사라진 이름" 이 여기 남아 있으면, 좌표를 준 줄
+    #   알고 있는데 노드는 기본값으로 도는 상태가 되고 로그에 아무 단서도 없다.
+    #   지금 task_manager 가 선언하는 이름(task_manager.py __init__ 참고):
+    #       shelves_yaml · patrol_shelf · patrol_route · reload_service
+    #       execute_task_action · wait_for_task · empty_sweeps
+    #       observe_pose_service · peer_state_topic · peer_pose_topic
+    #       loader_clear_radius_m · peer_busy_stages · staging_pose
     params = {
-        "scan_route": SCAN_ROUTE_BY_ROBOT[ns],
-        # 대기 자리까지 가는 길. 우회의 APPROACH 가 그대로 쓰고, 직행의 NAV 는
-        # 여기에 로더를 덧붙여 쓴다(task_manager.py DEFAULT_APPROACH_ROUTE).
-        "approach_route": ROW_EXIT_BY_ROBOT[ns] + STAGING_BY_ROBOT[ns],
-        "dock_route": DOCK_ROUTE_BY_ROBOT[ns],
-        "lane_priority": LANE_PRIORITY_BY_ROBOT[ns],
+        # 로더 차선이 막혔을 때 비켜 서는 자리. 로봇마다 달라야 한다 —
+        # 같은 점을 쓰면 대기 자리에서 둘이 부딪힌다(STAGING_BY_ROBOT 주석).
+        "staging_pose": STAGING_BY_ROBOT[ns],
     }
 
     peer = PEER_OF.get(ns)
@@ -185,8 +285,14 @@ def _setup(context):
     nodes = []
     for ns in namespaces:
         for package, executable in MISSION_NODES:
-            params = (_task_manager_params(ns, namespaces)
-                      if executable == "task_manager" else {})
+            if executable == "task_manager":
+                params = _task_manager_params(ns, namespaces)
+            elif executable == "nav_server":
+                params = _nav_server_params()
+            elif executable == "carrier_code_reader":
+                params = _carrier_code_reader_params()
+            else:
+                params = {}
             nodes.append(Node(
                 package=package,
                 executable=executable,
@@ -200,17 +306,35 @@ def _setup(context):
     #   /trace/event 가 절대이름이라 로봇이 몇 대든 여기로 모이고,
     #   DB 커넥션을 가진 노드는 이것 하나뿐이다 (docs/DB구성.md §1).
     #   DB 가 안 떠 있어도 무해하다 — 스풀 파일로 흘리고 로봇은 그대로 돈다.
-    nodes.append(Node(
-        package="cobot3_orchestrator",
-        executable="event_logger",
-        name="event_logger",
-        output="screen",
-    ))
+    #
+    # ★ event_logger:=false 는 이 launch 를 두 번 띄울 때 쓴다.
+    #   도크가 0.98 m 간격인데 회전 꼬리 스윕이 0.656 m 라, 두 대를 한 번에
+    #   띄우면 동시에 도크를 떠나면서 서로 침범한다. 이 판 task_manager 에는
+    #   출발 조율(lane_priority·출발 게이트)이 없어서 코드가 막아 주지 않는다.
+    #   그래서 robot1 을 먼저 띄워 도크를 벗어나게 한 뒤 robot2 를 띄우는데,
+    #   그때 둘째 launch 까지 event_logger 를 띄우면 같은 이름의 노드가 둘이
+    #   되어 /trace/event 를 양쪽이 받는다. 둘째에 false 를 준다.
+    if _as_bool(LaunchConfiguration("event_logger").perform(context)):
+        nodes.append(Node(
+            package="cobot3_orchestrator",
+            executable="event_logger",
+            name="event_logger",
+            output="screen",
+        ))
     return nodes
+
+
+def _as_bool(text):
+    return str(text).strip().lower() not in ("0", "false", "no", "off", "")
 
 
 def generate_launch_description():
     return LaunchDescription([
+        DeclareLaunchArgument(
+            "event_logger", default_value="true",
+            description="전역 event_logger 를 이 launch 가 띄울지. 이 launch 를 "
+                        "두 번 나눠 띄울 때(로봇 시차 출발) 둘째에 false 를 줘서 "
+                        "같은 이름의 노드가 둘이 되는 것을 막는다."),
         DeclareLaunchArgument(
             "robots", default_value="robot1",
             description="미션 노드를 띄울 로봇 네임스페이스. 쉼표로 여러 개 "

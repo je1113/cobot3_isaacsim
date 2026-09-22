@@ -1818,11 +1818,36 @@ class TaskManager(Node):
         pts = " → ".join(f"({x:.3f}, {y:.3f}, {yaw:.1f}°)"
                          for x, y, yaw in self.patrol_route)
         if _unflatten_route(DEFAULT_PATROL_ROUTE) == self.patrol_route:
+            # ★ 폴백은 모듈 상수 하나뿐이다 — 로봇마다 다른 값이 될 수가 없다.
+            #   그래서 여러 대가 동시에 여기로 떨어지면 전부 같은 좌표를 향해
+            #   출발한다. 실제로 그 일이 있었다: shelves.yaml 에 assigned_robot
+            #   이 없고 launch 도 patrol_route 를 안 넘겨서, robot1 과 robot2 가
+            #   똑같이 (-3.1, 1.9) ↔ (0.1, 1.9) 를 왕복했다. 그 구간은
+            #   Shelf_01 전면이라 robot2 가 갈 자리가 아니다.
+            #
+            #   경고만으로는 안 된다 — 두 대가 같은 통로에서 마주 보고 달리는
+            #   것은 로그를 읽기 전에 부딪힌다. 상대가 설정돼 있다는 것은 이
+            #   로봇이 혼자가 아니라는 뜻이므로, 그때는 뜨지 않고 죽는다.
+            #   (혼자 돌리는 시험은 폴백으로도 의미가 있어서 경고로 남긴다 —
+            #   _unflatten_route 가 "반쯤 읽은 좌표로 움직이는 것이 제일 나쁘다"
+            #   고 한 것과 같은 기준이다.)
+            has_peer = bool(self.get_parameter("peer_state_topic").value)
+            detail = (
+                f"순찰 경로가 폴백값 그대로다 [{self.patrol_route_source}] {pts}. "
+                f"DEFAULT_PATROL_ROUTE 는 모듈 상수 하나라 로봇마다 달라지지 "
+                f"않는다. 고치는 법: src/cobot3_bringup/config/shelves.yaml 의 "
+                f"선반에 assigned_robot: {self.robot_id} 과 waypoint_start · "
+                f"waypoint_end 를 채워라(웹 「설정 > 선반」 탭이 같은 파일을 쓴다). "
+                f"위 경고에 왜 shelves.yaml 을 못 썼는지 적혀 있다.")
+            if has_peer:
+                raise RuntimeError(
+                    f"{detail} 상대(peer_state_topic="
+                    f"{self.get_parameter('peer_state_topic').value})가 설정돼 "
+                    f"있어서 이대로 뜨면 두 대가 같은 좌표로 간다 — 그래서 "
+                    f"여기서 멈춘다.")
             self.get_logger().warning(
-                f"순찰 경로가 폴백값 그대로다 [{self.patrol_route_source}] — "
-                f"이건 옛 레이아웃(선반 x≈-6.5) 좌표라 지금 씬에는 맞지 않는다. "
-                f"로봇이 씬에 없는 자리로 간다. 위 경고에 왜 shelves.yaml 을 "
-                f"못 썼는지 적혀 있다.")
+                f"{detail} 지금은 상대가 없어서 그대로 진행한다 — 두 대를 "
+                f"같이 띄우면 이 자리에서 노드가 죽는다.")
         else:
             self.get_logger().info(
                 f"순찰 경로 [{self.patrol_route_source}] {pts} — 두 점의 yaw 가 "
