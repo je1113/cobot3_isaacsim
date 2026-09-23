@@ -67,7 +67,7 @@ pick_place_server — PickCarrier · PlaceCarrier 액션 서버.
   carry_joints_deg     pick 성공 뒤 이 관절값(도)으로 옮겨 이송한다. place 는 시작
                        전에 STOW(READY)로 되돌린다. 기본 [0]*6 — 팔이 서고 흡착면이
                        위를 본다. 빈 리스트면 끈다(STOW 그대로 이송).
-  carry_wait_s         이송 자세 도착 뒤 대기(기본 15 s). 끝나야 pick 이 성공을
+  carry_wait_s         이송 자세 도착 뒤 대기(기본 5 s). 끝나야 pick 이 성공을
                        내고 task_manager 가 NAV 로 출발한다. 0 이면 안 기다린다.
 
   기본값은 action 파일의 "제안"값이 아니라 grasp.yaml/12_pick_test.py 가
@@ -174,9 +174,10 @@ class PickPlaceServer(Node):
         self.declare_parameter("shear_force_limit", 100.0)
         self.declare_parameter("max_grip_distance", 0.03)
         self.declare_parameter("lift_height_m", 0.10)            # 12_pick_test.py 검증값
-        # 2026-09-23: 0.005 -> 0.055 — 지금보다 5 cm 높은 곳에서 흡착을 끈다(사용자
-        # 지시). 매거진·스택 공통이다. 바닥이 벨트 위 5.5 cm 에서 떨어진다.
-        self.declare_parameter("place_drop_m", 0.055)
+        # 2026-09-23: 0.005 -> 0.055 -> 0.155 — 사용자 지시로 두 번 올렸다(5 cm,
+        # 다시 10 cm). 놓은 뒤 팔이 매거진을 누르지 않게 벨트에서 충분히 떨어진
+        # 곳에서 흡착을 끄고 곧장 위로 뺀다. 매거진·스택 공통.
+        self.declare_parameter("place_drop_m", 0.155)
         # pick 이 끝나면(STOW 판정 통과 뒤) 팔을 이 관절값(도)으로 옮긴 채 이송한다.
         # place 는 시작 전에 STOW 자세(READY)로 되돌린 뒤 평소대로 한다 — place 의
         # APPROACH 는 흡착면이 아래를 보는 자세에서 출발해야 IK 가 풀린다.
@@ -185,7 +186,7 @@ class PickPlaceServer(Node):
         self.declare_parameter("carry_joints_deg", [0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
         # 이송 자세에 도착한 뒤 이만큼 서 있다가 pick 을 끝낸다(= 그 뒤에 NAV 출발).
         # 자세를 크게 바꾼 직후라 매거진·팔이 흔들리는 걸 가라앉힌다. 0 이면 끈다.
-        self.declare_parameter("carry_wait_s", 15.0)
+        self.declare_parameter("carry_wait_s", 5.0)   # 2026-09-23 사용자 지시 15 -> 5
         self.declare_parameter("place_pos_tol_m", 0.002)         # ★ 알려진 갭: 미검증
         self.declare_parameter("place_yaw_tol_rad", 0.017)       # ★ 알려진 갭: 미검증
 
@@ -462,8 +463,11 @@ class PickPlaceServer(Node):
         goal = goal_handle.request
         result = PlaceCarrier.Result()
         feedback = PlaceCarrier.Feedback()
-        approach_dist_m = float(self.get_parameter("approach_dist_m").value)
         place_drop_m = float(self.get_parameter("place_drop_m").value)
+        # 접근 높이는 놓는 높이 이상으로 둔다 — 놓는 높이(0.155)가 접근 높이(0.15)
+        # 보다 높아서, 그대로 두면 DESCEND 가 아래가 아니라 위로 간다.
+        approach_dist_m = max(float(self.get_parameter("approach_dist_m").value),
+                              place_drop_m)
 
         slot_pose_base_link = self.place.get(goal.variant)
         if slot_pose_base_link is None:
