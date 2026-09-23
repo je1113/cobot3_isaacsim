@@ -5549,9 +5549,11 @@
   text-align: center;
 }
 
+/* 세로/가로 비율은 실측 지도 크기(worldBounds)로 JS 에서 인라인 지정한다.
+   지도 정보를 받기 전(로딩 중)에만 이 기본값을 쓴다. */
 .monitor-map-surface {
   position: relative;
-  height: 480px;
+  aspect-ratio: 4 / 3;
   overflow: hidden;
   background: #faf9f6;
 }
@@ -5876,11 +5878,6 @@
   .monitor-map-header {
     flex-direction: column;
     align-items: stretch;
-  }
-
-  .monitor-map-surface,
-  .monitor-topview-empty {
-    height: 380px;
   }
 
   .monitor-robot-column {

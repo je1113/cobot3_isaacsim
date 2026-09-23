@@ -87,6 +87,21 @@ const STATION_ROLLER_OFFSETS = [-1.8, -1.2, -0.6, 0, 0.6, 1.2, 1.8]
 // 과 크기가 같으므로 스테이션과 같은 컨베이어 아이콘으로 그린다.
 const CONVEYOR_SHELF_IDS = new Set(['PKG-OUT'])
 
+// 컨베이어 프레임의 실제 중심(map=world 좌표, m) — simple_factory_layout.usda
+// PackagingZone/TestingZone/PackagingUnloaderZone 의 ConveyorFrame
+// xformOp:translate 를 그대로 쓴다(부모 Xform translate 포함).
+//   PackagingZone   : 부모(0,4.6,0) + Cube(6.4,0)      -> (6.4, 4.6)
+//   TestingZone     : 부모(0,4.6,0) + Cube(6.4,-7.3053) -> (6.4, -2.705315)
+//   PackagingUnloaderZone(PKG-OUT) : 부모 identity + Cube(6.4,0.971365)
+// station.place_pose / shelf.waypoint 는 로봇이 place·관측하려고 서는
+// 자리(벨트 앞 0.35~2.7m)라 벨트 중심이 아니다 — 그걸 그대로 그리면
+// 아이콘이 실제 컨베이어보다 로봇 주차 지점(벽 쪽)으로 당겨져 보인다.
+const CONVEYOR_CENTERS_M = {
+  'PKG-01': { x: 6.4, y: 4.6 },
+  'TEST-01': { x: 6.4, y: -2.705315 },
+  'PKG-OUT': { x: 6.4, y: 0.971365 },
+}
+
 /**
  * 컨베이어 아이콘 하나. 스테이션(PKG-01 · TEST-01)과 PKG-OUT 이 같이 쓴다 —
  * 세 벨트가 씬에서 같은 크기라 화면에서도 한 모양이어야 한다.
@@ -323,6 +338,40 @@ function FactoryTopView({
       />
 
       {shelves.map((shelf) => {
+        if (
+          CONVEYOR_SHELF_IDS.has(
+            shelf.shelf_id,
+          )
+        ) {
+          // 컨베이어 프레임 실제 중심을 쓴다 — waypoint 는 로봇이 관측하려고
+          // 서는 자리(벨트 앞)라 중심이 아니다(위 CONVEYOR_CENTERS_M 주석).
+          const center =
+            CONVEYOR_CENTERS_M[
+              shelf.shelf_id
+            ] ??
+            midpoint(
+              toPoint(
+                shelf.waypoint_start,
+              ),
+              toPoint(
+                shelf.waypoint_end,
+              ),
+            )
+
+          if (!center) {
+            return null
+          }
+
+          return (
+            <ConveyorIcon
+              key={shelf.shelf_id}
+              p={toSvg(center)}
+              label={shelf.shelf_id}
+              variant="output"
+            />
+          )
+        }
+
         const center = midpoint(
           toPoint(
             shelf.waypoint_start,
@@ -335,21 +384,6 @@ function FactoryTopView({
         }
 
         const p = toSvg(center)
-
-        if (
-          CONVEYOR_SHELF_IDS.has(
-            shelf.shelf_id,
-          )
-        ) {
-          return (
-            <ConveyorIcon
-              key={shelf.shelf_id}
-              p={p}
-              label={shelf.shelf_id}
-              variant="output"
-            />
-          )
-        }
 
         return (
           <g
@@ -391,9 +425,15 @@ function FactoryTopView({
       })}
 
       {stations.map((station) => {
-        const point = toPoint(
-          station.place_pose,
-        )
+        // 컨베이어 프레임 실제 중심을 쓴다 — place_pose 는 로봇이 놓으려고
+        // 서는 자리(벨트 앞)라 중심이 아니다(위 CONVEYOR_CENTERS_M 주석).
+        const point =
+          CONVEYOR_CENTERS_M[
+            station.station_id
+          ] ??
+          toPoint(
+            station.place_pose,
+          )
 
         if (!point) {
           return null
@@ -908,6 +948,18 @@ function MonitoringPage({
     connectionStatus ===
     'CONNECTED'
 
+  // Top View 컨테이너 비율 — FactoryTopView 의 viewBox 와 똑같이
+  // worldBounds(실측 지도 크기)로 계산한다. 고정 height 를 쓰면 컨테이너
+  // 실제 비율과 어긋나 preserveAspectRatio 가 레터박스를 만들고, 그만큼
+  // 세로 공간이 버려져 간격이 좁아 보인다 — 비율을 맞춰 그 낭비를 없앤다.
+  const topViewAspectRatio =
+    worldBounds
+      ? (worldBounds.height_px *
+          worldBounds.resolution) /
+        (worldBounds.width_px *
+          worldBounds.resolution)
+      : null
+
   return (
     <section className="monitoring-page monitoring-control-page">
       <header className="monitor-control-page-header">
@@ -962,7 +1014,17 @@ function MonitoringPage({
             </div>
           </div>
 
-          <div className="monitor-map-surface">
+          <div
+            className="monitor-map-surface"
+            style={
+              topViewAspectRatio
+                ? {
+                    aspectRatio:
+                      topViewAspectRatio,
+                  }
+                : undefined
+            }
+          >
             <FactoryTopView
               worldBounds={
                 worldBounds
