@@ -163,9 +163,7 @@ docs/08_ROS2_NODE_Graph.html 의 확정안(01-03)이 기준이다. 노드 5개 �
   호출  perception/observe_pose      std_srvs/Trigger — 순찰 전 관측 자세.
                                      어느 자세인지는 받는 쪽이 자기 파라미터로
                                      안다(DEFAULT_OBSERVE_POSE_SERVICE 참고)
-  액션  navigation/navigate_to       NavigateTo.action — 일반 Nav2 이동(position + yaw)
-  액션  navigation/navigate_to_position NavigateTo.action — START 전용(position only)
-  액션  navigation/patrol_to        NavigateTo.action — 순찰 직접 주행
+  액션  navigation/navigate_to       NavigateTo.action
   액션  manipulation/pick_carrier    PickCarrier.action
   액션  manipulation/place_carrier   PlaceCarrier.action
   발행  orchestrator/state           std_msgs/String  (상태 · 실패 단계 확인용)
@@ -1990,10 +1988,8 @@ def build_tree(node):
 
     start_leaf = Freeze("START", ActionLeaf(
             START, node,
-            # START 전용: 목표 x,y 위치에 도착하면 final yaw 정렬을 기다리지 않는다.
-            # nav_server 의 navigation/navigate_to_position 이 내부 Nav2 goal 을
-            # 먼저 cancel 한 뒤 SUCCESS 를 반환하므로 PATROL과 Nav2가 겹치지 않는다.
-            node.start_nav, "navigation/navigate_to_position",
+            # Nav2
+            node.nav, "navigation/navigate_to",
             NavigateTo.Result, make_goal=lambda: NavigateTo.Goal(
             pose=_to_pose(node.patrol_route[0])),
                         timeout_s=NAV_TIMEOUT_S, moves_base=True,),
@@ -2116,7 +2112,6 @@ class TaskManager(Node):
         # 콜백 그룹도 스레드도 없다. 잎이 블로킹하지 않아서 단일 스레드로 충분하다.
         self.carrier_scan = self.create_client(CarrierScan, "perception/carrier_scan")
         self.nav = ActionClient(self, NavigateTo, "navigation/navigate_to")
-        self.start_nav = ActionClient(self, NavigateTo, "navigation/navigate_to_position")
         self.patrol_nav = ActionClient(self, NavigateTo, "navigation/patrol_to",)
         self.pick = ActionClient(self, PickCarrier, "manipulation/pick_carrier")
         self.place = ActionClient(self, PlaceCarrier, "manipulation/place_carrier")
