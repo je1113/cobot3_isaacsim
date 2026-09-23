@@ -1,41 +1,22 @@
 """
-Isaac Sim 쪽 실행 백엔드 — 진짜 rclpy 노드들이 이 파일을 로컬 소켓으로 부린다.
+Isaac Sim 실행 백엔드 — 진짜 rclpy 노드들이 이 파일을 로컬 소켓(JSON-RPC)으로 부린다.
 
-왜 이런 구조인가:
-  Isaac 5.1 의 kit 파이썬은 3.11 인데 이 서버의 ROS2 Jazzy(apt)는 3.12 용
-  바이너리만 있다. Isaac 이 자체 rclpy(3.11 용)를 번들하긴 하지만
-  ament_cmake/rosidl 빌드 툴체인은 없어서, 우리가 만든 cobot3_interfaces
-  를 그 환경에 맞게 다시 빌드할 수 없다(확인함). 그래서 isaac_python 안에서
-  직접 rclpy 노드를 못 띄운다.
+Isaac 5.1 의 kit 파이썬(3.11)에서는 시스템 ROS2 Jazzy(3.12용)의 rclpy 를 못 쓴다.
+그래서 이 프로세스는 JSON-RPC 서버만 열고, 실제 ROS2 노드(시스템 python 3.12)가
+이 소켓을 통해서만 명령을 보낸다.
 
-  대신 이 프로세스(isaac_python)는 지금까지 검증한 FSM/비전 코드를 그대로
-  들고 있고, 로컬 JSON-RPC 서버 하나만 연다. 진짜 ROS2 노드(시스템 python
-  3.12, cobot3_interfaces)는 이 소켓을 통해서만 명령을 보낸다.
-
-  실물 이관 시: pick_place_server/nav_server 는 이 파일 대신 실제 로봇
-  드라이버(액션·서비스)를 부르게만 바꾸면 된다. ROS 쪽 노드는 안 바뀐다.
-
-프로토콜: TCP, 줄 단위 JSON. 요청 {"id":.., "method":.., "params":{..}}
-         응답 {"id":.., "result":..} 또는 {"id":.., "error":..}
+프로토콜: TCP, 줄 단위 JSON. {"id","method","params"} -> {"id","result"} / {"id","error"}
 
 실행 (워크스페이스 루트에서):
     ./isaacpjt/ros_bridge/run_sim_backend.sh
-    SIM_BACKEND_PORT=8765 ./isaacpjt/ros_bridge/run_sim_backend.sh
     ./isaacpjt/ros_bridge/run_sim_backend.sh --check    # Isaac 안 띄우고 환경만 검사
 
-    ★ isaac_python 으로 직접 띄우지 마라. ROS 를 source 한 셸(ros_set)의
-      PYTHONPATH(3.12 site-packages)와 LD_LIBRARY_PATH(/opt/ros/jazzy/lib)를
-      물려받아 SimulationApp(...) 생성자에서 죽는다(실측 2026-09-22: Segmentation
-      fault) — 이 파일의 코드는 한 줄도 돌지 않는다. 이 파일은 rclpy 를 import
-      하지 않지만 아래에서 isaacsim.ros2.bridge 확장을 켜기 때문에, Isaac 이
-      번들한 브릿지 lib(3.11 용)이 /opt/ros/jazzy/lib(3.12 용)보다 먼저 잡혀야
-      한다. 격리 내용과 이유는 run_sim_backend.sh 머리 주석.
+★ isaac_python 으로 직접 띄우지 마라 — ROS 를 source 한 셸의 환경을 물려받아
+  SimulationApp(...) 생성자에서 세그폴트로 죽는다. 격리 이유는 run_sim_backend.sh 참고.
 
 머신이 둘일 때 (ROS 는 일반 PC, Isaac 은 GPU PC):
-    GPU PC   ./isaacpjt/ros_bridge/run_sim_backend.sh              # 0.0.0.0 에 바인드한다
-             hostname -I                                        # 이 IP 를
-    ROS PC   export SIM_BACKEND_HOST=<그 IP>                      # 여기에 준다
-             nc -vz <그 IP> 8765                                 # succeeded 면 연결 OK
+    GPU PC   ./isaacpjt/ros_bridge/run_sim_backend.sh   # 0.0.0.0 에 바인드
+    ROS PC   export SIM_BACKEND_HOST=<GPU PC IP>
 """
 
 import json
@@ -54,55 +35,23 @@ from isaacsim import SimulationApp
 HEADLESS = os.environ.get("SIM_HEADLESS", "1") == "1"
 simulation_app = SimulationApp({"headless": HEADLESS})
 
-# 씬(simple_factory_layout.usda)에 이미 OmniGraph 로 박혀 있는 ROS2 브릿지
-# 노드들(ROS2PublishClock, nova_carter1/2 의 odom·lidar 퍼블리셔)은 이 확장이
-# 꺼져 있으면 그냥 안 돈다 — SimulationApp 기본 구성에는 안 들어 있다. 이
-# 백엔드는 원래 JSON-RPC(팔·그리퍼·카메라)만 썼어서 필요 없었는데, Nav2 가
-# /clock·/robot1/chassis/odom·/robot1/front_3d_lidar/lidar_points 를 그
-# 노드들에서 받아야 해서 필요해졌다. LD_LIBRARY_PATH(isaac_ros 함수)는
-# 라이브러리를 "찾을 수 있게" 만들 뿐, 확장을 "켜는" 건 아니다 — 둘 다 필요하다.
+# 씬에 박혀 있는 ROS2 브릿지 OmniGraph(odom·lidar·clock 퍼블리셔)는 이 확장이
+# 꺼져 있으면 안 돈다 — Nav2 가 그 토픽들을 받아야 해서 필요하다.
 from isaacsim.core.utils.extensions import enable_extension  # noqa: E402
-# ★ 다른 확장(특히 isaacsim.ros2.bridge 의뢰존성 트리에 걸려 나중에 자동으로
-# 끌려오는 omni.graph.image.core 등)보다 먼저 켠다. 그렇게 안 하면 로딩 순서에
-# 따라 omni.graph.core 가 "Found duplicate of category 'Replicator' - was
-# 'Annotators', adding 'Fabric Reader'" / "Category 'Replicator' not accepted
-# on node type 'omni.replicator.core.FabricReader'" 경고를 내며 카테고리
-# 등록이 꼬인다(실측: sim_backend.py 콘솔에서 매번 재현). 이 카테고리 등록이
-# 꼬인 상태에서 이어지는 stage 로딩이 omni.graph.image.core.plugin.so 안에서
-# 세그폴트로 죽거나(REACHABILITY 재현됨), 죽지 않고 넘어가더라도 이후
-# rep.create.render_product() 로 새로 만드는 render_product 의 rgb annotator
-# 가 계속 빈 프레임(shape=(0,))만 주는 것으로 보인다 — observe_pose/scan_qr/
-# debug_capture 전부, 심지어 이미 잘 동작하던 front_hawk 카메라로 대조군을
-# 만들어도 똑같이 재현됐다. omni.replicator.core 를 여기서 제일 먼저 등록해
-# 그 확장이 자기 카테고리를 스스로 정상 선점하게 만들어 경합을 피해본다.
+# omni.replicator.core 를 먼저 켜야 카테고리 등록 경합(세그폴트·빈 프레임)을 피한다.
 enable_extension("omni.replicator.core")
 enable_extension("isaacsim.ros2.bridge")
-# SurfaceGripper 는 USD 프림이 아니라 이 익스텐션이 등록하는 OmniGraph 노드
-# 타입(isaacsim.robot.surface_gripper.SurfaceGripper)이다 — 스테이지를 열기
-# 전에 켜두지 않으면 short_gripper payload 가 로드돼도 OmniGraph 가 그 노드
-# 타입을 몰라서 인스턴스화하지 못하고, configure_gripper_limits() 가
-# "SurfaceGripper node not found" 로 죽는다(재시도 프레임을 늘려도 안 됨 —
-# 익스텐션이 그 전에는 아예 등록을 안 하기 때문).
+# SurfaceGripper 는 이 익스텐션이 등록하는 OmniGraph 노드 타입이다 — 스테이지를
+# 열기 전에 켜야 한다.
 enable_extension("isaacsim.robot.surface_gripper")
-# ★ 기본 씬(simple_factory_layout.usda)의 매거진은 고정 프림이 아니라
-#   isaacpjt/scripts/magazine_spawner.py 를 BehaviorScript(Script API)로 붙인
-#   프림이 런타임에 스폰한다(e04abb6, 82c4ec0). 근데 그 콜백(on_init/on_play)
-#   은 omni.kit.scripting(또는 최신 Kit의 omni.behavior.scripting.core)
-#   익스텐션이 켜져 있어야 애초에 불린다 — 여기서 안 켜주면 스크립트가
-#   조용히 죽은 채로 있고, 세그폴트도 에러도 없이 그냥 매거진이 하나도 안
-#   생긴다. 위 세 익스텐션과 마찬가지로 stage 를 열기 전에 켜야 한다.
+# 매거진 스포너(isaacpjt/scripts/magazine_spawner.py)는 Script API(BehaviorScript)
+# 라서 이 확장이 켜져 있어야 on_init/on_play 콜백이 불린다.
 try:
     enable_extension("omni.kit.scripting")  # Isaac Sim 5.1
 except Exception:
     enable_extension("omni.behavior.scripting.core")  # 최신 Kit
-# ★ 익스텐션을 켜는 것만으론 부족하다. omni.kit.scripting 의 ScriptManager 는
-#   스테이지에 스크립트가 하나라도 붙어 있으면 기본적으로 "이 스크립트를
-#   신뢰합니까?" 보안 확인 팝업을 띄우고, 사람이 그 팝업에서 응답할 때까지
-#   _load_all_scripts() 를 안 부른다(script_manager.py 의
-#   /app/scripting/ignoreWarningDialog, 기본값 False) — 헤드리스/자동 실행
-#   에는 응답할 사람이 없어 영원히 안 불린다. 그래서 on_init 이 안 불려
-#   MagazineSpawner 가 조용히 죽어 있었다. 이 설정을 켜서 팝업 없이 바로
-#   실행하게 한다.
+# 스크립트 실행 보안 확인 팝업을 끈다 — 헤드리스/자동 실행엔 응답할 사람이 없어
+# 팝업이 뜨면 스크립트가 영원히 안 실행된다.
 import carb.settings
 
 carb.settings.get_settings().set_bool("/app/scripting/ignoreWarningDialog", True)
@@ -116,13 +65,7 @@ from pxr import Usd, UsdGeom, UsdPhysics
 
 
 def _pycapsule_to_bytes(capsule, size):
-    """omni.kit.renderer_capture 의 *_callback 계열이 buffer 로 주는 건
-    실제 바이트가 아니라 PyCapsule(C 포인터 래퍼)이다 — np.frombuffer 에
-    바로 못 넣는다(실측: "TypeError: a bytes-like object is required, not
-    'PyCapsule'"). ctypes 의 PyCapsule C-API 로 직접 포인터를 꺼내 읽는다.
-    이름을 미리 알 필요는 없다 — PyCapsule_GetName 으로 그 캡슐이 실제로
-    갖고 있는 이름을 먼저 읽어서 그대로 PyCapsule_GetPointer 에 되돌려준다
-    (PyCapsule_GetPointer 는 이름이 정확히 일치해야만 포인터를 내준다)."""
+    """렌더 캡쳐 콜백이 주는 PyCapsule 에서 실제 바이트를 꺼낸다."""
     ctypes.pythonapi.PyCapsule_GetName.restype = ctypes.c_char_p
     ctypes.pythonapi.PyCapsule_GetName.argtypes = [ctypes.py_object]
     name = ctypes.pythonapi.PyCapsule_GetName(capsule)
@@ -151,11 +94,8 @@ sys.path.insert(0, str(WS_ROOT / "src/cobot3_perception"))
 from cobot3_perception.qr_pose import estimate_qr_pose, aggregate_qr_poses  # noqa: E402
 from cobot3_perception.flange_topview import detect_flange  # noqa: E402
 
-# 어느 씬을 열지. 기본은 simple_factory_layout.usda 이고, 순찰 없는 고정
-# 시나리오(task_manager scenario:=static_test)는 매거진 둘·스택 하나만 놓인
-#     SIM_WORLD_USD=isaacpjt/worlds/simple_factory_layout_test.usda
-# 로 띄운다. 두 씬은 prim 경로가 같다(nova_carter1, magazine_1_orange 등) —
-# 아래 하드코딩된 경로가 그대로 맞아야 하므로 씬을 새로 만들 때 이름을 지켜라.
+# 기본 씬. SIM_WORLD_USD 로 다른 씬(예: static_test 용 simple_factory_layout_test.usda)을
+# 줄 수 있다 — 두 씬은 prim 경로가 같아야 한다(nova_carter1, magazine_1_orange 등).
 WORLD_USD = os.environ.get("SIM_WORLD_USD") or str(ISAACPJT / "worlds/simple_factory_layout.usda")
 URDF_PATH = str(ISAACPJT / "M0609/doosan-robot2/urdf/m0609_isaac_sim.urdf")
 DESC_PATH = str(ISAACPJT / "M0609/descriptor/m0609_description.yaml")
@@ -164,19 +104,14 @@ GRASP_YAML = WS_ROOT / "src/cobot3_bringup/config/grasp.yaml"
 CARRIERS_YAML = WS_ROOT / "src/cobot3_bringup/config/carriers.yaml"
 MEASURED = ISAACPJT / "tools/out/layout_measured.yaml"
 
-# ★ 정지(SIGINT/SIGTERM) 시 save_state() 가 쓰고, 다음 기동에서 __init__ 의
-#   _restore_state() 가 읽는다. 소스 관리 대상이 아니라(.gitignore) 세션마다
-#   갈아치우는 런타임 파일이다 — 씬을 SIM_WORLD_USD 로 바꿔도 경로가 안
-#   섞이게, 그 파일 이름을 스냅샷 파일명에 넣는다.
+# 정지(SIGINT/SIGTERM) 시 save_state() 가 쓰고, 다음 기동에서 _restore_state() 가
+# 읽는 런타임 스냅샷(.gitignore 대상). 씬마다 다른 파일을 쓰도록 이름에 스템을 넣는다.
 STATE_SNAPSHOT_PATH = ISAACPJT / f"ros_bridge/.state_snapshot.{Path(WORLD_USD).stem}.json"
 
 EE_LINK_NAME = "link_6"
 ARM_JOINTS = ["joint_1", "joint_2", "joint_3", "joint_4", "joint_5", "joint_6"]
 
-# 로봇 두 대 — simple_factory_layout.usda 에 nova_carter1/nova_carter2 가
-# 완전히 같은 구조(m0609 팔 + short_gripper + rsd455)로 미러링돼 있다
-# (isaac:namespace = "robot1"/"robot2"). carter prim 이름만 바꾸면
-# 그대로 재사용된다 — ROBOT_CARTER_NAME 이 그 매핑이다.
+# 로봇 두 대 — 씬의 nova_carter1/nova_carter2 가 완전히 같은 구조로 미러링돼 있다.
 ROBOT_CARTER_NAME = {"robot1": "nova_carter1", "robot2": "nova_carter2"}
 DEFAULT_ROBOT_ID = "robot1"   # robot_id 를 안 주는 옛 호출(단일 로봇 시절)의 폴백
 
@@ -189,11 +124,7 @@ def _robot_paths(carter_name):
         "base_xform": base_xform,
         "robot_prim": robot_prim,
         "base_link": f"{robot_prim}/base_link",       # m0609 자체 base — Lula IK 전용
-        "chassis_link": f"{base_xform}/chassis_link",  # ROS 규약의 base_link(AMR 섀시).
-                                                        # CarrierScan/PickCarrier 의
-                                                        # frame_id="base_link" 는 이쪽이다 —
-                                                        # 06 §1 TF 트리: map -> base_link(Carter)
-                                                        # -> m0609_base -> tool0. 헷갈리지 말 것.
+        "chassis_link": f"{base_xform}/chassis_link",  # ROS 규약의 base_link(AMR 섀시)
         "ee_link": f"{robot_prim}/{EE_LINK_NAME}",
         "gripper_prim": gripper_prim,
         "camera_prim": f"{gripper_prim}/rsd455/RSD455/Camera_OmniVision_OV9782_Color",
@@ -201,88 +132,25 @@ def _robot_paths(carter_name):
     }
 
 
-# ★ 실제 RPC 경로는 로봇별로 Backend.rigs[robot_id](RobotRig, __init__ 에서
-#   _robot_paths() 를 직접 부른다)를 쓴다. 이 아래 한때 있던 robot1 전용
-#   파생 상수들(ROBOT_PRIM_PATH 등)은 RobotRig 도입 뒤로 아무도 안 읽어서
-#   치웠다.
-# _capture_frame() 이 raw AOV 캡쳐로 요청하는 depth 채널의 실제 이름.
-# Replicator 의 annotator 이름("distance_to_image_plane")과 다르다 — 실측
-# 확인: omni.replicator.core.scripts.annotators 의 AnnotatorParams 테이블에
-# 찍힌 raw 이름이 이거다("SD" 접미사). "DistanceToImagePlane"(SD 없이)으로
-# 등록하면 aov_map 에 이름은 잡히는데 텍스처가 끝까지 (0,0) 해상도로 안 채워진다.
+# 로봇별 실제 경로는 Backend.rigs[robot_id](RobotRig)가 들고 있다.
+# _capture_frame() 이 raw AOV 로 요청하는 depth 채널의 실제 이름 — Replicator 의
+# annotator 이름("distance_to_image_plane")과 다르다.
 DEPTH_AOV_NAME = "DistanceToImagePlaneSD"
-# 12_pick_test.py 는 흡착 중 견고함을 위해 1e8 을 쓰지만, 그 값으로는 관측
-# 자세에서 미세 진동이 남아 QR 디코드가 깨졌다(실측 확인). eval_qr_pose_depth.py
-# 가 검증한 값(1e5)으로 낮췄다 — SCAN 도 PICK 도 이 값 하나로 돌려 봤더니,
-# 흡착 견고성이 부족했다(실측: LIFT 중 rise=88mm·tilt<0.1도로 정상 상승했는데도
-# HOLD_WAIT 끝에 gripped=False — SLIP). 위 주석이 예고한 대로 phase 별로
-# 나눈다 — observe_pose() 는 QR 을 위해 이 값을 쓰고, pick_phase1_approach()
-# 는 12_pick_test.py 검증값(DRIVE_STIFFNESS_PICK)으로 다시 올린다.
+# observe_pose(QR 용)와 pick(흡착 유지력용)의 강성을 분리한다 — 하나로 쓰면
+# QR 디코드가 깨지거나 흡착이 SLIP 난다.
 DRIVE_STIFFNESS, DRIVE_DAMPING, DRIVE_MAX_FORCE = 1e5, 1e4, 2700.0
 DRIVE_STIFFNESS_PICK = 1e8
 READY_JOINTS_DEG = [0.0, 0.0, 90.0, 0.0, 90.0, 0.0]
-# 부팅 직후 팔의 초기 자세. 예전엔 READY_JOINTS_DEG(위, STOW 이송 자세와
-# 같은 값)로 세웠는데, task_manager.py 의 START_DETECTED_FOR_TEST 때문에
-# 노드가 뜨자마자 SCAN 이 바로 도는 지금 배선에서는 그 사이 "팔이 아직
-# READY 자세인데 SCAN 은 이미 관측 자세인 줄 알고 진행" 하는 과도기가
-# 혼선을 줬다(실측: PICK 위치 오차/QR 미인식 재현 이력). 아예 부팅 시점
-# 부터 SCAN 관측 자세로 세운다 — simple_factory_layout.usda 의 nova_carter1
-# 팔 관절 초기값도 이 자세로 맞춰 놨다(둘 다 일치해야 한다: USD 쪽 값은
-# Backend.__init__ 이 아래에서 다시 명시적으로 덮어쓰므로 실제 동작을
-# 좌우하는 건 이 상수 쪽이고, USD 값은 "씬만 열었을 때"도 같은 자세로
-# 보이게 하기 위한 것).
-# ★ 2026-09-22: 빈 문자열로 바꿨다 — 부팅 자세를 READY_JOINTS_DEG(홈/이송
-#   자세)에서 멈춘다. 위 문단이 적은 "노드가 뜨자마자 SCAN 이 바로 도는 지금
-#   배선" 은 task_manager.py 의 START_DETECTED_FOR_TEST 인데, 그 값은 지금
-#   False 다 — 순찰부터 도는 판으로 바뀌면서 그 과도기 자체가 없어졌다.
-#   그런데 부팅 자세만 SCAN 관측 자세로 남아 있어서, 로봇이 팔을 뻗은 채로
-#   주행을 시작했다(사용자 지적: "시작 자세부터 이상해, 홈 위치로 시작해야").
-#   팔은 Nav2 코스트맵에 안 들어가므로 뻗은 채 도는 것은 그대로 위험이다.
-#
-#   이름을 주면 예전처럼 그 자세까지 옮긴다 — 2단계 부팅의 1단계(READY 로
-#   스냅)는 그대로 남으므로, 되돌리고 싶으면 값만 다시 넣으면 된다.
-# ★ 2026-09-23 다시 켠다(""). 사용자 요구는 "로봇은 무조건 홈 자세로 시작"
-#   이고, 그게 기본 동작이어야 한다.
-#
-#   2026-09-22 에 한 번 되돌렸던 이력이 있다 — 이 값을 "" 로 두고 BOOT_ARM_HOME
-#   을 켠 판에서 pick 이 SLIP(robot1 5회)/NO_ATTACH(robot2 4회)로 깨졌기
-#   때문이다. 다만 그 판에는 아래 BOOT_ARM_HOME 이 팔을 **순간 스냅**으로
-#   꺾는 코드가 같이 들어 있었고, 그건 이 파일이 두 곳에서 "한 프레임에 꺾으면
-#   물리 충격이 생긴다" 고 경고하던 바로 그것이다. 77eddd8 이 그 스냅을
-#   _servo_joint_deg(보간)로 고쳤으므로 회귀의 유력한 원인은 이미 빠졌다.
-#   되돌릴 때 그 둘을 함께 껐던 것이라 지금은 보간 상태에서 다시 켜는 것이다.
-#
-#   ☞ 그래도 이번 판에서 pick 이 또 SLIP/NO_ATTACH 로 깨지면 원인은 보간이
-#     아니라 부팅 자세 자체다. 그때는 이 값만 "shelf_1_top_close_centered"
-#     로 되돌려 가른다(BOOT_ARM_HOME 은 켠 채로 둘 것 — 그래야 둘이 갈린다).
+# 부팅 시 팔을 이 자세로 옮길지("" 면 안 옮기고 홈에서 시작). 로봇은 항상 홈
+# 자세로 시작해야 한다 — 뻗은 채로 주행하면 Nav2 코스트맵이 팔을 못 본다.
 BOOT_POSE_NAME = ""
 
-# ★ 팔은 언제나 홈(READY_JOINTS_DEG)에서 시작한다.
-#
-#   왜 따로 두는가 — _restore_state() 가 이전 종료 시점의 팔 관절값까지
-#   되살린다(892daab). 베이스와 씬 오브젝트는 그게 맞지만 팔은 아니다:
-#   미션이 실패하면 팔이 뻗은 채로 남는데, 그 자세를 그대로 복원하면 다음
-#   기동에서도 뻗은 채 주행을 시작한다. 팔은 Nav2 코스트맵에 안 들어가므로
-#   (footprint 는 차체 사각형뿐) 아무도 막아 주지 않는다.
-#   실측: robot1 은 패트롤 자세로, robot2 는 픽 자세로 시작했다.
-#
-#   False 로 두면 _restore_state() 가 되살린 팔 자세를 그대로 쓴다.
-#   ☞ 2026-09-23 다시 True. 위 BOOT_POSE_NAME 주석에 경위를 적었다 — 지금은
-#     아래 이동이 순간 스냅이 아니라 보간(_servo_joint_deg)이라 되돌릴 때의
-#     조건과 다르다.
+# 팔은 항상 홈(READY_JOINTS_DEG)에서 시작한다 — _restore_state() 가 이전 종료
+# 시점의 팔 관절값을 복원해도 여기서 덮어쓴다.
 BOOT_ARM_HOME = True
 
-# ★ 매거진/스택도 매 기동마다 씬 원위치에서 시작한다.
-#
-#   _restore_state() 는 이전 종료 시점의 매거진 pose 까지 되살린다. 그건
-#   "작업을 이어서 한다" 는 용도인데, 시험은 반대로 매번 같은 조건에서
-#   시작해야 결과를 비교할 수 있다 — 지난 판에서 옮겨 놓은 매거진이 그대로
-#   남아 있으면 pick 이 됐는지 안 됐는지도 헷갈린다.
-#
-#   True 면 스냅샷의 magazines 블록을 건너뛴다. USD 가 정한 스폰 자리
-#   그대로 시작한다. 로봇 베이스 pose 복원은 그대로 둔다 — 그쪽은 매번
-#   도크로 되돌리면 오히려 번거롭고, Nav2 가 어차피 다시 몰고 간다.
-#   ☞ 베이스까지 리셋하고 싶으면 스냅샷 파일을 지우면 된다(STATE_SNAPSHOT_PATH).
+# 매거진/스택도 매 기동마다 씬 원위치에서 시작한다(시험 재현성). 베이스 pose 는
+# 복원한 그대로 둔다 — 어차피 Nav2 가 다시 몰고 간다.
 BOOT_RESET_MAGAZINES = True
 
 # 12_pick_test.py / grasp.yaml 검증값 — 새로 지어내지 않는다.
@@ -297,16 +165,8 @@ LIFT_HEIGHT_OFFSET = 0.10
 
 MAGAZINE_XFORM_PATH = "/World/Magazines/shelf_1_magaines/top_magazines/magazine_1_orange"
 
-# 12_place_test.py 검증값 — ConveyorFrame(x>=4.2) 바로 앞. pkg_loader 슬롯
-# 자체(포트 지오메트리)는 아직 씬에 없어서, 이 지점을 그대로 place 목표로
-# 쓴다 (다음 범위: 실제 로더 슬롯).
-# ★ 원래 바닥(z=0, FLOOR_Z)에 내려놓게 돼 있었는데, 팔 마운트 높이(~0.63m)
-# 에서 거의 전체를 아래로 뻗어야 해서 IK 한계 근처였다 — 실측 재현: PLACE
-# 가 NO_IK 로 멈췄다(task_manager.py QR/PICK 디버깅 이력 이어서 발견).
-# 12_place_test.py 가 이미 벨트 높이(CONVEYOR_BELT_Z)로 바꿔서 검증해
-# 뒀는데 이 서빙 코드(sim_backend.py)에는 그 수정이 반영이 안 돼 있었다 —
-# 그대로 옮겨온다. PLACE_TARGET_XY 도 4.0 → 4.1 로 같이 맞춘다(그쪽 값이
-# 실측 스윕으로 재검증된 값).
+# 12_place_test.py 검증값 — ConveyorFrame 바로 앞. 실제 로더 슬롯 지오메트리가
+# 아직 씬에 없어서 이 지점을 place 목표로 쓴다.
 PLACE_TARGET_XY = np.array([4.1, 0.0])
 CONVEYOR_BELT_Z = 0.6
 PLACE_APPROACH_HEIGHT_OFFSET = 0.15
@@ -419,15 +279,8 @@ def configure_drives(stage, robot_prim_path):
 
 
 def prim_live(stage, path):
-    """prim 이 있고 활성(active)인가.
-
-    ★ IsValid() 만으로는 부족하다. main 의 magazine spawner(isaacpjt/scripts/
-      magazine_spawner.py)가 들어오면서 선반 슬롯의 매거진은 전부
-      `active = false` 인 **틀**이 됐다 — prim 은 있지만(IsValid True) 물리
-      객체가 아니다. 거기에 SingleRigidPrim 을 붙이면 world.reset() 이
-      "Pattern ... did not match any rigid bodies" →
-      AttributeError: 'NoneType' object has no attribute 'max_shapes' 로 죽는다.
-    """
+    """prim 이 있고 활성(active)인가. IsValid() 만으로는 부족하다 — 매거진
+    스포너 도입 이후 선반 슬롯의 매거진은 전부 active=false 인 스폰 틀이다."""
     prim = stage.GetPrimAtPath(path)
     return bool(prim) and prim.IsValid() and prim.IsActive()
 
@@ -444,11 +297,8 @@ def find_prim_path(root_path, name):
 
 
 def wait_for_stage_load(ctx, min_frames=60, max_frames=600):
-    """open_stage()/Load() 뒤에 고정 프레임만 돌리면 외부 payload(short_gripper 등)가
-    아직 안 붙은 상태에서 다음 단계로 넘어갈 수 있다 — SurfaceGripper not found 로
-    재현됨. get_stage_loading_status()[2](대기 중인 로드 개수)가 0이 될 때까지
-    돈다. min_frames 는 상태가 바로 0으로 보고되는 첫 프레임들을 건너뛰기 위한
-    최소 대기."""
+    """open_stage()/Load() 뒤 외부 payload 가 아직 안 붙었을 수 있으니,
+    로드 대기 개수가 0이 될 때까지 프레임을 돌린다."""
     for _ in range(min_frames):
         simulation_app.update()
     for _ in range(max_frames - min_frames):
@@ -457,27 +307,17 @@ def wait_for_stage_load(ctx, min_frames=60, max_frames=600):
         simulation_app.update()
 
 
-# 12_pick_test.py 검증값. 에셋 기본값(coaxial/shear=0)으로 두면 아무것도 못
-# 든다 — frames.yaml suction_gripper.asset_defaults 주석 참고.
+# 12_pick_test.py 검증값. 에셋 기본값(coaxial/shear=0)으로 두면 아무것도 못 든다.
 COAXIAL_FORCE_LIMIT = 200.0
 SHEAR_FORCE_LIMIT = 100.0
 MAX_GRIP_DISTANCE = 0.03
 
 
 def configure_gripper_limits(stage, gripper_prim, max_wait_frames=180):
-    """씬에 붙어 있는 SurfaceGripper 노드의 한계값을 12_pick_test.py 값으로
-    덮어쓴다. 이걸 빼먹으면 위치가 완벽해도 흡착이 전혀 안 붙는다 — 실제로
-    한 번 이 실수를 했다(NO_ATTACH 4/4, GT 좌표로 줘도 재현됨).
-
-    반환값(SurfaceGripper 노드 경로 자체)이 중요하다 — SurfaceGripperCtl 은
-    부모 prim(short_gripper)이 아니라 이 노드 경로를 받아야 한다. 처음에
-    부모 경로를 넘겼다가 또 한 번 NO_ATTACH 를 재현했다.
-
-    short_gripper 는 외부 payload(omniverse-content-production S3)라서
-    stage.Load() 가 "끝났다"고 리턴한 뒤에도 실제 프림이 몇 프레임 늦게
-    붙는 경우가 있었다(RuntimeError: SurfaceGripper node not found 로 재현됨).
-    바로 죽이지 말고 max_wait_frames 만큼 재시도한다.
-    """
+    """씬의 SurfaceGripper 노드 한계값을 12_pick_test.py 검증값으로 덮어쓴다.
+    short_gripper 는 외부 payload 라 로드가 몇 프레임 늦을 수 있어 재시도한다.
+    반환값(SurfaceGripper 노드 경로)이 중요하다 — SurfaceGripperCtl 은 부모
+    prim 이 아니라 이 노드 경로를 받아야 한다."""
     root = stage.GetPrimAtPath(gripper_prim)
     if root.IsValid() and root.HasPayload() and not root.IsLoaded():
         print(f"   !! {gripper_prim} payload 가 unloaded 상태 — root.Load() 직접 호출")
@@ -583,9 +423,8 @@ class _Call:
 
 _inbox = queue.Queue()
 _status_lock = threading.Lock()
-# 로봇별로 따로 둔다 — pick_place_server 두 인스턴스(robot1/robot2 네임스페이스)
-# 가 각자 _poll_until 에서 get_status 를 폴링하는데, 하나로 합쳐 두면 로봇1이
-# PICK 중일 때 로봇2의 액션 feedback 에 로봇1의 phase 가 찍힌다.
+# 로봇별로 따로 둔다 — 하나로 합치면 로봇1이 PICK 중일 때 로봇2의 상태 조회에
+# 로봇1의 phase 가 찍힌다.
 _status = {robot_id: {"phase": "IDLE", "gripped": False, "gap_m": 0.0, "message": ""}
            for robot_id in ROBOT_CARTER_NAME}
 
@@ -653,11 +492,8 @@ class RobotRig:
     APPROACH -> FINISH 여러 RPC 호출에 걸쳐 들고 있어야 하는 중간 상태
     (current_magazine_path/flange_world/slot_world)를 담는다.
 
-    이 상태를 Backend 인스턴스 전체에 하나만 두면(리팩터 전처럼) 안 된다 —
-    로봇 두 대의 pick_place_server 가 같은 소켓(sim_backend)에 붙어서, 로봇1의
-    APPROACH 호출과 로봇2의 APPROACH 호출이 큐에서 번갈아 처리될 수 있다.
-    공유 상태였다면 로봇1이 APPROACH 에서 저장해 둔 flange_world 를 로봇2의
-    호출이 그새 덮어써, 로봇1의 FINISH 가 엉뚱한 위치로 내려가게 된다."""
+    이 상태를 Backend 인스턴스 전체에 하나만 두면 안 된다 — 로봇 두 대의
+    호출이 같은 소켓에서 번갈아 처리되면서 서로의 중간 상태를 덮어쓴다."""
 
     def __init__(self, robot_id, carter_name):
         self.robot_id = robot_id
@@ -677,10 +513,9 @@ class RobotRig:
         self.gripper_node_path = None  # SurfaceGripper OmniGraph 노드 경로
         self.gripper = None            # SurfaceGripperCtl
         self.capture_ready = False     # _ensure_camera_warm() 이 한 번 세팅하면 True
-        self.pending_capture = None    # _capture_frame() 이 진행 중인 캡쳐를 GC 로부터 붙잡아두는 자리
-        self.viewport = None           # 이 로봇 전담 뷰포트(ViewportAPI) — _get_or_create_viewport() 가 채운다
-        self.viewport_window = None    # 로봇용으로 새로 만든 창이면 그 객체(GC 방지). 기존 활성 뷰포트를
-                                        # 쓰는 로봇(보통 robot1)은 만든 창이 없으니 None 으로 둔다.
+        self.pending_capture = None    # 진행 중인 캡쳐를 GC 로부터 붙잡아두는 자리
+        self.viewport = None           # 이 로봇 전담 뷰포트 — _get_or_create_viewport() 가 채운다
+        self.viewport_window = None    # 새로 만든 창이면 그 객체(GC 방지)
 
         self.current_magazine_path = MAGAZINE_XFORM_PATH  # PICK 전 기본값(레거시 메서드용)
         self.flange_world = None       # pick APPROACH -> FINISH 로 넘기는 목표
@@ -704,10 +539,8 @@ class Backend:
         ctx.open_stage(WORLD_USD)
         wait_for_stage_load(ctx)
         self.stage = ctx.get_stage()
-        # open_stage() 의 load_set 기본값(LOAD_ALL)과 무관하게, 이 앱 프로필에서는
-        # short_gripper payload 가 로드 안 된 채로 남는 걸 확인했다(실패 시 진단
-        # 로그가 "프림은 있음, 하위 0개" 를 찍음 — Usd.PrimRange 의 기본 predicate 는
-        # unloaded 프림을 root 조차 스킵한다). 그래서 명시적으로 Load() 가 필요하다.
+        # short_gripper payload 가 open_stage() 뒤에도 로드 안 된 채로 남을 수
+        # 있어 명시적으로 Load() 한다.
         self.stage.Load()
         wait_for_stage_load(ctx)
 
@@ -717,9 +550,7 @@ class Backend:
         for rig in self.rigs.values():
             configure_drives(self.stage, rig.robot_prim_path)
             rig.gripper_node_path = configure_gripper_limits(self.stage, rig.gripper_prim)
-        # ★ 고정 매거진(MAGAZINE_XFORM_PATH)이 스포너의 비활성 틀이면 self.magazine
-        #   을 None 으로 둔다(아래) — 스포너가 틀의 충돌 제외 쌍을 새 매거진에
-        #   옮겨준다(magazine_spawner._spawn 의 incoming_filters).
+        # 고정 매거진이 스포너의 비활성 틀이면 self.magazine 을 None 으로 둔다(아래).
         self._fixed_magazine = prim_live(self.stage, MAGAZINE_XFORM_PATH)
         if not self._fixed_magazine:
             print(f"   고정 매거진 {MAGAZINE_XFORM_PATH} 은 비활성 스폰 틀이다 — "
@@ -732,25 +563,16 @@ class Backend:
             rig.robot = self.world.scene.add(SingleManipulator(
                 prim_path=root_path, name=f"m0609_robot_{rig.robot_id}",
                 end_effector_prim_path=rig.ee_link_path))
-        # 고정 매거진은 옛 씬(스포너 이전)에서만 물리 객체다. 지금 씬에서는 None.
-        # 쓰는 곳은 레거시 경로 둘(reset_magazine · 텔레포트 재흡착)뿐이고
-        # 둘 다 _require_fixed_magazine 으로 막는다.
+        # 고정 매거진은 스포너 없는 옛 씬에서만 물리 객체다 — 지금 씬에서는 None.
         self.magazine = (self.world.scene.add(SingleRigidPrim(
             prim_path=MAGAZINE_XFORM_PATH, name="magazine"))
             if self._fixed_magazine else None)
         self.world.reset()
         for rig in self.rigs.values():
             rig.robot.initialize()
-        # ★ 2단계 부팅 — 1) 먼저 안전하다고 검증된 READY_JOINTS_DEG 로
-        # 즉시 스냅하고 충분히 세워 안정시킨다. 2) 안정된 뒤에야
-        # BOOT_POSE_NAME(SCAN 관측 자세, joint_3=150° 근처로 훨씬 더
-        # 뻗은 자세)로 _servo_joint_deg(부드러운 보간)로 옮긴다.
-        # 순서를 바꿔서 reset() 직후 곧바로 SCAN 자세로 순간 스냅해봤더니
-        # (또는 USD 의 state:angular:physics:position 자체를 그 값으로
-        # 박아봤더니) 베이스가 물리 충격으로 넘어지는 게 실측 재현됐다 —
-        # 이 씬에서 READY_JOINTS_DEG 는 오래 써 온 안전한 시작 자세라
-        # 그대로 두고, 거기서 SCAN 자세까지는 반드시 부드럽게 옮긴다.
-        # 로봇 두 대 모두 같은 절차를 거친다.
+        # 2단계 부팅 — 먼저 안전한 READY_JOINTS_DEG 로 즉시 스냅해 안정시킨 뒤,
+        # 안정된 상태에서만 BOOT_POSE_NAME 으로 보간 이동한다. reset() 직후
+        # 곧바로 뻗은 자세로 스냅하면 베이스가 물리 충격으로 넘어진다.
         for rig in self.rigs.values():
             q = np.zeros(rig.robot.num_dof)
             for name, deg in zip(ARM_JOINTS, READY_JOINTS_DEG):
@@ -765,7 +587,6 @@ class Backend:
                                       n_steps=SETTLE_STEPS)
             print(f"  팔 부팅 자세: {BOOT_POSE_NAME}")
         else:
-            # READY_JOINTS_DEG 그대로 둔다 — 위 스냅이 이미 그 자세다.
             print(f"  팔 부팅 자세: READY(홈) {READY_JOINTS_DEG}")
 
         if self.magazine is not None:
@@ -773,26 +594,15 @@ class Backend:
         else:
             self.magazine_spawn_pos = self.magazine_spawn_quat = None
 
-        # ★ PICK 판정(rise/tilt)이 "지금 실제로 집은 매거진"이 아니라 항상
-        # MAGAZINE_XFORM_PATH(magazine_1_orange) 하나만 쟀던 버그의 수정.
-        # 이 씬은 magazine_2_blue 같은 variant 가 선반마다 여러 인스턴스로
-        # 있어서(layout_measured.yaml 참고 — shelf_1/2 x top/bottom x
-        # orange/blue x 2개씩, 총 16개) 이름만으로는 "지금 집은 그것"을 못
-        # 가른다. QR 은 종류만 담아서 인스턴스 ID 도 없다(task_manager.py
-        # 상단 "알려진 갭" 참고). 그래서 이름이 아니라 위치로 가른다 —
-        # pick_phase1_approach 가 이미 아는 실제 목표 flange_world 좌표에
-        # 가장 가까운 인스턴스를 찾는다. 그 후보 목록을 여기서 한 번만
-        # 읽어둔다(매 PICK 마다 yaml 다시 읽을 필요 없음). 두 로봇이
-        # 같은 매거진 후보 목록을 공유한다 — 어느 선반 것이든 좌표로 가른다.
+        # 이 씬은 같은 종류(variant) 매거진이 선반마다 여러 인스턴스로 있어서
+        # 이름만으로는 "지금 집은 그것"을 못 가른다 — 좌표로 가른다
+        # (_find_nearest_magazine). 그 후보 목록을 여기서 한 번만 읽어둔다.
         meas_layout = yaml.safe_load(MEASURED.read_text(encoding="utf-8"))
         # 스포너의 비활성 틀은 뺀다 — 물리 객체가 아니라 잴 수도 옮길 수도 없다.
         self._all_magazine_prims = [m["prim"] for m in meas_layout["magazines"].values()
                                     if prim_live(self.stage, m["prim"])]
-        # ★ yaml 목록은 기본 씬의 매거진 16 개다. 다른 씬(SIM_WORLD_USD)이나
-        #   스택(F3_STK*, 플랜지가 있는 캐리어면 전부)도 같은 방식으로 "실제로
-        #   집은 그것" 을 찾을 수 있게, 스테이지에서 flange_plate 자식을 가진
-        #   prim 을 전부 후보에 더한다. 없는 prim 은 _find_nearest_magazine 이
-        #   measure_prim 예외로 건너뛰므로 yaml 쪽 목록은 그대로 둔다.
+        # yaml 목록은 기본 씬 것뿐이다 — 다른 씬/스택도 찾을 수 있게 flange_plate
+        # 자식을 가진 prim 을 스테이지에서 훑어 후보에 더한다.
         try:
             for prim in Usd.PrimRange(self.stage.GetPrimAtPath("/World")):
                 if prim.GetChild("flange_plate").IsValid():
@@ -802,9 +612,6 @@ class Backend:
         except Exception as e:      # noqa: BLE001 — 후보 탐색 실패는 치명적이지 않다
             print(f"   !! 플랜지 후보 탐색 실패({e}) — layout_measured.yaml 목록만 쓴다")
         print(f"   플랜지 후보 {len(self._all_magazine_prims)} 개")
-        # ★ rig.current_magazine_path 기본값은 RobotRig.__init__ 이 이미
-        #   MAGAZINE_XFORM_PATH 로 세워 둔다(로봇별로 갖는 상태라 여기서
-        #   전역으로 다시 세울 self._current_magazine_path 는 없다).
 
         for rig in self.rigs.values():
             base_pos0, base_quat0 = get_world_pose(rig.base_link_path)
@@ -814,24 +621,17 @@ class Backend:
                 robot_articulation=rig.robot, kinematics_solver=rig.lula,
                 end_effector_frame_name=EE_LINK_NAME)
             rig.gripper = SurfaceGripperCtl(rig.gripper_node_path)
-        # ★ 공용 기본값. 실제 IK 에는 로봇별 _target_quat(robot_id) 를 쓴다 —
-        #   이 값은 차체 yaw 0 인 경우와 같고, 남겨 두는 건 참고용이다.
+        # 공용 기본값(차체 yaw 0 인 경우) — 실제 IK 에는 로봇별 _target_quat 를 쓴다.
         self.target_quat = make_target_quat(APPROACH_ROLL_DEG, APPROACH_PITCH_DEG, GRIPPER_YAW_DEG)
 
         # 이전 종료 시점의 로봇/씬 상태가 있으면 위 기본 스폰 배치를 덮어쓴다.
         self._restore_state()
 
-        # ★ 팔만 다시 홈으로. _restore_state() 가 팔 관절값까지 되살리므로
-        #   여기서 덮어써야 한다 — 이유는 BOOT_ARM_HOME 주석.
-        #   베이스 pose 와 씬 오브젝트는 복원된 그대로 둔다.
+        # 팔만 다시 홈으로 — _restore_state() 가 되살린 뻗은 자세를 덮어쓴다.
+        # 베이스 pose 와 씬 오브젝트는 복원된 그대로 둔다.
         if BOOT_ARM_HOME:
-            # ★ 순간 스냅이 아니라 보간으로 옮긴다.
-            #   위 2단계 부팅 주석이 경고한 그대로다 — 뻗은 자세와 홈 사이를
-            #   한 프레임에 꺾으면 물리 충격이 생긴다("베이스가 물리 충격으로
-            #   넘어지는 게 실측 재현됐다"). 첫 부팅에서는 이미 READY 로
-            #   스냅한 직후라 움직일 게 없지만, _restore_state() 가 이전
-            #   세션의 뻗은 자세를 되살린 뒤에는 그 구간이 크다.
-            #   실측: 스냅으로 넣었더니 pick 이 SLIP/NO_ATTACH 로 깨졌다.
+            # 순간 스냅이 아니라 보간으로 옮긴다 — 한 프레임에 꺾으면 물리
+            # 충격이 생겨 흡착이 SLIP/NO_ATTACH 로 깨진다.
             for rig in self.rigs.values():
                 self._servo_joint_deg(rig.robot_id, READY_JOINTS_DEG,
                                       n_steps=SETTLE_STEPS)
@@ -847,23 +647,12 @@ class Backend:
         self.dist = np.array(ci["d"], dtype=float)
 
         # ── Stop → Play 복구 ────────────────────────────────────────────
-        # ★ Isaac Sim 뷰포트에서 Stop 을 누르면 SimulationManager 가 physics
-        #   view 를 invalidate 하고 None 으로 버린다. Play 를 다시 누르면 새
-        #   view 를 만들지만(SimulationManager._warm_start), scene 에 넣은
-        #   객체(팔 articulation · 매거진 rigid)는 **옛 view 의 핸들을 그대로
-        #   들고 있다.** 그래서 is_playing() 은 True 인데 get_joint_positions()
-        #   가 None 을 돌려주고, _set_joint_deg 의 q[idx] = ... 에서
-        #   "TypeError: 'NoneType' object does not support item assignment" 로
-        #   죽는다(실측 — observe_pose 가 이렇게 죽어 SCAN 자세를 못 잡았다).
-        #   _require_playing 은 Stop 상태만 막고 이 경우는 못 막았다.
-        #
-        #   STOP 이벤트를 받아 표시해 두고, 다시 Play 인 첫 순간에 scene 을 새
-        #   view 로 다시 묶는다(_ensure_live). world.reset() 을 쓰지 않는 이유는
-        #   그게 stop()/play() 를 한 번 더 돌리고 모든 객체를 기본 상태로
-        #   되돌리기 때문이다 — 여기서 필요한 것은 핸들 교체뿐이다.
-        # ★ `import omni.timeline` 으로 쓰면 안 된다. 함수 안에서 import 하면
-        #   `omni` 가 이 함수 전체의 지역 이름이 되어, 위쪽의
-        #   omni.usd.get_context() 가 UnboundLocalError 로 죽는다(실측).
+        # Isaac Sim 뷰포트에서 Stop 하면 physics view 가 무효화되는데, scene
+        # 에 넣은 객체는 옛 view 핸들을 그대로 들고 있어 get_joint_positions()
+        # 가 None 을 돌려준다. STOP 이벤트를 표시해 두고, 다시 Play 된 첫
+        # 순간에 scene 을 새 view 로 다시 묶는다(_ensure_live).
+        # `import omni.timeline` 을 함수 안에서 쓰면 omni 가 지역 이름이 되어
+        # 위쪽 omni.usd.get_context() 가 UnboundLocalError 로 죽으므로 별칭을 쓴다.
         import omni.timeline as omni_timeline
         self._stop_sub = (omni_timeline.get_timeline_interface()
                           .get_timeline_event_stream()
@@ -880,20 +669,14 @@ class Backend:
 
     def _ensure_live(self):
         """Stop 뒤 다시 Play 됐으면 scene 객체를 새 physics view 에 다시 묶는다.
-
-        메인 루프가 매 프레임 부르고, 관절을 만지는 경로(_require_playing)도
-        부른다. Play 가 아니면 아무것도 안 한다 — Stop 상태의 에러 안내는
-        _require_playing 몫이다.
-        """
+        메인 루프와 관절을 만지는 경로(_require_playing)가 매번 부른다."""
         if not self._needs_reinit or not self.world.is_playing():
             return
-        # 새 view 로 scene 전체(팔 articulation · 매거진 rigid)를 다시 초기화한다.
         self.world.initialize_physics()
         for rig in self.rigs.values():
-            # 흡착 그리퍼 GripperView 도 physics 핸들을 들고 있다.
             rig.gripper.reinit()
-            # 흡착 · 진행 중이던 pick/place 목표는 Stop 이 USD 를 되돌리면서
-            # 의미를 잃는다. 옛 목표로 FINISH 가 내려가지 않게 비운다.
+            # 진행 중이던 pick/place 목표는 Stop 이 USD 를 되돌리면서 의미를
+            # 잃는다 — 옛 목표로 FINISH 가 내려가지 않게 비운다.
             rig.flange_world = None
             rig.slot_world = None
         self._needs_reinit = False
@@ -902,11 +685,8 @@ class Backend:
               f"{'완료' if ok else '실패(관절값을 여전히 못 읽는다)'}")
 
     def _set_arm_stiffness(self, robot_id, stiffness):
-        """observe_pose() 는 QR 이 깨지지 않게 DRIVE_STIFFNESS(1e5)로,
-        pick_phase1_approach() 는 흡착 유지력이 충분한 DRIVE_STIFFNESS_PICK
-        (1e8, 12_pick_test.py 검증값)으로 되돌린다. 위 DRIVE_STIFFNESS_PICK
-        정의부 주석 참고 — 실측: 1e5 로 두면 LIFT 중 rise=88mm·tilt<0.1도로
-        정상 상승해도 HOLD_WAIT 끝에 gripped=False (SLIP) 였다."""
+        """observe_pose() 는 QR 이 안 깨지는 DRIVE_STIFFNESS 로, pick_phase1_approach()
+        는 흡착 유지력이 충분한 DRIVE_STIFFNESS_PICK 으로 되돌린다."""
         rig = self.rigs[robot_id]
         for prim in Usd.PrimRange(self.stage.GetPrimAtPath(rig.robot_prim_path)):
             if prim.GetName() not in ARM_JOINTS:
@@ -923,17 +703,14 @@ class Backend:
         return pos, quat
 
     def _require_playing(self):
-        """Stop 상태에서는 articulation view 가 무효라 get_joint_positions() 가
-        None 을 반환한다 — 그 자리에서 바로 TypeError('NoneType' object does
-        not support item assignment) 로 죽어서 원인을 알기 어려웠다(실측).
-        자동으로 다시 play() 하지는 않는다 — 사용자가 일부러 Stop 을 누른
-        경우와 구분이 안 되기 때문이다. 대신 여기서 명확한 이유를 알려준다."""
+        """Stop 상태에서는 articulation view 가 무효라 관절 조작이 바로
+        TypeError 로 죽는다 — 명확한 이유를 알려준다. 자동으로 다시 play()
+        하지는 않는다(사용자가 일부러 Stop 한 경우와 구분이 안 된다)."""
         if not self.world.is_playing():
             raise RuntimeError(
                 "시뮬레이션이 Play 상태가 아니다 — Isaac Sim 뷰포트에서 Play 를 "
                 "누른 뒤 다시 시도해라 (Stop 상태에서는 로봇 articulation 을 "
                 "읽거나 움직일 수 없다)")
-        # Stop → Play 직후면 여기서 핸들을 새로 잡는다(Backend.__init__ 의 ★).
         self._ensure_live()
 
     def _set_joint_deg(self, robot_id, joints_deg):
@@ -948,11 +725,8 @@ class Backend:
                                                    joint_indices=idx))
 
     def _servo_joint_deg(self, robot_id, target_joints_deg, n_steps=SETTLE_STEPS):
-        """_set_joint_deg 는 set_joint_positions() 로 관절을 즉시 스냅한다 —
-        아무것도 안 들고 있을 때(observe_pose)는 문제없지만, STOW 처럼 흡착
-        중에 쓰면 그 순간 가속으로 접합이 끊긴다(실측: LIFT 판정은 통과했는데
-        STOW 이후 최종 gripped=False). 대신 매 스텝 목표를 다시 명령해 부드럽게
-        움직인다 — _servo_tcp 와 같은 방식."""
+        """_set_joint_deg 는 관절을 즉시 스냅한다 — 흡착 중에 쓰면 그 가속으로
+        접합이 끊긴다. 대신 매 스텝 목표를 다시 명령해 부드럽게 움직인다."""
         self._require_playing()
         rig = self.rigs[robot_id]
         idx = np.array([rig.robot.get_dof_index(j) for j in ARM_JOINTS])
@@ -967,21 +741,11 @@ class Backend:
     def _target_quat(self, robot_id):
         """이 로봇의 접근 자세(그리퍼가 수직 아래를 보는 자세).
 
-        ★ 차체 yaw 를 90도 단위로 반올림해서 그만큼 같이 돌린다.
-          예전에는 self.target_quat 하나를 시작할 때 만들어 두고 모든 로봇이
-          그대로 썼다. 그건 **월드 기준 고정** 자세라(GRIPPER_YAW_DEG = 0),
-          차체가 어느 쪽을 보든 그리퍼는 항상 월드 +x 에 맞춰야 했다.
-          robot1 은 yaw 0 이라 우연히 맞았지만 robot2 는 yaw 180 이라
-          팔이 180도를 더 비틀어야 했고, 관절 한계에 걸려 IK 가 안 풀렸다
-          (실측: robot1 은 OBSERVE 통과, robot2 는 "관측 자세 IK 실패").
-
-        ★ 실제 yaw 를 그대로 안 쓰고 90도로 스냅하는 이유
-          잡을 대상의 방향은 선반이 정한다 — 매거진은 선반에 맞춰 놓여 있고
-          선반은 축에 정렬돼 있다(shelf_2 는 shelf_1 에서 180도 돌아 있다).
-          로봇의 주행 yaw 에는 정차 오차가 섞이는데, 그 오차까지 그리퍼에
-          그대로 옮기면 잡는 면이 그만큼 틀어진다. 90도 스냅은 "어느 선반
-          앞이냐" 만 뽑아내고 정차 오차는 버린다.
-        """
+        차체 yaw 를 90도 단위로 반올림해서 그만큼 같이 돌린다 — 월드 기준
+        고정 자세를 쓰면 차체 yaw 에 따라 팔이 관절 한계에 걸려 IK 가 안
+        풀리는 로봇이 생긴다. 실제 yaw 를 그대로 안 쓰고 90도로 스냅하는
+        이유는, 잡을 대상의 방향은 축에 정렬된 선반이 정하고 로봇의 정차
+        오차까지 그리퍼에 옮기면 안 되기 때문이다."""
         rig = self.rigs[robot_id]
         _, base_q = get_world_pose(rig.chassis_link_path)
         yaw_deg = math.degrees(yaw_of_quat(base_q))
@@ -995,37 +759,18 @@ class Backend:
         return get_tcp_pose_from_ee(pos, quat)
 
     def _settle(self, n_steps, render=None):
-        """물리를 n_steps 프레임 진행시킨다. SETTLE_STEPS/GRIP_WAIT/HOLD_WAIT/
-        RELEASE_WAIT 등 상수 이름만 다를 뿐 똑같던 `for _ in range(n):
-        self.world.step(...)` 반복을 하나로 묶은 것 — 동작은 그대로다.
-        render 를 안 주면 기본 동작(not HEADLESS)을, 디버그 캡처처럼 항상
-        렌더가 필요한 곳은 render=True 로 강제한다."""
+        """물리를 n_steps 프레임 진행시킨다. render 를 안 주면 기본 동작
+        (not HEADLESS)을, 디버그 캡처처럼 항상 렌더가 필요한 곳은
+        render=True 로 강제한다."""
         do_render = (not HEADLESS) if render is None else render
         for _ in range(n_steps):
             self.world.step(render=do_render)
 
     def _servo_tcp(self, robot_id, goal_tcp, phase_name):
         rig = self.rigs[robot_id]
-        # ★ IK 를 풀기 전에 Lula 에게 팔 베이스가 지금 어디인지 알려준다.
-        #
-        #   왜 여기서 매번 하는가 — goal_tcp 도 _get_tcp_pose 도 월드 좌표인데,
-        #   Lula 솔버는 "팔 베이스가 어디 있는지" 를 따로 들고 있다. 베이스가
-        #   움직였는데 그걸 안 갱신하면 솔버는 옛 자리 기준으로 풀어서 목표가
-        #   작업공간 밖으로 나간다 — 증상은 언제나 "IK 실패" 다.
-        #
-        #   예전에는 주행이 teleport_base() 였고 거기서 _sync_ik_base() 를
-        #   불러 줬다. 그런데 주행이 실제 Nav2 로 바뀌면서 아무도 teleport_base
-        #   를 부르지 않게 됐고(그 메서드 독스트링 ★ 참고), 그 순간부터 이
-        #   동기화가 통째로 빠졌다. 솔버는 로봇이 뜬 자리(도크)를 계속 믿었다.
-        #   실측: 순찰로 선반 앞까지 간 로봇 두 대가 OBSERVE 에서 100% "관측
-        #   자세 IK 실패". prior 거리를 아무리 줄여도(0.795 -> 0.712) 그대로였다.
-        #
-        #   12_place_test2.py 는 베이스를 옮길 때마다 sync_ik_base_pose() 를
-        #   부른다(7 군데). 같은 일을 여기 한 곳에서 한다 — IK 를 쓰는 모든
-        #   경로가 _servo_tcp 를 지나므로, 부르는 쪽이 잊어버릴 수 없다.
-        #   비용은 prim pose 읽기 한 번이라 매 호출마다 해도 무해하다.
+        # IK 를 풀기 전에 Lula 에게 팔 베이스가 지금 어디인지 매번 알려준다 —
+        # 안 하면 베이스가 움직인 뒤 솔버가 옛 자리 기준으로 풀어 IK 가 실패한다.
         self._sync_ik_base(robot_id)
-        # 이 로봇의 접근 자세. 차체 방향에 맞춰 돈다 — _target_quat 주석 참고.
         target_quat = self._target_quat(robot_id)
         start = self._get_tcp_pose(robot_id)
         n_steps, dist = steps_for(start, goal_tcp)
@@ -1046,9 +791,7 @@ class Backend:
         return True
 
     # ── RPC 메서드 ──────────────────────────────────────────
-    # 아래 대부분은 robot_id="robot1"/"robot2" 를 받는다 — pick_place_server/
-    # carrier_code_reader 가 자기 ROS 네임스페이스를 그대로 실어 보낸다
-    # (robot_id 를 안 주면 DEFAULT_ROBOT_ID="robot1" 폴백 — 옛 호출과 호환).
+    # 아래 대부분은 robot_id="robot1"/"robot2" 를 받는다 — 안 주면 DEFAULT_ROBOT_ID 폴백.
     def _require_fixed_magazine(self, what):
         if self.magazine is None:
             raise RuntimeError(
@@ -1057,9 +800,7 @@ class Backend:
                 f"스포너를 리셋해라")
 
     def reset_magazine(self, robot_id=DEFAULT_ROBOT_ID):
-        """반복 테스트용. carrier_code_reader/pick 결과에 영향받은 매거진을
-        원위치로 되돌린다. robot_id 는 그리퍼를 열어 둘 로봇 — 매거진
-        자체(MAGAZINE_XFORM_PATH)는 로봇과 무관한 전역 픽스처다."""
+        """반복 테스트용. 매거진을 원위치로 되돌린다."""
         self._require_fixed_magazine("reset_magazine")
         rig = self.rigs[robot_id]
         rig.gripper.open()
@@ -1073,19 +814,9 @@ class Backend:
         return {"ok": True}
 
     def save_state(self):
-        """정지 시(main() 의 SIGINT/SIGTERM 처리) 로봇 베이스 pose·팔 관절값·
-        그리퍼 흡착 대상과, 매거진/캐리어(스택) 배치를 스냅샷으로 남긴다.
-        다음 기동에서 __init__ 이 _restore_state() 로 그대로 되돌린다.
-
-        ★ 왜 필요한가: 이 프로세스가 재시작되면 stage 를 처음부터 다시 열어
-        USD 에 박힌 스폰 배치로 돌아간다. 그런데 Nav2/AMCL 은 이 프로세스와
-        별개로 죽지 않고 계속 도는 게 보통이라(운영 편의상 sim_backend 만
-        재기동하는 경우), 시뮬레이터 쪽 로봇 위치가 스폰으로 되돌아가면
-        AMCL 이 믿는 위치와 실제 위치가 어긋난다 — 이 스냅샷이 그 어긋남을
-        없앤다.
-
-        ★ SIGKILL(-9) 은 어떤 프로세스도 못 잡는다 — 그 경우엔 마지막
-        정상 종료 시점의 스냅샷으로 복원된다(그 뒤 상태는 유실)."""
+        """정지 시 로봇 베이스 pose·팔 관절값·그리퍼 흡착 대상과 매거진/캐리어
+        배치를 스냅샷으로 남긴다. 다음 기동에서 _restore_state() 가 되돌린다
+        — sim_backend 만 재기동돼도 Nav2/AMCL 이 믿는 위치와 어긋나지 않게."""
         try:
             robots = {}
             for robot_id, rig in self.rigs.items():
@@ -1099,10 +830,9 @@ class Backend:
                     "gripped_paths": _flatten_gripped_paths(rig.gripper.gripped()),
                 }
 
-            # ★ 스포너가 만든 매거진(.../Spawned/...)은 남기지 않는다. 스포너가
-            #   Stop 마다 지우고 다음 기동에 번호를 1부터 다시 매기므로, 저장해
-            #   두면 다음 기동의 **다른** 매거진이 같은 이름으로 엉뚱한 자리에
-            #   순간이동한다. 비활성 틀도 뺀다(잴 수 없다).
+            # 스포너가 만든 매거진(.../Spawned/...)은 남기지 않는다 — 스포너가
+            # 재기동마다 번호를 다시 매기므로, 저장해 두면 다음 판의 다른
+            # 매거진이 같은 이름으로 순간이동한다. 비활성 틀도 뺀다.
             magazines = {}
             for path in self._all_magazine_prims:
                 if "/Spawned/" in path or not prim_live(self.stage, path):
@@ -1125,14 +855,8 @@ class Backend:
 
     def _restore_state(self):
         """save_state() 스냅샷이 있으면 __init__ 의 기본 스폰 배치 위에 덮어
-        씌운다. rig.lula/rig.gripper 가 이미 만들어진 뒤(그 바로 다음 줄)
-        불러야 한다 — 재흡착엔 gripper 가, 베이스 이동 뒤 IK 보정엔 lula 가
-        필요하다.
-
-        ★ world_usd 가 지금 WORLD_USD 와 다르면(씬을 바꿔 실행) 통째로
-        건너뛴다 — 다른 씬의 프림 경로/좌표를 이 씬에 그대로 적용하면
-        엉뚱한 곳으로 텔레포트하거나 존재하지 않는 prim 경로로 조용히
-        아무 일도 안 하게 된다."""
+        씌운다. world_usd 가 지금 씬과 다르면 통째로 건너뛴다 — 다른 씬의
+        좌표를 그대로 적용하면 엉뚱한 곳으로 텔레포트한다."""
         if not STATE_SNAPSHOT_PATH.exists():
             return
         try:
@@ -1145,7 +869,6 @@ class Backend:
             return
 
         if BOOT_RESET_MAGAZINES:
-            # 매거진은 USD 스폰 자리 그대로 둔다 — 이유는 그 상수 주석.
             n = len(snapshot.get("magazines") or {})
             print(f"  매거진 {n}개: 스냅샷을 건너뛰고 씬 원위치에서 시작한다")
         else:
@@ -1178,14 +901,9 @@ class Backend:
         print(f"   상태 스냅샷 복원 완료 ({snapshot.get('saved_at', '?')} 저장분)")
 
     def observe_pose(self, pose_name=None, joints_deg=None, robot_id=DEFAULT_ROBOT_ID):
-        """관측 자세로 이동한다. 두 가지 중 하나로 목표를 준다:
-          pose_name    taught_poses.yaml 에 있는 키 (예: shelf_1_top_close_centered)
-          joints_deg   J1..J6 목록 (도). shelves.yaml 의
-                       scan_passes.arm_teach_pose 는 rad 단위(meta.units)니
-                       호출하는 쪽(carrier_code_reader)이 도로 바꿔 넘긴다.
-        둘 다 주어지면 joints_deg 가 우선한다. 둘 다 없으면 ValueError.
-        carrier_code_reader.scan_qr() 전에 부른다. robot_id 는 어느 로봇의
-        팔/손목캠을 움직일지 고른다(네임스페이스 그대로: "robot1"/"robot2")."""
+        """관측 자세로 이동한다. pose_name(taught_poses.yaml 키) 또는
+        joints_deg(J1..J6, 도) 중 하나로 목표를 준다 — 둘 다 있으면 joints_deg
+        우선. carrier_code_reader.scan_qr() 전에 부른다."""
         self._set_arm_stiffness(robot_id, DRIVE_STIFFNESS)   # QR 디코드가 깨지지 않는 값으로
         if joints_deg is not None:
             self._servo_joint_deg(robot_id, list(joints_deg))
@@ -1200,25 +918,13 @@ class Backend:
         return {"ok": True, "pose": pose_name or "joints(deg): %s" % joints_deg}
 
     def _get_or_create_viewport(self, robot_id):
-        """이 로봇 전담 뷰포트(ViewportAPI). 첫 로봇(ROBOT_CARTER_NAME 의
-        첫 항목 — 지금은 robot1)은 기존 GUI 메인 뷰포트를 그대로 쓰고,
-        나머지 로봇은 각자 독립된 뷰포트 창을 새로 만든다.
+        """이 로봇 전담 뷰포트. 첫 로봇(robot1)은 기존 GUI 메인 뷰포트를
+        그대로 쓰고, 나머지는 각자 독립 뷰포트 창을 새로 만든다 — 하나만
+        쓰면 두 로봇이 동시에 scan_qr 을 폴링할 때 서로 밀어낸다.
 
-        ★ 예전 판은 뷰포트가 하나뿐이라 카메라를 로봇마다 돌려썼다 —
-        patrol 중 로봇 둘이 동시에 scan_qr 을 폴링하면(carrier_code_reader
-        decode_hz) 서로 밀어냈다. debug_dual_viewport_capture() 로 실측
-        확인: create_viewport_window() 로 만든 두 번째 뷰포트에서도 같은
-        omni.kit.widget.viewport.capture 방식(annotator/FabricReader 를
-        안 거침, _ensure_camera_warm 독스트링 참고)이 그대로 통하고, 두
-        뷰포트가 같은 world.step() 루프 안에서 독립적으로(같은 프레임에)
-        완료된다 — 그래서 로봇마다 하나씩 전담시킬 수 있다.
-
-        ★ 실측 함정: create_viewport_window() 는 창을 만들기만 하고
-        visible 을 안 켜 준다. omni.kit.viewport.window.ViewportWindow 의
-        `self.viewport_api.updates_enabled = self.visible` 때문에, 안 보이는
-        창은 렌더 자체가 안 돌아 캡쳐가 전부 검은 화면(버퍼 크기는 맞는데
-        내용이 0)으로 나온다 — 그래서 여기서 명시적으로 visible/updates_enabled
-        를 켠다."""
+        create_viewport_window() 는 창을 만들기만 하고 visible 을 안 켜줘서,
+        안 보이는 창은 렌더가 안 돌아 캡쳐가 전부 검은 화면으로 나온다 —
+        여기서 visible/updates_enabled 를 명시적으로 켠다."""
         rig = self.rigs[robot_id]
         if rig.viewport is not None:
             return rig.viewport
@@ -1247,48 +953,18 @@ class Backend:
         return rig.viewport
 
     def _ensure_camera_warm(self, robot_id, force=False):
-        """관측 자세에 이미 도착한 뒤, 이 로봇 전담 뷰포트를 손목 카메라로
-        돌리고 depth AOV 를 등록한다.
+        """관측 자세 도착 후, 이 로봇 전담 뷰포트를 손목 카메라로 돌리고
+        depth AOV 를 등록한다.
 
-        ★★★ 이전 판은 rep.create.render_product() + AnnotatorRegistry 로
-        새 render_product 를 만들었는데, 이 세션(Isaac Sim 5.1.0 rc.19)에서
-        그 경로 자체가 원인 불명으로 항상 빈 프레임만 줬다 — 카메라 종류·
-        동시 부하·확장 로드 순서·multi_gpu·Kit 사용자 설정을 전부 바꿔봐도
-        재현됐고, 순정 재설치판에서도 재현됐다(스테이지 로드 중
-        omni.graph.core 쪽 세그폴트까지 같이 남 — 업스트림
-        Replicator/FabricReader 버그로 보인다. task_manager.py QR 인식
-        디버깅 이력 참고). 심지어 이미 정상 동작 중인 메인 뷰포트의
-        render_product 에 새 annotator 를 "붙이기만" 해도 똑같이
-        빈 프레임이었다 — 문제가 render_product 가 아니라 annotator
-        (FabricReader) 파이프라인 자체에 있다는 뜻이다.
+        Replicator/AnnotatorRegistry 경로는 이 세션에서 rgb annotator 가
+        항상 빈 프레임만 줘서, 그걸 아예 안 거치는 omni.kit.widget.viewport.capture
+        (Kit 자체 스크린샷이 쓰는 것과 같은 백엔드)로 캡쳐한다. depth 는
+        add_aov_to_viewport() 로 등록하는데, 이 함수 자체에
+        `/app/hydra/renderSettings/saveUsdAttributes` 가 True 일 때 죽는
+        버그가 있어 미리 꺼서 우회한다.
 
-        그래서 Replicator/AnnotatorRegistry 를 아예 안 거치는
-        omni.kit.widget.viewport.capture(Kit 자체 스크린샷/뷰포트 캡쳐가
-        쓰는 것과 같은 omni.renderer_capture 백엔드)로 바꿨다 — 뷰포트
-        카메라를 손목 카메라로 돌리고, 그 뷰포트의 render_product 에
-        raw AOV 캡쳐(_capture_frame)로 RGB+depth 를 직접 받는다.
-        depth 는 omni.kit.viewport.utility.add_aov_to_viewport() 로 등록하는데
-        (Replicator 를 안 거치고 RenderProduct prim 의 orderedVars 에 USD
-        레벨로만 RenderVar 를 추가하는 함수라 FabricReader 버그를 피해간다),
-        이 함수 자체에도 버그가 있다 — `/app/hydra/renderSettings/
-        saveUsdAttributes` 가 True 일 때 타는 분기가
-        `for render_var_prims in render_var_prims:` 로 루프 변수를 자기
-        자신에 덮어써서 그 안의 `render_var_prim`(단수)이 UnboundLocalError
-        로 죽는다(실측 재현). 그 설정을 미리 꺼서 우회한다.
-
-        raw AOV 이름은 Replicator 주석("distance_to_image_plane")과 다르다 —
-        omni.replicator.core.scripts.annotators 의 AnnotatorParams 테이블에
-        찍힌 실제 이름은 "DistanceToImagePlaneSD"(SD 접미사, 실측 확인:
-        "DistanceToImagePlane"으로는 aov_map 에 등록만 되고 텍스처 해상도가
-        (0,0)으로 끝까지 안 채워짐 — SD 이름이라야 R32_SFLOAT/1280x720 로
-        실제 채워진다).
-
-        ★ 로봇마다 전담 뷰포트를 쓴다(_get_or_create_viewport) — 첫
-        로봇(robot1)은 GUI 메인 화면을 그대로 보여주고, 나머지는 각자
-        독립 창이라 두 로봇이 동시에 관측해도 서로 안 밀어낸다(실측:
-        debug_dual_viewport_capture). capture_ready 는 로봇별로 따로
-        추적한다 — 그 로봇 뷰포트에서 처음 한 번만 AOV 를 등록하면 된다.
-        """
+        raw AOV 이름은 Replicator 표기("distance_to_image_plane")와 달리
+        "DistanceToImagePlaneSD"(SD 접미사)라야 실제로 채워진다."""
         rig = self.rigs[robot_id]
         from omni.kit.viewport.utility import add_aov_to_viewport
         import carb.settings
@@ -1301,17 +977,14 @@ class Backend:
             add_aov_to_viewport(viewport, DEPTH_AOV_NAME)
             rig.capture_ready = False
         self._settle(30, render=True)
-        # 실제로 유효한 프레임이 나오는지 한 번 확인한다 — 이전 판의
-        # "워밍업 검증" 과 같은 취지다. 실패하면 그대로 예외를 올린다.
+        # 실제로 유효한 프레임이 나오는지 한 번 확인한다. 실패하면 예외를 올린다.
         self._capture_frame(robot_id, timeout_frames=240)
         rig.capture_ready = True
 
     def _capture_frame(self, robot_id, timeout_frames=180):
-        """이 로봇 전담 뷰포트의 render_product 에서 RGB(BGR 로 변환해서
-        반환)+depth 를 raw 바이트 콜백으로 한 프레임 받는다.
-        _ensure_camera_warm() 독스트링 참고 — Replicator/AnnotatorRegistry
-        (FabricReader)를 아예 안 거친다. 호출 전에 _ensure_camera_warm(robot_id)
-        로 그 뷰포트가 이미 이 로봇의 카메라를 보고 있어야 한다."""
+        """이 로봇 전담 뷰포트의 render_product 에서 RGB(BGR 변환)+depth 를
+        raw 바이트 콜백으로 한 프레임 받는다. 호출 전에 _ensure_camera_warm()
+        으로 그 뷰포트가 이미 이 로봇의 카메라를 보고 있어야 한다."""
         rig = self.rigs[robot_id]
         from omni.kit.widget.viewport.capture import MultiAOVByteCapture
 
@@ -1342,9 +1015,8 @@ class Backend:
 
     def scan_qr(self, expected_id=None, n_frames=3, robot_id=DEFAULT_ROBOT_ID):
         """cobot3_perception.qr_pose 로 QR 자세를 재고, base_link 프레임으로
-        변환해 돌려준다. carrier_code_reader 노드가 그대로 CarrierScan.qr_pose
-        에 옮겨 담을 수 있는 형태다. observe_pose(robot_id=...) 로 이미 그
-        로봇의 관측 자세/카메라가 준비돼 있어야 한다."""
+        변환해 돌려준다. observe_pose(robot_id=...) 로 이미 그 로봇의 관측
+        자세/카메라가 준비돼 있어야 한다."""
         rig = self.rigs[robot_id]
         base_p, base_q = get_world_pose(rig.chassis_link_path)
         R_base = quat_to_matrix(base_q)
@@ -1369,9 +1041,8 @@ class Backend:
 
         # world -> base_link (CarrierScan.qr_pose 의 frame_id 규약)
         p_rel = R_base.T @ (agg.center_world - base_p)
-        # qr_pose.py 의 QR 프레임(x=오른쪽, y=아래, z=안쪽)을 yaw 하나로 재구성한다.
-        # 매거진은 항상 upright 라 y_qr(이미지 아래)는 세계 -Z 로 고정이다
-        # (qr_pose.py 의 estimate_qr_pose 와 동일 가정).
+        # QR 프레임(x=오른쪽, y=아래, z=안쪽)을 yaw 하나로 재구성한다 — 매거진은
+        # 항상 upright 라 y_qr(이미지 아래)은 세계 -Z 로 고정이다.
         yaw = agg.yaw_rad
         x_qr_world = np.array([math.cos(yaw), math.sin(yaw), 0.0])
         y_qr_world = np.array([0.0, 0.0, -1.0])
@@ -1412,13 +1083,9 @@ class Backend:
         return np.array([w,x,y,z])
 
     def _magazine_candidates(self):
-        """지금 씬에 살아 있는 플랜지 캐리어 전부.
-
-        ★ 부팅 때 한 번 모은 _all_magazine_prims 만으로는 모자라다. 스포너가
-          매거진을 런타임에 만들고, 집어 가면 **새 이름으로** 다시 만든다
-          (.../top_magazines/Spawned/magazine_1_orange_000003). 그래서 부를
-          때마다 /World/Magazines 아래를 다시 훑는다 — 매거진 수십 개라 싸다.
-        """
+        """지금 씬에 살아 있는 플랜지 캐리어 전부. 스포너가 매거진을
+        런타임에 만들고 집어 가면 새 이름으로 다시 만들기 때문에, 부팅 때
+        모은 목록만으론 모자라 매번 /World/Magazines 를 다시 훑는다."""
         out = [p for p in self._all_magazine_prims if prim_live(self.stage, p)]
         root = self.stage.GetPrimAtPath("/World/Magazines")
         if root:
@@ -1430,17 +1097,10 @@ class Backend:
         return out
 
     def _find_nearest_magazine(self, flange_world):
-        """실제로 지금 집으려는 매거진이 씬의 몇 번째 인스턴스인지는 이름
-        만으로 못 가른다(위 __init__ 의 self._all_magazine_prims 주석 참고).
-        pick_phase1_approach 가 이미 아는 실제 목표 flange_world(QR pose 로
-        역산한 3D 좌표)에 flange_plate 가 가장 가까운 인스턴스를 찾는다.
-
-        ★ 후보가 하나도 없으면 None 을 돌려준다 — 예전엔 하드코딩된
-        MAGAZINE_XFORM_PATH(magazine_1_orange)로 폴백했는데, 스포너가 도입된
-        씬에서는 그 프림이 비활성 스폰 틀이라 존재하지 않는 경로를 진짜
-        매거진인 척 돌려주는 꼴이었다 — pick_phase1_approach 가 재던 "엉뚱한
-        매거진" 버그(1712줄 주석)와 같은 종류의 실패를 여기서도 조용히
-        재현할 뻔했다. 호출자가 None 을 명시적으로 처리한다."""
+        """지금 집으려는 매거진이 씬의 몇 번째 인스턴스인지 이름만으로 못
+        가르므로, pick_phase1_approach 가 이미 아는 실제 목표 flange_world
+        에 flange_plate 가 가장 가까운 인스턴스를 찾는다. 후보가 하나도
+        없으면 None — 호출자가 명시적으로 처리한다."""
         best_path, best_d = None, None
         for path in self._magazine_candidates():
             try:
@@ -1455,18 +1115,9 @@ class Backend:
     def pick_observe_flange(self, flange_pose_base_link, variant, robot_id=DEFAULT_ROBOT_ID):
         """PickCarrier 의 OBSERVE — qr_pose(prior) 위로 손목캠을 가져가
         flange_topview.detect_flange() 로 진짜 파지점(중심 xy·윗면 z·yaw)을
-        잰다. PickCarrier.action ★ 블록과 pick_place_server.py 독스트링이
-        "알려진 갭"으로 적어 두던 손목캠 재관측을 채운다 — 12_pick_test.py
-        의 FlangeVision(observe_tcp/capture)과 같은 수식을 그대로 옮겼다.
-
-        입력 flange_pose_base_link 는 _flange_pose_from_qr()(pick_place_server.py)
-        가 QR 대략값으로 계산한 prior — 탐색 창 중심으로만 쓰고, 반환값이
-        진짜 파지점이다(pick_phase1_approach 에 그대로 넘기면 된다).
-
-        프레임 캡쳐는 scan_qr 과 같은 이유로 _capture_frame() 을 쓴다 —
-        Replicator/AnnotatorRegistry 는 이 세션(Isaac Sim 5.1.0 rc.19)에서
-        rgb annotator 가 항상 빈 프레임(shape=(0,))만 줘서(_ensure_camera_warm
-        독스트링 참고), 뷰포트 캡쳐 우회로 이미 바꿔 둔 경로를 그대로 쓴다."""
+        잰다. flange_pose_base_link 는 QR 대략값으로 계산한 prior(탐색 창
+        중심)이고, 반환값이 진짜 파지점(pick_phase1_approach 에 그대로
+        넘긴다)이다."""
         rig = self.rigs[robot_id]
         entry = self.grasp["magazines"].get(variant)
         if entry is None:
@@ -1481,10 +1132,9 @@ class Backend:
         yaw_prior_world = yaw_of_quat(base_q) + math.atan2(
             (R_base @ R_prior_rel)[1, 0], (R_base @ R_prior_rel)[0, 0])
 
-        # observe_tcp — FlangeVision.observe_tcp 와 동일 수식. target_quat(고정
-        # top-down 접근 자세)로 팔이 도착했을 때 손목캠이 prior_world 를
-        # observe_image_offset_px 위치(흡착 컵이 화면 아래를 가리므로 중앙보다
-        # 위)에 담도록 카메라/TCP 위치를 역산한다.
+        # observe_tcp — target_quat(고정 top-down 접근 자세)로 팔이 도착했을 때
+        # 손목캠이 prior_world 를 observe_image_offset_px 위치에 담도록
+        # 카메라/TCP 위치를 역산한다.
         h = float(fv["observe_cam_height_m"])
         du, dv = fv["observe_image_offset_px"]
         R_tool = quat_to_matrix(self._target_quat(robot_id))
@@ -1535,8 +1185,7 @@ class Backend:
 
     def pick_phase1_approach(self, flange_pose_base_link, approach_dist_m, robot_id=DEFAULT_ROBOT_ID):
         """PickCarrier 의 APPROACH. flange_pose 는 base_link 프레임
-        {position:[x,y,z], quat_wxyz:[..]} (Pose 규약과 동일, position=판
-        윗면 중심, +Z=법선 위)."""
+        {position:[x,y,z], quat_wxyz:[..]} (position=판 윗면 중심, +Z=법선 위)."""
         rig = self.rigs[robot_id]
         self._set_arm_stiffness(robot_id, DRIVE_STIFFNESS_PICK)   # 흡착 유지력 검증값으로
         base_p, base_q = get_world_pose(rig.chassis_link_path)
@@ -1544,9 +1193,8 @@ class Backend:
         p_rel = np.array(flange_pose_base_link["position"])
         flange_world = base_p + R_base @ p_rel
         rig.flange_world = flange_world   # DESCEND 단계에서 재사용
-        # ★ pick_phase2_finish 의 rise/tilt 판정이 엉뚱한(하드코딩된
-        # magazine_1_orange) 매거진을 재던 버그의 수정 — 실제 목표 위치에
-        # 가장 가까운 인스턴스를 여기서 미리 찾아둔다.
+        # 실제 목표 위치에 가장 가까운 매거진 인스턴스를 여기서 미리 찾아둔다
+        # — pick_phase2_finish 의 rise/tilt 판정이 이걸 쓴다.
         nearest = self._find_nearest_magazine(flange_world)
         if nearest is None:
             _set_status(robot_id, phase="FAILED", message="씬에 살아있는 매거진이 없다")
@@ -1563,10 +1211,7 @@ class Backend:
 
     def pick_phase2_finish(self, grip_gaps_m, offset_limit_m, lift_height_m=None,
                            robot_id=DEFAULT_ROBOT_ID):
-        """DESCEND -> SUCTION -> LIFT -> STOW. offset_limit_m 은 이제
-        pick_place_server 의 declare_parameter 값을 그대로 받는다 (PickCarrier.action
-        리팩터 이후 flange_short_side_m 이 goal 에서 빠졌다 — offset_limit_m
-        을 서버 파라미터로 직접 갖는 쪽이 계약과 맞는다)."""
+        """DESCEND -> SUCTION -> LIFT -> STOW."""
         rig = self.rigs[robot_id]
         if lift_height_m is None:
             lift_height_m = LIFT_HEIGHT_OFFSET
@@ -1594,16 +1239,13 @@ class Backend:
             return {"success": False, "fail_reason": "NO_ATTACH", "phase": "SUCTION",
                    "used_gap_m": 0.0}
 
-        # 흡착 순간 TCP 횡오차 (OFF_FLANGE 판정 — PickCarrier.action 주석 그대로)
+        # 흡착 순간 TCP 횡오차 (OFF_FLANGE 판정)
         tcp_now = self._get_tcp_pose(robot_id)
         final_offset_m = float(np.linalg.norm((tcp_now - flange_world)[:2]))
 
-        # ★ 하드코딩된 FLANGE_PATH/self.magazine(magazine_1_orange) 대신,
-        # pick_phase1_approach 가 찾아둔 "실제로 지금 집는 그 인스턴스"를
-        # 잰다 — 안 그러면 아무도 안 건드리는 magazine_1_orange 만 계속
-        # 재서 rise 가 항상 0mm 으로 나오고 실제로는 성공한 PICK 이
-        # SLIP 으로 오판정된다(실측 재현 — task_manager.py QR 인식
-        # 디버깅 이력 참고).
+        # pick_phase1_approach 가 찾아둔 실제 인스턴스를 잰다 — 하드코딩된
+        # 고정 매거진만 재면 rise 가 항상 0mm 로 나와 성공한 PICK 이 SLIP 으로
+        # 오판정된다.
         target_flange_path = f"{rig.current_magazine_path}/flange_plate"
         _set_status(robot_id, phase="LIFT")
         top_z0 = measure_prim(target_flange_path)[1]
@@ -1628,10 +1270,8 @@ class Backend:
                    "final_offset_m": final_offset_m, "offset_limit_m": offset_limit_m}
 
         _set_status(robot_id, phase="STOW")
-        # STOW: 이송 자세로. READY_JOINTS_DEG 로 되돌리는 것으로 대신한다 —
-        # _set_joint_deg(즉시 스냅) 대신 _servo_joint_deg(부드러운 보간)를
-        # 쓴다. 실측: 즉시 스냅은 LIFT 판정(rise·tilt·gripped 전부 정상)을
-        # 통과한 뒤에도 그 스냅 가속으로 흡착이 끊겼다.
+        # STOW: 이송 자세로. 즉시 스냅 대신 보간으로 옮긴다 — 스냅 가속으로
+        # LIFT 판정 통과 뒤에도 흡착이 끊길 수 있다.
         self._servo_joint_deg(robot_id, READY_JOINTS_DEG, n_steps=SETTLE_STEPS)
         self._settle(HOLD_WAIT)
 
@@ -1644,20 +1284,13 @@ class Backend:
                "used_gap_m": float(gap), "rise_mm": rise_m*1000, "tilt_deg": tilt_deg}
 
     def get_place_slot_pose_base_link(self, robot_id=DEFAULT_ROBOT_ID):
-        """편의 메서드 — get_flange_pose_world 와 같은 목적, place 쪽 GT.
-        포트/슬롯 지오메트리가 아직 씬에 없어서(다음 범위), 12_place_test.py 가
-        검증한 컨베이어 벨트 위 스테이징 지점(PLACE_TARGET_XY, CONVEYOR_BELT_Z)을
-        그대로 현재 base_link(=chassis) 프레임으로 돌려준다. pkg_loader 정지
-        지점에 도착한 뒤(NavigateTo 완료 후) 호출해야 값이 맞다.
+        """편의 메서드 — place 쪽 GT. 슬롯 지오메트리가 아직 씬에 없어서,
+        검증된 컨베이어 벨트 위 스테이징 지점을 base_link 프레임으로 돌려준다.
+        pkg_loader 정지 지점 도착 후 호출해야 값이 맞다.
 
-        z 는 PICK 때와 같은 관례를 쓴다 — "판 윗면"(flange_plate, 물체
-        바닥에서 물체 높이만큼 위)을 옮긴다. 그래서 벨트 높이에 물체 자체를
-        얹었을 때의 바닥은 CONVEYOR_BELT_Z 지만, 흡착해서 들고 있는
-        flange_plate 는 거기서 물체 높이(magazine_height)만큼 더 위에
-        있어야 물체 바닥이 실제로 벨트에 닿는다(12_place_test.py 의
-        place_ref_z = CONVEYOR_BELT_Z + magazine_height 와 같은 식이다).
-        지금 들고 있는 실제 인스턴스(rig.current_magazine_path, PICK
-        때 pick_phase1_approach 가 찾아둔 것)의 실측 높이를 그대로 쓴다."""
+        z 는 PICK 과 같은 관례(판 윗면)를 쓴다 — 벨트 높이에 물체 바닥이
+        닿으려면 flange_plate 는 물체 높이만큼 더 위여야 한다. 지금 들고 있는
+        실제 인스턴스의 실측 높이를 그대로 쓴다."""
         rig = self.rigs[robot_id]
         base_p, base_q = get_world_pose(rig.chassis_link_path)
         R_base = quat_to_matrix(base_q)
@@ -1699,9 +1332,8 @@ class Backend:
     def place_phase2_finish(self, release_height_m, robot_id=DEFAULT_ROBOT_ID):
         """DESCEND -> RELEASE -> RETRACT.
 
-        ★ 알려진 갭: PORT_OCCUPIED(슬롯 점유 감지)는 아직 구현하지 않았다 —
-        이 씬에 슬롯 자체가 없어서(place_phase1_approach 독스트링 참고)
-        항상 비어 있다고 본다."""
+        알려진 갭: PORT_OCCUPIED(슬롯 점유 감지)는 아직 구현하지 않았다 —
+        이 씬에 슬롯 자체가 없어서 항상 비어 있다고 본다."""
         rig = self.rigs[robot_id]
         slot_world = rig.slot_world
         approach_dist_m = rig.place_approach_dist_m
@@ -1730,8 +1362,7 @@ class Backend:
 
     def get_flange_pose_world(self, magazine_key, robot_id=DEFAULT_ROBOT_ID):
         """편의 메서드 — task_manager 개발/테스트용. 실측 GT 플랜지 pose 를
-        base_link 프레임으로 돌려준다 (QR 대신 GT 로 파이프라인만 먼저
-        확인하고 싶을 때)."""
+        base_link 프레임으로 돌려준다(QR 대신 GT 로 파이프라인만 먼저 확인할 때)."""
         rig = self.rigs[robot_id]
         meas = yaml.safe_load(MEASURED.read_text(encoding="utf-8"))
         m = meas["magazines"][magazine_key]
@@ -1742,12 +1373,8 @@ class Backend:
         return {"position": p_rel.tolist(), "quat_wxyz": [1.0, 0.0, 0.0, 0.0]}
 
     def debug_capture_via_widget(self, path, camera_prim=None, settle_frames=30, wait_frames=120):
-        """디버그 전용 — omni.replicator.core(AnnotatorRegistry/FabricReader)를
-        완전히 안 거치는 별도 경로로 캡쳐해본다. omni.kit.widget.viewport.capture
-        가 쓰는 것과 같은 네이티브 Kit 캡쳐(omni.renderer_capture)라서, 지금까지
-        재현된 "annotator 가 항상 빈 프레임" 버그가 여기도 재현되는지가
-        Replicator/FabricReader 쪽 문제인지 아니면 렌더러 자체 문제인지를
-        가른다."""
+        """디버그 전용 — Replicator(AnnotatorRegistry/FabricReader)를 완전히
+        안 거치는 네이티브 Kit 캡쳐로 찍어본다."""
         import os
         from omni.kit.viewport.utility import get_active_viewport, capture_viewport_to_file
 
@@ -1772,12 +1399,8 @@ class Backend:
         return {"ok": False, "saved": None}
 
     def debug_capture_aov(self, aov_name, camera_prim=None, settle_frames=30, wait_frames=120):
-        """디버그 전용 — Replicator/AnnotatorRegistry 를 거치지 않고
-        (omni.kit.widget.viewport.capture 의 MultiAOVByteCapture 로) 임의의
-        AOV 하나를 raw 바이트로 받아본다. depth(distance_to_image_plane)가
-        이 경로로도 되는지 확인하는 용도 — 정확한 raw AOV 이름을 모르니
-        여러 후보를 넣어보고 aov_map 에 뭐가 실제로 들어있는지도 로그로
-        남긴다."""
+        """디버그 전용 — Replicator/AnnotatorRegistry 를 거치지 않고 임의의
+        AOV 하나를 raw 바이트로 받아본다."""
         import carb.settings
         from omni.kit.viewport.utility import get_active_viewport, add_aov_to_viewport
         from omni.kit.widget.viewport.capture import MultiAOVByteCapture
@@ -1787,12 +1410,8 @@ class Backend:
             raise RuntimeError("활성 뷰포트를 찾을 수 없다")
         if camera_prim:
             viewport.camera_path = camera_prim
-        # ★ add_aov_to_viewport() 자체에 버그가 있다 —
-        # /app/hydra/renderSettings/saveUsdAttributes 가 True 일 때 타는
-        # 분기가 `for render_var_prims in render_var_prims:` 로 루프
-        # 변수를 자기 자신에 덮어써서 그 안의 `render_var_prim`(단수)이
-        # UnboundLocalError 로 죽는다(실측 재현). 이 세션 설정값이 True 라
-        # 매번 그 분기를 탄다 — False 분기(버그 없음)를 강제로 타게 만든다.
+        # add_aov_to_viewport() 자체 버그(saveUsdAttributes=True 분기에서
+        # UnboundLocalError)를 피하려고 미리 끈다.
         carb.settings.get_settings().set("/app/hydra/renderSettings/saveUsdAttributes", False)
         add_aov_to_viewport(viewport, aov_name)
         self._settle(settle_frames, render=True)
@@ -1831,12 +1450,8 @@ class Backend:
         return result
 
     def debug_state(self, robot_id=DEFAULT_ROBOT_ID):
-        """디버그 전용 — tcp/매거진 world pose 와 간격을 바로 본다.
-
-        rig.current_magazine_path(PICK 시도 때 pick_phase1_approach 가
-        찾아둔 실제 인스턴스)를 쓴다 — 하드코딩된 MAGAZINE_XFORM_PATH
-        (magazine_1_orange)를 그대로 뒀더니 실제로 집은 게 magazine_2_blue
-        여도 엉뚱한 매거진 위치가 찍혀서 디버깅에 혼선을 줬다."""
+        """디버그 전용 — tcp/매거진 world pose 와 간격을 바로 본다. 하드코딩된
+        고정 매거진 대신 pick_phase1_approach 가 찾아둔 실제 인스턴스를 쓴다."""
         rig = self.rigs[robot_id]
         tcp = self._get_tcp_pose(robot_id)
         mag_p, mag_q = get_world_pose(rig.current_magazine_path)
@@ -1849,8 +1464,7 @@ class Backend:
                "dist_tcp_to_mag_top": float(np.linalg.norm(tcp - np.array([cx[0], cx[1], top_z])))}
 
     def debug_list_cameras(self, root_path="/World/Robots/nova_carter1"):
-        """디버그 전용 — root 아래 Camera 타입 프림 경로를 전부 나열한다.
-        대조군으로 쓸 다른 카메라(front_hawk 등)를 찾을 때 쓴다."""
+        """디버그 전용 — root 아래 Camera 타입 프림 경로를 전부 나열한다."""
         root = self.stage.GetPrimAtPath(root_path)
         if not root.IsValid():
             return {"root": root_path, "valid": False, "cameras": []}
@@ -1860,9 +1474,7 @@ class Backend:
 
     def debug_capture_prim(self, camera_prim, path, width=640, height=480):
         """디버그 전용 — 임의의 카메라 prim 하나로 새 render_product 를 만들어
-        한 번 찍어본다. self._rgb/self._depth(손목 카메라 전용)는 건드리지
-        않는다 — CAMERA_PRIM 이외의 카메라로 렌더 파이프라인 자체가 이
-        세션에서 살아있는지 대조군으로 볼 때 쓴다."""
+        한 번 찍어본다(다른 카메라로 렌더 파이프라인이 살아있는지 대조군 확인용)."""
         import cv2
         import omni.replicator.core as rep
         prim = self.stage.GetPrimAtPath(camera_prim)
@@ -1893,9 +1505,7 @@ class Backend:
 
     def debug_check_camera_prim(self, robot_id=DEFAULT_ROBOT_ID):
         """디버그 전용 — 이 로봇의 카메라 prim 이 지금 스테이지에 실제로
-        존재/로드돼 있는지 확인한다. rgb annotator 가 계속 shape=(0,) 을 줄
-        때 render_product 가 애초에 존재하지 않는 prim 을 가리키고 있는
-        건 아닌지 가른다."""
+        존재/로드돼 있는지 확인한다."""
         rig = self.rigs[robot_id]
         prim = self.stage.GetPrimAtPath(rig.camera_prim)
         info = {"path": rig.camera_prim, "valid": prim.IsValid()}
@@ -1903,8 +1513,7 @@ class Backend:
             info["type"] = prim.GetTypeName()
             info["active"] = prim.IsActive()
         # 조상 중 payload 가 unloaded 인 게 있는지 위로 훑는다 — 자식 경로가
-        # 안 보이는 가장 흔한 이유다(configure_gripper_limits 의 short_gripper
-        # 사례와 같은 종류).
+        # 안 보이는 가장 흔한 이유다.
         chain = []
         p = self.stage.GetPrimAtPath(rig.gripper_prim)
         for name in ["", "rsd455", "RSD455", "Camera_OmniVision_OV9782_Color"]:
@@ -1932,15 +1541,9 @@ class Backend:
                "link6_world": l6_p.tolist()}
 
     def debug_dual_viewport_capture(self, timeout_frames=240):
-        """실험 전용 — 뷰포트를 하나 더 만들어(create_viewport_window) 로봇
-        둘의 손목캠을 각자 전담시키고, 두 캡쳐를 **같은 프레임 루프에서
-        동시에 스케줄**해서 둘 다 독립적으로 완료되는지 본다.
-
-        목적: annotator(FabricReader) 경로 없이(_ensure_camera_warm 독스트링
-        참고 — 그 경로는 이 세션에서 항상 빈 프레임을 준다) 뷰포트 캡쳐
-        방식을 두 개로 늘릴 수 있는지 확인 — patrol 중 로봇 둘이 동시에
-        scan_qr 을 폴링하면 뷰포트 하나로는 서로 밀어낸다(carrier_code_reader
-        decode_hz 폴링 참고)."""
+        """실험 전용 — 뷰포트를 하나 더 만들어 로봇 둘의 손목캠을 각자
+        전담시키고, 두 캡쳐를 같은 프레임 루프에서 동시에 스케줄해서 둘 다
+        독립적으로 완료되는지 본다(patrol 중 동시 scan_qr 폴링 검증용)."""
         from omni.kit.viewport.utility import (
             get_active_viewport, create_viewport_window, add_aov_to_viewport,
         )
@@ -2000,11 +1603,9 @@ class Backend:
 
 
 def _request_shutdown(signum, frame):
-    # ★ 여기서 바로 save_state() 를 부르지 않는다 — 시그널 핸들러는 메인
-    # 스레드가 어느 bytecode 를 실행 중이든 끼어들어 실행되므로, world.step()
-    # 이나 PhysX 호출 도중일 수도 있다(스레드 세이프하지 않음). 플래그만
-    # 세워 두고 main() 의 루프가 다음 반복 시작 지점(안전한 지점)에서 보고
-    # 빠져나가게 한다.
+    # 시그널 핸들러에서 바로 save_state() 를 부르지 않는다 — world.step()/PhysX
+    # 호출 도중일 수 있어 스레드 세이프하지 않다. 플래그만 세우고 main() 루프의
+    # 안전한 지점에서 빠져나가게 한다.
     global _shutdown_requested
     _shutdown_requested = True
 
@@ -2019,9 +1620,8 @@ def main():
     # 마지막으로 저장된(또는 아예 없는) 스냅샷으로 시작한다.
     signal.signal(signal.SIGINT, _request_shutdown)
     signal.signal(signal.SIGTERM, _request_shutdown)
-    # 0.0.0.0 = 다른 머신에서도 받는다. ROS 노드를 일반 PC 에서, Isaac 을 GPU PC 에서
-    # 돌리는 구성이라 127.0.0.1 이면 sim_client 가 붙지 못한다(Connection refused).
-    # 클라이언트 쪽은 SIM_BACKEND_HOST 로 이 머신의 IP 를 준다(sim_client.py:24).
+    # 0.0.0.0 = 다른 머신에서도 받는다 — ROS 를 일반 PC, Isaac 을 GPU PC 에서
+    # 돌리는 구성 지원.
     threading.Thread(target=_rpc_serve, args=("0.0.0.0", port), daemon=True).start()
     for robot_id in backend.rigs:
         _set_status(robot_id, phase="IDLE", message="ready")
@@ -2053,7 +1653,7 @@ def main():
 
     while simulation_app.is_running() and not _shutdown_requested:
         backend.world.step(render=not HEADLESS)
-        # Stop → Play 를 RPC 가 오기 전에 복구해 둔다(Backend._ensure_live).
+        # Stop → Play 를 RPC 가 오기 전에 복구해 둔다.
         backend._ensure_live()
         try:
             while True:
