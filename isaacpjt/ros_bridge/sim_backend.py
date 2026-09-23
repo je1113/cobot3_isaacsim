@@ -720,15 +720,16 @@ class Backend:
         # 매거진을 tcp 바로 아래(ConveyorFrame 충돌체와 살짝 겹치는 위치)로
         # 순간이동시킨다 — 실측: 필터링 없이는 그 겹침을 PhysX 가 몇 m 밖으로
         # 튕겨내는 걸로 "해결"했다. 이 우회 자체가 실제 접촉을 흉내 낼 필요가
-        # 없으므로 걸러낸다. 이 우회는 robot1 하드코딩 경로(teleport_base ->
-        # 재흡착)에서만 쓰였고 지금 배선(실제 Nav2)에서는 아무도 안 부른다 —
-        # robot2 용 필터 쌍은 그 경로를 실제로 쓰게 되면 추가한다.
+        # 없으므로 걸러낸다. 이 우회(teleport_base -> 재흡착)는 지금 배선(실제
+        # Nav2)에서는 아무도 안 부르지만, 필터 쌍은 로봇마다 똑같이 건다 —
+        # robot1 그리퍼에만 걸어 두면 robot2 로 같은 경로를 탈 때만 튕긴다.
         # ★ 고정 매거진(MAGAZINE_XFORM_PATH)이 스포너의 비활성 틀이면 건너뛴다
         #   (prim_live 독스트링). 스포너가 틀의 충돌 제외 쌍을 새 매거진에 옮겨
         #   준다(magazine_spawner._spawn 의 incoming_filters).
         self._fixed_magazine = prim_live(self.stage, MAGAZINE_XFORM_PATH)
         if self._fixed_magazine:
-            filter_collision(self.rigs["robot1"].gripper_prim, MAGAZINE_XFORM_PATH)
+            for rig in self.rigs.values():
+                filter_collision(rig.gripper_prim, MAGAZINE_XFORM_PATH)
             filter_collision(MAGAZINE_XFORM_PATH, CONVEYOR_FRAME_PATH)
         else:
             print(f"   고정 매거진 {MAGAZINE_XFORM_PATH} 은 비활성 스폰 틀이다 — "
