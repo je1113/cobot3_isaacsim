@@ -1270,6 +1270,8 @@ class Backend:
         if not gripped_after_lift:
             _set_status(robot_id, phase="FAILED", message="리프트 중 놓쳤다")
             return {"success": False, "fail_reason": "SLIP", "phase": "LIFT",
+                   "gripped": False, "used_gap_m": float(gap),
+                   "rise_mm": rise_m*1000, "tilt_deg": tilt_deg,
                    "final_offset_m": final_offset_m, "offset_limit_m": offset_limit_m}
 
         if final_offset_m > offset_limit_m:
@@ -1287,6 +1289,7 @@ class Backend:
         _set_status(robot_id, phase="DONE" if ok else "FAILED",
                     message="" if ok else f"판정 실패 rise={rise_m*1000:.1f}mm tilt={tilt_deg:.2f}")
         return {"success": bool(ok), "fail_reason": "NONE" if ok else "SLIP",
+               "phase": "STOW",
                "gripped": bool(holding(rig.gripper.gripped())),
                "final_offset_m": final_offset_m, "offset_limit_m": offset_limit_m,
                "used_gap_m": float(gap), "rise_mm": rise_m*1000, "tilt_deg": tilt_deg}

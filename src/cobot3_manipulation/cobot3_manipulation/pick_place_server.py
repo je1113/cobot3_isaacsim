@@ -385,8 +385,19 @@ class PickPlaceServer(Node):
         result.success = False
         result.fail_reason = _FAIL.get(r2.get("fail_reason", "NONE"), PickCarrier.Result.NONE)
         goal_handle.abort()
+        # ★ SLIP 은 두 군데서 난다 — 원인이 전혀 다르므로 반드시 갈라 찍는다.
+        #   phase=LIFT  들어 올리는 도중 흡착이 끊겼다(gripped=False). 매거진은
+        #               선반으로 떨어진다. 힘(충돌 반발·가속)이 흡착 한계를 넘은 것.
+        #   phase=STOW  들고는 있는데 판정에서 걸렸다 — rise < 5 mm 거나
+        #               tilt > 5 deg. rise 가 0 에 가까우면 들고 있는데도 USD
+        #               자세가 안 따라온 것(측정 문제)일 수 있다.
         self.get_logger().warn(
-            f"PICK 실패  reason={r2.get('fail_reason')}  offset {offset_mm:.1f}/{limit_mm:.1f} mm")
+            f"PICK 실패  reason={r2.get('fail_reason')} phase={r2.get('phase', '?')}  "
+            f"offset {offset_mm:.1f}/{limit_mm:.1f} mm  "
+            f"gap {float(r2.get('used_gap_m', 0.0)) * 1000:+.0f} mm  "
+            f"rise {float(r2.get('rise_mm', float('nan'))):.1f} mm  "
+            f"tilt {float(r2.get('tilt_deg', float('nan'))):.1f} deg  "
+            f"gripped={r2.get('gripped')}")
         return result
 
     def _holding(self, fallback=None):
