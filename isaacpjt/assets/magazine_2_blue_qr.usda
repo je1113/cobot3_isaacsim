@@ -16,7 +16,7 @@ def Xform "Magazine" (
         prepend apiSchemas = ["PhysicsCollisionAPI"]
     )
     {
-        color3f[] primvars:displayColor = [(0.95, 0.55, 0.15)]
+        color3f[] primvars:displayColor = [(0.15, 0.4, 0.9)]
         double size = 1
         float3 xformOp:scale = (0.3, 0.2, 0.004)
         double3 xformOp:translate = (0, 0, 0.002)
