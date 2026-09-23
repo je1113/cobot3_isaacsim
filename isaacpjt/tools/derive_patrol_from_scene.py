@@ -28,7 +28,7 @@ DEFAULT_SCENE = WS_ROOT / "isaacpjt/worlds/simple_factory_layout.usda"
 STANDOFF_M = 0.40
 # 순찰 구간의 x 범위. 선반 기둥 x[-2.79,-0.29] 밖(동쪽)에서 시작해 서쪽 슬롯
 # (-2.44)을 지나칠 때까지 훑는다 — 근거는 shelves.yaml SHELF-A 주석.
-X_START, X_END = 0.60, -2.60
+X_START, X_END = 0.60, -3.60
 
 
 def _vec(s, n):
