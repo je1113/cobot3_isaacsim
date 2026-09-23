@@ -70,6 +70,34 @@ STEER_KP = 0.8
 MAX_ANGULAR_SPEED = 0.12
 STEER_DEADBAND = math.radians(2.0)
 
+# ★ 목표 "점" 이 아니라 목표를 지나는 "선" 을 따라간다 (2026-09-23).
+#
+#   왜 — 점을 향해 조향하면 옆으로 벗어난 거리가 먼 목표에서는 아주 작은
+#   각도로만 보인다. 4 m 앞에서 8 cm 는 1.1° 라 위 불감대(2°)에 먹혀서
+#   끝까지 안 고쳐진다. 실측(mission.log): Nav2 가 순찰 시작점에 y 8~9 cm
+#   어긋나게 세웠고, robot2 는 그 오차를 안고 y -2.84 로 달리다가 매거진까지
+#   0.51 m 가 되어 PICK 이 NO_IK 로 죽었다(계획은 -2.76, 0.43 m).
+#
+#   그래서 목표 자세의 yaw 방향으로 목표를 지나는 선을 긋고, 그 선에서 벗어난
+#   거리(cross-track)에 비례해 선 쪽으로 꺾는다:
+#       원하는 진행 방향 = 선 방향 - atan(CROSS_TRACK_GAIN * 옆오차)
+#   8 cm 면 6.8° 라 불감대를 넘고, 0.12 m/s 에서 약 0.6 m 주행 안에 거의
+#   다 붙는다. 불감대 때문에 남는 옆오차는 tan(2°)/1.5 ≈ 2.3 cm 다.
+#
+#   목표 yaw 가 진행 방향과 안 맞으면(앞뒤 ±CROSS_TRACK_MAX_MISALIGN 밖)
+#   선을 정할 근거가 없으므로 예전처럼 점을 향한다.
+CROSS_TRACK_GAIN = 1.5                          # rad / m (atan 안)
+CROSS_TRACK_MAX_ANGLE = math.radians(20.0)      # 선으로 꺾는 최대각
+CROSS_TRACK_MAX_MISALIGN = math.radians(30.0)
+
+# 선을 따라갈 때의 도착 판정 — 목표까지 "선 방향으로 남은 거리" 가 이 값
+# 이하면 도착. 점 거리(POSITION_TOLERANCE 0.12)로 끊으면 직진 주행이 늘
+# 목표 11~12 cm 앞에서 선다(로그: 로더 creep 목표 4.00 → 3.916). 순찰
+# 끝점도 그만큼 덜 간다. 옆오차는 위 조향이 잡는다.
+# ★ task_manager.LOADER_CREEP_M 을 이 변경에 맞춰 0.30 -> 0.22 로 줄였다 —
+#   실제로 서는 자리(x ≈ 3.92)가 예전 실행과 같도록.
+LINE_ARRIVE_ALONG_M = 0.02
+
 # 실제 목표 방향과 차체 방향이 많이 틀어졌을 때는
 # 직진/후진을 잠시 멈추고 방향부터 맞춘다.
 TURN_IN_PLACE_ANGLE = math.radians(30.0)
@@ -780,11 +808,29 @@ class NavServer(Node):
             direction = -1.0
             direction_name = "REVERSE"
 
+        # ----------------------------------------------------
+        # 따라갈 선 (CROSS_TRACK_GAIN 주석)
+        #
+        # 목표 yaw 를 진행 방향 쪽으로 맞춘 것이 선 방향이다. 순찰 두 점은
+        # yaw 가 같아서 후진으로 돌아올 때는 목표 yaw 가 진행 방향의 반대다.
+        # ----------------------------------------------------
+
+        goal_yaw = yaw_of(goal_pose.orientation)
+
+        line_heading = None
+
+        if abs(wrap_angle(goal_yaw - initial_heading)) <= CROSS_TRACK_MAX_MISALIGN:
+            line_heading = goal_yaw
+        elif abs(wrap_angle(goal_yaw + math.pi - initial_heading)) <= CROSS_TRACK_MAX_MISALIGN:
+            line_heading = wrap_angle(goal_yaw + math.pi)
+
         self.get_logger().info(
             f"[PATROL] direction locked: "
             f"{direction_name} | "
             f"yaw={math.degrees(start_yaw):.1f} | "
-            f"heading={math.degrees(initial_heading):.1f}"
+            f"heading={math.degrees(initial_heading):.1f} | "
+            + (f"line={math.degrees(line_heading):.1f}"
+               if line_heading is not None else "line=없음(점 추종)")
         )
 
         # ----------------------------------------------------
@@ -853,7 +899,22 @@ class NavServer(Node):
             # ARRIVED
             # -----------------------------------------------
 
-            if distance <= POSITION_TOLERANCE:
+            if line_heading is not None:
+
+                along = (
+                    dx * math.cos(line_heading)
+                    + dy * math.sin(line_heading)
+                )
+
+                arrived = along <= LINE_ARRIVE_ALONG_M
+
+            else:
+
+                along = distance
+
+                arrived = distance <= POSITION_TOLERANCE
+
+            if arrived:
 
                 self._stop()
 
@@ -866,7 +927,8 @@ class NavServer(Node):
                     f"[PATROL] ARRIVED "
                     f"x={gx:.3f}, "
                     f"y={gy:.3f}, "
-                    f"distance={distance:.3f}"
+                    f"distance={distance:.3f} "
+                    f"along={along:+.3f}"
                 )
 
                 return result
@@ -879,6 +941,27 @@ class NavServer(Node):
                 dy,
                 dx,
             )
+
+            # 선이 있으면 점 방향 대신 "선 방향 + 옆오차 보정" 을 쓴다.
+            # (along 이 LINE_ARRIVE_ALONG_M 이하면 위에서 이미 도착이다.)
+            cross_track = 0.0
+
+            if line_heading is not None:
+
+                # 선 왼쪽이 + 다. 왼쪽에 있으면 오른쪽(-)으로 꺾는다.
+                cross_track = (
+                    -(x - gx) * math.sin(line_heading)
+                    + (y - gy) * math.cos(line_heading)
+                )
+
+                heading_to_goal = wrap_angle(
+                    line_heading
+                    - clamp(
+                        math.atan(CROSS_TRACK_GAIN * cross_track),
+                        -CROSS_TRACK_MAX_ANGLE,
+                        CROSS_TRACK_MAX_ANGLE,
+                    )
+                )
 
             # -----------------------------------------------
             # Body yaw
@@ -1007,6 +1090,7 @@ class NavServer(Node):
                     f"{math.degrees(desired_body_yaw):.1f} "
                     f"steer="
                     f"{math.degrees(steer_error):.1f} "
+                    f"xtrack={cross_track:+.3f} "
                     f"v={twist.linear.x:.3f} "
                     f"w={twist.angular.z:.3f}"
                 )

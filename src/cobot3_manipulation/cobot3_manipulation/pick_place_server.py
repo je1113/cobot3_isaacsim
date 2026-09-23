@@ -525,7 +525,8 @@ class PickPlaceServer(Node):
             self.get_logger().info("PLACE 성공")
         else:
             goal_handle.abort()
-            self.get_logger().warn(f"PLACE 실패  reason={r2.get('fail_reason')}")
+            self.get_logger().warn(
+                f"PLACE 실패  reason={r2.get('fail_reason')}  {r2.get('message', '')}")
         return result
 
     def _carry_joints(self):
