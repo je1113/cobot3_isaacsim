@@ -20,6 +20,8 @@ import asyncio
 import logging
 import math
 import threading
+import time
+from dataclasses import dataclass
 from typing import Any, Awaitable, Callable
 
 from ..config import settings
@@ -55,6 +57,17 @@ def parse_state(raw: str) -> dict[str, Any]:
     return out
 
 
+@dataclass(frozen=True)
+class CctvFrame:
+    """CCTV 한 장. 저장하지 않는다 — 마지막 한 장만 들고 있다가 화면으로 흘린다."""
+
+    seq: int          # 새 프레임마다 1씩 오른다. 스트림이 같은 장을 두 번 안 보내게
+    jpeg: bytes
+    width: int
+    height: int
+    received: float   # time.monotonic() — 화면이 "끊겼다" 를 판단한다
+
+
 class Bridge:
     """인터페이스. 구현 둘 — NullBridge / RclpyBridge."""
 
@@ -82,6 +95,10 @@ class Bridge:
     async def capture_pose(self, robot_id: str) -> dict:
         raise BridgeUnavailable("ROS 브리지가 꺼져 있다 (COBOT3_ROS=0)")
 
+    def latest_cctv(self) -> CctvFrame | None:
+        """가장 최근 CCTV 프레임(JPEG). 아직 없거나 브리지가 꺼져 있으면 None."""
+        return None
+
 
 class NullBridge(Bridge):
     """ROS 없이 백엔드만 띄울 때. 읽기 API·설정 편집·큐 관리는 전부 동작한다.
@@ -105,6 +122,10 @@ class RclpyBridge(Bridge):
         self._goal_handles: dict[str, Any] = {}
         self._last_pose_sent: dict[str, float] = {}
         self._last_pose: dict[str, dict] = {}
+        self._cctv: CctvFrame | None = None
+        self._cctv_seq = 0
+        self._cctv_last_encode = 0.0
+        self._cctv_warned: set[str] = set()
 
     @property
     def available(self) -> bool:
@@ -207,11 +228,56 @@ class RclpyBridge(Bridge):
             ),
             20,
         )
+        # CCTV — 이미지는 크고 자주 오므로 WebSocket 허브를 태우지 않는다.
+        # 마지막 한 장만 JPEG 로 들고 있고, /api/cctv.mjpeg 가 그걸 흘린다.
+        # ★ QoS 는 sensor_data(BEST_EFFORT). 발행 쪽이 RELIABLE 이어도 붙고,
+        #   느린 구독 하나 때문에 발행 쪽이 밀리지 않는다.
+        if s.cctv_topic:
+            from rclpy.qos import qos_profile_sensor_data
+            from sensor_msgs.msg import Image
+
+            node.create_subscription(Image, s.cctv_topic, self._on_cctv, qos_profile_sensor_data)
+
         # ★ 허브는 놓친 메시지를 재전송하지 않는다. 브라우저가 나중에 붙으면
         #   서 있는 로봇의 위치를 못 받으므로, 마지막 자세를 1초마다 다시 흘린다.
         #   저장이 아니라 흘려보내기의 반복이다 — 상태 토픽도 같은 식으로 반복된다.
         node.create_timer(1.0, self._repeat_pose)
         return node
+
+    def _on_cctv(self, msg) -> None:
+        """sensor_msgs/Image → JPEG. rclpy 스레드에서 돈다(asyncio 루프를 막지 않는다)."""
+        s = settings()
+        now = time.monotonic()
+        if now - self._cctv_last_encode < 1.0 / max(s.cctv_fps, 0.1):
+            return          # 화면에 내보낼 속도 이상은 인코딩하지 않는다
+        enc = (msg.encoding or "").lower()
+        channels = {"rgb8": 3, "bgr8": 3, "rgba8": 4, "bgra8": 4, "mono8": 1}.get(enc)
+        if channels is None:
+            if enc not in self._cctv_warned:
+                self._cctv_warned.add(enc)
+                log.warning("CCTV 인코딩 %r 은 못 읽는다 — rgb8/bgr8/rgba8/bgra8/mono8 만", enc)
+            return
+        import cv2
+        import numpy as np
+
+        h, w = int(msg.height), int(msg.width)
+        # step(한 줄 바이트 수)이 w*channels 보다 클 수 있다(줄 끝 패딩). 잘라 낸다.
+        rows = np.frombuffer(msg.data, dtype=np.uint8).reshape(h, int(msg.step))
+        img = rows[:, : w * channels].reshape(h, w, channels) if channels > 1 else rows[:, :w]
+        conv = {"rgb8": cv2.COLOR_RGB2BGR, "rgba8": cv2.COLOR_RGBA2BGR,
+                "bgra8": cv2.COLOR_BGRA2BGR}.get(enc)
+        if conv is not None:
+            img = cv2.cvtColor(img, conv)
+        ok, buf = cv2.imencode(".jpg", img, [int(cv2.IMWRITE_JPEG_QUALITY), s.cctv_jpeg_quality])
+        if not ok:
+            return
+        self._cctv_last_encode = now
+        self._cctv_seq += 1
+        # 참조 하나를 바꿔 끼우는 것이라 잠금이 필요 없다 — 읽는 쪽은 통째로 옛것이나 새것을 본다.
+        self._cctv = CctvFrame(self._cctv_seq, buf.tobytes(), w, h, now)
+
+    def latest_cctv(self) -> CctvFrame | None:
+        return self._cctv
 
     def _repeat_pose(self) -> None:
         import time

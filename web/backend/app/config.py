@@ -99,6 +99,11 @@ class Settings:
     pose_topic_tmpl: str = os.environ.get("COBOT3_POSE_TOPIC", "/{robot}/amcl_pose")
     state_topic_tmpl: str = os.environ.get("COBOT3_STATE_TOPIC", "/{robot}/orchestrator/state")
     pose_hz: float = float(os.environ.get("COBOT3_POSE_HZ", "8"))  # 6.1 솎아내기
+    # CCTV — 씬의 /World/Environment/CCTV_Camera 가 ROS2CameraHelper 로 낸다
+    # (simple_factory_layout.usda 의 /World/Graph/ROS_CCTV). 빈 문자열이면 끈다.
+    cctv_topic: str = os.environ.get("COBOT3_CCTV_TOPIC", "/cctv/image_raw")
+    cctv_fps: float = float(os.environ.get("COBOT3_CCTV_FPS", "8"))
+    cctv_jpeg_quality: int = _env_int("COBOT3_CCTV_JPEG_QUALITY", 70)
 
     # ── HTTP ─────────────────────────────────────────────────────────
     cors_origins: tuple[str, ...] = tuple(

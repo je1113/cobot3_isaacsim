@@ -902,6 +902,29 @@ def Xform "World"
                 uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
             }
         }
+
+        # ── CCTV (웹 관제 「실시간 모니터링」 Top View 아래 카드) ─────────────
+        #  공장 전체를 천장 위에서 똑바로 내려다본다. 씬에 지붕이 없어서 벽
+        #  (높이 2.8 m) 위로 올려도 가리는 것이 없다.
+        #  위치: 벽 안쪽(x -6.21 ~ 7.90, y -9.67 ~ 7.44)의 가운데에서 +x 로 0.3 m.
+        #        +x 쪽(컨베이어 터널, 높이 1.9 m)이 원근으로 바깥에 찍혀 잘려서 민다.
+        #  방향: z 축으로 90도 돌렸다 — 화면 오른쪽 = 월드 +y, 화면 아래 = 월드
+        #        +x 가 되어 웹 Top View(toSvg 가 x/y 를 맞바꾼 그림)와 같은 방향이다.
+        #  화각: aperture 비 20.955 : 17.288 ≈ 800 x 660 과 같은 비(1.21) —
+        #        공장 17.1 m x 14.1 m 비에 맞췄다. focal 10 에서 높이 9.3 m 면
+        #        바닥 기준 가로 19.5 m, 세로 16.1 m 가 들어온다.
+        #  발행: /World/Graph/ROS_CCTV 가 /cctv/image_raw 로 낸다.
+        def Camera "CCTV_Camera"
+        {
+            float2 clippingRange = (0.1, 100)
+            float focalLength = 10
+            float horizontalAperture = 20.955
+            token projection = "perspective"
+            float verticalAperture = 17.288
+            double3 xformOp:rotateXYZ = (0, 0, 90)
+            double3 xformOp:translate = (1.15, -1.117, 9.3)
+            uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:rotateXYZ"]
+        }
     }
 
     def Xform "Magazines" (
@@ -2284,6 +2307,84 @@ def Xform "World"
 
     def "Graph"
     {
+        # CCTV 카메라 → ROS 2 이미지 토픽 /cctv/image_raw (sensor_msgs/Image, rgb8).
+        # 웹 백엔드가 구독해 MJPEG 로 다시 낸다(web/backend/app/routers/cctv.py).
+        # frameSkipCount 5 — 시뮬 40 Hz 에서 약 7 fps. 관제용이라 이 정도면 되고,
+        # 렌더 부담과 대역폭을 아낀다.
+        def OmniGraph "ROS_CCTV"
+        {
+            token evaluationMode = "Automatic"
+            token evaluator:type = "execution"
+            token fabricCacheBacking = "StageWithoutHistory"
+            int2 fileFormatVersion = (1, 9)
+            token pipelineStage = "pipelineStageSimulation"
+
+            def OmniGraphNode "OnPlaybackTick"
+            {
+                token node:type = "omni.graph.action.OnPlaybackTick"
+                int node:typeVersion = 2
+                custom double outputs:deltaSeconds
+                custom double outputs:frame
+                custom uint outputs:tick (
+                    customData = {
+                        bool isExecution = 1
+                    }
+                )
+                custom double outputs:time
+            }
+
+            def OmniGraphNode "CreateRenderProduct"
+            {
+                custom rel inputs:cameraPrim = </World/Environment/CCTV_Camera> (
+                    customData = {
+                        dictionary omni = {
+                            dictionary graph = {
+                                string relType = "target"
+                            }
+                        }
+                    }
+                )
+                custom bool inputs:enabled = 1
+                custom uint inputs:execIn (
+                    customData = {
+                        bool isExecution = 1
+                    }
+                )
+                prepend uint inputs:execIn.connect = </World/Graph/ROS_CCTV/OnPlaybackTick.outputs:tick>
+                custom uint inputs:height = 660
+                custom uint inputs:width = 800
+                token node:type = "isaacsim.core.nodes.IsaacCreateRenderProduct"
+                int node:typeVersion = 2
+                custom uint outputs:execOut (
+                    customData = {
+                        bool isExecution = 1
+                    }
+                )
+                custom token outputs:renderProductPath
+            }
+
+            def OmniGraphNode "CameraHelper"
+            {
+                custom uint64 inputs:context = 0
+                custom bool inputs:enabled = 1
+                custom uint inputs:execIn (
+                    customData = {
+                        bool isExecution = 1
+                    }
+                )
+                prepend uint inputs:execIn.connect = </World/Graph/ROS_CCTV/CreateRenderProduct.outputs:execOut>
+                custom string inputs:frameId = "cctv"
+                custom uint inputs:frameSkipCount = 5
+                custom string inputs:nodeNamespace = "cctv"
+                custom token inputs:renderProductPath
+                prepend token inputs:renderProductPath.connect = </World/Graph/ROS_CCTV/CreateRenderProduct.outputs:renderProductPath>
+                custom string inputs:topicName = "image_raw"
+                custom token inputs:type = "rgb"
+                token node:type = "isaacsim.ros2.bridge.ROS2CameraHelper"
+                int node:typeVersion = 2
+            }
+        }
+
         def OmniGraph "ROS_Clock"
         {
             token evaluationMode = "Automatic"

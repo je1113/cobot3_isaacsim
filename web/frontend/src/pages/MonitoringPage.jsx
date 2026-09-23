@@ -9,6 +9,10 @@ import {
 } from '../api/robots'
 import { fetchMapInfo } from '../api/map'
 import {
+  cctvStreamUrl,
+  fetchCctvStatus,
+} from '../api/cctv'
+import {
   fetchShelves,
   fetchStations,
 } from '../api/config'
@@ -133,6 +137,126 @@ function ConveyorIcon({ p, label, variant }) {
         {label}
       </text>
     </g>
+  )
+}
+
+// 상태를 다시 묻는 간격. 영상 자체는 스트림으로 오고, 이건 "끊겼나" 만 본다.
+const CCTV_STATUS_POLL_MS = 3000
+
+/**
+ * CCTV — 씬 천장 카메라(/World/Environment/CCTV_Camera)의 실시간 영상.
+ *
+ * 영상은 백엔드의 MJPEG 스트림(/api/cctv.mjpeg)을 <img> 로 바로 본다.
+ * 상태(/api/cctv/status)를 따로 물어 "영상 없음" 을 가른다 — 스트림은 새 장이
+ * 안 오면 마지막 장에서 멈출 뿐 에러를 내지 않아서, <img> 만으로는 끊긴 것을
+ * 알 수 없다.
+ *
+ * 카메라는 Top View 와 같은 방향으로 돌려 두었다(화면 오른쪽 = 월드 +y).
+ */
+function CctvCard() {
+  const [status, setStatus] =
+    useState(null)
+  // 끊겼다 살아나면 스트림을 새로 열어야 한다 — 주소를 바꿔 <img> 를 다시 붙인다.
+  const [streamKey, setStreamKey] =
+    useState(0)
+
+  useEffect(() => {
+    let alive = true
+    let wasLive = false
+
+    async function poll() {
+      try {
+        const next =
+          await fetchCctvStatus()
+
+        if (!alive) {
+          return
+        }
+
+        if (next.live && !wasLive) {
+          setStreamKey((k) => k + 1)
+        }
+
+        wasLive = Boolean(next.live)
+        setStatus(next)
+      } catch {
+        if (alive) {
+          wasLive = false
+          setStatus(null)
+        }
+      }
+    }
+
+    poll()
+
+    const timer = setInterval(
+      poll,
+      CCTV_STATUS_POLL_MS,
+    )
+
+    return () => {
+      alive = false
+      clearInterval(timer)
+    }
+  }, [])
+
+  const live = Boolean(status?.live)
+
+  let emptyMessage =
+    '백엔드에 연결할 수 없습니다.'
+
+  if (status && !status.enabled) {
+    emptyMessage =
+      'ROS 브리지가 꺼져 있습니다 (COBOT3_ROS=1).'
+  } else if (status && !live) {
+    emptyMessage =
+      '영상 신호 없음 — Isaac Sim 이 Play 중인지 확인하세요.'
+  }
+
+  return (
+    <section className="monitor-map-card monitor-cctv-card">
+      <div className="monitor-map-header">
+        <div>
+          <h2>
+            CCTV
+          </h2>
+
+          <p>
+            천장 카메라 · 공장 전체
+          </p>
+        </div>
+
+        <span
+          className={
+            live
+              ? 'monitor-connection-badge connected'
+              : 'monitor-connection-badge'
+          }
+        >
+          <i />
+
+          {live
+            ? '실시간'
+            : '영상 없음'}
+        </span>
+      </div>
+
+      <div className="monitor-cctv-surface">
+        {live ? (
+          <img
+            key={streamKey}
+            src={cctvStreamUrl(
+              streamKey,
+            )}
+            alt="공장 천장 CCTV 실시간 영상"
+          />
+        ) : (
+          <div className="monitor-cctv-empty">
+            {emptyMessage}
+          </div>
+        )}
+      </div>
+    </section>
   )
 }
 
@@ -824,6 +948,7 @@ function MonitoringPage({
       )}
 
       <div className="monitor-control-layout">
+        <div className="monitor-main-column">
         <section className="monitor-map-card">
           <div className="monitor-map-header">
             <div>
@@ -851,6 +976,9 @@ function MonitoringPage({
             />
           </div>
         </section>
+
+        <CctvCard />
+        </div>
 
         <aside className="monitor-robot-column">
           {robots.map(
