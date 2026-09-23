@@ -75,6 +75,14 @@ ON CONFLICT (run_id, stage, attempt) DO NOTHING
 """
 # plant_code 와 duration_sec 은 생성열이라 넣지 않는다 (넣으면 에러난다).
 
+# ★ 옛 씬의 숫자 QR 폴백. 씬(과 스포너 에셋 magazine_*_qr.usda)이 아직 QR 에
+#   숫자 하나("1"/"2")만 담는다. 그 원문에는 품목 코드가 없어서 _resolve 가
+#   못 풀고, 모든 기록이 "미등록 페이로드" 로 스풀에만 쌓였다(DB 는 빈 채로).
+#   task_manager.NUMERIC_TO_VARIANT 와 같은 대응이다 — "1" 주황, "2" 파랑 매거진.
+#   원문(qr_payload)은 그대로 저장하고 품목 코드만 채운다.
+#   씬을 새 페이로드(F1-MGZO-1 …)로 바꾸면 이 표와 _resolve 의 폴백을 지운다.
+LEGACY_NUMERIC_KIND = {"1": "MGZO", "2": "MGZB"}
+
 QUEUE_MAX = 10000
 RECONNECT_MIN_S = 1.0
 RECONNECT_MAX_S = 30.0
@@ -204,6 +212,12 @@ class EventLogger(Node):
         for kind_code, family in self._kinds:
             if kind_code in up:
                 return kind_code, TABLE_BY_FAMILY.get(family)
+        # 옛 숫자 QR — LEGACY_NUMERIC_KIND 주석. 코드가 DB 에 있을 때만 쓴다.
+        legacy = LEGACY_NUMERIC_KIND.get(up)
+        if legacy is not None:
+            for kind_code, family in self._kinds:
+                if kind_code == legacy:
+                    return kind_code, TABLE_BY_FAMILY.get(family)
         return None, None
 
     # ── 쓰기 ──────────────────────────────────────────────────────────
