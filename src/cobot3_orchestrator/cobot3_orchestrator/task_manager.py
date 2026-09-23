@@ -446,6 +446,14 @@ DEFAULT_EMPTY_SWEEPS = 1
 #     여전히 벨트 위다.
 TEST_LOADER = (3.70, 4.60, 0.0)
 
+# 검사 투입 벨트 정차점 — 스택을 놓는 곳. stations.yaml TEST-01 place_pose 와
+# 같은 점이어야 한다 (2026-09-23 사용자 확인: 스택은 검사 벨트에 놓는다).
+# 검사 벨트(BeltTop x 4.05~8.75, y -3.255~-2.155, 윗면 z 0.541)는 포장 벨트를
+# y 로 옮긴 모양이라 x 3.70 을 고른 근거(Nav2 내접 여유)가 그대로 성립한다.
+# 차체를 점유맵에 놓아 재면 이 점도, creep 뒤(3.92)도 겹침 0 이고 이 점에서
+# ±60° 까지 제자리 회전이 된다 — TEST_LOADER 와 같다.
+TEST_STATION = (3.70, -2.705, 0.0)
+
 # ── 로더 앞 직진 전진 (creep) ──────────────────────────────────────────────
 # Nav2 는 위 TEST_LOADER(3.70)보다 벨트에 못 붙인다 — 3.85 에서 BLOCKED 로
 # 죽은 실측이 위 주석에 있다. 그런데 거기서는 팔이 place 자리에 **못 닿았다**:
@@ -1850,18 +1858,18 @@ def build_tree(node):
 
     # ── 로더 앞 직진 전진/후진 (LOADER_CREEP_M 주석) ────────────────────
     # py_trees 잎은 트리에서 한 자리만 차지하므로 매거진·스택용을 따로 만든다.
-    def creep(stage, forward):
+    def creep(stage, forward, base=TEST_LOADER):
         dx = LOADER_CREEP_M if forward else 0.0
-        target = (TEST_LOADER[0] + dx, TEST_LOADER[1], TEST_LOADER[2])
+        target = (base[0] + dx, base[1], base[2])
         return _Optional(stage.upper(), ActionLeaf(
             stage, node, node.patrol_nav, "navigation/patrol_to", NavigateTo.Result,
             make_goal=lambda: NavigateTo.Goal(pose=_to_pose(target)),
             timeout_s=CREEP_TIMEOUT_S, moves_base=True), node)
 
-    def creep_pair():
+    def creep_pair(base=TEST_LOADER):
         if LOADER_CREEP_M <= 0.0:
             return [], []
-        return [creep(CREEP_IN, True)], [creep(CREEP_OUT, False)]
+        return [creep(CREEP_IN, True, base)], [creep(CREEP_OUT, False, base)]
 
     creep_in, creep_out = creep_pair()
 
@@ -1921,7 +1929,8 @@ def build_tree(node):
 
         stack_deliver = Freeze("STACK_DELIVER", ActionLeaf(
             STACK_DELIVER, node, node.nav, "navigation/navigate_to", NavigateTo.Result,
-            make_goal=lambda: NavigateTo.Goal(pose=_to_pose(TEST_LOADER)),
+            # 스택은 검사 투입 벨트로 간다(TEST_STATION 주석). 매거진 로더 아님.
+            make_goal=lambda: NavigateTo.Goal(pose=_to_pose(TEST_STATION)),
             timeout_s=NAV_TIMEOUT_S, moves_base=True), node, STACK_DELIVER)
 
         stack_place = Freeze("STACK_PLACE", ActionLeaf(
@@ -1931,7 +1940,7 @@ def build_tree(node):
             timeout_s=PLACE_TIMEOUT_S, retries=PLACE_RETRIES,
             feedback_cb=node.log_phase("STACK_PLACE")), node, STACK_PLACE)
 
-        stack_creep_in, stack_creep_out = creep_pair()
+        stack_creep_in, stack_creep_out = creep_pair(TEST_STATION)
         stack_leg = [py_trees.decorators.FailureIsSuccess(
             name="스택 회수(있으면)",
             child=py_trees.composites.Sequence(
