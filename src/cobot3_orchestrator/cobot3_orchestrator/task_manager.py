@@ -134,7 +134,7 @@ docs/08_ROS2_NODE_Graph.html 의 확정안(01-03)이 기준이다. 노드 5개 �
                   실패가 아니다. SKIP/STOP(cancel_goal)은 미션 전이면 바로 세우고,
                   미션 중이면 RETURN 까지 마친 뒤 CANCELED 로 돌려준다.
     아직 없는 것  RECOVER(스테이션 회수) goal · resume_progress 재개 ·
-                  more_at_target 판정(항상 false) · RobotCommand 서비스(PAUSE 등).
+                  more_at_target 판정(항상 false).
                   wait_for_task 기본값이 False 라 웹 없이 띄우던 순찰이 그대로다.
 
   "이번 미션의 데이터" 는 블랙보드(py_trees 의 공유 저장소)에 둔다.
@@ -171,6 +171,8 @@ docs/08_ROS2_NODE_Graph.html 의 확정안(01-03)이 기준이다. 노드 5개 �
   발행  /trace/event                 TraceEvent.msg   ★ 절대이름. event_logger 가
                                      전역 1개라 로봇이 몇 대든 여기로 모인다
   서비스 orchestrator/resume         std_srvs/SetBool (웹 복구 — 얼어붙은 단계 재시도)
+  서비스 orchestrator/command        RobotCommand.srv — 화면의 PAUSE · RESUME ·
+                                     SKIP · STOP. _on_command 독스트링 참고
   서비스 config/reload               ReloadConfig.srv — 웹이 설정을 저장한 직후
                                      부른다. scope 가 shelves · all 이면 순찰
                                      경로를 다시 읽는다. 이름이 문서와 구현이
@@ -308,7 +310,7 @@ from std_srvs.srv import SetBool, Trigger
 
 from cobot3_interfaces.action import ExecuteTask, NavigateTo, PickCarrier, PlaceCarrier
 from cobot3_interfaces.msg import TraceEvent
-from cobot3_interfaces.srv import CarrierScan, ReloadConfig
+from cobot3_interfaces.srv import CarrierScan, ReloadConfig, RobotCommand
 
 # ══════════════════════════════════════════════════════════════════════════
 #  좌표 — 아직 안 정해졌다. 아래 두 곳을 채워 넣어야 로봇이 실제로 움직인다.
@@ -890,7 +892,42 @@ def _blackboard(name, keys):
 # ══════════════════════════════════════════════════════════════════════════
 
 
-class ActionLeaf(py_trees.behaviour.Behaviour):
+class PauseGate:
+    """웹의 PAUSE(RobotCommand) 동안 잎이 새 일을 시작하지 않게 한다.
+
+    ★ 일시정지는 트리를 세우지 않는다. tick 은 그대로 돌고 잎이 "쉰다" —
+      트리를 안 치면 current_stage() 가 그대로라 상태 발행은 맞지만, 잎의
+      deadline 이 벽시계로 흘러서 재개하자마자 TIMEOUT 으로 얼어붙는다.
+      그래서 잎이 쉰 시간을 재 두었다가 재개할 때 deadline 을 그만큼 민다.
+
+    쓰는 잎은 initialise() 에서 _pause_reset() 을 부르고, update() 에서
+    _paused() 가 True 면 RUNNING 을 돌려준다. 밀어 줄 deadline 속성 이름은
+    _PAUSE_DEADLINES 에 적는다.
+    """
+
+    _PAUSE_DEADLINES = ("deadline", "server_deadline")
+
+    def _pause_reset(self):
+        self._paused_at = None
+
+    def _paused(self):
+        """이번 tick 을 쉬어야 하나. 재개 직후 한 번 deadline 을 민다."""
+        now = time.monotonic()
+        if self.node.paused:
+            if self._paused_at is None:
+                self._paused_at = now
+            self.feedback_message = "일시정지"
+            return True
+        if self._paused_at is not None:
+            shift = now - self._paused_at
+            for attr in self._PAUSE_DEADLINES:
+                if hasattr(self, attr):
+                    setattr(self, attr, getattr(self, attr) + shift)
+            self._paused_at = None
+        return False
+
+
+class ActionLeaf(PauseGate, py_trees.behaviour.Behaviour):
     """액션 goal 하나. NavigateTo · PickCarrier · PlaceCarrier 가 전부 이걸 쓴다.
 
     셋 다 result 가 success · fail_reason 모양이라 하나로 된다.
@@ -919,11 +956,14 @@ class ActionLeaf(py_trees.behaviour.Behaviour):
         self.goal_handle = None
         self.send_future = None
         self.result_future = None
+        self._resend = False
 
     def initialise(self):
         self.goal_handle = None
         self.send_future = None
         self.result_future = None
+        self._resend = False
+        self._pause_reset()
         self.goal = self.make_goal()
         now = time.monotonic()
         self.server_deadline = now + SERVER_WAIT_S
@@ -932,7 +972,52 @@ class ActionLeaf(py_trees.behaviour.Behaviour):
         # 시뮬과 벽시계를 둘 다 찍는 이유는 docs/DB구성.md §4-2.
         self.started_stamp, self.started_wall = self.node.now_pair()
 
+    def _pause_hold(self):
+        """일시정지 처리. True 면 이번 tick 은 쉰다(RUNNING).
+
+        ★ 베이스를 움직이는 goal(moves_base)은 취소해서 그 자리에 세운다.
+          재개하면 **같은 goal 을 다시** 보낸다 — make_goal() 을 다시 부르지
+          않는 이유는 순찰 잎의 make_goal 이 정차점을 하나씩 전진시키기
+          때문이다. 다시 부르면 가던 정차점을 건너뛴다.
+        ★ 팔 goal(pick · place)은 취소하지 않고 끝까지 둔다. 집는 도중에
+          거두면 매거진을 반쯤 든 채 선다 — PAUSE 는 "공짜" 여야 한다
+          (RobotCommand.srv). 팔이 끝나면 다음 잎이 새 goal 을 내지 않고 쉰다.
+        """
+        if not self._paused():
+            if not self._resend:
+                return False
+            # 재개 — 일시정지 때 거둔 goal 의 result(CANCELED)를 먼저 받아
+            # 버린다. 그걸 실패로 읽으면 Freeze 가 얼어붙는다.
+            if self.result_future is not None and not self.result_future.done():
+                self.feedback_message = "재개 — 취소 응답 대기"
+                return True
+            self._resend = False
+            self.goal_handle = None
+            self.send_future = None
+            self.result_future = None
+            self.server_deadline = time.monotonic() + SERVER_WAIT_S
+            self.node.get_logger().info(f"[재개] {self.name} — 같은 goal 을 다시 보낸다")
+            return False
+
+        if self.send_future is None:
+            return True                      # 새 goal 은 내지 않는다
+        if not self.moves_base:
+            return False                     # 팔 동작은 끝까지 마친다
+        if self._resend:
+            return True                      # 이미 거뒀다
+        if self.goal_handle is None:
+            # 수락 응답 전이다. 받고 나서 다음 tick 에 거둔다.
+            return not self.send_future.done()
+        if self.result_future is None or self.result_future.done():
+            return False                     # 이미 끝났다 — 결과를 그대로 쓴다
+        self.node.begin_cancel(self.goal_handle, f"{self.name} 일시정지")
+        self._resend = True
+        return True
+
     def update(self):
+        if self._pause_hold():
+            return Status.RUNNING
+
         if time.monotonic() > self.deadline:
             self.feedback_message = f"TIMEOUT({self.timeout_s:.0f}s)"
             return Status.FAILURE
@@ -995,7 +1080,7 @@ class ActionLeaf(py_trees.behaviour.Behaviour):
         self.goal_handle = None
 
 
-class ScanLeaf(py_trees.behaviour.Behaviour):
+class ScanLeaf(PauseGate, py_trees.behaviour.Behaviour):
     """carrier_scan 서비스를 호출해 QR 정보를 받아 블랙보드에 넣는다.
 
     멈춘 뒤에 읽어야 정확하다 (05 §12-1 정지 상태에서 근접 판독). 앞의 HOLD 잎이
@@ -1017,6 +1102,7 @@ class ScanLeaf(py_trees.behaviour.Behaviour):
 
     def initialise(self):
         self.future = None
+        self._pause_reset()
         # ★ SCAN 은 어떤 실패도 로봇을 얼리지 않는다 — soft 를 처음부터 True 로 둔다.
         #   판독이 안 되면 무조건 순찰로 돌아간다. SCAN 은 에러가 아니다.
         #   (docs/DB구성.md §4-6 — 그래서 DB 에도 scan 행이 없다)
@@ -1027,6 +1113,10 @@ class ScanLeaf(py_trees.behaviour.Behaviour):
         self.deadline = now + SCAN_TIMEOUT_S
 
     def update(self):
+        # 일시정지면 새 요청을 내지 않는다. 이미 나간 요청은 받아서 쓴다.
+        if self.future is None and self._paused():
+            return Status.RUNNING
+
         if time.monotonic() > self.deadline:
             self.node.on_scan_not_found()      # 쿨다운. 없으면 곧바로 또 시도한다
             self.feedback_message = f"TIMEOUT({SCAN_TIMEOUT_S:.0f}s)"
@@ -1085,7 +1175,7 @@ class ScanLeaf(py_trees.behaviour.Behaviour):
         return Status.SUCCESS
 
 
-class ObservePoseLeaf(py_trees.behaviour.Behaviour):
+class ObservePoseLeaf(PauseGate, py_trees.behaviour.Behaviour):
     """순찰을 시작하기 전에 팔을 관측 자세로 세운다.
 
     왜 트리에 이 단계가 있나
@@ -1128,11 +1218,16 @@ class ObservePoseLeaf(py_trees.behaviour.Behaviour):
         #   TaskManager._on_reload_config 독스트링 참고.
         self.node.commit_pending_route()
         self.future = None
+        self._pause_reset()
         now = time.monotonic()
         self.server_deadline = now + SERVER_WAIT_S
         self.deadline = now + OBSERVE_POSE_TIMEOUT_S
 
     def update(self):
+        # 일시정지면 팔을 움직이는 요청을 새로 내지 않는다.
+        if self.future is None and self._paused():
+            return Status.RUNNING
+
         if self.node.observe_pose is None:
             # 서비스 이름이 비어 있다 — 이 단계를 끈 것이다.
             self.feedback_message = "건너뜀(observe_pose_service 가 비었다)"
@@ -1271,7 +1366,7 @@ class PeerClear(py_trees.behaviour.Behaviour):
         return Status.SUCCESS
 
 
-class WaitForPeer(py_trees.behaviour.Behaviour):
+class WaitForPeer(PauseGate, py_trees.behaviour.Behaviour):
     """차선 밖 대기 자리에서 상대가 차선을 비우기를 기다린다.
 
     액션 클라이언트도 스레드도 future 도 없다. 캐시된 상대 상태를 읽어
@@ -1323,6 +1418,7 @@ class WaitForPeer(py_trees.behaviour.Behaviour):
     def initialise(self):
         self.deadline = time.monotonic() + PEER_WAIT_TIMEOUT_S
         self._clear_since = None
+        self._pause_reset()
         # ★ Freeze 가 DB 행을 만들 때 getattr 로 읽어 간다. 안 넣으면 조용히
         #   now 로 대체되어 duration_sec 이 0 으로 찍힌다(에러는 안 난다).
         self.started_stamp, self.started_wall = self.node.now_pair()
@@ -1333,6 +1429,11 @@ class WaitForPeer(py_trees.behaviour.Behaviour):
             self.node.get_logger().info(self.arrive_log)
 
     def update(self):
+        # 일시정지 중에는 차례를 판단하지 않는다 — 비었다고 보고 통과하면 다음
+        # 잎이 쉬긴 하지만, 쉬는 동안 PEER_WAIT_TIMEOUT 이 흐르지 않게 막는 게 목적이다.
+        if self._paused():
+            self._clear_since = None
+            return Status.RUNNING
         if self.node.peer_frozen():
             self.feedback_message = f"PEER_FROZEN(state={self.node.peer_stage()})"
             return Status.FAILURE
@@ -1772,6 +1873,7 @@ class TaskManager(Node):
         super().__init__("task_manager")
 
         self.failed = False
+        self.paused = False          # 웹 PAUSE. 잎이 PauseGate 로 본다
         self.patrolling = False
         self._driving = None
         self._scan_cooldown_until = 0.0
@@ -1813,6 +1915,9 @@ class TaskManager(Node):
         self._attempts = {}          # stage -> 시도 횟수. new_run() 이 비운다
         self._frozen_node = None     # 얼어붙은 Freeze. _on_resume 이 푼다
         self.create_service(SetBool, "orchestrator/resume", self._on_resume)
+        # ★ 기본(상호배제) 콜백 그룹이다 — 트리 tick 과 겹치지 않으므로
+        #   self.paused 를 바꾸는 순간 잎이 반쯤 본 상태가 없다.
+        self.create_service(RobotCommand, "orchestrator/command", self._on_command)
 
         # ── 순찰 경로 (로봇마다 다른 선반을 돈다) ─────────────────────────
         # ★ 트리 조립보다 먼저다 — 잎들이 self.patrol_route 를 읽는다.
@@ -2325,6 +2430,57 @@ class TaskManager(Node):
         self.get_logger().warning(f"[복구] {res.message}")
         return res
 
+    def _on_command(self, req, res):
+        """화면의 제어 버튼 4개 (RobotCommand.srv). 진행 여부만 바꾼다.
+
+        PAUSE   진행 중인 주행 goal 을 거둬 그 자리에 선다. 팔 동작은 끝까지
+                마친 뒤 선다(PauseGate · ActionLeaf._pause_hold). 작업(ExecuteTask)
+                은 그대로 들고 있다.
+        RESUME  PAUSE 해제. 거뒀던 주행 goal 을 같은 목표로 다시 보낸다.
+                ★ 실패로 얼어붙은 단계를 푸는 것은 이게 아니라 orchestrator/resume
+                  이다 — 둘을 합치면 "재개" 한 번에 실패한 pick 이 다시 돈다.
+        SKIP    지금 작업만 버린다. STOP 과 여기서 하는 일은 같다 — 수락만 하고,
+        STOP    실제 취소는 웹이 수락을 보고 ExecuteTask 에 cancel_goal 을
+                보낸다(web commands._dispatch). 미션 전이면 바로 서고, 미션
+                중이면 RETURN 까지 마친 뒤 CANCELED 로 닫힌다(_execute_task).
+                ★ 일시정지는 건드리지 않는다. 멈춰 둔 채 SKIP 하면 미션 중인
+                  작업은 RESUME 뒤에 RETURN 까지 가서 닫힌다.
+        """
+        cmd = (req.command or "").strip().upper()
+        why = None
+        if cmd == RobotCommand.Request.PAUSE:
+            if self.paused:
+                why = "이미 일시정지 중이다"
+            elif self.failed:
+                why = (f"{self.bb.fail_stage} 단계에서 실패해 이미 서 있다 — "
+                       f"/{self.robot_id}/orchestrator/resume 으로 복구한다")
+            else:
+                self.paused = True
+        elif cmd == RobotCommand.Request.RESUME:
+            if not self.paused:
+                why = "PAUSE 중이 아니라 RESUME 할 게 없다"
+                if self.failed:
+                    why += (f" ({self.bb.fail_stage} 단계 실패는 "
+                            f"/{self.robot_id}/orchestrator/resume 으로 복구한다)")
+            else:
+                self.paused = False
+        elif cmd in (RobotCommand.Request.SKIP, RobotCommand.Request.STOP):
+            if self._task is None:
+                why = "진행 중인 작업이 없다 — 취소할 것이 없다"
+        else:
+            why = f"모르는 명령: {req.command!r}"
+
+        res.accepted = why is None
+        res.rejected_because = why or ""
+        if why:
+            self.get_logger().warning(f"[명령] {cmd or '-'} 거절: {why}")
+        else:
+            note = f" ({req.reason})" if req.reason else ""
+            self.get_logger().warning(f"[명령] {cmd} 수락{note}")
+        self._publish_state()
+        res.state = self._state_string()
+        return res
+
     def begin_cancel(self, goal_handle, who):
         """진행 중인 goal 을 거둔다.
 
@@ -2635,6 +2791,10 @@ class TaskManager(Node):
             return
         if self.failed:
             return
+        if self.paused:
+            # 순찰 잎은 쉬는 동안에도 RUNNING 이라 patrolling 이 True 다. 여기서
+            # 받으면 멈춰 있는 로봇이 HOLD → SCAN 으로 넘어간다.
+            return
         if time.monotonic() < self._scan_cooldown_until:
             # 방금 그 라벨을 못 읽었다. 같은 자리에 또 서지 않는다.
             self.get_logger().debug("carrier_detected 무시 (스캔 실패 쿨다운)")
@@ -2753,11 +2913,15 @@ class TaskManager(Node):
         self._publish_state()
 
     def _publish_state(self):
+        msg = String()
+        msg.data = self._state_string()
+        self._state_pub.publish(msg)
+
+    def _state_string(self):
         # 얼어붙었으면 그 단계가 상태다 — 이전 판의 "상태는 실패한 그 상태 그대로
         # 둔다. pick 에서 실패했으면 상태는 pick 이다" 와 같다. Freeze 는
         # 데코레이터라 잎이 아니어서 current_stage() 에 안 잡힌다.
         stage = self.bb.fail_stage if self.failed else current_stage(self.tree.root)
-        msg = String()
         # state= 값은 carrier_code_reader 와의 계약이다. 그 노드는
         #   _detect_tick:   state == "patrol" 일 때만 QR 폴링을 돈다
         #   _on_orchestrator_state: state != "patrol" 이면 팔 자세를 다시 잡도록 disarm
@@ -2779,12 +2943,16 @@ class TaskManager(Node):
             parts.append(f"run={self.bb.run_id[:8]}")
         if self.bb.variant:
             parts.append(f"variant={self.bb.variant}")
+        if self.paused:
+            # state= 는 그대로 둔다. carrier_code_reader 는 state 가 patrol 이
+            # 아니게 되면 팔 자세를 다시 잡고, 상대 로봇은 state 로 차선을
+            # 판단한다 — 로더 앞에서 멈춘 로봇은 여전히 차선을 쓰는 중이다.
+            parts.append("PAUSED")
         if self.failed:
             parts.append("FAILED")
             parts.append(f"fail_stage={self.bb.fail_stage}")
             parts.append(f"fail_reason={self.bb.fail_reason}")
-        msg.data = " | ".join(parts)
-        self._state_pub.publish(msg)
+        return " | ".join(parts)
 
 
 def main():
