@@ -114,6 +114,11 @@ NAV2_GOAL_RETRY_WAIT_S = 2.0
 #   짧으면 팔이 올라가는 중에 다시 굴러가서 원래 문제로 돌아간다.
 #   0 으로 두면 이 단계를 끈다.
 DEFAULT_PATROL_START_HOLD_S = 15.0
+# 목표까지 이보다 가까우면 위 정지를 건너뛴다. 순찰 구간은 3 m 넘게 길고,
+# 이 액션을 짧게 쓰는 건 task_manager 의 로더 앞 직진 전진/후진(creep, 0.30 m)
+# 이다 — 그때는 팔이 매거진을 들고 있어 관측 자세를 올릴 일이 없는데, 들어갈 때
+# 나올 때 15 s 씩 서 있게 된다.
+PATROL_HOLD_MIN_DIST_M = 0.6
 
 
 # ============================================================
@@ -691,7 +696,11 @@ class NavServer(Node):
         # 자세한 이유는 DEFAULT_PATROL_START_HOLD_S 주석.
         # ----------------------------------------------------
 
-        if self._patrol_start_hold_s > 0.0:
+        hold_dist = math.hypot(
+            gx - self._amcl_pose.position.x,
+            gy - self._amcl_pose.position.y)
+        if (self._patrol_start_hold_s > 0.0
+                and hold_dist >= PATROL_HOLD_MIN_DIST_M):
 
             self.get_logger().info(
                 f"[PATROL] 출발 전 정지 "

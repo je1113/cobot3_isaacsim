@@ -177,7 +177,7 @@ LANE_PRIORITY_BY_ROBOT = {"robot1": 2, "robot2": 1}
 #                 들어가면 상대의 경로를 가로지른다
 # ★ approach · wait · hold_back 은 넣지 말 것. 줄 서 있는 상태를 양보 대상으로
 #   만들면 양쪽이 서로의 대기를 기다려 교착이다.
-LANE_STAGES = ["nav", "push", "place",
+LANE_STAGES = ["nav", "push", "creep_in", "place", "creep_out",
                "stack_nav", "stack_scan", "stack_pick",
                "stack_deliver", "stack_place"]
 

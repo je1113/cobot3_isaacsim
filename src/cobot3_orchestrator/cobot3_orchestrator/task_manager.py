@@ -443,6 +443,31 @@ DEFAULT_EMPTY_SWEEPS = 1
 #     여전히 벨트 위다.
 TEST_LOADER = (3.70, 4.60, 0.0)
 
+# ── 로더 앞 직진 전진 (creep) ──────────────────────────────────────────────
+# Nav2 는 위 TEST_LOADER(3.70)보다 벨트에 못 붙인다 — 3.85 에서 BLOCKED 로
+# 죽은 실측이 위 주석에 있다. 그런데 거기서는 팔이 place 자리에 **못 닿았다**:
+# place.yaml 이 base_link 앞 0.8 m 였고 팔 베이스가 base_link 뒤 0.206 m 라
+# 수평만 1.006 m — M0609 도달 0.90 m 밖이다.
+#
+# 그래서 Nav2 로 3.70 에 선 뒤 nav_server 의 직진 주행(navigation/patrol_to,
+# 코스트맵을 안 본다)으로 이만큼 벨트 쪽으로 들어가서 놓고, 같은 길로 되나온다.
+# place.yaml 의 x 는 이 거리만큼 줄여 두었다(0.8 -> 0.5) — 월드 배치점은 그대로
+# (3.70 + 0.30 + 0.5 = 4.50)이고 팔 거리는 0.706 m(수평)로 도달 안이다.
+# ★ 둘은 한 쌍이다. 이 값을 바꾸면 place.yaml 의 x 도 같이 바꿔야 월드
+#   배치점이 유지된다. 이 값만 줄이면 배치점이 벨트 끝(4.05) 쪽으로 온다.
+# ★ 0.30 이면 차체 앞끝(base_link +0.14)이 x 4.14 — 벨트 윗면(BeltTop, x 4.05~,
+#   z 0.44~0.54) 밑으로 9 cm 들어간다. 벨트 프레임(ConveyorFrame)은 x 4.20
+#   부터라 바닥 쪽은 6 cm 남는다. 차체가 z 0.44 보다 높으면 벨트 윗면에 닿는다
+#   — 그러면 이 값을 0.19(앞끝 4.03)로 줄이고 place.yaml x 를 0.61 로 올려라.
+# ★ 직진 주행은 도착 허용오차(nav_server POSITION_TOLERANCE 0.12 m) 안에서
+#   멈추므로 실제 전진은 0.18~0.30 m 다. place 목표가 base_link 상대라 덜 가도
+#   팔은 닿는다 — 배치점만 그만큼 벨트 끝 쪽으로 온다.
+# ★ 전진·후진이 실패해도 얼리지 않는다(_Optional). 매거진을 든 채 얼어붙는
+#   것보다 그 자리에서 place 를 시도하는 편이 낫다.
+# 0 이면 이 단계를 끈다(이전 동작).
+LOADER_CREEP_M = 0.30
+CREEP_TIMEOUT_S = 60.0
+
 # ── 로더 접근 차선 — 두 대가 같은 로더로 갈 때 ───────────────────────────
 # ★ 로더 주차점에서는 몸을 거의 못 돌린다.
 #   base_link 가 차체 앞쪽에 있어서 제자리회전 스윕 반경이 앞 0.286 m, 뒤
@@ -504,6 +529,10 @@ WAIT = "wait"           # 대기 자리에서 상대가 차선을 비우기를 �
 PUSH = "push"           # 차선이 비면 대기 자리에서 로더로 주행
 # 순찰 중 상대가 손목캠·팔을 쓰는 동안 그 자리에 서서 기다린다 (YieldToPeer).
 YIELD = "yield_peer"
+# 로더 정차점(Nav2)에서 벨트 쪽으로 직진해 들어가고(creep_in), place 뒤 되나온다
+# (creep_out). LOADER_CREEP_M 주석 참고.
+CREEP_IN = "creep_in"
+CREEP_OUT = "creep_out"
 
 # ── 스택 회수 (매거진을 놓은 뒤, 같은 사이클 안에서) ────────────────────
 # 포장 스테이션이 내놓은 스택을 집어 로더로 가져간다. stack_shelf 파라미터가
@@ -552,6 +581,7 @@ PORT_BY_STAGE = {PLACE: "test_loader", PUSH: "test_loader",
 # 않는다: scan 은 run_id 가 아직 없고, 순찰은 작업 밖이다.
 TASK_STAGE = {PICK: "pick", NAV: "nav", HOLD_BACK: "nav", APPROACH: "nav",
               WAIT: "nav", PUSH: "nav", PLACE: "place", RETURN: "return",
+              CREEP_IN: "place", CREEP_OUT: "place",
               # 스택 구간도 .action 이 아는 넷으로 접어서 올린다.
               STACK_NAV: "nav", STACK_DELIVER: "nav",
               STACK_PICK: "pick", STACK_PLACE: "place"}
@@ -559,7 +589,8 @@ TASK_STAGE = {PICK: "pick", NAV: "nav", HOLD_BACK: "nav", APPROACH: "nav",
 # feedback.progress — goal.resume_progress 와 같은 축(0.0 처음부터 … 1.0 복귀
 # 끝)이라 단계마다 고정값이다. 화면이 막대로 그릴 뿐 로봇은 안 읽는다.
 TASK_PROGRESS = {PICK: 0.3, NAV: 0.5, HOLD_BACK: 0.4, APPROACH: 0.45,
-                 WAIT: 0.45, PUSH: 0.5, PLACE: 0.7, RETURN: 0.9,
+                 WAIT: 0.45, PUSH: 0.5, CREEP_IN: 0.6, PLACE: 0.7, CREEP_OUT: 0.8,
+                 RETURN: 0.9,
                  STACK_NAV: 0.72, STACK_SCAN: 0.75, STACK_PICK: 0.78,
                  STACK_DELIVER: 0.82, STACK_PLACE: 0.86}
 
@@ -572,7 +603,8 @@ TASK_FAIL_REASON = {SCAN: ExecuteTask.Result.SCAN_FAIL,
 
 # 이 단계들 중 하나가 RUNNING 이면 미션이 시작된 것이다 — 취소가 와도 캐리어를
 # 놓지 않고 RETURN 까지 마친다(_execute_task).
-MISSION_STAGES = (HOLD, SCAN, PICK, HOLD_BACK, APPROACH, WAIT, PUSH, NAV, PLACE, RETURN,
+MISSION_STAGES = (HOLD, SCAN, PICK, HOLD_BACK, APPROACH, WAIT, PUSH, NAV,
+                  CREEP_IN, PLACE, CREEP_OUT, RETURN,
                   STACK_NAV, STACK_SCAN, STACK_PICK, STACK_DELIVER, STACK_PLACE)
 
 
@@ -649,7 +681,7 @@ TICK_PERIOD_S = 0.1
 # 둘 다 차선 밖이라 방해되지 않고, ★ 넣으면 교착이다 — 양쪽이 서로의 대기를
 # 기다리면 아무도 안 움직인다. 두 로봇이 이 목록을 똑같이 쓰므로 이 규칙이
 # 곧 교착 부재의 근거다. isaacpjt/tools/test_peer_yield.py 가 이걸 검사한다.
-DEFAULT_PEER_BUSY_STAGES = [NAV, PUSH, PLACE, RETURN]
+DEFAULT_PEER_BUSY_STAGES = [NAV, PUSH, CREEP_IN, PLACE, CREEP_OUT, RETURN]
 
 # ── 시뮬 자원 양보 (순찰 중) ──────────────────────────────────────────────
 # 상대가 이 단계에 있으면 이쪽은 순찰을 멈추고 제자리에 선다. 상대가 목록을
@@ -1649,6 +1681,25 @@ class CycleDone(py_trees.behaviour.Behaviour):
 # ══════════════════════════════════════════════════════════════════════════
 
 
+class _Optional(py_trees.decorators.Decorator):
+    """자식이 FAILURE 여도 SUCCESS 로 넘긴다 — 대신 경고를 남긴다.
+    얼어붙을 만큼 중요하지 않은 보조 단계(로더 creep)에 쓴다."""
+
+    def __init__(self, name, child, node):
+        super().__init__(name=name, child=child)
+        self.node = node
+
+    def update(self):
+        child = self.decorated
+        if child.status == Status.FAILURE:
+            self.node.get_logger().warning(
+                f"{child.name} 실패({child.feedback_message}) — 건너뛰고 계속한다")
+            self.feedback_message = f"건너뜀: {child.feedback_message}"
+            return Status.SUCCESS
+        self.feedback_message = child.feedback_message
+        return child.status
+
+
 class Freeze(py_trees.decorators.Decorator):
     """자식이 FAILURE 면 그 자리에서 멈춘다 — 그 뒤로는 tick 마다 RUNNING.
 
@@ -1817,6 +1868,23 @@ def build_tree(node):
     to_loader = py_trees.composites.Selector(
         "배송", memory=True, children=[direct, detour])
 
+    # ── 로더 앞 직진 전진/후진 (LOADER_CREEP_M 주석) ────────────────────
+    # py_trees 잎은 트리에서 한 자리만 차지하므로 매거진·스택용을 따로 만든다.
+    def creep(stage, forward):
+        dx = LOADER_CREEP_M if forward else 0.0
+        target = (TEST_LOADER[0] + dx, TEST_LOADER[1], TEST_LOADER[2])
+        return _Optional(stage.upper(), ActionLeaf(
+            stage, node, node.patrol_nav, "navigation/patrol_to", NavigateTo.Result,
+            make_goal=lambda: NavigateTo.Goal(pose=_to_pose(target)),
+            timeout_s=CREEP_TIMEOUT_S, moves_base=True), node)
+
+    def creep_pair():
+        if LOADER_CREEP_M <= 0.0:
+            return [], []
+        return [creep(CREEP_IN, True)], [creep(CREEP_OUT, False)]
+
+    creep_in, creep_out = creep_pair()
+
     # 놓을 자리는 종류로 정해진다 — 좌표를 넘기지 않는다.
     place = Freeze("PLACE", ActionLeaf(
         PLACE, node, node.place, "manipulation/place_carrier", PlaceCarrier.Result,
@@ -1883,17 +1951,19 @@ def build_tree(node):
             timeout_s=PLACE_TIMEOUT_S,
             feedback_cb=node.log_phase("STACK_PLACE")), node, STACK_PLACE)
 
+        stack_creep_in, stack_creep_out = creep_pair()
         stack_leg = [py_trees.decorators.FailureIsSuccess(
             name="스택 회수(있으면)",
             child=py_trees.composites.Sequence(
                 "스택", memory=True,
-                children=[stack_nav, stack_scan, stack_pick,
-                          stack_deliver, stack_place]))]
+                children=[stack_nav, stack_scan, stack_pick, stack_deliver]
+                + stack_creep_in + [stack_place] + stack_creep_out))]
 
     mission = py_trees.composites.Sequence(
         "캐리어 처리", memory=True,
         children=[Detected("detected?", node), Hold(HOLD, node),
-                  scan, pick, to_loader, place] + stack_leg + [ret,
+                  scan, pick, to_loader] + creep_in + [place] + creep_out
+        + stack_leg + [ret,
                   CycleDone("사이클 완료", node, waypoints)])
 
     # ── 순찰 가지 ────────────────────────────────────────────────────────
