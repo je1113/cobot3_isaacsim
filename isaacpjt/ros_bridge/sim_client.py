@@ -5,7 +5,7 @@ carrier_code_reader 노드가 그대로 import 해서 쓴다.
 
     from sim_client import SimClient
     sim = SimClient()
-    sim.call("teleport_base", x=-6.5, y=1.45, yaw_deg=0.0)
+    sim.call("reset_magazine", robot_id="robot1")
     sim.get_status()
 """
 

@@ -18,7 +18,7 @@ isaacpjt/ros_bridge/.state_snapshot.*.json.tmp
 install/local_setup.sh
 
 *.log
-
+.venv
 
 # React / Vite frontend
 web/frontend/node_modules/
