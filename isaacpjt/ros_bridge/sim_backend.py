@@ -216,6 +216,15 @@ PLACE_TARGET_XY = np.array([4.1, 0.0])
 CONVEYOR_BELT_Z = 0.6
 PLACE_APPROACH_HEIGHT_OFFSET = 0.15
 RELEASE_WAIT = 90
+# ★ place 의 "놓았다" 를 그리퍼 목록만 보고 믿지 않는다 (2026-09-23).
+#   gripped() 는 조회가 예외를 내도 None(=빈손)을 돌려주고, 목록이 비었는데
+#   매거진이 흡착면에 붙은 채 따라 올라오는 경우도 있었다 — 그러면 PLACE 가
+#   성공으로 보고되고 로봇은 매거진을 단 채 떠난다(mission.log: "PLACE 성공",
+#   실제로는 안 놓였다). 그래서 흡착면을 RELEASE_PEEL_M 만큼 살짝 들어 보고,
+#   매거진이 RELEASE_FOLLOW_M 넘게 따라 올라오면 도로 내려서 다시 연다.
+RELEASE_PEEL_M = 0.02
+RELEASE_FOLLOW_M = 0.01
+RELEASE_RETRIES = 3
 
 
 # ══════════════════════════════════════════════════════════════
@@ -424,12 +433,29 @@ class SurfaceGripperCtl:
             import isaacsim.robot.surface_gripper as sg
             sg.close_gripper(self._path)
 
-    def open(self):
+    def open(self, force=False):
+        """force=True 면 GripperView 와 명령 API 둘 다로 연다 — place 에서
+        한 번 연 뒤에도 매거진이 따라 올라올 때 다시 여는 용도다."""
         if self._view is not None:
             self._view.apply_gripper_action(np.array([-1.0]))
-        else:
+        if self._view is None or force:
+            try:
+                import isaacsim.robot.surface_gripper as sg
+                sg.open_gripper(self._path)
+            except Exception as exc:
+                if self._view is None:
+                    raise
+                print(f"   !! open_gripper 명령 실패(GripperView 로는 열었다): {exc}")
+
+    def status(self):
+        """SurfaceGripper 상태 문자열(Open/Closing/Closed). 못 읽으면 None."""
+        try:
+            if self._view is not None:
+                return self._view.get_surface_gripper_status()
             import isaacsim.robot.surface_gripper as sg
-            sg.open_gripper(self._path)
+            return sg.get_gripper_status(self._path)
+        except Exception:
+            return None
 
     def gripped(self):
         try:
@@ -1438,9 +1464,31 @@ class Backend:
             return {"success": False, "fail_reason": "NO_IK"}
 
         _set_status(robot_id, phase="RELEASE")
-        rig.gripper.open()
-        self._settle(RELEASE_WAIT)
-        released = not holding(rig.gripper.gripped())
+        released = False
+        why = ""
+        for attempt in range(1, RELEASE_RETRIES + 1):
+            rig.gripper.open(force=attempt > 1)
+            self._settle(RELEASE_WAIT)
+            listed = _flatten_gripped_paths(rig.gripper.gripped())
+            status = rig.gripper.status()
+            top_before = measure_prim(rig.current_magazine_path)[1]
+
+            # 살짝 들어서 매거진이 따라오나 본다(RELEASE_PEEL_M 주석).
+            self._servo_tcp(robot_id, descend_goal + np.array([0, 0, RELEASE_PEEL_M]), "PEEL")
+            self._settle(30)
+            top_after = measure_prim(rig.current_magazine_path)[1]
+            follow = top_after - top_before
+            print(f"   [{robot_id}] RELEASE {attempt}/{RELEASE_RETRIES}  status={status}  "
+                  f"gripped={listed}  매거진 윗면 {top_before:.3f} -> {top_after:.3f} "
+                  f"({follow * 1000:+.0f} mm)  대상 {rig.current_magazine_path}")
+            if not listed and follow < RELEASE_FOLLOW_M:
+                released = True
+                break
+            why = (f"흡착 목록 {listed}" if listed
+                   else f"목록은 비었는데 매거진이 {follow * 1000:.0f} mm 따라 올라왔다")
+            # 도로 내려놓고 다시 연다.
+            self._servo_tcp(robot_id, descend_goal, "DESCEND")
+            self._settle(30)
         _set_status(robot_id, gripped=not released)
 
         _set_status(robot_id, phase="RETRACT")
@@ -1448,10 +1496,13 @@ class Backend:
         self._servo_tcp(robot_id, retract_goal, "RETRACT")
         self._settle(SETTLE_STEPS)
 
-        _set_status(robot_id, phase="DONE" if released else "FAILED",
-                    message="" if released else "흡착이 안 풀렸다")
+        message = "" if released else f"흡착이 안 풀렸다 — {why}"
+        _set_status(robot_id, phase="DONE" if released else "FAILED", message=message)
+        if not released:
+            print(f"   [{robot_id}] !! PLACE 실패: {message}")
         return {"success": bool(released), "gripped": bool(not released),
-               "fail_reason": "NONE" if released else "COLLISION"}
+                "fail_reason": "NONE" if released else "COLLISION",
+                "message": message}
 
     def get_flange_pose_world(self, magazine_key, robot_id=DEFAULT_ROBOT_ID):
         """편의 메서드 — task_manager 개발/테스트용. 실측 GT 플랜지 pose 를
