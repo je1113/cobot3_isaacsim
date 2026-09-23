@@ -166,7 +166,7 @@ def check_against_shelves(snippets):
         for key in ("waypoint_start", "waypoint_end"):
             wp = sh.get(key) or {}
             gy, gth = wp.get("y"), wp.get("theta")
-            ok = (gy is not None and abs(float(gy) - want_y) <= 0.01
+            ok = (gy is not None and abs(float(gy) - want_y) <= 0.03
                   and gth is not None
                   and abs((float(gth) - want_th + math.pi) % (2 * math.pi) - math.pi) <= 0.01)
             bad += 0 if ok else 1

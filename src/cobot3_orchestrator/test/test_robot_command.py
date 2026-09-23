@@ -229,3 +229,57 @@ def test_detection_ignored_while_paused():
     n.paused = False
     tm.TaskManager._on_carrier_detected(n, SimpleNamespace(data=True))
     assert n.bb.detected is True
+
+
+# ── ActionLeaf retries (PICK_RETRIES) ──────────────────────────────────────
+
+def _pick_leaf(node, client, retries):
+    leaf = tm.ActionLeaf('pick', node, client, 'srv', PickCarrier.Result,
+                         make_goal=lambda: 'g', timeout_s=60.0, retries=retries)
+    leaf.initialise()
+    return leaf
+
+
+def test_pick_retries_same_goal_then_succeeds():
+    node, client = FakeNode(), FakeClient()
+    leaf = _pick_leaf(node, client, retries=2)
+    for i in range(2):
+        assert leaf.update() == Status.RUNNING
+        client.sent[i][1].result_future.finish(_result(False, PickCarrier.Result.NO_ATTACH))
+        assert leaf.update() == Status.RUNNING          # 실패 -> 재시도, 얼지 않는다
+        assert '재시도' in leaf.feedback_message
+    assert leaf.update() == Status.RUNNING
+    assert len(client.sent) == 3                         # 최초 + 재시도 2
+    assert all(g == 'g' for g, _ in client.sent)         # make_goal 을 다시 부르지 않는다
+    client.sent[2][1].result_future.finish(_result(True))
+    assert leaf.update() == Status.SUCCESS
+
+
+def test_pick_fails_after_retries_exhausted():
+    node, client = FakeNode(), FakeClient()
+    leaf = _pick_leaf(node, client, retries=2)
+    for i in range(3):
+        assert leaf.update() == Status.RUNNING
+        client.sent[i][1].result_future.finish(_result(False, PickCarrier.Result.SLIP))
+        status = leaf.update()
+    assert status == Status.FAILURE
+    assert len(client.sent) == 3
+    assert leaf.feedback_message.startswith('SLIP') and leaf.feedback_message.endswith(' x3')
+
+
+def test_pick_canceled_is_not_retried():
+    node, client = FakeNode(), FakeClient()
+    leaf = _pick_leaf(node, client, retries=2)
+    assert leaf.update() == Status.RUNNING
+    client.sent[0][1].result_future.finish(_result(False, PickCarrier.Result.CANCELED))
+    assert leaf.update() == Status.FAILURE
+    assert len(client.sent) == 1
+
+
+def test_default_retries_is_zero():
+    node, client = FakeNode(), FakeClient()
+    leaf = _leaf(node, client, False, ['g'])
+    assert leaf.update() == Status.RUNNING
+    client.sent[0][1].result_future.finish(_result(False, PickCarrier.Result.NO_FLANGE))
+    assert leaf.update() == Status.FAILURE
+    assert leaf.feedback_message.startswith('NO_FLANGE')
