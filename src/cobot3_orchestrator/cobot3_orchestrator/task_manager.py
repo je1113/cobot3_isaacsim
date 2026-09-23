@@ -585,6 +585,17 @@ STACK_PICK = "stack_pick"        # 스택 집기
 STACK_DELIVER = "stack_deliver"  # 로더로 주행
 STACK_PLACE = "stack_place"      # 로더에 놓기
 
+# ── 스택 선반 훑기 (2026-09-23 사용자 지시) ─────────────────────────────
+# 스택 출력 선반(OutputShelf)은 y 로 길고(y 0.27~1.67) 카메라는 +x 로 선반을
+# 본다. 그래서 스택을 찾을 때는 한 점에 서지 않고 **y 방향으로 순찰**한다 —
+# shelves.yaml PKG-OUT 의 waypoint_start → waypoint_end 구간을 이 간격으로
+# 끊어, 칸마다 서서 STACK_SCAN 을 한다. 첫 칸에서 읽히면 거기서 멈추고 집는다.
+# 0.37 은 packaging_flow.py SHELF_SLOT_Y 의 칸 간격(0.37)과 같다.
+# ★ 움직이면서 읽지 않고 칸마다 선다 — ScanLeaf 는 "멈춘 뒤에 읽어야 정확하다"
+#   (그 클래스 주석). 매거진 순찰처럼 달리며 감지하려면 carrier_code_reader 가
+#   state=patrol 일 때만 감지하므로 그쪽까지 고쳐야 한다.
+STACK_SCAN_STEP_M = 0.37
+
 # ── 생산 트래킹 (docs/DB구성.md) ──────────────────────────────────────────
 # DB 에 행이 남는 단계. scan 은 없다 — 판독 실패는 미션이 시작되지도 않은 것이라
 # 남길 행이 없고, 판독 성공 시각은 pick 행의 started_at 이 곧 그것이다 (§4-6).
@@ -1926,12 +1937,39 @@ def build_tree(node):
             make_goal=lambda: NavigateTo.Goal(pose=_to_pose(node.stack_pose)),
             timeout_s=NAV_TIMEOUT_S, moves_base=True), node, STACK_NAV)
 
+        # ── y 방향 훑기 (STACK_SCAN_STEP_M 주석) ─────────────────────────
+        # 칸마다 [직진 이동 → ScanLeaf]. 첫 칸은 STACK_NAV 가 이미 데려다 놨다.
+        # Selector(memory) 가 앞 칸부터 시도하고, 읽히면 거기서 끝난다. 다 못
+        # 읽으면 FAILURE — 아래 FailureIsSuccess 가 "스택 없음" 으로 삼킨다.
+        #
         # ScanLeaf 를 그대로 쓴다 — carrier_scan 은 amcl_pose 로 지금 어느 선반
-        # 구역인지 스스로 판정하므로(carrier_code_reader._current_shelf), 스택
-        # 자리에 서 있으면 PKG-OUT 의 arm_teach_pose 로 팔을 세운다.
-        # 읽은 결과는 블랙보드의 variant/qr_pose 를 덮어쓴다 — 아래 집기가
-        # 그대로 쓴다(스택 QR 은 tray_orange / tray_blue 로 풀린다).
-        stack_scan = Freeze("STACK_SCAN", ScanLeaf(STACK_SCAN, node), node, STACK_SCAN)
+        # 구역인지 스스로 판정하므로(carrier_code_reader._current_shelf), 구간
+        # (waypoint_start ~ end ± standoff) 안에 서 있으면 PKG-OUT 의
+        # arm_teach_pose 로 팔을 세운다. 읽은 결과는 블랙보드의 variant/qr_pose
+        # 를 덮어쓴다 — 아래 집기가 그대로 쓴다(tray_orange / tray_blue).
+        # 칸 사이 이동은 로그/DB 에 따로 남기지 않는다(stage 는 STACK_SCAN).
+        sx, sy, syaw = node.stack_route[0]
+        ex, ey, _ = node.stack_route[1]
+        span = math.hypot(ex - sx, ey - sy)
+        n_stops = 1 + (int(math.ceil(span / STACK_SCAN_STEP_M - 1e-6)) if span > 1e-3 else 0)
+        stops = [(sx + (ex - sx) * i / max(n_stops - 1, 1),
+                  sy + (ey - sy) * i / max(n_stops - 1, 1), syaw)
+                 for i in range(n_stops)]
+        tries = []
+        for i, stop in enumerate(stops):
+            scan_i = Freeze(f"STACK_SCAN_{i + 1}", ScanLeaf(STACK_SCAN, node), node, STACK_SCAN)
+            if i == 0:
+                tries.append(scan_i)
+                continue
+            move_i = Freeze(f"STACK_STEP_{i + 1}", ActionLeaf(
+                STACK_SCAN, node, node.patrol_nav, "navigation/patrol_to",
+                NavigateTo.Result,
+                make_goal=lambda p=stop: NavigateTo.Goal(pose=_to_pose(p)),
+                timeout_s=CREEP_TIMEOUT_S, moves_base=True), node, STACK_SCAN)
+            tries.append(py_trees.composites.Sequence(
+                f"스택 칸 {i + 1}/{n_stops}", memory=True, children=[move_i, scan_i]))
+        stack_scan = py_trees.composites.Selector(
+            "스택 훑기", memory=True, children=tries)
 
         stack_pick = Freeze("STACK_PICK", ActionLeaf(
             STACK_PICK, node, node.pick, "manipulation/pick_carrier", PickCarrier.Result,
@@ -2157,7 +2195,8 @@ class TaskManager(Node):
         #   주면 둘이 같은 자리로 간다.
         self.declare_parameter("stack_shelf", "")
         self.stack_shelf = self.get_parameter("stack_shelf").value or ""
-        self.stack_pose = self._resolve_stack_pose()
+        self.stack_route = self._resolve_stack_route()
+        self.stack_pose = self.stack_route[0] if self.stack_route else None
         # 웹이 좌표를 고쳤을 때 갈아끼울 값. 바로 반영하지 않는 이유는
         # _on_reload_config 독스트링 ★ 참고 — POSE 잎이 커밋한다.
         self._pending_route = None
@@ -2364,11 +2403,11 @@ class TaskManager(Node):
             return route, "DEFAULT_PATROL_ROUTE 폴백"
         return route, "patrol_route 파라미터"
 
-    def _resolve_stack_pose(self):
-        """stack_shelf 가 가리키는 선반의 정차 좌표. 안 쓰면 None.
+    def _resolve_stack_route(self):
+        """stack_shelf 가 가리키는 선반의 훑기 구간 [start, end]. 안 쓰면 None.
 
-        shelves.yaml 의 waypoint_start 를 그대로 쓴다 — 스택 자리는 훑는
-        구간이 아니라 한 점이라 start 와 end 가 같다(PKG-OUT 이 그렇다).
+        shelves.yaml 의 waypoint_start → waypoint_end 다. 스택 선반은 y 방향으로
+        훑는다(STACK_SCAN_STEP_M 주석). start == end 면 한 점에서만 읽는다.
 
         못 찾으면 None 을 돌려주고 경고만 남긴다. 스택은 부가 작업이라
         여기서 노드를 죽이지 않는다 — 매거진 사이클은 그대로 돌아야 한다.
@@ -2397,7 +2436,7 @@ class TaskManager(Node):
             self.get_logger().warning(
                 f"{self.stack_shelf} 의 waypoint 좌표가 덜 찼다 — 스택 회수를 끈다")
             return None
-        return route[0]
+        return route
 
     def _route_from_shelves(self, path, want_shelf):
         """shelves.yaml 에서 이 로봇의 선반을 찾아 경로로 바꾼다.
