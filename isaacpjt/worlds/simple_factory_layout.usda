@@ -1407,16 +1407,7 @@ def Xform "World"
                     prepend payload = @https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/5.1/Isaac/Robots/UniversalRobots/ur10/grippers/short_gripper.usd@
                 )
                 {
-                    prepend rel physics:filteredPairs = [
-                        </World/Magazines/shelf_1_magaines/top_magazines/magazine_1_orange>,
-                        </World/Magazines/shelf_1_magaines/top_magazines/magazine_2_blue>,
-                        </World/Magazines/shelf_1_magaines/top_magazines/magazine_1_orange_02>,
-                        </World/Magazines/shelf_1_magaines/top_magazines/magazine_2_blue_02>,
-                        </World/Magazines/shelf_2_magaines/top_magazines/magazine_1_orange>,
-                        </World/Magazines/shelf_2_magaines/top_magazines/magazine_2_blue>,
-                        </World/Magazines/shelf_2_magaines/top_magazines/magazine_1_orange_02>,
-                        </World/Magazines/shelf_2_magaines/top_magazines/magazine_2_blue_02>
-                    ]
+                    prepend rel physics:filteredPairs = </World/Magazines/shelf_1_magaines/top_magazines/magazine_1_orange>
                     rel physics:simulationOwner
                     double3 xformOp:rotateXYZ = (0, -90, 0)
                     double3 xformOp:scale = (1, 1, 1)
@@ -2034,20 +2025,9 @@ def Xform "World"
                 }
 
                 def "short_gripper" (
-                    prepend apiSchemas = ["PhysicsFilteredPairsAPI"]
                     prepend payload = @https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/5.1/Isaac/Robots/UniversalRobots/ur10/grippers/short_gripper.usd@
                 )
                 {
-                    prepend rel physics:filteredPairs = [
-                        </World/Magazines/shelf_1_magaines/top_magazines/magazine_1_orange>,
-                        </World/Magazines/shelf_1_magaines/top_magazines/magazine_2_blue>,
-                        </World/Magazines/shelf_1_magaines/top_magazines/magazine_1_orange_02>,
-                        </World/Magazines/shelf_1_magaines/top_magazines/magazine_2_blue_02>,
-                        </World/Magazines/shelf_2_magaines/top_magazines/magazine_1_orange>,
-                        </World/Magazines/shelf_2_magaines/top_magazines/magazine_2_blue>,
-                        </World/Magazines/shelf_2_magaines/top_magazines/magazine_1_orange_02>,
-                        </World/Magazines/shelf_2_magaines/top_magazines/magazine_2_blue_02>
-                    ]
                     rel physics:simulationOwner
                     double3 xformOp:rotateXYZ = (0, -90, 0)
                     double3 xformOp:scale = (1, 1, 1)
