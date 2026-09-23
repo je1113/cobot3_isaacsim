@@ -1,7 +1,6 @@
 import {
   useCallback,
   useEffect,
-  useRef,
   useState,
 } from 'react'
 
@@ -43,7 +42,8 @@ export function useConfigResource(
     useState(false)
 
   // 마지막으로 서버와 맞춘 스냅샷. dirty 판정에만 쓴다.
-  const syncedRef = useRef(null)
+  const [syncedSnapshot, setSyncedSnapshot] =
+    useState(null)
 
   const load = useCallback(
     async () => {
@@ -56,8 +56,9 @@ export function useConfigResource(
 
         setValue(next)
         setRevision(res.revision)
-        syncedRef.current =
-          JSON.stringify(next)
+        setSyncedSnapshot(
+          JSON.stringify(next),
+        )
         setStale(false)
         setStatus('ready')
       } catch (err) {
@@ -69,8 +70,38 @@ export function useConfigResource(
   )
 
   useEffect(() => {
-    load()
-  }, [load])
+    let cancelled = false
+
+    fetcher()
+      .then((res) => {
+        if (cancelled) {
+          return
+        }
+
+        const next = pick(res)
+
+        setValue(next)
+        setRevision(res.revision)
+        setSyncedSnapshot(
+          JSON.stringify(next),
+        )
+        setError(null)
+        setStale(false)
+        setStatus('ready')
+      })
+      .catch((err) => {
+        if (cancelled) {
+          return
+        }
+
+        setError(err)
+        setStatus('error')
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [fetcher, pick])
 
   const save = useCallback(
     async (override) => {
@@ -94,8 +125,9 @@ export function useConfigResource(
 
         setValue(next)
         setRevision(res.revision)
-        syncedRef.current =
-          JSON.stringify(next)
+        setSyncedSnapshot(
+          JSON.stringify(next),
+        )
         setStale(false)
         setStatus('ready')
 
@@ -141,7 +173,7 @@ export function useConfigResource(
 
   const dirty =
     value !== null &&
-    syncedRef.current !==
+    syncedSnapshot !==
       JSON.stringify(value)
 
   return {

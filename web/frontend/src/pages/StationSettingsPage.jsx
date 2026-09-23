@@ -11,7 +11,7 @@ import { fetchRouting } from '../api/config'
 import {
   useEnum,
   useMeta,
-} from '../contexts/MetaContext'
+} from '../contexts/metaHooks'
 
 /** 새 스테이션. `joints` 는 서버가 준다 — 팔 축 수를 화면이 정할 일이 아니다. */
 function createStation(stationId, joints) {
@@ -745,6 +745,7 @@ function StationSettingsPage({
             <button
               type="button"
               className="station-save-button"
+              disabled={busy}
               onClick={saveStation}
             >
               저장

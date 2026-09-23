@@ -18,7 +18,7 @@ import {
 } from '../api/config'
 
 import useWebSocket from '../hooks/useWebSocket'
-import { useRobots } from '../contexts/MetaContext'
+import { useRobots } from '../contexts/metaHooks'
 
 function toNumber(value) {
   if (

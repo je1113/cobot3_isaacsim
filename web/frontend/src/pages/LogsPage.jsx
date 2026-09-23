@@ -14,7 +14,7 @@ import useWebSocket from '../hooks/useWebSocket'
 import {
   useEnum,
   useRobots,
-} from '../contexts/MetaContext'
+} from '../contexts/metaHooks'
 
 function getLogSummary(
   logs,

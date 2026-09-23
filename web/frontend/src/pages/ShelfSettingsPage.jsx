@@ -5,7 +5,7 @@ import { captureShelfPose } from '../api/config'
 import {
   useEnum,
   useMeta,
-} from '../contexts/MetaContext'
+} from '../contexts/metaHooks'
 
 /**
  * 새 층 하나.
@@ -783,6 +783,7 @@ function ShelfSettingsPage({
                       <button
                         type="button"
                         className="save-pose-button"
+                        disabled={busy}
                         onClick={() =>
                           saveCurrentPose(
                             pass.level,
@@ -809,6 +810,7 @@ function ShelfSettingsPage({
             <button
               type="button"
               className="save-shelf-button"
+              disabled={busy}
               onClick={saveShelf}
             >
               저장
