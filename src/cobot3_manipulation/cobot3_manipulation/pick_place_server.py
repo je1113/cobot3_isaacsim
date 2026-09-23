@@ -375,7 +375,7 @@ class PickPlaceServer(Node):
         #   본다 — 둘 다 "들고는 있다" 인 채로 실패가 나온다. 여기서 실패로 올리면
         #   로봇은 매거진을 든 채 얼거나, 재시도가 들고 있는 채 또 집으려 든다.
         #   다음 단계(이송·place)에 필요한 건 들고 있다는 것뿐이다.
-        if self._holding():
+        if self._holding(fallback=r2.get("gripped")):
             self.get_logger().warn(
                 f"PICK 판정은 {r2.get('fail_reason')} 이지만 들고 있다 — 성공으로 넘긴다 "
                 f"(offset {offset_mm:.1f}/{limit_mm:.1f} mm, "
@@ -389,10 +389,17 @@ class PickPlaceServer(Node):
             f"PICK 실패  reason={r2.get('fail_reason')}  offset {offset_mm:.1f}/{limit_mm:.1f} mm")
         return result
 
-    def _holding(self):
-        """sim_backend 에 지금 그리퍼가 들고 있는지 묻는다(실제 값). 못 물으면 False."""
+    def _holding(self, fallback=None):
+        """sim_backend 에 지금 그리퍼가 들고 있는지 묻는다(실제 값).
+
+        못 물으면(시뮬 PC 백엔드가 gripper_state 를 모르는 옛 코드 등) fallback
+        을 쓴다 — phase2 응답의 gripped 는 그 호출 끝에 잰 값이라 믿을 만하다.
+        fallback 도 없으면 False: 들고 있다고 잘못 보고 빈손으로 이송하는 쪽이
+        다시 집는 쪽보다 나쁘다."""
         r = self._safe_call("gripper_state", timeout_s=10.0)
-        return bool(r.get("gripped"))
+        if "gripped" in r:
+            return bool(r["gripped"])
+        return bool(fallback) if fallback is not None else False
 
     def _finish_holding(self, goal_handle, result, why):
         """들고 있는 게 확인된 뒤의 마무리 — 이송 자세(carry_joints_deg)로 옮기고
