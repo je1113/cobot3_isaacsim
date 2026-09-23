@@ -26,9 +26,9 @@ DEFAULT_SCENE = WS_ROOT / "isaacpjt/worlds/simple_factory_layout.usda"
 # 매거진 라벨 중심에서 차체가 떨어져 서는 거리. shelves.yaml 의 SHELF-A 가
 # 실측으로 고정한 값이고(0.40), 두 선반이 같은 기하라 그대로 쓴다.
 STANDOFF_M = 0.40
-# 순찰 구간의 x 범위. 선반 기둥 x[-2.79,-0.29] 밖(동쪽)에서 시작해 서쪽으로
-# 훑는다 — 근거는 shelves.yaml SHELF-A 주석(START 제자리 회전 여유).
-X_START, X_END = 0.60, -1.20
+# 순찰 구간의 x 범위. 선반 기둥 x[-2.79,-0.29] 밖(동쪽)에서 시작해 서쪽 슬롯
+# (-2.44)을 지나칠 때까지 훑는다 — 근거는 shelves.yaml SHELF-A 주석.
+X_START, X_END = 0.60, -2.60
 
 
 def _vec(s, n):
