@@ -219,13 +219,13 @@ RELEASE_WAIT = 90
 # ★ 흡착 OFF 는 한 번이 아니라 RELEASE_OPEN_TIMES 번 연달아 낸다(사용자 지시,
 #   2026-09-23). 매 번 GripperView 와 open_gripper 명령 둘 다로 열고
 #   RELEASE_WAIT 만큼 기다린다. 팔은 그 자리에 둔 채다.
-# ★ 그 뒤 "놓았다" 를 그리퍼 목록만 보고 믿지 않는다. gripped() 는 조회가
-#   예외를 내도 None(=빈손)을 돌려준다. 그래서 흡착면을 RELEASE_PEEL_M 만큼
-#   들어 보고 매거진이 RELEASE_FOLLOW_M 넘게 따라 올라오면 실패로 올린다.
+# ★ 그 뒤 곧장 팔을 위로 뺀다(RETRACT) — 사이에 다시 내려가거나 살짝 들었다
+#   멈추는 단계가 없다(사용자 지시, 2026-09-23). "놓았다" 는 그리퍼 목록만 보고
+#   믿지 않는다 — gripped() 는 조회가 예외를 내도 None(=빈손)을 돌려준다. 빼는
+#   동안 매거진 윗면이 RELEASE_FOLLOW_M 넘게 따라 올라오면 실패로 올린다.
 RELEASE_OPEN_TIMES = 3
 # 흡착 OFF 사이 간격(시뮬 시간, 초). 사용자 지시(2026-09-23) 1 초.
 RELEASE_GAP_S = 1.0
-RELEASE_PEEL_M = 0.02
 RELEASE_FOLLOW_M = 0.01
 
 
@@ -1476,10 +1476,12 @@ class Backend:
                   f"gripped={_flatten_gripped_paths(rig.gripper.gripped())}")
         listed = _flatten_gripped_paths(rig.gripper.gripped())
 
-        # 살짝 들어서 매거진이 따라오나 본다(RELEASE_PEEL_M 주석).
+        # 연 뒤 곧장 위로 뺀다(RELEASE_OPEN_TIMES 주석).
         top_before = measure_prim(rig.current_magazine_path)[1]
-        self._servo_tcp(robot_id, descend_goal + np.array([0, 0, RELEASE_PEEL_M]), "PEEL")
-        self._settle(30)
+        _set_status(robot_id, phase="RETRACT")
+        retract_goal = slot_world + np.array([0, 0, approach_dist_m])
+        self._servo_tcp(robot_id, retract_goal, "RETRACT")
+        self._settle(SETTLE_STEPS)
         top_after = measure_prim(rig.current_magazine_path)[1]
         follow = top_after - top_before
         released = not listed and follow < RELEASE_FOLLOW_M
@@ -1490,11 +1492,6 @@ class Backend:
               f"({follow * 1000:+.0f} mm)  -> {'떨어짐' if released else '안 떨어짐'}  "
               f"대상 {rig.current_magazine_path}")
         _set_status(robot_id, gripped=not released)
-
-        _set_status(robot_id, phase="RETRACT")
-        retract_goal = slot_world + np.array([0, 0, approach_dist_m])
-        self._servo_tcp(robot_id, retract_goal, "RETRACT")
-        self._settle(SETTLE_STEPS)
 
         message = "" if released else f"흡착이 안 풀렸다 — {why}"
         _set_status(robot_id, phase="DONE" if released else "FAILED", message=message)
