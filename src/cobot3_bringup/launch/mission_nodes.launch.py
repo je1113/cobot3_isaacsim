@@ -207,6 +207,13 @@ PEER_OF = {"robot1": "robot2", "robot2": "robot1"}
 
 STACK_SHELF_BY_ROBOT = {"robot1": "PKG-OUT", "robot2": ""}
 
+# ── 출발 시차 ─────────────────────────────────────────────────────────────
+# 순찰 출발(START)을 이만큼 늦춘다. 도크가 0.98 m 간격인데 회전 꼬리 스윕이
+# 0.656 m 라 두 대가 동시에 도크를 떠나면 서로 침범한다 — 한 launch 로 둘을
+# 띄워도 robot1 이 먼저 도크를 벗어나게 robot2 를 1분 늦게 내보낸다.
+# (task_manager StartDelay. 시계는 처음 출발하려는 순간부터 센다.)
+START_DELAY_BY_ROBOT = {"robot1": 0.0, "robot2": 60.0}
+
 
 # ══════════════════════════════════════════════════════════════════════════
 #  nav_server 파라미터
@@ -293,13 +300,15 @@ def _task_manager_params(ns, namespaces):
     #       shelves_yaml · patrol_shelf · patrol_route · reload_service
     #       execute_task_action · wait_for_task · empty_sweeps
     #       observe_pose_service · peer_state_topic · peer_pose_topic
-    #       loader_clear_radius_m · peer_busy_stages · peer_camera_stages · staging_pose
+    #       loader_clear_radius_m · peer_busy_stages · staging_pose · start_delay_s
     params = {
         # 로더 차선이 막혔을 때 비켜 서는 자리. 로봇마다 달라야 한다 —
         # 같은 점을 쓰면 대기 자리에서 둘이 부딪힌다(STAGING_BY_ROBOT 주석).
         "staging_pose": STAGING_BY_ROBOT[ns],
         # 스택을 맡을 로봇만 값이 있다 (STACK_SHELF_BY_ROBOT 주석 참고).
         "stack_shelf": STACK_SHELF_BY_ROBOT.get(ns, ""),
+        # 순찰 출발 시차 (START_DELAY_BY_ROBOT 주석)
+        "start_delay_s": float(START_DELAY_BY_ROBOT.get(ns, 0.0)),
     }
 
     peer = PEER_OF.get(ns)
