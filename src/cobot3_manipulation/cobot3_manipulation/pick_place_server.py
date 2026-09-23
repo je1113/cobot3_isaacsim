@@ -264,6 +264,14 @@ class PickPlaceServer(Node):
         offset_limit_m = float(self.get_parameter("offset_limit_m").value)
         lift_height_m = float(self.get_parameter("lift_height_m").value)
 
+        # ★ 이미 들고 있으면 다시 집지 않는다. 재시도(task_manager PICK_RETRIES)가
+        #   같은 goal 을 또 보내는데, 앞 시도가 실제로는 집어 놓고 판정만 실패로
+        #   냈다면 선반엔 플랜지가 없어서 OBSERVE 가 NO_FLANGE 로 죽는다(실측:
+        #   robot1·robot2 둘 다 잡은 채 NO_FLANGE x3 로 얼었다).
+        if self._holding():
+            self.get_logger().warn("PICK 시작 시점에 이미 들고 있다 — 집기를 건너뛰고 이송으로 간다")
+            return self._finish_holding(goal_handle, result, "이미 들고 있음")
+
         # ── OBSERVE: qr_pose(prior) + grasp.yaml 로 대략 파지점 계산 ──
         feedback.phase = PickCarrier.Feedback.OBSERVE
         goal_handle.publish_feedback(feedback)
@@ -353,30 +361,66 @@ class PickPlaceServer(Node):
             self.get_logger().warn(
                 "PICK DESCEND~STOW 응답 없음 — sim_backend 가 결과를 안 줬다 "
                 "(타임아웃 120 s 또는 통신 끊김)")
+            if self._holding():
+                return self._finish_holding(goal_handle, result, "응답은 없었지만 들고 있음")
             return self._abort(goal_handle, result, "NO_ATTACH")
 
-        result.success = bool(r2.get("success", False))
-        result.fail_reason = _FAIL.get(r2.get("fail_reason", "NONE"), PickCarrier.Result.NONE)
         offset_mm = float(r2.get("final_offset_m", 0.0)) * 1000
         limit_mm = float(r2.get("offset_limit_m", offset_limit_m)) * 1000
-        if result.success and self._carry_joints():
-            # ── CARRY — 이송 자세로. STOW 판정은 이미 통과했다.
-            r3 = self._safe_call("move_joints", joints_deg=self._carry_joints(), timeout_s=60.0)
-            if not r3.get("success") or not r3.get("gripped"):
+        if r2.get("success"):
+            return self._finish_holding(
+                goal_handle, result, f"offset {offset_mm:.1f}/{limit_mm:.1f} mm")
+        # ★ 판정 실패여도 실제로 들고 있으면 성공으로 넘긴다. STOW 판정은
+        #   기울기(tilt)·상승량·흡착을 같이 보고, OFF_FLANGE 는 흡착 위치 오차를
+        #   본다 — 둘 다 "들고는 있다" 인 채로 실패가 나온다. 여기서 실패로 올리면
+        #   로봇은 매거진을 든 채 얼거나, 재시도가 들고 있는 채 또 집으려 든다.
+        #   다음 단계(이송·place)에 필요한 건 들고 있다는 것뿐이다.
+        if self._holding():
+            self.get_logger().warn(
+                f"PICK 판정은 {r2.get('fail_reason')} 이지만 들고 있다 — 성공으로 넘긴다 "
+                f"(offset {offset_mm:.1f}/{limit_mm:.1f} mm, "
+                f"tilt {float(r2.get('tilt_deg', 0.0)):.1f} deg, "
+                f"rise {float(r2.get('rise_mm', 0.0)):.1f} mm)")
+            return self._finish_holding(goal_handle, result, f"판정 {r2.get('fail_reason')} 무시")
+        result.success = False
+        result.fail_reason = _FAIL.get(r2.get("fail_reason", "NONE"), PickCarrier.Result.NONE)
+        goal_handle.abort()
+        self.get_logger().warn(
+            f"PICK 실패  reason={r2.get('fail_reason')}  offset {offset_mm:.1f}/{limit_mm:.1f} mm")
+        return result
+
+    def _holding(self):
+        """sim_backend 에 지금 그리퍼가 들고 있는지 묻는다(실제 값). 못 물으면 False."""
+        r = self._safe_call("gripper_state", timeout_s=10.0)
+        return bool(r.get("gripped"))
+
+    def _finish_holding(self, goal_handle, result, why):
+        """들고 있는 게 확인된 뒤의 마무리 — 이송 자세(carry_joints_deg)로 옮기고
+        성공을 낸다. 옮기다 놓치면 SLIP 으로 실패한다(빈손으로 로더에 가지 않게)."""
+        carry = self._carry_joints()
+        if carry:
+            r3 = self._safe_call("move_joints", joints_deg=carry, timeout_s=60.0)
+            if "gripped" not in r3:
+                # RPC 자체가 실패했다(시뮬 PC 백엔드가 move_joints 를 모르는 옛 코드
+                # 등). 팔은 안 움직였으니 STOW 자세 그대로 들고 간다 — 이걸 "놓쳤다"
+                # 로 읽으면 멀쩡히 든 pick 을 실패시킨다.
                 self.get_logger().warn(
-                    f"PICK 이송 자세 {self._carry_joints()} 로 옮기다 놓쳤다 "
+                    f"PICK 이송 자세 RPC 실패({r3.get('fail_reason')}) — STOW 자세로 "
+                    f"이송한다. 시뮬 PC 의 sim_backend 가 최신인지 확인해라")
+            elif not r3.get("success") or not r3.get("gripped"):
+                self.get_logger().warn(
+                    f"PICK 이송 자세 {carry} 로 옮기다 놓쳤다 "
                     f"(success={r3.get('success')} gripped={r3.get('gripped')})")
                 result.success = False
                 result.fail_reason = PickCarrier.Result.SLIP
+                goal_handle.abort()
+                return result
             else:
-                self.get_logger().info(f"PICK 이송 자세 {self._carry_joints()} 도착")
-        if result.success:
-            goal_handle.succeed()
-            self.get_logger().info(f"PICK 성공  offset {offset_mm:.1f}/{limit_mm:.1f} mm")
-        else:
-            goal_handle.abort()
-            self.get_logger().warn(
-                f"PICK 실패  reason={r2.get('fail_reason')}  offset {offset_mm:.1f}/{limit_mm:.1f} mm")
+                self.get_logger().info(f"PICK 이송 자세 {carry} 도착")
+        result.success = True
+        result.fail_reason = PickCarrier.Result.NONE
+        goal_handle.succeed()
+        self.get_logger().info(f"PICK 성공 — {why}")
         return result
 
     # ── PlaceCarrier ──
@@ -401,7 +445,12 @@ class PickPlaceServer(Node):
             # 이송 자세 -> STOW(READY). APPROACH 는 흡착면이 아래를 보는 자세에서
             # 출발해야 한다(carry_joints_deg 주석).
             r0 = self._safe_call_place("move_joints", joints_deg=None, timeout_s=60.0)
-            if not r0.get("success") or not r0.get("gripped"):
+            if "gripped" not in r0:
+                # RPC 실패 — pick 쪽도 같은 이유로 이송 자세를 못 탔을 것이라 팔은
+                # 이미 STOW 다. 그대로 place 한다.
+                self.get_logger().warn(
+                    f"PLACE 전 READY 복귀 RPC 실패({r0.get('fail_reason')}) — 그대로 진행한다")
+            elif not r0.get("success") or not r0.get("gripped"):
                 self.get_logger().warn(
                     f"PLACE 전 READY 복귀 실패 (success={r0.get('success')} "
                     f"gripped={r0.get('gripped')})")

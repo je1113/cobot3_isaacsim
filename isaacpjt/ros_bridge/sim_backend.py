@@ -1291,6 +1291,13 @@ class Backend:
                "final_offset_m": final_offset_m, "offset_limit_m": offset_limit_m,
                "used_gap_m": float(gap), "rise_mm": rise_m*1000, "tilt_deg": tilt_deg}
 
+    def gripper_state(self, robot_id=DEFAULT_ROBOT_ID):
+        """지금 그리퍼가 뭔가 들고 있나 — 실제 SurfaceGripper 값.
+        get_status 의 gripped 는 마지막으로 기록한 값이라 묵을 수 있어서
+        (떨어뜨린 뒤에도 True 로 남는다) 판정에는 이걸 쓴다."""
+        rig = self.rigs[robot_id]
+        return {"gripped": bool(holding(rig.gripper.gripped()))}
+
     def move_joints(self, joints_deg=None, n_steps=None, robot_id=DEFAULT_ROBOT_ID):
         """팔을 관절 목표로 보간 이동한다. 흡착 중이어도 쓴다 — pick 뒤 이송 자세,
         place 앞 READY 복귀(pick_place_server 의 carry_joints_deg 참고).
@@ -1664,6 +1671,7 @@ def main():
         "pick_phase1_approach": backend.pick_phase1_approach,
         "pick_phase2_finish": backend.pick_phase2_finish,
         "move_joints": backend.move_joints,
+        "gripper_state": backend.gripper_state,
         "place_phase1_approach": backend.place_phase1_approach,
         "place_phase2_finish": backend.place_phase2_finish,
         "get_place_slot_pose_base_link": backend.get_place_slot_pose_base_link,
