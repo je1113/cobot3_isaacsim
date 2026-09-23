@@ -249,8 +249,14 @@ shelves:
     #
     #   STACK_NAV 가 waypoint_start 로 Nav2 goal 을 낸다
     #   (task_manager._resolve_stack_route -> _to_pose).
-    waypoint_start: {x: 2.713, y: 0.696, theta: -1.570796}
-    waypoint_end: {x: 2.713, y: 1.806, theta: -1.570796}
+    # ★ 2026-09-23(4): x 2.713 -> 3.513 (+0.80, 스택 쪽). 사용자가 시뮬에서 보니
+    #   위 계산(packaging_flow.py 의 SHELF_X 3.25 기준)으로는 스택에서 너무 멀었다.
+    #   실제 스택은 ShelfDeck(x 3.88~4.05) 위에 있는 것으로 보인다 — 이 x 면
+    #   라벨(차체 왼쪽 0.40 m)이 x ≈ 3.91 에 온다. y·방향·팔 자세는 그대로.
+    #   ☞ 레포 점유맵에서는 이 줄이 ShelfDeck 블록(x ≥ 3.7, y ≤ 1.7)과 겹친다 —
+    #     맵을 고쳐야 Nav2 가 받아 준다.
+    waypoint_start: {x: 3.513, y: 0.696, theta: -1.570796}
+    waypoint_end: {x: 3.513, y: 1.806, theta: -1.570796}
     standoff_distance: 0.35
     scan_passes:
       - pass_id: 1
