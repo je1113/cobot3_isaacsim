@@ -145,9 +145,11 @@ function ConveyorIcon({ p, label, variant }) {
         />
       ))}
 
+      {/* 이름표 — 스테이션이 다 Top View 아래쪽에 몰려 있어(같은 월드 x 줄),
+          아래에 적으면 화면/뷰박스 가장자리와 겹치기 쉽다. 위에 적는다. */}
       <text
         x={p.x}
-        y={p.y + STATION_LENGTH_M / 2 + 0.32}
+        y={p.y - STATION_LENGTH_M / 2 - 0.32}
       >
         {label}
       </text>
@@ -292,6 +294,77 @@ function CctvCard() {
  * 기준으로 시계 방향 90도 더 돌려서(가로로 길게) 보여준다 — toSvg() 에서
  * x/y 를 맞바꾸고, 로봇 회전각에 90도를 더한다.
  */
+
+/**
+ * SVG 뷰박스 — 지도(occupancy grid) 경계만 쓰면 스테이션이 잘릴 수 있다.
+ * 예) PKG-01 은 place_pose 대신 실제 컨베이어 중심(CONVEYOR_CENTERS_M)을
+ * 쓰는데, 그 풋프린트(4.4 x 1.35m)가 지도 x 최댓값보다 밖으로 뻗어서
+ * 그대로 그리면 아래가 잘린다. 지도 경계와 모든 스테이션 풋프린트를
+ * 함께 담는 크기로 뷰박스를 잡는다 — MonitoringPage 의 컨테이너
+ * aspect-ratio 도 이 함수로 똑같이 계산해야 레터박스 없이 맞는다.
+ */
+function computeTopViewViewBox(worldBounds, stations) {
+  if (!worldBounds) {
+    return null
+  }
+
+  const minX = worldBounds.origin[0]
+  const minY = worldBounds.origin[1]
+  const mapSvgWidth =
+    worldBounds.height_px *
+    worldBounds.resolution
+  const mapSvgHeight =
+    worldBounds.width_px *
+    worldBounds.resolution
+
+  let x0 = 0
+  let y0 = 0
+  let x1 = mapSvgWidth
+  let y1 = mapSvgHeight
+
+  for (const station of stations ?? []) {
+    const point =
+      CONVEYOR_CENTERS_M[
+        station.station_id
+      ] ??
+      toPoint(station.place_pose)
+
+    if (!point) {
+      continue
+    }
+
+    // toSvg() 와 같은 축 맞바꿈.
+    const svgX = point.y - minY
+    const svgY = point.x - minX
+
+    x0 = Math.min(
+      x0,
+      svgX - STATION_WIDTH_M / 2,
+    )
+    x1 = Math.max(
+      x1,
+      svgX + STATION_WIDTH_M / 2,
+    )
+    y0 = Math.min(
+      y0,
+      svgY - STATION_LENGTH_M / 2,
+    )
+    y1 = Math.max(
+      y1,
+      svgY + STATION_LENGTH_M / 2,
+    )
+  }
+
+  return {
+    x: x0,
+    y: y0,
+    width: x1 - x0,
+    height: y1 - y0,
+    mapSvgWidth,
+    mapSvgHeight,
+  }
+}
+
 function FactoryTopView({
   worldBounds,
   shelves,
@@ -309,12 +382,6 @@ function FactoryTopView({
 
   const minX = worldBounds.origin[0]
   const minY = worldBounds.origin[1]
-  const width =
-    worldBounds.width_px *
-    worldBounds.resolution
-  const height =
-    worldBounds.height_px *
-    worldBounds.resolution
   // 화면을 가로로 길게 쓰기 위해 x/y 축을 맞바꿔 90도 회전시켜 그린다.
   function toSvg(point) {
     return {
@@ -323,18 +390,23 @@ function FactoryTopView({
     }
   }
 
+  const viewBox = computeTopViewViewBox(
+    worldBounds,
+    stations,
+  )
+
   return (
     <svg
       className="monitor-topview-svg"
-      viewBox={`0 0 ${height} ${width}`}
+      viewBox={`${viewBox.x} ${viewBox.y} ${viewBox.width} ${viewBox.height}`}
       preserveAspectRatio="xMidYMid meet"
     >
       <rect
         className="monitor-topview-floor"
         x={0}
         y={0}
-        width={height}
-        height={width}
+        width={viewBox.mapSvgWidth}
+        height={viewBox.mapSvgHeight}
       />
 
       {shelves.map((shelf) => {
@@ -949,15 +1021,18 @@ function MonitoringPage({
     'CONNECTED'
 
   // Top View 컨테이너 비율 — FactoryTopView 의 viewBox 와 똑같이
-  // worldBounds(실측 지도 크기)로 계산한다. 고정 height 를 쓰면 컨테이너
-  // 실제 비율과 어긋나 preserveAspectRatio 가 레터박스를 만들고, 그만큼
-  // 세로 공간이 버려져 간격이 좁아 보인다 — 비율을 맞춰 그 낭비를 없앤다.
+  // computeTopViewViewBox() 로 계산한다(스테이션 풋프린트까지 담은 크기).
+  // 고정 height 를 쓰거나 지도 경계만 쓰면 컨테이너 실제 비율과 어긋나
+  // preserveAspectRatio 가 레터박스/잘림을 만든다 — 비율을 맞춰 없앤다.
+  const topViewViewBox =
+    computeTopViewViewBox(
+      worldBounds,
+      stations,
+    )
   const topViewAspectRatio =
-    worldBounds
-      ? (worldBounds.height_px *
-          worldBounds.resolution) /
-        (worldBounds.width_px *
-          worldBounds.resolution)
+    topViewViewBox
+      ? topViewViewBox.width /
+        topViewViewBox.height
       : null
 
   return (

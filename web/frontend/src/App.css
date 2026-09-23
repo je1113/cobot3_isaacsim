@@ -14,12 +14,50 @@
   padding: 30px 20px;
   background: #1b1b1a;
   color: white;
+  overflow: hidden;
+  transition: width 0.18s ease, padding 0.18s ease;
+}
+
+.app.sidebar-collapsed .sidebar {
+  width: 60px;
+  padding: 30px 10px;
+}
+
+.sidebar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 0 12px 28px;
+}
+
+.app.sidebar-collapsed .sidebar-header {
+  justify-content: center;
+  margin: 0 0 28px;
 }
 
 .sidebar-brand {
-  margin: 0 12px 28px;
+  margin: 0;
   font-size: 16px;
   letter-spacing: 0.4px;
+  white-space: nowrap;
+}
+
+.sidebar-toggle {
+  flex: none;
+  width: 26px;
+  height: 26px;
+  border: 1px solid #3a3934;
+  border-radius: 6px;
+  background: transparent;
+  color: #aaa7a1;
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.sidebar-toggle:hover {
+  color: white;
+  border-color: #5a5850;
 }
 
 .sidebar nav {
@@ -29,11 +67,35 @@
 }
 
 .sidebar-link {
+  display: flex;
+  align-items: center;
+  gap: 10px;
   padding: 13px 12px;
   border-radius: 8px;
   color: #aaa7a1;
   text-decoration: none;
   font-size: 14px;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.sidebar-link-icon {
+  flex: none;
+  display: flex;
+}
+
+.sidebar-link-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.app.sidebar-collapsed .sidebar-link {
+  justify-content: center;
+  padding: 13px 0;
+}
+
+.app.sidebar-collapsed .sidebar-link-text {
+  display: none;
 }
 
 .sidebar-link:hover {
@@ -50,6 +112,11 @@
   min-width: 0;
   margin-left: 212px;
   padding: 34px;
+  transition: margin-left 0.18s ease;
+}
+
+.app.sidebar-collapsed .content {
+  margin-left: 60px;
 }
 
 .shelf-settings-page {
@@ -5637,7 +5704,9 @@
   font-size: 0.22px;
   font-weight: 600;
   text-anchor: middle;
-  dominant-baseline: hanging;
+  /* 이름표를 아이콘 위에 적으므로(위 ConveyorIcon 주석) 텍스트가 y 에서
+     위로 자라야 한다 — hanging(아래로 자람) 대신 기본 alphabetic. */
+  dominant-baseline: auto;
 }
 
 .monitor-topview-robot .robot-body {

@@ -146,6 +146,87 @@ function ConfigBanner({
   return null
 }
 
+// 나브바가 접혔을 때(아이콘만 보임) 메뉴를 구분할 아이콘.
+// 별도 아이콘 라이브러리를 안 쓰므로 직접 그린 최소한의 SVG다.
+function IconSettings() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      width="18"
+      height="18"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+    >
+      <line x1="4" y1="6" x2="20" y2="6" />
+      <line x1="4" y1="12" x2="20" y2="12" />
+      <line x1="4" y1="18" x2="20" y2="18" />
+      <circle cx="9" cy="6" r="2" fill="currentColor" stroke="none" />
+      <circle cx="15" cy="12" r="2" fill="currentColor" stroke="none" />
+      <circle cx="9" cy="18" r="2" fill="currentColor" stroke="none" />
+    </svg>
+  )
+}
+
+function IconTasks() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      width="18"
+      height="18"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <rect x="5" y="4" width="14" height="17" rx="2" />
+      <line x1="9" y1="9" x2="15" y2="9" />
+      <line x1="9" y1="13" x2="15" y2="13" />
+      <line x1="9" y1="17" x2="13" y2="17" />
+    </svg>
+  )
+}
+
+function IconMonitor() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      width="18"
+      height="18"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <rect x="3" y="4" width="18" height="12" rx="2" />
+      <line x1="8" y1="20" x2="16" y2="20" />
+      <line x1="12" y1="16" x2="12" y2="20" />
+    </svg>
+  )
+}
+
+function IconLogs() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      width="18"
+      height="18"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <line x1="5" y1="20" x2="5" y2="12" />
+      <line x1="12" y1="20" x2="12" y2="8" />
+      <line x1="19" y1="20" x2="19" y2="14" />
+    </svg>
+  )
+}
+
 function App() {
   const location = useLocation()
 
@@ -166,6 +247,22 @@ function App() {
   )
 
   const robots = useRobots()
+
+  // 나브바 접힘 — 화면 로컬이라 새로고침해도 유지되게 localStorage 에 둔다.
+  const [sidebarCollapsed, setSidebarCollapsed] =
+    useState(() =>
+      loadStoredState(
+        'magazine-ops:sidebar-collapsed',
+        false,
+      ),
+    )
+
+  useEffect(() => {
+    localStorage.setItem(
+      'magazine-ops:sidebar-collapsed',
+      JSON.stringify(sidebarCollapsed),
+    )
+  }, [sidebarCollapsed])
 
   const shelves = shelvesRes.value ?? []
   const setShelves = shelvesRes.setValue
@@ -215,11 +312,43 @@ function App() {
     location.pathname.startsWith('/settings')
 
   return (
-    <div className="app">
+    <div
+      className={
+        sidebarCollapsed
+          ? 'app sidebar-collapsed'
+          : 'app'
+      }
+    >
       <aside className="sidebar">
-        <h2 className="sidebar-brand">
-          MAGAZINE OPS
-        </h2>
+        <div className="sidebar-header">
+          {!sidebarCollapsed && (
+            <h2 className="sidebar-brand">
+              MAGAZINE OPS
+            </h2>
+          )}
+
+          <button
+            type="button"
+            className="sidebar-toggle"
+            onClick={() =>
+              setSidebarCollapsed(
+                (collapsed) => !collapsed,
+              )
+            }
+            aria-label={
+              sidebarCollapsed
+                ? '나브바 펼치기'
+                : '나브바 접기'
+            }
+            title={
+              sidebarCollapsed
+                ? '나브바 펼치기'
+                : '나브바 접기'
+            }
+          >
+            {sidebarCollapsed ? '›' : '‹'}
+          </button>
+        </div>
 
         <nav>
           <NavLink
@@ -229,8 +358,14 @@ function App() {
                 ? 'sidebar-link active'
                 : 'sidebar-link'
             }
+            title="설정"
           >
-            설정
+            <span className="sidebar-link-icon">
+              <IconSettings />
+            </span>
+            <span className="sidebar-link-text">
+              설정
+            </span>
           </NavLink>
 
           <NavLink
@@ -240,8 +375,14 @@ function App() {
                 ? 'sidebar-link active'
                 : 'sidebar-link'
             }
+            title="작업 할당"
           >
-            작업 할당
+            <span className="sidebar-link-icon">
+              <IconTasks />
+            </span>
+            <span className="sidebar-link-text">
+              작업 할당
+            </span>
           </NavLink>
 
           <NavLink
@@ -251,8 +392,14 @@ function App() {
                 ? 'sidebar-link active'
                 : 'sidebar-link'
             }
+            title="실시간 모니터링"
           >
-            실시간 모니터링
+            <span className="sidebar-link-icon">
+              <IconMonitor />
+            </span>
+            <span className="sidebar-link-text">
+              실시간 모니터링
+            </span>
           </NavLink>
 
           <NavLink
@@ -262,8 +409,14 @@ function App() {
                 ? 'sidebar-link active'
                 : 'sidebar-link'
             }
+            title="로그 · 통계"
           >
-            로그 · 통계
+            <span className="sidebar-link-icon">
+              <IconLogs />
+            </span>
+            <span className="sidebar-link-text">
+              로그 · 통계
+            </span>
           </NavLink>
         </nav>
       </aside>
