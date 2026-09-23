@@ -64,6 +64,9 @@ pick_place_server — PickCarrier · PlaceCarrier 액션 서버.
                        ★ 알려진 갭: 선언만 하고 아직 검증하지 않는다 —
                        비교할 배치 목표 실측(포트 마커)이 씬에 없다
                        (PlaceCarrier.action "남은 것" 참고).
+  carry_joints_deg     pick 성공 뒤 이 관절값(도)으로 옮겨 이송한다. place 는 시작
+                       전에 STOW(READY)로 되돌린다. 기본 [0]*6 — 팔이 서고 흡착면이
+                       위를 본다. 빈 리스트면 끈다(STOW 그대로 이송).
 
   기본값은 action 파일의 "제안"값이 아니라 grasp.yaml/12_pick_test.py 가
   실측으로 검증한 값을 쓴다(approach_dist_m=0.15, lift_height_m=0.10) —
@@ -170,6 +173,12 @@ class PickPlaceServer(Node):
         self.declare_parameter("max_grip_distance", 0.03)
         self.declare_parameter("lift_height_m", 0.10)            # 12_pick_test.py 검증값
         self.declare_parameter("place_drop_m", 0.005)
+        # pick 이 끝나면(STOW 판정 통과 뒤) 팔을 이 관절값(도)으로 옮긴 채 이송한다.
+        # place 는 시작 전에 STOW 자세(READY)로 되돌린 뒤 평소대로 한다 — place 의
+        # APPROACH 는 흡착면이 아래를 보는 자세에서 출발해야 IK 가 풀린다.
+        # ★ [0]*6 은 팔이 똑바로 서고 흡착면이 **위**를 본다(URDF FK). 매거진이
+        #   뒤집혀 머리 위에 얹힌 채 이동한다. 빈 리스트면 이 단계를 끈다(STOW 그대로).
+        self.declare_parameter("carry_joints_deg", [0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
         self.declare_parameter("place_pos_tol_m", 0.002)         # ★ 알려진 갭: 미검증
         self.declare_parameter("place_yaw_tol_rad", 0.017)       # ★ 알려진 갭: 미검증
 
@@ -350,6 +359,17 @@ class PickPlaceServer(Node):
         result.fail_reason = _FAIL.get(r2.get("fail_reason", "NONE"), PickCarrier.Result.NONE)
         offset_mm = float(r2.get("final_offset_m", 0.0)) * 1000
         limit_mm = float(r2.get("offset_limit_m", offset_limit_m)) * 1000
+        if result.success and self._carry_joints():
+            # ── CARRY — 이송 자세로. STOW 판정은 이미 통과했다.
+            r3 = self._safe_call("move_joints", joints_deg=self._carry_joints(), timeout_s=60.0)
+            if not r3.get("success") or not r3.get("gripped"):
+                self.get_logger().warn(
+                    f"PICK 이송 자세 {self._carry_joints()} 로 옮기다 놓쳤다 "
+                    f"(success={r3.get('success')} gripped={r3.get('gripped')})")
+                result.success = False
+                result.fail_reason = PickCarrier.Result.SLIP
+            else:
+                self.get_logger().info(f"PICK 이송 자세 {self._carry_joints()} 도착")
         if result.success:
             goal_handle.succeed()
             self.get_logger().info(f"PICK 성공  offset {offset_mm:.1f}/{limit_mm:.1f} mm")
@@ -377,6 +397,16 @@ class PickPlaceServer(Node):
         # ── MOVE ──
         feedback.phase = PlaceCarrier.Feedback.MOVE
         goal_handle.publish_feedback(feedback)
+        if self._carry_joints():
+            # 이송 자세 -> STOW(READY). APPROACH 는 흡착면이 아래를 보는 자세에서
+            # 출발해야 한다(carry_joints_deg 주석).
+            r0 = self._safe_call_place("move_joints", joints_deg=None, timeout_s=60.0)
+            if not r0.get("success") or not r0.get("gripped"):
+                self.get_logger().warn(
+                    f"PLACE 전 READY 복귀 실패 (success={r0.get('success')} "
+                    f"gripped={r0.get('gripped')})")
+                return self._abort_place(
+                    goal_handle, result, "NOT_GRIPPED" if r0.get("success") else "NO_IK")
         holder = {}
         params = dict(slot_pose_base_link=slot_pose_base_link, approach_dist_m=approach_dist_m)
         t = threading.Thread(target=lambda: holder.__setitem__(
@@ -418,6 +448,11 @@ class PickPlaceServer(Node):
             goal_handle.abort()
             self.get_logger().warn(f"PLACE 실패  reason={r2.get('fail_reason')}")
         return result
+
+    def _carry_joints(self):
+        """carry_joints_deg 파라미터. 6칸이 아니면(빈 리스트 포함) None — 이송 자세를 끈다."""
+        v = [float(x) for x in (self.get_parameter("carry_joints_deg").value or [])]
+        return v if len(v) == 6 else None
 
     def _safe_call_place(self, method, **kw):
         kw.setdefault("robot_id", self.robot_id)

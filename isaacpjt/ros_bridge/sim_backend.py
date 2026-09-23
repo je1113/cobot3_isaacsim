@@ -1291,6 +1291,24 @@ class Backend:
                "final_offset_m": final_offset_m, "offset_limit_m": offset_limit_m,
                "used_gap_m": float(gap), "rise_mm": rise_m*1000, "tilt_deg": tilt_deg}
 
+    def move_joints(self, joints_deg=None, n_steps=None, robot_id=DEFAULT_ROBOT_ID):
+        """팔을 관절 목표로 보간 이동한다. 흡착 중이어도 쓴다 — pick 뒤 이송 자세,
+        place 앞 READY 복귀(pick_place_server 의 carry_joints_deg 참고).
+
+        joints_deg 가 없으면 READY_JOINTS_DEG(STOW 자세). stiffness 는 건드리지
+        않는다 — pick 이 올려 둔 DRIVE_STIFFNESS_PICK 을 그대로 써야 들고 옮길 때
+        안 처진다(observe_pose 처럼 1e5 로 내리면 안 된다).
+        기본 스텝은 STOW 의 두 배다. 이송 자세는 STOW 보다 멀리 움직여서, 같은
+        스텝이면 가속이 커져 흡착이 끊길 수 있다."""
+        self._require_playing()
+        rig = self.rigs[robot_id]
+        target = list(joints_deg) if joints_deg is not None else list(READY_JOINTS_DEG)
+        self._servo_joint_deg(robot_id, target, n_steps=int(n_steps or 2 * SETTLE_STEPS))
+        self._settle(HOLD_WAIT)
+        gripped = bool(holding(rig.gripper.gripped()))
+        _set_status(robot_id, gripped=gripped)
+        return {"success": True, "joints_deg": target, "gripped": gripped}
+
     def get_place_slot_pose_base_link(self, robot_id=DEFAULT_ROBOT_ID):
         """편의 메서드 — place 쪽 GT. 슬롯 지오메트리가 아직 씬에 없어서,
         검증된 컨베이어 벨트 위 스테이징 지점을 base_link 프레임으로 돌려준다.
@@ -1645,6 +1663,7 @@ def main():
         "pick_observe_flange": backend.pick_observe_flange,
         "pick_phase1_approach": backend.pick_phase1_approach,
         "pick_phase2_finish": backend.pick_phase2_finish,
+        "move_joints": backend.move_joints,
         "place_phase1_approach": backend.place_phase1_approach,
         "place_phase2_finish": backend.place_phase2_finish,
         "get_place_slot_pose_base_link": backend.get_place_slot_pose_base_link,
