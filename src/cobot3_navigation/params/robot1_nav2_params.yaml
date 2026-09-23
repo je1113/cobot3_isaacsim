@@ -234,7 +234,24 @@ controller_server:
     progress_checker:
       plugin: "nav2_controller::SimpleProgressChecker"
       required_movement_radius: 0.5
-      movement_time_allowance: 10.0
+      # ★ 2026-09-23: movement_time_allowance 10.0 -> 30.0.
+      #   SimpleProgressChecker 는 "XY 로 required_movement_radius 만큼
+      #   movement_time_allowance 안에 못 움직이면 goal 을 ABORT" 한다. 그런데
+      #   목표에서 최종 yaw 를 맞추는 제자리 회전은 XY 이동이 0 이다 — 회전하는
+      #   동안 이 검사기는 "안 움직인다" 로 본다.
+      #
+      #   d8c65b8 이 yaw_goal_tolerance 를 0.25 -> 0.05 (14.3° -> 2.9°)로 조이면서
+      #   그 회전이 길어졌고, 10 초 허용치를 넘겨 START 가 통째로 죽었다:
+      #       180° 회전 = 3.1416 rad / max_vel_theta 0.3 = 10.5 s  ★ 최대속도로도 초과
+      #       (robot2 의 waypoint_start theta 가 정확히 pi 다 — 확정 실패였다)
+      #        90° 회전 = 1.571 / 0.3 = 5.2 s + 가속한계·Oscillation 감쇠
+      #   조이기 전(0.25 rad)에는 회전이 금방 끝나 허용치 안에 들어왔다.
+      #
+      #   허용오차는 그대로 둔다 — 파지점 오차 29 mm 는 그 값이 번 것이다.
+      #   대신 정당한 최종 회전을 죽이지 않게 시간을 늘린다. 아래
+      #   max_vel_theta 를 올린 것과 짝이다.
+      #   ☞ 진짜 교착(벽에 박혀 못 움직임)은 30 초면 여전히 잡힌다.
+      movement_time_allowance: 30.0
 
     general_goal_checker:
       plugin: "nav2_controller::SimpleGoalChecker"
@@ -263,7 +280,13 @@ controller_server:
       # QR 감시가 이 구간의 저속 주행을 전제로 한다.
       max_vel_x: 0.25
       max_vel_y: 0.0
-      max_vel_theta: 0.3
+      # ★ 2026-09-23: 0.3 -> 0.6. 위 progress_checker 주석과 짝이다 — yaw 허용오차
+      #   2.9° 를 0.3 rad/s 로 맞추려니 최종 회전이 10 초를 넘겨 goal 이 죽었다.
+      #   acc_lim_theta 가 0.8 이라 0.6 은 0.75 초면 도달한다.
+      #   ☞ QR 스캔 저속 주행에는 영향이 없다 — 선반 앞 구간은 yaw 를 고정한 채
+      #     직진으로 지나가고(그래서 min_vel_x 로 후진을 허용한다), 저속을
+      #     거는 쪽은 max_vel_x(0.25) 다.
+      max_vel_theta: 0.6
 
       min_speed_xy: 0.0
       max_speed_xy: 0.25
