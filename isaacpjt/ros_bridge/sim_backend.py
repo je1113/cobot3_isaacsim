@@ -148,6 +148,14 @@ DEPTH_AOV_NAME = "DistanceToImagePlaneSD"
 # QR 디코드가 깨지거나 흡착이 SLIP 난다.
 DRIVE_STIFFNESS, DRIVE_DAMPING, DRIVE_MAX_FORCE = 1e5, 1e4, 2700.0
 DRIVE_STIFFNESS_PICK = 1e8
+# ★ 2026-09-23: 12_pick_test.py(검증판)는 DRIVE_MAX_FORCE 도 stiffness 와
+#   같이 1e8 이다. 여기는 그동안 부팅 기본값(2700.0, DRIVE_MAX_FORCE)에
+#   고정돼 있었다 — _set_arm_stiffness() 가 stiffness 만 바꾸고 max force
+#   는 안 건드렸다. stiffness 는 1e8 인데 낼 수 있는 힘은 2700N 로 묶여
+#   있으면, 필요한 힘이 그 한계를 넘을 때마다 잘리는(saturation) 게 매
+#   스텝 반복돼 흔들림(limit-cycle 진동)으로 나타난다 — pick 중 6D 자세가
+#   떨리던 원인. stiffness 와 짝을 맞춰 pick 때만 이 값도 같이 올린다.
+DRIVE_MAX_FORCE_PICK = 1e8
 READY_JOINTS_DEG = [0.0, 0.0, 90.0, 0.0, 90.0, 0.0]
 # 부팅 시 팔을 이 자세로 옮길지("" 면 안 옮기고 홈에서 시작). 로봇은 항상 홈
 # 자세로 시작해야 한다 — 뻗은 채로 주행하면 Nav2 코스트맵이 팔을 못 본다.
@@ -692,9 +700,11 @@ class Backend:
         print(f"   ▶ 시뮬레이션 다시 Play — 로봇 핸들 재초기화 "
               f"{'완료' if ok else '실패(관절값을 여전히 못 읽는다)'}")
 
-    def _set_arm_stiffness(self, robot_id, stiffness):
-        """observe_pose() 는 QR 이 안 깨지는 DRIVE_STIFFNESS 로, pick_phase1_approach()
-        는 흡착 유지력이 충분한 DRIVE_STIFFNESS_PICK 으로 되돌린다."""
+    def _set_arm_stiffness(self, robot_id, stiffness, max_force):
+        """observe_pose() 는 QR 이 안 깨지는 (DRIVE_STIFFNESS, DRIVE_MAX_FORCE) 로,
+        pick_phase1_approach() 는 (DRIVE_STIFFNESS_PICK, DRIVE_MAX_FORCE_PICK) 으로
+        되돌린다 — 둘은 항상 짝으로 바뀌어야 한다(DRIVE_MAX_FORCE_PICK 주석 참고,
+        stiffness 만 올리고 max force 를 그대로 두면 흔들린다)."""
         rig = self.rigs[robot_id]
         for prim in Usd.PrimRange(self.stage.GetPrimAtPath(rig.robot_prim_path)):
             if prim.GetName() not in ARM_JOINTS:
@@ -703,6 +713,7 @@ class Backend:
                 d = UsdPhysics.DriveAPI.Get(prim, dt)
                 if d:
                     d.GetStiffnessAttr().Set(stiffness)
+                    d.GetMaxForceAttr().Set(max_force)
 
     def _sync_ik_base(self, robot_id):
         rig = self.rigs[robot_id]
@@ -912,7 +923,7 @@ class Backend:
         """관측 자세로 이동한다. pose_name(taught_poses.yaml 키) 또는
         joints_deg(J1..J6, 도) 중 하나로 목표를 준다 — 둘 다 있으면 joints_deg
         우선. carrier_code_reader.scan_qr() 전에 부른다."""
-        self._set_arm_stiffness(robot_id, DRIVE_STIFFNESS)   # QR 디코드가 깨지지 않는 값으로
+        self._set_arm_stiffness(robot_id, DRIVE_STIFFNESS, DRIVE_MAX_FORCE)   # QR 디코드가 깨지지 않는 값으로
         if joints_deg is not None:
             self._servo_joint_deg(robot_id, list(joints_deg))
         elif pose_name is not None:
@@ -1195,7 +1206,7 @@ class Backend:
         """PickCarrier 의 APPROACH. flange_pose 는 base_link 프레임
         {position:[x,y,z], quat_wxyz:[..]} (position=판 윗면 중심, +Z=법선 위)."""
         rig = self.rigs[robot_id]
-        self._set_arm_stiffness(robot_id, DRIVE_STIFFNESS_PICK)   # 흡착 유지력 검증값으로
+        self._set_arm_stiffness(robot_id, DRIVE_STIFFNESS_PICK, DRIVE_MAX_FORCE_PICK)   # 흡착 유지력 검증값으로
         base_p, base_q = get_world_pose(rig.chassis_link_path)
         R_base = quat_to_matrix(base_q)
         p_rel = np.array(flange_pose_base_link["position"])
