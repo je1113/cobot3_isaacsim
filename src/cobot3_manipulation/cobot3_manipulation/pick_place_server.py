@@ -174,7 +174,9 @@ class PickPlaceServer(Node):
         self.declare_parameter("shear_force_limit", 100.0)
         self.declare_parameter("max_grip_distance", 0.03)
         self.declare_parameter("lift_height_m", 0.10)            # 12_pick_test.py 검증값
-        self.declare_parameter("place_drop_m", 0.005)
+        # 2026-09-23: 0.005 -> 0.055 — 지금보다 5 cm 높은 곳에서 흡착을 끈다(사용자
+        # 지시). 매거진·스택 공통이다. 바닥이 벨트 위 5.5 cm 에서 떨어진다.
+        self.declare_parameter("place_drop_m", 0.055)
         # pick 이 끝나면(STOW 판정 통과 뒤) 팔을 이 관절값(도)으로 옮긴 채 이송한다.
         # place 는 시작 전에 STOW 자세(READY)로 되돌린 뒤 평소대로 한다 — place 의
         # APPROACH 는 흡착면이 아래를 보는 자세에서 출발해야 IK 가 풀린다.
@@ -509,7 +511,10 @@ class PickPlaceServer(Node):
         # ── LOWER -> RELEASE -> RETREAT ──
         holder2 = {}
         t2 = threading.Thread(target=lambda: holder2.__setitem__(
-            "r", self._safe_call_place("place_phase2_finish", release_height_m=place_drop_m)))
+            "r", self._safe_call_place("place_phase2_finish", release_height_m=place_drop_m,
+                                       # 흡착 OFF 3 회(sim_backend RELEASE_OPEN_TIMES)
+                                       # — 기본 60 s 로는 GUI 렌더 모드에서 모자랄 수 있다.
+                                       timeout_s=180.0)))
         t2.start()
         self._poll_until(t2, goal_handle, feedback, phase_map=_PLACE_PHASE)
         r2 = holder2.get("r")

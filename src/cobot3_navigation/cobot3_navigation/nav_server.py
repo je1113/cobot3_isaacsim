@@ -146,7 +146,9 @@ DEFAULT_PATROL_START_HOLD_S = 15.0
 # 이 액션을 짧게 쓰는 건 task_manager 의 로더 앞 직진 전진/후진(creep, 0.30 m)
 # 이다 — 그때는 팔이 매거진을 들고 있어 관측 자세를 올릴 일이 없는데, 들어갈 때
 # 나올 때 15 s 씩 서 있게 된다.
-PATROL_HOLD_MIN_DIST_M = 0.6
+# ★ 2026-09-23: 0.6 -> 1.5. 로더 creep 을 1.00 m 로 늘렸다(task_manager
+#   LOADER_CREEP_M). 순찰 구간은 4.2 m 라 여전히 선다.
+PATROL_HOLD_MIN_DIST_M = 1.5
 
 
 # ============================================================

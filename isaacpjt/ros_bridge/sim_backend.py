@@ -216,15 +216,17 @@ PLACE_TARGET_XY = np.array([4.1, 0.0])
 CONVEYOR_BELT_Z = 0.6
 PLACE_APPROACH_HEIGHT_OFFSET = 0.15
 RELEASE_WAIT = 90
-# ★ place 의 "놓았다" 를 그리퍼 목록만 보고 믿지 않는다 (2026-09-23).
-#   gripped() 는 조회가 예외를 내도 None(=빈손)을 돌려주고, 목록이 비었는데
-#   매거진이 흡착면에 붙은 채 따라 올라오는 경우도 있었다 — 그러면 PLACE 가
-#   성공으로 보고되고 로봇은 매거진을 단 채 떠난다(mission.log: "PLACE 성공",
-#   실제로는 안 놓였다). 그래서 흡착면을 RELEASE_PEEL_M 만큼 살짝 들어 보고,
-#   매거진이 RELEASE_FOLLOW_M 넘게 따라 올라오면 도로 내려서 다시 연다.
+# ★ 흡착 OFF 는 한 번이 아니라 RELEASE_OPEN_TIMES 번 연달아 낸다(사용자 지시,
+#   2026-09-23). 매 번 GripperView 와 open_gripper 명령 둘 다로 열고
+#   RELEASE_WAIT 만큼 기다린다. 팔은 그 자리에 둔 채다.
+# ★ 그 뒤 "놓았다" 를 그리퍼 목록만 보고 믿지 않는다. gripped() 는 조회가
+#   예외를 내도 None(=빈손)을 돌려준다. 그래서 흡착면을 RELEASE_PEEL_M 만큼
+#   들어 보고 매거진이 RELEASE_FOLLOW_M 넘게 따라 올라오면 실패로 올린다.
+RELEASE_OPEN_TIMES = 3
+# 흡착 OFF 사이 간격(시뮬 시간, 초). 사용자 지시(2026-09-23) 1 초.
+RELEASE_GAP_S = 1.0
 RELEASE_PEEL_M = 0.02
 RELEASE_FOLLOW_M = 0.01
-RELEASE_RETRIES = 3
 
 
 # ══════════════════════════════════════════════════════════════
@@ -1464,31 +1466,29 @@ class Backend:
             return {"success": False, "fail_reason": "NO_IK"}
 
         _set_status(robot_id, phase="RELEASE")
-        released = False
-        why = ""
-        for attempt in range(1, RELEASE_RETRIES + 1):
-            rig.gripper.open(force=attempt > 1)
-            self._settle(RELEASE_WAIT)
-            listed = _flatten_gripped_paths(rig.gripper.gripped())
-            status = rig.gripper.status()
-            top_before = measure_prim(rig.current_magazine_path)[1]
+        status0 = rig.gripper.status()
+        gap_steps = max(1, int(round(RELEASE_GAP_S / self.world.get_physics_dt())))
+        for n in range(1, RELEASE_OPEN_TIMES + 1):
+            rig.gripper.open(force=True)
+            self._settle(gap_steps)     # 다음 OFF 까지 1 초(RELEASE_GAP_S)
+            print(f"   [{robot_id}] RELEASE 열기 {n}/{RELEASE_OPEN_TIMES}  "
+                  f"status {status0} -> {rig.gripper.status()}  "
+                  f"gripped={_flatten_gripped_paths(rig.gripper.gripped())}")
+        listed = _flatten_gripped_paths(rig.gripper.gripped())
 
-            # 살짝 들어서 매거진이 따라오나 본다(RELEASE_PEEL_M 주석).
-            self._servo_tcp(robot_id, descend_goal + np.array([0, 0, RELEASE_PEEL_M]), "PEEL")
-            self._settle(30)
-            top_after = measure_prim(rig.current_magazine_path)[1]
-            follow = top_after - top_before
-            print(f"   [{robot_id}] RELEASE {attempt}/{RELEASE_RETRIES}  status={status}  "
-                  f"gripped={listed}  매거진 윗면 {top_before:.3f} -> {top_after:.3f} "
-                  f"({follow * 1000:+.0f} mm)  대상 {rig.current_magazine_path}")
-            if not listed and follow < RELEASE_FOLLOW_M:
-                released = True
-                break
-            why = (f"흡착 목록 {listed}" if listed
-                   else f"목록은 비었는데 매거진이 {follow * 1000:.0f} mm 따라 올라왔다")
-            # 도로 내려놓고 다시 연다.
-            self._servo_tcp(robot_id, descend_goal, "DESCEND")
-            self._settle(30)
+        # 살짝 들어서 매거진이 따라오나 본다(RELEASE_PEEL_M 주석).
+        top_before = measure_prim(rig.current_magazine_path)[1]
+        self._servo_tcp(robot_id, descend_goal + np.array([0, 0, RELEASE_PEEL_M]), "PEEL")
+        self._settle(30)
+        top_after = measure_prim(rig.current_magazine_path)[1]
+        follow = top_after - top_before
+        released = not listed and follow < RELEASE_FOLLOW_M
+        why = ("" if released else
+               f"흡착 목록 {listed}" if listed else
+               f"목록은 비었는데 매거진이 {follow * 1000:.0f} mm 따라 올라왔다")
+        print(f"   [{robot_id}] RELEASE 확인  매거진 윗면 {top_before:.3f} -> {top_after:.3f} "
+              f"({follow * 1000:+.0f} mm)  -> {'떨어짐' if released else '안 떨어짐'}  "
+              f"대상 {rig.current_magazine_path}")
         _set_status(robot_id, gripped=not released)
 
         _set_status(robot_id, phase="RETRACT")

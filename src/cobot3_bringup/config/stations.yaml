@@ -43,7 +43,9 @@ stations:
     #   내접 반경 0.28 에 한 셀(0.05) 이상 남는 3.70 을 쓴다. 배치점은 base_link
     #   앞 0.50 m(place.yaml)라 4.20 — 벨트 위다.
     #   task_manager.TEST_LOADER (3.70, 4.60, 0.0) 와 같은 값이어야 한다.
-    place_pose: {x: 3.70, y: 4.60, theta: 0.0}
+    # ★ 2026-09-23: 3.70 -> 2.92 — task_manager TEST_LOADER 와 같다. Nav2 는 여기
+    #   까지, 그 뒤 1.00 m 는 직진(LOADER_CREEP_M)으로 3.92 에 서서 놓는다.
+    place_pose: {x: 2.92, y: 4.60, theta: 0.0}
     place_arm_pose: [null, null, null, null, null, null]
     # ⚠️ 실측 필요. 이 값이 그대로 "회수 가능 시각 = place 완료 + process_time"
     #    이 된다. 너무 짧으면 회수하러 가서 헛탕 치고 재시도만 쌓인다.
@@ -66,7 +68,8 @@ stations:
     #   다른 구조물은 없다.
     #   ☞ PackagingZone 과 달리 투입 트리거(PackagingInputTrigger)가 씬에 없다.
     #     여기 놓은 매거진은 벨트가 받아 가지 않을 수 있다.
-    place_pose: {x: 3.70, y: -2.705, theta: 0.0}
+    # ★ 2026-09-23: 3.70 -> 2.92 — task_manager TEST_STATION 과 같다(PKG-01 주석).
+    place_pose: {x: 2.92, y: -2.705, theta: 0.0}
     place_arm_pose: [null, null, null, null, null, null]
     process_time: null
     output_type: ''

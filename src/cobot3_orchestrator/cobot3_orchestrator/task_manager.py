@@ -444,7 +444,26 @@ DEFAULT_EMPTY_SWEEPS = 1
 #   ★ 배치점은 base_link 기준 앞으로 0.50 m 다(place.yaml position).
 #     베이스 3.70 이면 배치점이 4.20 이고, 벨트 근처 가장자리가 약 4.05 라
 #     여전히 벨트 위다.
-TEST_LOADER = (3.70, 4.60, 0.0)
+# ★ 2026-09-23: Nav2 정차점 3.70 -> 3.42 (사용자 지시). 놓는 자리(x 3.92)는
+#   그대로 두고 cmd_vel 직진 구간(LOADER_CREEP_M)을 0.22 -> 0.50 으로 늘린 것이다:
+#       Nav2 3.42  +  직진 0.50  =  3.92  (지난 실행에서 실제로 놓던 자리)
+#   3.42 는 차체를 점유맵에 놓아 겹침 0, 360° 제자리 회전이 되고(3.70 은
+#   ±95°), 3.42 -> 3.92 직선도 겹침 0 이다. 두 벨트(포장·검사) 모두 같다.
+#   stations.yaml PKG-01 / TEST-01 place_pose 도 3.42 로 같이 옮겼다.
+# ★ 2026-09-23(2): 3.42 -> 2.92, 직진 0.50 -> 1.00 (사용자 지시). 놓는 자리
+#   3.92 는 그대로다:  Nav2 2.92  +  직진 1.00  =  3.92.
+#   2.92 는 최근접 장애물까지 1.15 m(3.42 는 0.65, 3.70 은 0.35), 차체 360°
+#   회전 겹침 0(패딩 3 cm). 2.92 -> 3.92 직선도 끝점(3.92, 전과 같은 자리)
+#   말고는 겹침 0 이다. 포장·검사 벨트 모두 같다.
+TEST_LOADER = (2.92, 4.60, 0.0)
+
+# 검사 투입 벨트 정차점 — 스택을 놓는 곳. stations.yaml TEST-01 place_pose 와
+# 같은 점이어야 한다 (2026-09-23 사용자 확인: 스택은 검사 벨트에 놓는다).
+# 검사 벨트(BeltTop x 4.05~8.75, y -3.255~-2.155, 윗면 z 0.541)는 포장 벨트를
+# y 로 옮긴 모양이라 x 3.70 을 고른 근거(Nav2 내접 여유)가 그대로 성립한다.
+# 차체를 점유맵에 놓아 재면 이 점도, creep 뒤(3.92)도 겹침 0 이고 이 점에서
+# ±60° 까지 제자리 회전이 된다 — TEST_LOADER 와 같다.
+TEST_STATION = (2.92, -2.705, 0.0)   # TEST_LOADER 와 같은 이유로 2.92 (그 주석)
 
 # ── 로더 앞 직진 전진 (creep) ──────────────────────────────────────────────
 # Nav2 는 위 TEST_LOADER(3.70)보다 벨트에 못 붙인다 — 3.85 에서 BLOCKED 로
@@ -471,7 +490,13 @@ TEST_LOADER = (3.70, 4.60, 0.0)
 # ★ 전진·후진이 실패해도 얼리지 않는다(_Optional). 매거진을 든 채 얼어붙는
 #   것보다 그 자리에서 place 를 시도하는 편이 낫다.
 # 0 이면 이 단계를 끈다(이전 동작).
-LOADER_CREEP_M = 0.22
+# ★ 2026-09-23: 0.22 -> 0.50 (사용자 지시). Nav2 정차점을 그만큼 뒤로(3.42)
+#   옮겨서 놓는 자리 3.92 는 그대로다(TEST_LOADER 주석). 0.50 은 nav_server
+#   PATROL_HOLD_MIN_DIST_M(0.6) 보다 짧아 직진 전 15 s 정지가 안 걸린다.
+# ★ 2026-09-23(2): 0.50 -> 1.00 (사용자 지시). Nav2 정차점을 2.92 로 옮겨
+#   놓는 자리 3.92 는 그대로다. 1.00 은 nav_server PATROL_HOLD_MIN_DIST_M 을
+#   넘으므로 그 값을 1.5 로 올렸다 — 안 올리면 직진 전에 15 s 를 선다.
+LOADER_CREEP_M = 1.00
 CREEP_TIMEOUT_S = 60.0
 
 # ── 로더 접근 차선 — 두 대가 같은 로더로 갈 때 ───────────────────────────
@@ -641,7 +666,7 @@ NAV_TIMEOUT_S = 600.0
 #   carry_wait_s(15 s) 서 있다. 그만큼 늘었다 — 120 이면 느린 GUI 시뮬에서
 #   다 집어 놓고 대기 중에 TIMEOUT 으로 얼 수 있다.
 PICK_TIMEOUT_S = 180.0
-PLACE_TIMEOUT_S = 120.0
+PLACE_TIMEOUT_S = 180.0   # 흡착 OFF 3 회(sim_backend RELEASE_OPEN_TIMES)를 품는다
 SERVER_WAIT_S = 5.0
 
 # SCAN 이 found=false 로 끝난 뒤 이만큼은 carrier_detected 를 받지 않는다.
@@ -1845,18 +1870,18 @@ def build_tree(node):
 
     # ── 로더 앞 직진 전진/후진 (LOADER_CREEP_M 주석) ────────────────────
     # py_trees 잎은 트리에서 한 자리만 차지하므로 매거진·스택용을 따로 만든다.
-    def creep(stage, forward):
+    def creep(stage, forward, base=TEST_LOADER):
         dx = LOADER_CREEP_M if forward else 0.0
-        target = (TEST_LOADER[0] + dx, TEST_LOADER[1], TEST_LOADER[2])
+        target = (base[0] + dx, base[1], base[2])
         return _Optional(stage.upper(), ActionLeaf(
             stage, node, node.patrol_nav, "navigation/patrol_to", NavigateTo.Result,
             make_goal=lambda: NavigateTo.Goal(pose=_to_pose(target)),
             timeout_s=CREEP_TIMEOUT_S, moves_base=True), node)
 
-    def creep_pair():
+    def creep_pair(base=TEST_LOADER):
         if LOADER_CREEP_M <= 0.0:
             return [], []
-        return [creep(CREEP_IN, True)], [creep(CREEP_OUT, False)]
+        return [creep(CREEP_IN, True, base)], [creep(CREEP_OUT, False, base)]
 
     creep_in, creep_out = creep_pair()
 
@@ -1916,7 +1941,8 @@ def build_tree(node):
 
         stack_deliver = Freeze("STACK_DELIVER", ActionLeaf(
             STACK_DELIVER, node, node.nav, "navigation/navigate_to", NavigateTo.Result,
-            make_goal=lambda: NavigateTo.Goal(pose=_to_pose(TEST_LOADER)),
+            # 스택은 검사 투입 벨트로 간다(TEST_STATION 주석). 매거진 로더 아님.
+            make_goal=lambda: NavigateTo.Goal(pose=_to_pose(TEST_STATION)),
             timeout_s=NAV_TIMEOUT_S, moves_base=True), node, STACK_DELIVER)
 
         stack_place = Freeze("STACK_PLACE", ActionLeaf(
@@ -1926,7 +1952,7 @@ def build_tree(node):
             timeout_s=PLACE_TIMEOUT_S,
             feedback_cb=node.log_phase("STACK_PLACE")), node, STACK_PLACE)
 
-        stack_creep_in, stack_creep_out = creep_pair()
+        stack_creep_in, stack_creep_out = creep_pair(TEST_STATION)
         stack_leg = [py_trees.decorators.FailureIsSuccess(
             name="스택 회수(있으면)",
             child=py_trees.composites.Sequence(
@@ -3050,13 +3076,14 @@ class TaskManager(Node):
     def peer_dist_to_loader(self):
         """상대 베이스와 로더 주차점의 거리. 위치를 모르면 None.
 
-        중심이 TEST_LOADER 다 — stations.yaml PKG-01 place_pose 와 같은 점이고,
-        로봇이 place 하려고 서는 자리다. WaitForPeer 가 이 거리를
+        중심은 로봇이 place 하려고 서는 자리 — TEST_LOADER(Nav2 정차점,
+        stations.yaml PKG-01 place_pose) 에서 LOADER_CREEP_M 만큼 앞이다. WaitForPeer 가 이 거리를
         loader_clear_radius_m 과 비교한다.
         """
         if self._peer_xy is None:
             return None
-        return math.hypot(self._peer_xy[0] - TEST_LOADER[0],
+        # 상대가 실제로 서서 놓는 자리는 Nav2 정차점에서 LOADER_CREEP_M 앞이다.
+        return math.hypot(self._peer_xy[0] - (TEST_LOADER[0] + LOADER_CREEP_M),
                           self._peer_xy[1] - TEST_LOADER[1])
 
     def peer_frozen(self):
