@@ -190,15 +190,38 @@ def Xform "World"
         }
 
         def Cube "Floor" (
-            prepend apiSchemas = ["PhysicsCollisionAPI"]
+            prepend apiSchemas = ["PhysicsCollisionAPI", "MaterialBindingAPI"]
+            references = None
         )
         {
+            rel material:binding = </World/Robots/nova_carter1/Looks/Alabaster> (
+                bindMaterialAs = "weakerThanDescendants"
+            )
             float3[] primvars:displayColor = [(0.72, 0.74, 0.76)]
             uniform token primvars:displayColor:interpolation = "constant"
             double size = 1
+            quatf xformOp:orient = (1, 0, 0, 0)
             double3 xformOp:scale = (20, 20, 0.2)
             double3 xformOp:translate = (0, 0, -0.1)
-            uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:scale"]
+            uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
+
+            def Mesh "GrayGridVisual" (
+                prepend apiSchemas = ["MaterialBindingAPI"]
+            )
+            {
+                uniform bool doubleSided = 1
+                int[] faceVertexCounts = [4]
+                int[] faceVertexIndices = [0, 1, 2, 3]
+                rel material:binding = </World/Looks/FactoryFloorGrayGrid> (
+                    bindMaterialAs = "strongerThanDescendants"
+                )
+                point3f[] points = [(-0.5, -0.5, 0.505), (0.5, -0.5, 0.505), (0.5, 0.5, 0.505), (-0.5, 0.5, 0.505)]
+                texCoord2f[] primvars:st = [(-10, -10), (10, -10), (10, 10), (-10, 10)] (
+                    interpolation = "vertex"
+                )
+                int[] primvars:st:indices = None
+                uniform token subdivisionScheme = "none"
+            }
         }
 
         def Xform "PickupZone"
@@ -2458,6 +2481,15 @@ def Xform "World"
                 int node:typeVersion = 2
                 custom uint64 outputs:context
             }
+        }
+    }
+
+    def "Looks"
+    {
+        def Material "FactoryFloorGrayGrid" (
+            references = @../assets/environment/factory_floor_gray_grid/material.usda@
+        )
+        {
         }
     }
 }
