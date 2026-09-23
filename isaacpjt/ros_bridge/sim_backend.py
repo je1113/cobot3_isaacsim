@@ -823,7 +823,58 @@ class Backend:
         self.K = np.array(ci["k"], dtype=float).reshape(3, 3)
         self.dist = np.array(ci["d"], dtype=float)
 
+        # ── Stop → Play 복구 ────────────────────────────────────────────
+        # ★ Isaac Sim 뷰포트에서 Stop 을 누르면 SimulationManager 가 physics
+        #   view 를 invalidate 하고 None 으로 버린다. Play 를 다시 누르면 새
+        #   view 를 만들지만(SimulationManager._warm_start), scene 에 넣은
+        #   객체(팔 articulation · 매거진 rigid)는 **옛 view 의 핸들을 그대로
+        #   들고 있다.** 그래서 is_playing() 은 True 인데 get_joint_positions()
+        #   가 None 을 돌려주고, _set_joint_deg 의 q[idx] = ... 에서
+        #   "TypeError: 'NoneType' object does not support item assignment" 로
+        #   죽는다(실측 — observe_pose 가 이렇게 죽어 SCAN 자세를 못 잡았다).
+        #   _require_playing 은 Stop 상태만 막고 이 경우는 못 막았다.
+        #
+        #   STOP 이벤트를 받아 표시해 두고, 다시 Play 인 첫 순간에 scene 을 새
+        #   view 로 다시 묶는다(_ensure_live). world.reset() 을 쓰지 않는 이유는
+        #   그게 stop()/play() 를 한 번 더 돌리고 모든 객체를 기본 상태로
+        #   되돌리기 때문이다 — 여기서 필요한 것은 핸들 교체뿐이다.
+        import omni.timeline
+        self._needs_reinit = False
+        self._stop_sub = (omni.timeline.get_timeline_interface()
+                          .get_timeline_event_stream()
+                          .create_subscription_to_pop_by_type(
+                              int(omni.timeline.TimelineEventType.STOP),
+                              self._on_timeline_stop))
+
         print(f"   scene ready — robots: {list(self.rigs.keys())}")
+
+    def _on_timeline_stop(self, _event):
+        if not self._needs_reinit:
+            print("   ■ 시뮬레이션 Stop — 다시 Play 하면 로봇 핸들을 새로 잡는다")
+        self._needs_reinit = True
+
+    def _ensure_live(self):
+        """Stop 뒤 다시 Play 됐으면 scene 객체를 새 physics view 에 다시 묶는다.
+
+        메인 루프가 매 프레임 부르고, 관절을 만지는 경로(_require_playing)도
+        부른다. Play 가 아니면 아무것도 안 한다 — Stop 상태의 에러 안내는
+        _require_playing 몫이다.
+        """
+        if not self._needs_reinit or not self.world.is_playing():
+            return
+        # 새 view 로 scene 전체(팔 articulation · 매거진 rigid)를 다시 초기화한다.
+        self.world.initialize_physics()
+        for rig in self.rigs.values():
+            # 흡착 그리퍼 GripperView 도 physics 핸들을 들고 있다.
+            rig.gripper.reinit()
+            # 흡착 · 진행 중이던 pick/place 목표는 Stop 이 USD 를 되돌리면서
+            # 의미를 잃는다. 옛 목표로 FINISH 가 내려가지 않게 비운다.
+            rig.flange_world = None
+            rig.slot_world = None
+        self._needs_reinit = False
+        ok = all(r.robot.get_joint_positions() is not None for r in self.rigs.values())
+        print(f"   ▶ 시뮬레이션 다시 Play — 로봇 핸들 재초기화 "
+              f"{'완료' if ok else '실패(관절값을 여전히 못 읽는다)'}")
 
     def _set_arm_stiffness(self, robot_id, stiffness):
         """observe_pose() 는 QR 이 깨지지 않게 DRIVE_STIFFNESS(1e5)로,
@@ -857,6 +908,8 @@ class Backend:
                 "시뮬레이션이 Play 상태가 아니다 — Isaac Sim 뷰포트에서 Play 를 "
                 "누른 뒤 다시 시도해라 (Stop 상태에서는 로봇 articulation 을 "
                 "읽거나 움직일 수 없다)")
+        # Stop → Play 직후면 여기서 핸들을 새로 잡는다(Backend.__init__ 의 ★).
+        self._ensure_live()
 
     def _set_joint_deg(self, robot_id, joints_deg):
         self._require_playing()
@@ -2076,6 +2129,8 @@ def main():
 
     while simulation_app.is_running() and not _shutdown_requested:
         backend.world.step(render=not HEADLESS)
+        # Stop → Play 를 RPC 가 오기 전에 복구해 둔다(Backend._ensure_live).
+        backend._ensure_live()
         try:
             while True:
                 call = _inbox.get_nowait()
