@@ -223,6 +223,10 @@ docs/08_ROS2_NODE_Graph.html 의 확정안(01-03)이 기준이다. 노드 5개 �
   tick 마다 RUNNING 만 돌려준다. 어느 단계에서 왜 멈췄는지는 에러 로그와
   /orchestrator/state 토픽 두 곳에서 확인한다.
 
+  얼어붙기 전에 두 단계는 스스로 다시 해 본다. SCAN 은 found=false 를
+  SCAN_RETRIES 번, PICK 은 success=false 를 PICK_RETRIES 번 — 같은 goal 을
+  같은 자리에서 다시 보낸다(ActionLeaf retries). 그래도 안 되면 위 정책대로다.
+
   예외가 하나 있다. SCAN 의 found=false 는 멈추지 않고 patrol 로 돌아간다.
   대신 SCAN_COOLDOWN_S 동안 carrier_detected 를 받지 않는다 — 안 그러면 다음
   순찰에 같은 자리에 같은 이유로 또 서서 무한히 반복한다. 연속
@@ -602,6 +606,22 @@ SCAN_FAIL_WARN = 3
 # soft 실패로 patrol 로 돌아간다.
 SCAN_RETRIES = 2
 
+# PICK 이 실패(success=false)로 끝나면 같은 goal 을 이 횟수만큼 다시 보낸다
+# (최초 시도 포함 총 PICK_RETRIES+1 번). pick_place_server 는 매 시도를
+# OBSERVE(손목캠 플랜지 재관측)부터 다시 시작하므로, NO_FLANGE(한 프레임
+# 검출 실패) · NO_ATTACH(흡착 타이밍) · SLIP(리프트 중 이탈) 같은 일회성
+# 실패를 걸러낸다. 재시도까지 다 실패하면 기존 정책대로 Freeze 가 그 자리에서
+# 얼린다 — 재시도는 얼어붙기 전의 완충이지 실패 정책의 변경이 아니다.
+#
+# ★ CANCELED 는 재시도하지 않는다. 그건 실패가 아니라 일시정지가 거둔 것이고,
+#   재개 경로(ActionLeaf._pause_hold 의 _resend)가 따로 같은 goal 을 다시 낸다.
+# ★ TIMEOUT · GOAL_REJECTED · SERVER_UNAVAILABLE 도 재시도하지 않는다. 서버가
+#   응답을 안 한 것이라 "집기가 안 된 것" 과 다르고, 같은 goal 을 또 보내면
+#   같은 이유로 또 기다린다.
+# ★ 시도마다 PICK_TIMEOUT_S 를 새로 센다. SCAN 은 한도 하나를 재시도가 나눠
+#   쓰지만 pick 은 한 번에 수십 초라 나눠 쓰면 두 번째 시도가 굶는다.
+PICK_RETRIES = 2
+
 # carrier_detected 가 오면 주행을 그 자리에서 끊을지, 정차점까지 가고 나서
 # 처리할지.
 #   True  — 그 자리에서 끊는다. carrier_code_reader 는 디코드에 성공한 순간
@@ -938,10 +958,16 @@ class ActionLeaf(PauseGate, py_trees.behaviour.Behaviour):
     ok_fail_reasons 에 든 fail_reason 은 실패로 치지 않고 SUCCESS 로 넘긴다.
     이전 판 _patrol_step() 의 "CANCELED = 의도된 중단이라 조용히 넘어간다" 가
     이것이다.
+
+    retries 는 result 가 success=false 로 돌아왔을 때 **같은 goal** 을 다시
+    보내는 횟수다(기본 0 = 지금까지와 같다). make_goal() 을 다시 부르지 않는
+    이유는 _pause_hold 의 재전송과 같다 — 순찰 잎은 make_goal 이 정차점을
+    전진시킨다. 어떤 실패를 재시도하고 어떤 것은 안 하는지는 PICK_RETRIES 주석.
     """
 
     def __init__(self, name, node, client, server_name, result_cls, make_goal,
-                 timeout_s, feedback_cb=None, ok_fail_reasons=(), moves_base=False):
+                 timeout_s, feedback_cb=None, ok_fail_reasons=(), moves_base=False,
+                 retries=0):
         super().__init__(name)
         self.node = node
         self.client = client
@@ -952,17 +978,20 @@ class ActionLeaf(PauseGate, py_trees.behaviour.Behaviour):
         self.feedback_cb = feedback_cb
         self.ok_fail_reasons = tuple(ok_fail_reasons)
         self.moves_base = moves_base
+        self.retries = int(retries)
         self.soft = False
         self.goal_handle = None
         self.send_future = None
         self.result_future = None
         self._resend = False
+        self.attempt = 0
 
     def initialise(self):
         self.goal_handle = None
         self.send_future = None
         self.result_future = None
         self._resend = False
+        self.attempt = 0
         self._pause_reset()
         self.goal = self.make_goal()
         now = time.monotonic()
@@ -1058,6 +1087,23 @@ class ActionLeaf(PauseGate, py_trees.behaviour.Behaviour):
         if result.fail_reason in self.ok_fail_reasons:
             self.feedback_message = f"{reason} — 실패로 치지 않는다"
             return Status.SUCCESS
+        canceled = result.fail_reason == getattr(self.result_cls, "CANCELED", None)
+        if self.attempt < self.retries and not canceled:
+            # 같은 goal 을 다시 보낸다. future 들을 비우면 다음 tick 의 1)~2) 가
+            # 새 goal 을 낸다. 한도는 시도마다 새로 센다(PICK_RETRIES 주석).
+            self.attempt += 1
+            self.node.get_logger().warning(
+                f"{self.name} 실패({reason}) — 재시도 {self.attempt}/{self.retries}")
+            self.feedback_message = f"{reason} — 재시도 {self.attempt}/{self.retries}"
+            self.goal_handle = None
+            self.send_future = None
+            self.result_future = None
+            now = time.monotonic()
+            self.server_deadline = now + SERVER_WAIT_S
+            self.deadline = now + self.timeout_s
+            return Status.RUNNING
+        if self.attempt:
+            reason = f"{reason} x{self.attempt + 1}"
         self.feedback_message = reason
         return Status.FAILURE
 
@@ -1620,7 +1666,7 @@ def build_tree(node):
     pick = Freeze("PICK", ActionLeaf(
         PICK, node, node.pick, "manipulation/pick_carrier", PickCarrier.Result,
         make_goal=lambda: PickCarrier.Goal(variant=bb.variant, qr_pose=bb.qr_pose),
-        timeout_s=PICK_TIMEOUT_S,
+        timeout_s=PICK_TIMEOUT_S, retries=PICK_RETRIES,
         feedback_cb=node.log_phase("PICK")), node, PICK)
 
     # ── 배송 — PICK 직후 상대를 한 번 보고 두 경로 중 하나를 고른다 ──────
@@ -1732,7 +1778,7 @@ def build_tree(node):
         stack_pick = Freeze("STACK_PICK", ActionLeaf(
             STACK_PICK, node, node.pick, "manipulation/pick_carrier", PickCarrier.Result,
             make_goal=lambda: PickCarrier.Goal(variant=bb.variant, qr_pose=bb.qr_pose),
-            timeout_s=PICK_TIMEOUT_S,
+            timeout_s=PICK_TIMEOUT_S, retries=PICK_RETRIES,
             feedback_cb=node.log_phase("STACK_PICK")), node, STACK_PICK)
 
         stack_deliver = Freeze("STACK_DELIVER", ActionLeaf(
