@@ -6,7 +6,7 @@
 씬 파일을 눈으로 보고 옮겨 적다 틀리면 로봇이 선반을 사이에 두고 반대편을
 순찰한다(실제로 그랬다). 그래서 **씬에서 직접 뽑는다**.
 
-    python3 isaacpjt/tools/derive_patrol_from_scene.py                    # 시험 씬
+    python3 isaacpjt/tools/derive_patrol_from_scene.py                    # 기본 씬
     python3 isaacpjt/tools/derive_patrol_from_scene.py <다른.usda>        # 임의 씬
     python3 isaacpjt/tools/derive_patrol_from_scene.py --yaml             # yaml 조각
     python3 isaacpjt/tools/derive_patrol_from_scene.py --check            # shelves.yaml 대조
@@ -21,7 +21,7 @@ from pathlib import Path
 
 NUM = r'-?\d+\.?\d*(?:[eE][-+]?\d+)?'
 WS_ROOT = Path(__file__).resolve().parents[2]
-DEFAULT_SCENE = WS_ROOT / "isaacpjt/worlds/simple_factory_layout_test.usda"
+DEFAULT_SCENE = WS_ROOT / "isaacpjt/worlds/simple_factory_layout.usda"
 
 # 매거진 라벨 중심에서 차체가 떨어져 서는 거리. shelves.yaml 의 SHELF-A 가
 # 실측으로 고정한 값이고(0.40), 두 선반이 같은 기하라 그대로 쓴다.
@@ -124,12 +124,21 @@ def deck_y_range(prims, shelf):
 
 
 def magazines_of(prims, group):
-    out = []
+    """그 선반의 매거진 프림. (이름, 월드좌표, 스폰슬롯여부) 목록.
+
+    ★ 기본 씬(simple_factory_layout.usda)의 매거진은 active=false 인 **스폰
+      슬롯**이다 — magazine_spawner.py 가 런타임에 켠다. 정적으로는 "없는"
+      프림이지만 런타임 매거진이 정확히 그 자리에 생기므로, 순찰선을 정하는
+      근거로는 살아있는 프림과 똑같이 써야 한다. 이걸 빼먹으면 기본 씬에서
+      "매거진을 못 찾았다" 가 되어 아무 답도 못 낸다.
+    """
+    live, slots = [], []
     pre = f"World/Magazines/{group}/top_magazines/"
     for k, v in prims.items():
-        if k.startswith(pre) and not v["dead"] and v["type"] == "":
-            out.append((k.rsplit("/", 1)[1], pos(v)))
-    return sorted(out)
+        if k.startswith(pre) and v["type"] == "":
+            (live if not v["dead"] else slots).append(
+                (k.rsplit("/", 1)[1], pos(v), v["dead"]))
+    return sorted(live) if live else sorted(slots)
 
 
 SHELVES = [("SHELF-A", "robot1", "Shelf_01", "shelf_1_magaines"),
@@ -166,10 +175,16 @@ def check_against_shelves(snippets):
     if bad:
         print("\n  => 파일이 씬과 다르다. shelves.yaml 을 고쳐라 (--yaml 로 값을 뽑을 수 있다).")
     else:
-        print("\n  => 파일은 씬과 일치한다. 그래도 로봇이 옛 자리로 가면 파일이 아니라")
-        print("     전달 경로다. 다음을 확인해라:")
-        print("       ros2 param get /robot2/task_manager patrol_route")
-        print("       (task_manager 는 기동 시 한 번만 읽는다 — 노드를 다시 띄워라)")
+        print("\n  => 파일은 씬과 일치한다. 그래도 로봇이 엉뚱한 데로 가면 파일이")
+        print("     아니라 전달 경로다. 순서대로 확인해라:")
+        print("       1) ros2 param get /robot2/task_manager shelves_yaml")
+        print("          -> 노드가 읽는 파일 경로. 클론이 여럿이면 여기서 갈린다.")
+        print("       2) 기동 로그의 '순찰 경로 [...]' 줄. 출처가 거기 찍힌다.")
+        print("          [shelves.yaml SHELF-B] 가 아니면 조회가 실패한 것이고,")
+        print("          실패 이유는 바로 위 경고에 있다.")
+        print("       3) task_manager 는 __init__ 에서 한 번만 읽는다 — 노드 재시작.")
+        print("     ※ 'param get patrol_route' 는 쓸모없다. 그건 선언된 기본값일")
+        print("        뿐이고 실제로 쓰는 값(self.patrol_route)이 아니다.")
     return 1 if bad else 0
 
 
@@ -199,7 +214,10 @@ def main(argv):
         theta = 0.0 if on_south else math.pi
         print(f"\n{shelf_id}  ({robot})")
         print(f"  선반판 y[{south:8.4f}, {north:8.4f}]   (긴 변 2개: 남 {south:.4f} · 북 {north:.4f})")
-        for name, p in mags:
+        if mags and mags[0][2]:
+            print(f"  (매거진 {len(mags)}개가 전부 active=false 스폰 슬롯이다 — "
+                  f"magazine_spawner.py 가 런타임에 켠다. 자리는 이 값이 맞다)")
+        for name, p, _slot in mags:
             print(f"  매거진 {name:22s} ({p[0]:8.4f}, {p[1]:8.4f}, {p[2]:6.3f})")
         print(f"  -> 매거진이 붙은 긴 변 : {'남쪽' if on_south else '북쪽'}"
               f" (남 면까지 {abs(my-south):.3f} m, 북 면까지 {abs(my-north):.3f} m)")
