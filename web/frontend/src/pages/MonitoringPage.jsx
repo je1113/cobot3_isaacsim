@@ -633,6 +633,7 @@ function MonitoringPage({
     }
   }, [
     lastMessage,
+    robots,
     setRobotStates,
   ])
 
@@ -952,28 +953,6 @@ function MonitoringPage({
               )
             },
           )}
-
-          <article className="monitor-camera-card-light">
-            <div className="monitor-camera-header">
-              <div>
-                <h3>
-                  AMR Camera
-                </h3>
-
-                <span>
-                  ROS2 Image 연동 영역
-                </span>
-              </div>
-
-              <span className="monitor-camera-status">
-                연동 전
-              </span>
-            </div>
-
-            <div className="monitor-camera-placeholder-light">
-              Camera
-            </div>
-          </article>
         </aside>
       </div>
 

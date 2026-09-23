@@ -11,12 +11,8 @@ import {
  * 새 층 하나.
  *
  * ★ `directions` 와 `joints` 는 서버가 준다(GET /api/meta).
- *   방향 목록은 **홀수 층부터** 순서대로다 — 훑는 방향이 층마다 번갈아 서고,
- *   1층이 FORWARD 다. 서버의 shapes.DIRECTIONS 와 같은 순서여야 한다.
- *
- * ★ 층을 지운 뒤에는 방향을 다시 계산하지 않는다. 그래서 레벨이 띄엄띄엄해질
- *   수 있고, 저장된 방향이 패리티와 안 맞을 수 있다 — 그건 정상이다.
- *   (서버도 저장된 값이 있으면 그대로 믿는다)
+ *   방향 목록은 **홀수 층부터** 순서대로다 — 1층이 FORWARD 다.
+ *   서버의 shapes.DIRECTIONS 와 같은 순서여야 한다.
  */
 function createScanPass(
   level,
@@ -37,7 +33,53 @@ function createScanPass(
   }
 }
 
-function createShelf(shelfId) {
+// 티칭 자세는 1층 하나로 고정한다. 층 추가·삭제는 화면에서 뺐다.
+const FIXED_LEVEL = 1
+
+/**
+ * 선반의 스캔 패스를 1층 하나로 맞춘다.
+ *
+ * ★ 1층이 없으면 새로 만든다. '현재 자세로 저장'(POST .../capture)은 그 층이
+ *   파일에 있어야 동작하므로(없으면 404), 1층은 늘 있어야 한다.
+ * ★ 예전에 저장된 2층 이상은 다음 편집 때 떨어져 나가고, 저장하면 파일에서도 빠진다.
+ */
+function withFixedLevel(
+  shelf,
+  directions,
+  joints,
+) {
+  const existing =
+    shelf.scan_passes.find(
+      (pass) =>
+        Number(pass.level) ===
+        FIXED_LEVEL,
+    )
+
+  if (
+    existing &&
+    shelf.scan_passes.length === 1
+  ) {
+    return shelf
+  }
+
+  return {
+    ...shelf,
+    scan_passes: [
+      existing ??
+        createScanPass(
+          FIXED_LEVEL,
+          directions,
+          joints,
+        ),
+    ],
+  }
+}
+
+function createShelf(
+  shelfId,
+  directions,
+  joints,
+) {
   return {
     shelf_id: shelfId,
     waypoint_start: {
@@ -51,7 +93,13 @@ function createShelf(shelfId) {
       theta: '',
     },
     standoff_distance: '',
-    scan_passes: [],
+    scan_passes: [
+      createScanPass(
+        FIXED_LEVEL,
+        directions,
+        joints,
+      ),
+    ],
     first_taught_at: null,
   }
 }
@@ -137,7 +185,13 @@ function ShelfSettingsPage({
       prev.map((shelf) =>
         shelf.shelf_id ===
         activeShelfId
-          ? updater(shelf)
+          ? updater(
+              withFixedLevel(
+                shelf,
+                directions,
+                joints,
+              ),
+            )
           : shelf,
       ),
     )
@@ -226,50 +280,6 @@ function ShelfSettingsPage({
     )
   }
 
-  function addLevel() {
-    updateSelectedShelf(
-      (shelf) => {
-        const levels =
-          shelf.scan_passes.map(
-            (pass) => pass.level,
-          )
-
-        const nextLevel =
-          levels.length === 0
-            ? 1
-            : Math.max(
-                ...levels,
-              ) + 1
-
-        return {
-          ...shelf,
-          scan_passes: [
-            ...shelf.scan_passes,
-            createScanPass(
-              nextLevel,
-              directions,
-              joints,
-            ),
-          ],
-        }
-      },
-    )
-  }
-
-  function removeLevel(passId) {
-    updateSelectedShelf(
-      (shelf) => ({
-        ...shelf,
-        scan_passes:
-          shelf.scan_passes.filter(
-            (pass) =>
-              pass.pass_id !==
-              passId,
-          ),
-      }),
-    )
-  }
-
   function addShelf() {
     const shelfId =
       window.prompt(
@@ -305,6 +315,8 @@ function ShelfSettingsPage({
       ...prev,
       createShelf(
         trimmedShelfId,
+        directions,
+        joints,
       ),
     ])
 
@@ -402,9 +414,17 @@ function ShelfSettingsPage({
     return null
   }
 
+  // 화면은 1층 하나만 보여준다 — 파일에 다른 층이 남아 있어도 마찬가지다.
+  const viewShelf =
+    withFixedLevel(
+      selectedShelf,
+      directions,
+      joints,
+    )
+
   const teachingComplete =
     isTeachingComplete(
-      selectedShelf,
+      viewShelf,
     )
 
   return (
@@ -663,17 +683,17 @@ function ShelfSettingsPage({
           <div className="scan-pass-section-header">
             <div>
               <h3>
-                스캔 패스 · 층별 티칭 자세
+                스캔 패스 · 1층 티칭 자세
               </h3>
 
               <p>
-                주행 방향은 층 순서에 따라 자동 교대됩니다.
+                팔 티칭 자세는 1층 하나로 고정됩니다.
               </p>
             </div>
           </div>
 
           <div className="scan-pass-list">
-            {selectedShelf
+            {viewShelf
               .scan_passes
               .map((pass) => {
                 const poseComplete =
@@ -771,31 +791,11 @@ function ShelfSettingsPage({
                       >
                         현재 자세로 저장
                       </button>
-
-                      <button
-                        type="button"
-                        className="delete-button"
-                        onClick={() =>
-                          removeLevel(
-                            pass.pass_id,
-                          )
-                        }
-                      >
-                        삭제
-                      </button>
                     </div>
                   </article>
                 )
               })}
           </div>
-
-          <button
-            type="button"
-            className="shelf-add-level-button"
-            onClick={addLevel}
-          >
-            + 층 추가
-          </button>
 
           <div className="shelf-footer-actions">
             <button

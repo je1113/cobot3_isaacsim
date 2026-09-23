@@ -2301,21 +2301,6 @@
   white-space: nowrap;
 }
 
-.shelf-add-level-button {
-  width: 100%;
-  margin-top: 10px;
-  padding: 12px;
-  border: 1px dashed #cfc9c0;
-  border-radius: 9px;
-  background: #ffffff;
-  color: #77736d;
-  cursor: pointer;
-}
-
-.shelf-add-level-button:hover {
-  background: #faf9f7;
-}
-
 .shelf-footer-actions {
   display: flex;
   justify-content: flex-end;
@@ -5495,7 +5480,6 @@
 
 .monitor-map-card,
 .monitor-robot-control-card,
-.monitor-camera-card-light,
 .monitor-event-card {
   border: 1px solid #ded8d0;
   border-radius: 12px;
@@ -5787,47 +5771,11 @@
   cursor: not-allowed;
 }
 
-.monitor-camera-card-light {
-  overflow: hidden;
-}
 
-.monitor-camera-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 13px 14px;
-  border-bottom: 1px solid #ece7e0;
-}
 
-.monitor-camera-header h3 {
-  margin: 0;
-  font-size: 12px;
-}
 
-.monitor-camera-header span {
-  color: #9b948b;
-  font-size: 9px;
-}
 
-.monitor-camera-status {
-  padding: 4px 7px;
-  border-radius: 999px;
-  background: #f1eee9;
-  color: #888078 !important;
-}
 
-.monitor-camera-placeholder-light {
-  display: grid;
-  min-height: 160px;
-  margin: 14px;
-  place-items: center;
-  border: 1px dashed #d5cec5;
-  border-radius: 9px;
-  background: #f8f7f4;
-  color: #aaa298;
-  font-size: 11px;
-}
 
 .monitor-event-card {
   margin-top: 14px;
@@ -5882,10 +5830,6 @@
     grid-template-columns:
       1fr 1fr;
   }
-
-  .monitor-camera-card-light {
-    grid-column: 1 / -1;
-  }
 }
 
 @media (max-width: 700px) {
@@ -5902,9 +5846,5 @@
 
   .monitor-robot-column {
     grid-template-columns: 1fr;
-  }
-
-  .monitor-camera-card-light {
-    grid-column: auto;
   }
 }
