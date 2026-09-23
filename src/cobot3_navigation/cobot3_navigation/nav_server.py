@@ -56,6 +56,11 @@ NAV2_SERVER_TIMEOUT_S = 10.0
 NAV2_CANCEL_WAIT_S = 3.0
 
 
+# ONLY FOR: from start to patrol
+# 이 거리안에 들어오실 최종 회전 정렬을 대기하ㅣㅈ 않고 나브2 취소 한뒤 성공 리턴
+
+POSITION_ONLY_TOLERANCE_M = 0.15
+
 # ============================================================
 # Direct patrol
 # ============================================================
@@ -263,6 +268,23 @@ class NavServer(Node):
         )
 
         # ====================================================
+        # ONLY FOR "START"
+        #
+        # 위치만 도착하면 성공. 
+        # 파이날 회전 정렬 하지 않음. 
+        # ====================================================
+
+        self._position_nav_server = ActionServer(
+            self,
+            NavigateTo,
+            "navigation/navigate_to_position",
+            execute_callback=self._execute_nav2_position_only,
+            goal_callback=self._on_goal,
+            cancel_callback=self._on_cancel,
+            callback_group=self._cb_group,
+        )
+        
+        # ====================================================
         # Patrol 전용
         #
         # /robot1/navigation/patrol_to
@@ -286,6 +308,12 @@ class NavServer(Node):
 
         self.get_logger().info(
             f"NAV2   : {ns}/navigation/navigate_to"
+        )
+
+        
+        self.get_logger().info(
+            f"START  : {ns}/navigation/navigate_to_position "
+            f"(position only, tolerance={POSITION_ONLY_TOLERANCE_M:.2f}m)"
         )
 
         self.get_logger().info(
@@ -343,6 +371,20 @@ class NavServer(Node):
     # ========================================================
 
     def _execute_nav2(self, goal_handle):
+        return self._execute_nav2_common(
+            goal_handle,
+            position_only=False,
+        )
+
+
+    def _execute_nav2_position_only(self, goal_handle):
+        return self._execute_nav2_common(
+            goal_handle,
+            position_only=True,
+        )
+
+
+    def _execute_nav2_common(self, goal_handle, position_only=False):        
         """
         일반 navigation.
 
@@ -514,36 +556,29 @@ class NavServer(Node):
             # RETURN 중 상위 트리가 취소
             # -----------------------------------------------
 
+            # ------------------------------------------------
+            # Custom action cancel
+            # ------------------------------------------------
+
             if goal_handle.is_cancel_requested:
 
                 self.get_logger().info(
                     "[NAV2] cancel requested"
                 )
 
-                cancel_future = (
-                    nav2_goal_handle.cancel_goal_async()
-                )
+                nav2_goal_handle.cancel_goal_async()
 
                 deadline = (
                     time.monotonic()
                     + NAV2_CANCEL_WAIT_S
                 )
 
-                # Nav2가 취소를 처리할 시간을 준다.
-                # outer action을 너무 빨리 CANCELED 처리하면
-                # task_manager는 정지했다고 생각하지만
-                # Nav2 controller가 잠깐 더 움직일 수 있다.
                 while (
                     rclpy.ok()
                     and time.monotonic() < deadline
+                    and not nav2_result_future.done()
                 ):
-
-                    if nav2_result_future.done():
-                        break
-
-                    time.sleep(
-                        CONTROL_PERIOD_S
-                    )
+                    time.sleep(CONTROL_PERIOD_S)
 
                 self.get_logger().info(
                     "[NAV2] navigation canceled"
@@ -553,6 +588,105 @@ class NavServer(Node):
                     goal_handle,
                     result,
                 )
+
+
+            # =================================================
+            # START 전용: position-only arrival
+            # =================================================
+
+            if (
+                position_only
+                and self._amcl_pose is not None
+            ):
+
+                x = self._amcl_pose.position.x
+                y = self._amcl_pose.position.y
+
+                distance = math.hypot(
+                    gx - x,
+                    gy - y,
+                )
+
+                if distance <= POSITION_ONLY_TOLERANCE_M:
+
+                    current_yaw = yaw_of(
+                        self._amcl_pose.orientation
+                    )
+
+                    self.get_logger().info(
+                        f"[NAV2:POSITION_ONLY] "
+                        f"position reached | "
+                        f"pose=({x:.3f},{y:.3f}) "
+                        f"goal=({gx:.3f},{gy:.3f}) "
+                        f"distance={distance:.3f} "
+                        f"yaw={math.degrees(current_yaw):.1f}deg "
+                        f"— final yaw skipped"
+                    )
+
+                    # -----------------------------------------
+                    # 중요:
+                    # 그냥 outer action을 SUCCESS 해버리면 안 됨.
+                    #
+                    # Nav2 controller가 뒤에서 계속 최종 yaw를
+                    # 맞추려고 cmd_vel을 낼 수 있기 때문.
+                    #
+                    # 먼저 내부 NavigateToPose를 취소한다.
+                    # -----------------------------------------
+
+                    nav2_goal_handle.cancel_goal_async()
+
+                    cancel_deadline = (
+                        time.monotonic()
+                        + NAV2_CANCEL_WAIT_S
+                    )
+
+                    while (
+                        rclpy.ok()
+                        and time.monotonic() < cancel_deadline
+                        and not nav2_result_future.done()
+                    ):
+                        time.sleep(CONTROL_PERIOD_S)
+
+                    # Nav2가 실제로 끝났는지 반드시 확인
+                    if not nav2_result_future.done():
+
+                        self.get_logger().error(
+                            "[NAV2:POSITION_ONLY] "
+                            "Nav2 cancel timeout — "
+                            "PATROL과 Nav2가 동시에 cmd_vel을 "
+                            "보내는 것을 막기 위해 실패 처리"
+                        )
+
+                        return self._abort_custom_goal(
+                            goal_handle,
+                            result,
+                        )
+
+                    # -----------------------------------------
+                    # Nav2 controller 완전히 종료됨.
+                    # 이제 START navigation은 성공 처리.
+                    # -----------------------------------------
+
+                    result.success = True
+                    result.fail_reason = (
+                        NavigateTo.Result.NONE
+                    )
+
+                    goal_handle.succeed()
+
+                    self.get_logger().info(
+                        f"[NAV2:POSITION_ONLY] ARRIVED "
+                        f"x={gx:.3f}, "
+                        f"y={gy:.3f} "
+                        f"— continue to PATROL"
+                    )
+
+                    return result
+
+
+            # ------------------------------------------------
+            # Log
+            # ------------------------------------------------
 
             now = time.monotonic()
 
@@ -1026,32 +1160,26 @@ class NavServer(Node):
             # 실제 goal 방향으로만 회전한다.
             # -----------------------------------------------
 
-            if abs(steer_error) > TURN_IN_PLACE_ANGLE:
+            # PATROL에서는 제자리 회전하지 않는다.
+            # 방향이 많이 틀어져 있어도 천천히 움직이며 진행 방향으로 수렴한다.
 
-                twist.linear.x = 0.0
+            speed_scale = max(
+                0.25,
+                math.cos(abs(steer_error)),
+            )
 
-            else:
-
-                speed_scale = max(
-                    0.35,
-                    1.0
-                    - (
-                        abs(steer_error)
-                        / TURN_IN_PLACE_ANGLE
-                    ),
-                )
-
-                twist.linear.x = (
-                    direction
-                    * speed
-                    * speed_scale
-                )
+            twist.linear.x = (
+                direction
+                * speed
+                * speed_scale
+            )
 
             twist.angular.z = clamp(
                 STEER_KP * steer_error,
                 -MAX_ANGULAR_SPEED,
                 MAX_ANGULAR_SPEED,
             )
+
 
             self._cmd_vel_pub.publish(
                 twist
