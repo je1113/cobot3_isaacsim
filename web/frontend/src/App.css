@@ -5579,6 +5579,12 @@
   stroke: #6badd1;
 }
 
+/* 포장 출력 벨트(PKG-OUT) — shelves.yaml 에 있지만 씬에서는 컨베이어다 */
+.monitor-topview-station.output .conveyor-frame {
+  fill: #e3f1dc;
+  stroke: #7fb069;
+}
+
 .monitor-topview-station .conveyor-belt-line {
   stroke: #fff;
   stroke-width: 0.06;

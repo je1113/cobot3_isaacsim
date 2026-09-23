@@ -76,6 +76,66 @@ const STATION_WIDTH_M = 1.35
 // 롤러 표시선 — 길이 방향으로 고르게 나눈 7개.
 const STATION_ROLLER_OFFSETS = [-1.8, -1.2, -0.6, 0, 0.6, 1.2, 1.8]
 
+// shelves.yaml 에 선반으로 들어 있지만 씬에서는 컨베이어인 것.
+// PKG-OUT 은 포장 출력(PackagingUnloaderZone) 벨트 앞의 스택 관측 자리다 —
+// shelves.yaml 에 있는 이유는 carrier_code_reader 가 그 목록으로 관측 자세를
+// 고르기 때문이다(그 파일의 PKG-OUT 주석). 벨트는 PackagingZone · TestingZone
+// 과 크기가 같으므로 스테이션과 같은 컨베이어 아이콘으로 그린다.
+const CONVEYOR_SHELF_IDS = new Set(['PKG-OUT'])
+
+/**
+ * 컨베이어 아이콘 하나. 스테이션(PKG-01 · TEST-01)과 PKG-OUT 이 같이 쓴다 —
+ * 세 벨트가 씬에서 같은 크기라 화면에서도 한 모양이어야 한다.
+ *
+ * ★ 벨트는 월드 x 축을 따라 흐른다. 화면은 x/y 를 맞바꿔 그리므로(toSvg)
+ *   긴 변이 세로로 선다.
+ */
+function ConveyorIcon({ p, label, variant }) {
+  return (
+    <g
+      className={`monitor-topview-station ${variant}`}
+    >
+      {/* 컨베이어 프레임 — 실제 크기(4.4 x 1.35 m) */}
+      <rect
+        className="conveyor-frame"
+        x={p.x - STATION_WIDTH_M / 2}
+        y={p.y - STATION_LENGTH_M / 2}
+        width={STATION_WIDTH_M}
+        height={STATION_LENGTH_M}
+        rx={0.1}
+      />
+
+      {/* 벨트 중심선 — 흐름 방향(세로) */}
+      <line
+        className="conveyor-belt-line"
+        x1={p.x}
+        y1={p.y - STATION_LENGTH_M / 2 + 0.15}
+        x2={p.x}
+        y2={p.y + STATION_LENGTH_M / 2 - 0.15}
+      />
+
+      {/* 롤러 표시 — 흐름에 직각(가로) */}
+      {STATION_ROLLER_OFFSETS.map((dy) => (
+        <line
+          key={dy}
+          className="conveyor-roller"
+          x1={p.x - STATION_WIDTH_M / 2 + 0.1}
+          y1={p.y + dy}
+          x2={p.x + STATION_WIDTH_M / 2 - 0.1}
+          y2={p.y + dy}
+        />
+      ))}
+
+      <text
+        x={p.x}
+        y={p.y + STATION_LENGTH_M / 2 + 0.32}
+      >
+        {label}
+      </text>
+    </g>
+  )
+}
+
 /**
  * Top View — 실제 지도 이미지 대신 선반·스테이션·로봇 위치로 그리는
  * 개략도. 격자 점유 지도(simple_factory_layout.png)는 흑백회색 3색뿐인
@@ -152,36 +212,53 @@ function FactoryTopView({
 
         const p = toSvg(center)
 
+        if (
+          CONVEYOR_SHELF_IDS.has(
+            shelf.shelf_id,
+          )
+        ) {
+          return (
+            <ConveyorIcon
+              key={shelf.shelf_id}
+              p={p}
+              label={shelf.shelf_id}
+              variant="output"
+            />
+          )
+        }
+
         return (
           <g
             key={shelf.shelf_id}
             className="monitor-topview-shelf"
           >
-            {/* 선반 프레임 — 실제 크기(2.5 x 1.0 m) */}
+            {/* 선반 프레임 — 실제 크기(2.5 x 1.0 m).
+                ★ 선반의 긴 변은 월드 x 축을 따른다. 화면은 x/y 를 맞바꿔
+                  그리므로(toSvg) 긴 변이 세로로 선다. */}
             <rect
               className="shelf-frame"
-              x={p.x - SHELF_WIDTH_M / 2}
-              y={p.y - SHELF_DEPTH_M / 2}
-              width={SHELF_WIDTH_M}
-              height={SHELF_DEPTH_M}
+              x={p.x - SHELF_DEPTH_M / 2}
+              y={p.y - SHELF_WIDTH_M / 2}
+              width={SHELF_DEPTH_M}
+              height={SHELF_WIDTH_M}
               rx={0.05}
             />
 
-            {/* 매거진 슬롯 구분선 */}
-            {SHELF_SLOT_OFFSETS.map((dx) => (
+            {/* 매거진 슬롯 구분선 — 긴 변(세로)을 나누므로 가로선이다 */}
+            {SHELF_SLOT_OFFSETS.map((dy) => (
               <line
-                key={dx}
+                key={dy}
                 className="shelf-slot"
-                x1={p.x + dx}
-                y1={p.y - SHELF_DEPTH_M / 2 + 0.08}
-                x2={p.x + dx}
-                y2={p.y + SHELF_DEPTH_M / 2 - 0.08}
+                x1={p.x - SHELF_DEPTH_M / 2 + 0.08}
+                y1={p.y + dy}
+                x2={p.x + SHELF_DEPTH_M / 2 - 0.08}
+                y2={p.y + dy}
               />
             ))}
 
             <text
               x={p.x}
-              y={p.y + SHELF_DEPTH_M / 2 + 0.32}
+              y={p.y + SHELF_WIDTH_M / 2 + 0.32}
             >
               {shelf.shelf_id}
             </text>
@@ -201,59 +278,21 @@ function FactoryTopView({
         const p = toSvg(point)
 
         return (
-          <g
+          <ConveyorIcon
             key={
               station.station_id
             }
-            className={
-              `monitor-topview-station ${
-                station.station_type ===
-                'PACKAGING'
-                  ? 'packaging'
-                  : 'test'
-              }`
+            p={p}
+            label={
+              station.station_id
             }
-          >
-            {/* 컨베이어 프레임 — 실제 크기(4.4 x 1.35 m) */}
-            <rect
-              className="conveyor-frame"
-              x={p.x - STATION_LENGTH_M / 2}
-              y={p.y - STATION_WIDTH_M / 2}
-              width={STATION_LENGTH_M}
-              height={STATION_WIDTH_M}
-              rx={0.1}
-            />
-
-            {/* 벨트 중심선 */}
-            <line
-              className="conveyor-belt-line"
-              x1={p.x - STATION_LENGTH_M / 2 + 0.15}
-              y1={p.y}
-              x2={p.x + STATION_LENGTH_M / 2 - 0.15}
-              y2={p.y}
-            />
-
-            {/* 롤러 표시 */}
-            {STATION_ROLLER_OFFSETS.map((dx) => (
-              <line
-                key={dx}
-                className="conveyor-roller"
-                x1={p.x + dx}
-                y1={p.y - STATION_WIDTH_M / 2 + 0.1}
-                x2={p.x + dx}
-                y2={p.y + STATION_WIDTH_M / 2 - 0.1}
-              />
-            ))}
-
-            <text
-              x={p.x}
-              y={p.y + STATION_WIDTH_M / 2 + 0.32}
-            >
-              {
-                station.station_id
-              }
-            </text>
-          </g>
+            variant={
+              station.station_type ===
+              'PACKAGING'
+                ? 'packaging'
+                : 'test'
+            }
+          />
         )
       })}
 
