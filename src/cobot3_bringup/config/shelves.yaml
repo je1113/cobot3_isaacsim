@@ -242,16 +242,8 @@ shelves:
     #
     #   STACK_NAV 가 이 좌표와 방향으로 Nav2 goal 을 낸다
     #   (task_manager._resolve_stack_pose -> _to_pose).
-    # ★ 2026-09-23: x 3.46 -> 3.76 (+0.30). 이 관측 자세의 카메라는 월드 +x 를
-    #   수평으로 본다(tool0 z 축 (1.0, -0.018, 0.001), 카메라 (3.409, 1.323,
-    #   0.578)). 스택 QR 이 멀어서 인식이 안 됐다 — 사용자 지시로 30 cm 붙인다.
-    #   ☞ 점유맵에서는 이 자리가 장애물(x ≥ 3.7, y ≤ 1.7)과 겹친다. 사용자가
-    #     맵을 고치기로 했다(2026-09-23) — 맵을 고치기 전에는 Nav2 가 이 goal
-    #     을 거부하거나 ABORT 할 수 있다.
-    #   ☞ taught_poses.yaml 의 base_link_world(3.458, 1.704)는 티칭 당시 기록이라
-    #     그대로 둔다. 팔 관절값은 안 바뀐다 — 베이스만 앞으로 간다.
-    waypoint_start: {x: 3.76, y: 1.70, theta: 0.042525}
-    waypoint_end: {x: 3.76, y: 1.70, theta: 0.042525}
+    waypoint_start: {x: 3.46, y: 1.70, theta: 0.042525}
+    waypoint_end: {x: 3.46, y: 1.70, theta: 0.042525}
     standoff_distance: 0.35
     scan_passes:
       - pass_id: 1
