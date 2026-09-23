@@ -616,7 +616,11 @@ MISSION_STAGES = (HOLD, SCAN, PICK, HOLD_BACK, APPROACH, WAIT, PUSH, NAV,
 # GUI 모드에서 몇 초 걸린다. SCAN 과 같은 여유를 준다.
 OBSERVE_POSE_TIMEOUT_S = 40.0
 SCAN_TIMEOUT_S = 40.0
-NAV_TIMEOUT_S = 300.0
+# ★ 2026-09-23: 300 -> 600 (사용자 지시). robot2 가 남쪽 선반에서 로더까지
+#   가다가 거의 다 와서 NAV 가 실패로 얼었다. Nav2 주행(navigate_to)에는
+#   nav_server 쪽 한도가 없어서 이 값이 유일한 한도다. 순찰 직진 주행은
+#   nav_server DRIVE_TIMEOUT_S(300 s)가 따로 있다.
+NAV_TIMEOUT_S = 600.0
 # ★ 180 인 이유: pick 서버가 성공 전에 이송 자세(carry_joints_deg)로 옮기고
 #   carry_wait_s(15 s) 서 있다. 그만큼 늘었다 — 120 이면 느린 GUI 시뮬에서
 #   다 집어 놓고 대기 중에 TIMEOUT 으로 얼 수 있다.
