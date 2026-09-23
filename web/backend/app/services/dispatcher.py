@@ -134,6 +134,12 @@ async def on_bridge_event(ch: str, data: dict) -> None:
         # /orchestrator/state 의 "state=pick | carrier=F1-MGZB-1 | ..." 를 판 dict 다.
         stage = data.get("state")
         carrier = data.get("carrier")
+        # 값 없는 토큰(PAUSED · FAILED)은 parse_state 가 True 로 둔다. 화면은 이
+        # 문자열에서 PAUSE · FAIL 을 부분일치로 찾아 색을 고르므로 뒤에 붙인다.
+        if stage and data.get("PAUSED"):
+            stage = f"{stage} PAUSED"
+        if stage and data.get("FAILED"):
+            stage = f"{stage} FAILED"
         await hub.publish_robot_state([shapes.robot_state_out(
             robot_id or "",
             # 화면은 이 문자열을 그대로 보여주고, 대문자 부분일치로 색을 고른다

@@ -9,6 +9,10 @@ import {
 } from '../api/robots'
 import { fetchMapInfo } from '../api/map'
 import {
+  cctvStreamUrl,
+  fetchCctvStatus,
+} from '../api/cctv'
+import {
   fetchShelves,
   fetchStations,
 } from '../api/config'
@@ -75,6 +79,186 @@ const STATION_LENGTH_M = 4.4
 const STATION_WIDTH_M = 1.35
 // 롤러 표시선 — 길이 방향으로 고르게 나눈 7개.
 const STATION_ROLLER_OFFSETS = [-1.8, -1.2, -0.6, 0, 0.6, 1.2, 1.8]
+
+// shelves.yaml 에 선반으로 들어 있지만 씬에서는 컨베이어인 것.
+// PKG-OUT 은 포장 출력(PackagingUnloaderZone) 벨트 앞의 스택 관측 자리다 —
+// shelves.yaml 에 있는 이유는 carrier_code_reader 가 그 목록으로 관측 자세를
+// 고르기 때문이다(그 파일의 PKG-OUT 주석). 벨트는 PackagingZone · TestingZone
+// 과 크기가 같으므로 스테이션과 같은 컨베이어 아이콘으로 그린다.
+const CONVEYOR_SHELF_IDS = new Set(['PKG-OUT'])
+
+/**
+ * 컨베이어 아이콘 하나. 스테이션(PKG-01 · TEST-01)과 PKG-OUT 이 같이 쓴다 —
+ * 세 벨트가 씬에서 같은 크기라 화면에서도 한 모양이어야 한다.
+ *
+ * ★ 벨트는 월드 x 축을 따라 흐른다. 화면은 x/y 를 맞바꿔 그리므로(toSvg)
+ *   긴 변이 세로로 선다.
+ */
+function ConveyorIcon({ p, label, variant }) {
+  return (
+    <g
+      className={`monitor-topview-station ${variant}`}
+    >
+      {/* 컨베이어 프레임 — 실제 크기(4.4 x 1.35 m) */}
+      <rect
+        className="conveyor-frame"
+        x={p.x - STATION_WIDTH_M / 2}
+        y={p.y - STATION_LENGTH_M / 2}
+        width={STATION_WIDTH_M}
+        height={STATION_LENGTH_M}
+        rx={0.1}
+      />
+
+      {/* 벨트 중심선 — 흐름 방향(세로) */}
+      <line
+        className="conveyor-belt-line"
+        x1={p.x}
+        y1={p.y - STATION_LENGTH_M / 2 + 0.15}
+        x2={p.x}
+        y2={p.y + STATION_LENGTH_M / 2 - 0.15}
+      />
+
+      {/* 롤러 표시 — 흐름에 직각(가로) */}
+      {STATION_ROLLER_OFFSETS.map((dy) => (
+        <line
+          key={dy}
+          className="conveyor-roller"
+          x1={p.x - STATION_WIDTH_M / 2 + 0.1}
+          y1={p.y + dy}
+          x2={p.x + STATION_WIDTH_M / 2 - 0.1}
+          y2={p.y + dy}
+        />
+      ))}
+
+      <text
+        x={p.x}
+        y={p.y + STATION_LENGTH_M / 2 + 0.32}
+      >
+        {label}
+      </text>
+    </g>
+  )
+}
+
+// 상태를 다시 묻는 간격. 영상 자체는 스트림으로 오고, 이건 "끊겼나" 만 본다.
+const CCTV_STATUS_POLL_MS = 3000
+
+/**
+ * CCTV — 씬 천장 카메라(/World/Environment/CCTV_Camera)의 실시간 영상.
+ *
+ * 영상은 백엔드의 MJPEG 스트림(/api/cctv.mjpeg)을 <img> 로 바로 본다.
+ * 상태(/api/cctv/status)를 따로 물어 "영상 없음" 을 가른다 — 스트림은 새 장이
+ * 안 오면 마지막 장에서 멈출 뿐 에러를 내지 않아서, <img> 만으로는 끊긴 것을
+ * 알 수 없다.
+ *
+ * 카메라는 Top View 와 같은 방향으로 돌려 두었다(화면 오른쪽 = 월드 +y).
+ */
+function CctvCard() {
+  const [status, setStatus] =
+    useState(null)
+  // 끊겼다 살아나면 스트림을 새로 열어야 한다 — 주소를 바꿔 <img> 를 다시 붙인다.
+  const [streamKey, setStreamKey] =
+    useState(0)
+
+  useEffect(() => {
+    let alive = true
+    let wasLive = false
+
+    async function poll() {
+      try {
+        const next =
+          await fetchCctvStatus()
+
+        if (!alive) {
+          return
+        }
+
+        if (next.live && !wasLive) {
+          setStreamKey((k) => k + 1)
+        }
+
+        wasLive = Boolean(next.live)
+        setStatus(next)
+      } catch {
+        if (alive) {
+          wasLive = false
+          setStatus(null)
+        }
+      }
+    }
+
+    poll()
+
+    const timer = setInterval(
+      poll,
+      CCTV_STATUS_POLL_MS,
+    )
+
+    return () => {
+      alive = false
+      clearInterval(timer)
+    }
+  }, [])
+
+  const live = Boolean(status?.live)
+
+  let emptyMessage =
+    '백엔드에 연결할 수 없습니다.'
+
+  if (status && !status.enabled) {
+    emptyMessage =
+      'ROS 브리지가 꺼져 있습니다 (COBOT3_ROS=1).'
+  } else if (status && !live) {
+    emptyMessage =
+      '영상 신호 없음 — Isaac Sim 이 Play 중인지 확인하세요.'
+  }
+
+  return (
+    <section className="monitor-map-card monitor-cctv-card">
+      <div className="monitor-map-header">
+        <div>
+          <h2>
+            CCTV
+          </h2>
+
+          <p>
+            천장 카메라 · 공장 전체
+          </p>
+        </div>
+
+        <span
+          className={
+            live
+              ? 'monitor-connection-badge connected'
+              : 'monitor-connection-badge'
+          }
+        >
+          <i />
+
+          {live
+            ? '실시간'
+            : '영상 없음'}
+        </span>
+      </div>
+
+      <div className="monitor-cctv-surface">
+        {live ? (
+          <img
+            key={streamKey}
+            src={cctvStreamUrl(
+              streamKey,
+            )}
+            alt="공장 천장 CCTV 실시간 영상"
+          />
+        ) : (
+          <div className="monitor-cctv-empty">
+            {emptyMessage}
+          </div>
+        )}
+      </div>
+    </section>
+  )
+}
 
 /**
  * Top View — 실제 지도 이미지 대신 선반·스테이션·로봇 위치로 그리는
@@ -152,36 +336,53 @@ function FactoryTopView({
 
         const p = toSvg(center)
 
+        if (
+          CONVEYOR_SHELF_IDS.has(
+            shelf.shelf_id,
+          )
+        ) {
+          return (
+            <ConveyorIcon
+              key={shelf.shelf_id}
+              p={p}
+              label={shelf.shelf_id}
+              variant="output"
+            />
+          )
+        }
+
         return (
           <g
             key={shelf.shelf_id}
             className="monitor-topview-shelf"
           >
-            {/* 선반 프레임 — 실제 크기(2.5 x 1.0 m) */}
+            {/* 선반 프레임 — 실제 크기(2.5 x 1.0 m).
+                ★ 선반의 긴 변은 월드 x 축을 따른다. 화면은 x/y 를 맞바꿔
+                  그리므로(toSvg) 긴 변이 세로로 선다. */}
             <rect
               className="shelf-frame"
-              x={p.x - SHELF_WIDTH_M / 2}
-              y={p.y - SHELF_DEPTH_M / 2}
-              width={SHELF_WIDTH_M}
-              height={SHELF_DEPTH_M}
+              x={p.x - SHELF_DEPTH_M / 2}
+              y={p.y - SHELF_WIDTH_M / 2}
+              width={SHELF_DEPTH_M}
+              height={SHELF_WIDTH_M}
               rx={0.05}
             />
 
-            {/* 매거진 슬롯 구분선 */}
-            {SHELF_SLOT_OFFSETS.map((dx) => (
+            {/* 매거진 슬롯 구분선 — 긴 변(세로)을 나누므로 가로선이다 */}
+            {SHELF_SLOT_OFFSETS.map((dy) => (
               <line
-                key={dx}
+                key={dy}
                 className="shelf-slot"
-                x1={p.x + dx}
-                y1={p.y - SHELF_DEPTH_M / 2 + 0.08}
-                x2={p.x + dx}
-                y2={p.y + SHELF_DEPTH_M / 2 - 0.08}
+                x1={p.x - SHELF_DEPTH_M / 2 + 0.08}
+                y1={p.y + dy}
+                x2={p.x + SHELF_DEPTH_M / 2 - 0.08}
+                y2={p.y + dy}
               />
             ))}
 
             <text
               x={p.x}
-              y={p.y + SHELF_DEPTH_M / 2 + 0.32}
+              y={p.y + SHELF_WIDTH_M / 2 + 0.32}
             >
               {shelf.shelf_id}
             </text>
@@ -201,59 +402,21 @@ function FactoryTopView({
         const p = toSvg(point)
 
         return (
-          <g
+          <ConveyorIcon
             key={
               station.station_id
             }
-            className={
-              `monitor-topview-station ${
-                station.station_type ===
-                'PACKAGING'
-                  ? 'packaging'
-                  : 'test'
-              }`
+            p={p}
+            label={
+              station.station_id
             }
-          >
-            {/* 컨베이어 프레임 — 실제 크기(4.4 x 1.35 m) */}
-            <rect
-              className="conveyor-frame"
-              x={p.x - STATION_LENGTH_M / 2}
-              y={p.y - STATION_WIDTH_M / 2}
-              width={STATION_LENGTH_M}
-              height={STATION_WIDTH_M}
-              rx={0.1}
-            />
-
-            {/* 벨트 중심선 */}
-            <line
-              className="conveyor-belt-line"
-              x1={p.x - STATION_LENGTH_M / 2 + 0.15}
-              y1={p.y}
-              x2={p.x + STATION_LENGTH_M / 2 - 0.15}
-              y2={p.y}
-            />
-
-            {/* 롤러 표시 */}
-            {STATION_ROLLER_OFFSETS.map((dx) => (
-              <line
-                key={dx}
-                className="conveyor-roller"
-                x1={p.x + dx}
-                y1={p.y - STATION_WIDTH_M / 2 + 0.1}
-                x2={p.x + dx}
-                y2={p.y + STATION_WIDTH_M / 2 - 0.1}
-              />
-            ))}
-
-            <text
-              x={p.x}
-              y={p.y + STATION_WIDTH_M / 2 + 0.32}
-            >
-              {
-                station.station_id
-              }
-            </text>
-          </g>
+            variant={
+              station.station_type ===
+              'PACKAGING'
+                ? 'packaging'
+                : 'test'
+            }
+          />
         )
       })}
 
@@ -633,6 +796,7 @@ function MonitoringPage({
     }
   }, [
     lastMessage,
+    robots,
     setRobotStates,
   ])
 
@@ -784,6 +948,7 @@ function MonitoringPage({
       )}
 
       <div className="monitor-control-layout">
+        <div className="monitor-main-column">
         <section className="monitor-map-card">
           <div className="monitor-map-header">
             <div>
@@ -811,6 +976,9 @@ function MonitoringPage({
             />
           </div>
         </section>
+
+        <CctvCard />
+        </div>
 
         <aside className="monitor-robot-column">
           {robots.map(
@@ -952,28 +1120,6 @@ function MonitoringPage({
               )
             },
           )}
-
-          <article className="monitor-camera-card-light">
-            <div className="monitor-camera-header">
-              <div>
-                <h3>
-                  AMR Camera
-                </h3>
-
-                <span>
-                  ROS2 Image 연동 영역
-                </span>
-              </div>
-
-              <span className="monitor-camera-status">
-                연동 전
-              </span>
-            </div>
-
-            <div className="monitor-camera-placeholder-light">
-              Camera
-            </div>
-          </article>
         </aside>
       </div>
 

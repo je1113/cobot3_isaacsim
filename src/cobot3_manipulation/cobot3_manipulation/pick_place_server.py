@@ -10,9 +10,11 @@ pick_place_server — PickCarrier · PlaceCarrier 액션 서버.
   보통은 launch 가 네임스페이스를 준다:
     ros2 launch cobot3_bringup mission_nodes.launch.py robots:=robot1,robot2
 
-  ★ 아직 남은 것: self.sim(SimClient)은 sim_backend 의 단일 로봇
-  (nova_carter1)에 붙는다. 두 번째 로봇의 pick/place 를 실제로 돌리려면
-  sim_backend 가 로봇을 구분해야 한다 — ROS 배선과 별개의 작업이다.
+  sim_backend 는 로봇 두 대를 한 소켓에서 같이 관리한다. 이 노드는
+  네임스페이스를 그대로 robot_id 로 모든 RPC 에 실어 보내고, sim_backend 가
+  그걸 ROBOT_CARTER_NAME 으로 카터 prim 에 매핑한다:
+    /robot1 -> /World/Robots/nova_carter1,  /robot2 -> /World/Robots/nova_carter2
+  네임스페이스 없이 띄우면 robot1(nova_carter1)로 간다 — 기동 시 경고를 찍는다.
 
 시뮬 실행 방법 (실제 Isaac API 호출은 전부 sim_backend.py 프로세스가 한다.
 이유는 isaacpjt/ros_bridge/sim_backend.py 상단 주석 참고):
@@ -20,7 +22,7 @@ pick_place_server — PickCarrier · PlaceCarrier 액션 서버.
       (isaac_python 으로 직접 띄우지 마라 — ROS 셸의 3.12 환경을 물려받아
        SimulationApp 에서 죽는다. 이유는 run_sim_backend.sh 머리 주석)
     ros_set && source install/setup.bash
-    ros2 run cobot3_manipulation pick_place_server      # 터미널 2
+    ros2 run cobot3_manipulation pick_place_server --ros-args -r __ns:=/robot1   # 터미널 2
 
 동작:
   PickCarrier:  OBSERVE -> APPROACH -> DESCEND -> SUCTION -> LIFT -> STOW
@@ -181,6 +183,10 @@ class PickPlaceServer(Node):
         # 관리한다 — 네임스페이스를 그대로 robot_id 로 실어 보내야 RPC 가
         # 어느 로봇을 움직일지 안다(_safe_call/_safe_call_place 참고).
         self.robot_id = self.get_namespace().strip("/") or "robot1"
+        if not self.get_namespace().strip("/"):
+            self.get_logger().warn(
+                "네임스페이스 없이 떴다 — robot_id=robot1(nova_carter1)로 간주한다. "
+                "다른 로봇이면 --ros-args -r __ns:=/robot2 로 띄워라")
         cb = ReentrantCallbackGroup()
         self._server = ActionServer(
             self, PickCarrier, "manipulation/pick_carrier",

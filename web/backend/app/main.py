@@ -32,7 +32,7 @@ from fastapi.staticfiles import StaticFiles
 from . import db
 from .config import settings
 from .errors import ApiError, api_error_handler
-from .routers import commands, compat, logs, pickups, settings as settings_routes, tasks, ws_routes
+from .routers import cctv, commands, compat, logs, pickups, settings as settings_routes, tasks, ws_routes
 from .services import dispatcher, notify, pickup
 from .services.rosbridge import bridge
 from .ws import hub
@@ -133,6 +133,7 @@ api.include_router(logs.router)
 api.include_router(tasks.router)
 api.include_router(pickups.router)
 api.include_router(commands.router)
+api.include_router(cctv.router)
 app.include_router(api)
 
 # WebSocket 은 /ws 그대로 둔다 — 프론트의 VITE_WS_BASE_URL 이 전체 URL 을

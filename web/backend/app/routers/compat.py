@@ -24,7 +24,7 @@ from fastapi import APIRouter, Body, Query
 
 from .. import db, shapes, yamlstore
 from ..config import settings
-from ..errors import Unprocessable
+from ..errors import Conflict, Unprocessable
 from ..services import configstore, dispatcher, queue
 from ..services.rosbridge import bridge
 from ..ws import hub
@@ -229,4 +229,11 @@ async def _command(display: str, command: str) -> dict:
     ns = settings().to_ns(display)
     res = await bridge.command(ns, command, "")   # 브리지 꺼져 있으면 503
     await hub.publish("command_result", {"robot_id": display, "command": command, **res})
-    return {"accepted": res.get("accepted", False), "robot_id": display, "command": command}
+    if not res.get("accepted", False):
+        # ★ 로봇이 거절했으면 200 이 아니라 409 다. 화면은 본문을 안 읽고 성공/실패만
+        #   보므로, 200 으로 답하면 "재개 명령 전송" 이 뜨고 로봇은 그대로 서 있다.
+        #   거절 사유(rejected_because)는 로봇이 쓴 문장 그대로 message 로 올린다.
+        raise Conflict(
+            f"{display} 가 {command} 를 거절했다: {res.get('rejected_because') or '사유 없음'}",
+            state=res.get("state", ""))
+    return {"accepted": True, "robot_id": display, "command": command, "state": res.get("state", "")}

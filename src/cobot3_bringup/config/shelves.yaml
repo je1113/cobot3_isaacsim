@@ -99,19 +99,18 @@ shelves:
       - pass_id: 1
         level: 1
         direction: FORWARD
-    # ★ 2026-09-22: null 로 되돌렸다. 여기에 값이 있으면 carrier_code_reader.
-    #   _observe() 가 joints_deg 경로로 가고, 없으면 taught_poses.yaml 의
-    #   이름(pose_name)으로 간다 — 그 갈림은 이 칸 하나가 정한다.
+    # ★ 2026-09-23: 사용자 지시로 다시 채웠다(abee24d 가 null 로 비웠던 것).
+    #   값은 isaacpjt/tools/out/taught_poses.yaml 의 shelf_1_top_close_centered
+    #   joints_rad 그대로다 — 472c208 이 넣었던 값과 같다. 웹은 티칭 층을
+    #   1층 하나로 고정했으므로(ShelfSettingsPage) 이 한 칸이 선반의 자세다.
     #
-    #   472c208 이 채워 넣은 값은 옛 씬(x≈-6.5)에서 티칭된 것을 포팅한
-    #   잠정값이었고(그 커밋 주석이 "실측 확인 전까지는 잠정값" 이라고
-    #   적어 두었다), 그게 들어오면서 호출 경로가 조용히 바뀌었다.
-    #   실측으로 다시 티칭하기 전까지는 pose_name 경로를 쓴다.
-    #
-    #   ★ 폴백 이름은 진행 방향(patrol_target)에 따라 갈린다 —
-    #     1 → shelf_1_top_close_centered(2층), 0 → s1_bottom_scan(1층).
-    #     (carrier_code_reader.FALLBACK_POSE_BY_PATROL_TARGET)
-        arm_teach_pose: [null, null, null, null, null, null]
+    #   ☞ 값이 있으면 carrier_code_reader._observe() 가 joints_deg 경로로
+    #     간다. 진행 방향별 폴백(0 → s1_bottom_scan)은 더 안 쓰이고, 왕복
+    #     내내 이 자세 하나다. 웹의 티칭 완료 판정도 이 칸으로 켜진다
+    #     (shapes.shelf_is_taught — 작업 배정이 422 로 막히지 않는다).
+    #   ☞ 옛 씬(x≈-6.5)에서 티칭한 것을 포팅한 값이라 실측 재티칭 전까지는
+    #     잠정값이다. 웹 「현재 자세로 저장」 이 이 칸을 덮어쓴다.
+        arm_teach_pose: [0.235391, 0.670242, 2.617961, 1.579533, 1.570796, 1.500994]
     # 위 포팅 시점에 찍었다 — 이 waypoint 에서 실측 재확인 후에도 그대로 둔다
     # (첫 완성 시점 기록 규칙, 이 파일 머리주석 참고).
     first_taught_at: '2026-09-22'
@@ -223,19 +222,18 @@ shelves:
       - pass_id: 1
         level: 1
         direction: FORWARD
-    # ★ 2026-09-22: null 로 되돌렸다. 여기에 값이 있으면 carrier_code_reader.
-    #   _observe() 가 joints_deg 경로로 가고, 없으면 taught_poses.yaml 의
-    #   이름(pose_name)으로 간다 — 그 갈림은 이 칸 하나가 정한다.
+    # ★ 2026-09-23: 사용자 지시로 다시 채웠다(abee24d 가 null 로 비웠던 것).
+    #   값은 isaacpjt/tools/out/taught_poses.yaml 의 shelf_1_top_close_centered
+    #   joints_rad 그대로다 — 472c208 이 넣었던 값과 같다. 웹은 티칭 층을
+    #   1층 하나로 고정했으므로(ShelfSettingsPage) 이 한 칸이 선반의 자세다.
     #
-    #   472c208 이 채워 넣은 값은 옛 씬(x≈-6.5)에서 티칭된 것을 포팅한
-    #   잠정값이었고(그 커밋 주석이 "실측 확인 전까지는 잠정값" 이라고
-    #   적어 두었다), 그게 들어오면서 호출 경로가 조용히 바뀌었다.
-    #   실측으로 다시 티칭하기 전까지는 pose_name 경로를 쓴다.
-    #
-    #   ★ 폴백 이름은 진행 방향(patrol_target)에 따라 갈린다 —
-    #     1 → shelf_1_top_close_centered(2층), 0 → s1_bottom_scan(1층).
-    #     (carrier_code_reader.FALLBACK_POSE_BY_PATROL_TARGET)
-        arm_teach_pose: [null, null, null, null, null, null]
+    #   ☞ 값이 있으면 carrier_code_reader._observe() 가 joints_deg 경로로
+    #     간다. 진행 방향별 폴백(0 → s1_bottom_scan)은 더 안 쓰이고, 왕복
+    #     내내 이 자세 하나다. 웹의 티칭 완료 판정도 이 칸으로 켜진다
+    #     (shapes.shelf_is_taught — 작업 배정이 422 로 막히지 않는다).
+    #   ☞ 옛 씬(x≈-6.5)에서 티칭한 것을 포팅한 값이라 실측 재티칭 전까지는
+    #     잠정값이다. 웹 「현재 자세로 저장」 이 이 칸을 덮어쓴다.
+        arm_teach_pose: [0.235391, 0.670242, 2.617961, 1.579533, 1.570796, 1.500994]
     first_taught_at: '2026-09-22'
 
   # ── 포장 출력 선반 (스택 관측 자리) ──────────────────────────────────
@@ -274,11 +272,9 @@ shelves:
       - pass_id: 1
         level: 1
         direction: FORWARD
-        # ★ 2026-09-22: null 로 되돌렸다. 여기 관절값이 있으면
-        #   carrier_code_reader._observe() 가 joints_deg 경로로 가는데,
-        #   그건 "실측 티칭됐다" 는 신호라 티칭 완료 판정까지 같이 켜진다.
-        #   이 자세(packaging_output_scan)는 taught_poses.yaml 에 이름으로
-        #   있으므로 carrier_code_reader 의 FALLBACK_POSE_BY_SHELF 가
-        #   PKG-OUT → packaging_output_scan 으로 이어 준다.
-        arm_teach_pose: [null, null, null, null, null, null]
+        # ★ 2026-09-23: 사용자 지시로 다시 채웠다(abee24d 가 null 로 비웠던 것).
+        #   taught_poses.yaml 의 packaging_output_scan joints_rad 그대로다.
+        #   carrier_code_reader 의 FALLBACK_POSE_BY_SHELF 가 이름으로 부르던
+        #   것과 같은 자세라 팔 동작은 바뀌지 않는다 — 경로만 joints_deg 로 간다.
+        arm_teach_pose: [-1.622864, 1.012564, 2.10307, 1.579492, 1.570789, 1.588239]
     first_taught_at: '2026-09-22'
