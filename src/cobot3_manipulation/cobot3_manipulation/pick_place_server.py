@@ -174,9 +174,10 @@ class PickPlaceServer(Node):
         self.declare_parameter("shear_force_limit", 100.0)
         self.declare_parameter("max_grip_distance", 0.03)
         self.declare_parameter("lift_height_m", 0.10)            # 12_pick_test.py 검증값
-        # 2026-09-23: 0.005 -> 0.055 — 지금보다 5 cm 높은 곳에서 흡착을 끈다(사용자
-        # 지시). 매거진·스택 공통이다. 바닥이 벨트 위 5.5 cm 에서 떨어진다.
-        self.declare_parameter("place_drop_m", 0.055)
+        # 2026-09-23: 0.005 -> 0.055 -> 0.155 — 사용자 지시로 두 번 올렸다(5 cm,
+        # 다시 10 cm). 놓은 뒤 팔이 매거진을 누르지 않게 벨트에서 충분히 떨어진
+        # 곳에서 흡착을 끄고 곧장 위로 뺀다. 매거진·스택 공통.
+        self.declare_parameter("place_drop_m", 0.155)
         # pick 이 끝나면(STOW 판정 통과 뒤) 팔을 이 관절값(도)으로 옮긴 채 이송한다.
         # place 는 시작 전에 STOW 자세(READY)로 되돌린 뒤 평소대로 한다 — place 의
         # APPROACH 는 흡착면이 아래를 보는 자세에서 출발해야 IK 가 풀린다.
@@ -462,8 +463,11 @@ class PickPlaceServer(Node):
         goal = goal_handle.request
         result = PlaceCarrier.Result()
         feedback = PlaceCarrier.Feedback()
-        approach_dist_m = float(self.get_parameter("approach_dist_m").value)
         place_drop_m = float(self.get_parameter("place_drop_m").value)
+        # 접근 높이는 놓는 높이 이상으로 둔다 — 놓는 높이(0.155)가 접근 높이(0.15)
+        # 보다 높아서, 그대로 두면 DESCEND 가 아래가 아니라 위로 간다.
+        approach_dist_m = max(float(self.get_parameter("approach_dist_m").value),
+                              place_drop_m)
 
         slot_pose_base_link = self.place.get(goal.variant)
         if slot_pose_base_link is None:
