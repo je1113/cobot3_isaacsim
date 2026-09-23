@@ -223,6 +223,8 @@ RELEASE_WAIT = 90
 #   예외를 내도 None(=빈손)을 돌려준다. 그래서 흡착면을 RELEASE_PEEL_M 만큼
 #   들어 보고 매거진이 RELEASE_FOLLOW_M 넘게 따라 올라오면 실패로 올린다.
 RELEASE_OPEN_TIMES = 3
+# 흡착 OFF 사이 간격(시뮬 시간, 초). 사용자 지시(2026-09-23) 1 초.
+RELEASE_GAP_S = 1.0
 RELEASE_PEEL_M = 0.02
 RELEASE_FOLLOW_M = 0.01
 
@@ -1465,9 +1467,10 @@ class Backend:
 
         _set_status(robot_id, phase="RELEASE")
         status0 = rig.gripper.status()
+        gap_steps = max(1, int(round(RELEASE_GAP_S / self.world.get_physics_dt())))
         for n in range(1, RELEASE_OPEN_TIMES + 1):
             rig.gripper.open(force=True)
-            self._settle(RELEASE_WAIT)
+            self._settle(gap_steps)     # 다음 OFF 까지 1 초(RELEASE_GAP_S)
             print(f"   [{robot_id}] RELEASE 열기 {n}/{RELEASE_OPEN_TIMES}  "
                   f"status {status0} -> {rig.gripper.status()}  "
                   f"gripped={_flatten_gripped_paths(rig.gripper.gripped())}")
