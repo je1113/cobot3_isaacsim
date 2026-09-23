@@ -682,8 +682,8 @@ def Xform "World"
                     uniform token primvars:displayColor:interpolation = "constant"
                     double size = 1
                     quatf xformOp:orient = (1, 0, 0, 0)
-                    double3 xformOp:scale = (0.35, 1.4, 0.12)
-                    double3 xformOp:translate = (3.8694130739117156, 2.8000000000000003, 0.48)
+                    double3 xformOp:scale = (0.175, 1.4, 0.12)
+                    double3 xformOp:translate = (3.963325659785515, 2.8000000000000003, 0.48)
                     uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
                 }
             }
