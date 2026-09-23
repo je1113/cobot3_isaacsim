@@ -30,6 +30,9 @@ docs/08_ROS2_NODE_Graph.html 의 확정안(01-03)이 기준이다. 노드 5개 �
      │   ├─ HOLD                       로봇이 실제로 설 때까지 기다린다
      │   ├─ SCAN                       carrier_scan 서비스 → 종류·위치
      │   ├─ PICK                       멈춘 그 자리에서 집는다
+     │   ├─ RETURN_TO_START            patrol_to(직접 cmd_vel)로 patrol_route[0]
+     │   │                             까지 복귀 — 좁은 통로 한복판에서 바로
+     │   │                             Nav2 장거리 플래닝을 시키지 않으려고
      │   ├─ [?] 배송                   Selector, memory=True — 경로를 고른다
      │   │   ├─ [→] 직행               상대 state 가 아래 넷이 아니면 이쪽
      │   │   │   ├─ 상대 한가?         상대 state 가 nav · push · place ·
@@ -517,6 +520,13 @@ PATROL = "patrol"
 HOLD = "hold"
 SCAN = "scan"
 PICK = "pick"
+# PICK 은 patrol 구간 어디서든(선반 앞 QR 을 만난 자리) 일어난다 — 그 직후
+# 바로 Nav2 로 먼 곳(로더)까지 장거리 플래닝을 시키면, 선반 바로 앞 좁은
+# 통로 한복판에서 글로벌 플래너가 출발하는 꼴이라 불안정하다(오늘 겪은
+# "좁은 통로에서 Nav2 불안정" 문제들과 같은 종류). 그래서 NAV(로더행, Nav2)
+# 전에 patrol 이 이미 검증한 patrol_to(직접 cmd_vel)로 patrol_route[0]
+# (여유 있는 통로 지점)까지 먼저 돌아온 뒤에만 Nav2 를 맡긴다.
+RETURN_TO_START = "return_to_start"
 NAV = "nav"
 PLACE = "place"
 RETURN = "returning"   # /orchestrator/state 의 state= 값이자 트리 잎 이름.
@@ -553,7 +563,8 @@ STACK_PLACE = "stack_place"      # 로더에 놓기
 # 우회 경로의 네 단계도 넣는다 — 대기 시간이 두 대 시연의 핵심 지표이고,
 # docs/DB구성.md §4 가 stage 를 TEXT 로 둔 이유가 "가지가 늘어날 자리" 다.
 # 값을 더하는 데 마이그레이션이 필요 없다.
-LOGGED_STAGES = (PICK, HOLD_BACK, APPROACH, WAIT, PUSH, NAV, PLACE, RETURN,
+LOGGED_STAGES = (PICK, RETURN_TO_START, HOLD_BACK, APPROACH, WAIT, PUSH, NAV,
+                 PLACE, RETURN,
                  STACK_NAV, STACK_PICK, STACK_DELIVER, STACK_PLACE)
 
 # 실패 사유는 '단계' 가 정한다. return 은 같은 NavigateTo 액션이라 nav_error 다.
@@ -561,6 +572,7 @@ LOGGED_STAGES = (PICK, HOLD_BACK, APPROACH, WAIT, PUSH, NAV, PLACE, RETURN,
 # 갈 곳이 있다. DB 의 fail_reason ENUM 네 값과 같아야 한다.
 STAGE_TO_REASON = {PICK: "pick_error", NAV: "nav_error",
                    PLACE: "place_error", RETURN: "nav_error",
+                   RETURN_TO_START: "nav_error",
                    # 우회 세 단계는 전부 주행/대기라 nav_error 로 모인다.
                    HOLD_BACK: "nav_error", APPROACH: "nav_error",
                    WAIT: "nav_error", PUSH: "nav_error",
@@ -578,7 +590,8 @@ PORT_BY_STAGE = {PLACE: "test_loader", PUSH: "test_loader",
 # 우회 네 단계는 전부 주행/대기라 nav 로 올린다 — STAGE_TO_REASON 이 nav_error
 # 로 모으는 것과 같은 기준이다. 목록에 없는 단계(scan · hold · 순찰)는 보고하지
 # 않는다: scan 은 run_id 가 아직 없고, 순찰은 작업 밖이다.
-TASK_STAGE = {PICK: "pick", NAV: "nav", HOLD_BACK: "nav", APPROACH: "nav",
+TASK_STAGE = {PICK: "pick", RETURN_TO_START: "nav", NAV: "nav",
+              HOLD_BACK: "nav", APPROACH: "nav",
               WAIT: "nav", PUSH: "nav", PLACE: "place", RETURN: "return",
               CREEP_IN: "place", CREEP_OUT: "place",
               # 스택 구간도 .action 이 아는 넷으로 접어서 올린다.
@@ -587,7 +600,7 @@ TASK_STAGE = {PICK: "pick", NAV: "nav", HOLD_BACK: "nav", APPROACH: "nav",
 
 # feedback.progress — goal.resume_progress 와 같은 축(0.0 처음부터 … 1.0 복귀
 # 끝)이라 단계마다 고정값이다. 화면이 막대로 그릴 뿐 로봇은 안 읽는다.
-TASK_PROGRESS = {PICK: 0.3, NAV: 0.5, HOLD_BACK: 0.4, APPROACH: 0.45,
+TASK_PROGRESS = {PICK: 0.3, RETURN_TO_START: 0.35, NAV: 0.5, HOLD_BACK: 0.4, APPROACH: 0.45,
                  WAIT: 0.45, PUSH: 0.5, CREEP_IN: 0.6, PLACE: 0.7, CREEP_OUT: 0.8,
                  RETURN: 0.9,
                  STACK_NAV: 0.72, STACK_SCAN: 0.75, STACK_PICK: 0.78,
@@ -602,8 +615,8 @@ TASK_FAIL_REASON = {SCAN: ExecuteTask.Result.SCAN_FAIL,
 
 # 이 단계들 중 하나가 RUNNING 이면 미션이 시작된 것이다 — 취소가 와도 캐리어를
 # 놓지 않고 RETURN 까지 마친다(_execute_task).
-MISSION_STAGES = (HOLD, SCAN, PICK, HOLD_BACK, APPROACH, WAIT, PUSH, NAV,
-                  CREEP_IN, PLACE, CREEP_OUT, RETURN,
+MISSION_STAGES = (HOLD, SCAN, PICK, RETURN_TO_START, HOLD_BACK, APPROACH, WAIT,
+                  PUSH, NAV, CREEP_IN, PLACE, CREEP_OUT, RETURN,
                   STACK_NAV, STACK_SCAN, STACK_PICK, STACK_DELIVER, STACK_PLACE)
 
 
@@ -1758,6 +1771,17 @@ def build_tree(node):
         timeout_s=PICK_TIMEOUT_S, retries=PICK_RETRIES,
         feedback_cb=node.log_phase("PICK")), node, PICK)
 
+    # PICK 은 patrol 구간 어디서든 일어난다 — 로더로 가는 Nav2 장거리 플래닝을
+    # 선반 앞 좁은 통로 한복판에서 바로 시작시키지 않으려고, patrol 이 이미
+    # 검증한 patrol_to(직접 cmd_vel)로 patrol_route[0](여유 있는 통로 지점)
+    # 까지 먼저 돌아온 뒤에만 Nav2(to_loader)를 맡긴다. RETURN_TO_START 상수
+    # 정의부 참고.
+    return_to_start = Freeze("RETURN_TO_START", ActionLeaf(
+        RETURN_TO_START, node, node.patrol_nav, "navigation/patrol_to",
+        NavigateTo.Result,
+        make_goal=lambda: NavigateTo.Goal(pose=_to_pose(node.patrol_route[0])),
+        timeout_s=NAV_TIMEOUT_S, moves_base=True), node, RETURN_TO_START)
+
     # ── 배송 — PICK 직후 상대를 한 번 보고 두 경로 중 하나를 고른다 ──────
     # 직행: 상대가 로더 차선을 안 쓰고 있다. 지금까지와 같이 로더로 바로 간다.
     # 우회: 상대가 로더로 가고 있거나 내려놓고 있다. 차선 밖 대기 자리로 가서
@@ -1910,7 +1934,7 @@ def build_tree(node):
     mission = py_trees.composites.Sequence(
         "캐리어 처리", memory=True,
         children=[Detected("detected?", node), Hold(HOLD, node),
-                  scan, pick, to_loader] + creep_in + [place] + creep_out
+                  scan, pick, return_to_start, to_loader] + creep_in + [place] + creep_out
         + stack_leg + [ret,
                   CycleDone("사이클 완료", node, waypoints)])
 
