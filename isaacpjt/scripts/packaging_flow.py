@@ -141,6 +141,7 @@ class PackagingFlowController:
         xform = UsdGeom.XformCommonAPI(stack)
         xform.SetTranslate(STACK_SPAWN)
         xform.SetRotate(Gf.Vec3f(0.0, 0.0, 90.0))
+        xform.SetScale(Gf.Vec3f(2.0, 2.0, 2.0))
         self._moving_stacks[str(stack_path)] = MovingStack(stack_path, float(STACK_SPAWN[0]))
         print(f"[PackagingFlow] {magazine_prim.GetName()} -> {payload}")
 
