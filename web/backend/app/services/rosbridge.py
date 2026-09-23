@@ -104,6 +104,7 @@ class RclpyBridge(Bridge):
         self._thread: threading.Thread | None = None
         self._goal_handles: dict[str, Any] = {}
         self._last_pose_sent: dict[str, float] = {}
+        self._last_pose: dict[str, dict] = {}
 
     @property
     def available(self) -> bool:
@@ -143,11 +144,21 @@ class RclpyBridge(Bridge):
         from geometry_msgs.msg import PoseWithCovarianceStamped
         from rclpy.action import ActionClient
         from rclpy.node import Node
+        from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
         from sensor_msgs.msg import JointState
         from std_msgs.msg import String
 
         s = settings()
         node = Node("cobot3_web_bridge")
+
+        # ★ amcl 은 로봇이 움직일 때만 amcl_pose 를 낸다. VOLATILE 로 구독하면
+        #   서 있는 로봇의 위치는 영영 못 받는다. amcl 이 TRANSIENT_LOCAL 로
+        #   내므로 같게 맞춰 마지막 자세를 붙자마자 받는다.
+        pose_qos = QoSProfile(
+            depth=1,
+            reliability=ReliabilityPolicy.RELIABLE,
+            durability=DurabilityPolicy.TRANSIENT_LOCAL,
+        )
 
         self._action: dict[str, Any] = {}
         self._cmd_cli: dict[str, Any] = {}
@@ -165,7 +176,7 @@ class RclpyBridge(Bridge):
                 PoseWithCovarianceStamped,
                 s.pose_topic_tmpl.format(robot=robot),
                 lambda msg, r=robot: self._on_pose(r, msg),
-                10,
+                pose_qos,
             )
             node.create_subscription(
                 JointState,
@@ -196,7 +207,20 @@ class RclpyBridge(Bridge):
             ),
             20,
         )
+        # ★ 허브는 놓친 메시지를 재전송하지 않는다. 브라우저가 나중에 붙으면
+        #   서 있는 로봇의 위치를 못 받으므로, 마지막 자세를 1초마다 다시 흘린다.
+        #   저장이 아니라 흘려보내기의 반복이다 — 상태 토픽도 같은 식으로 반복된다.
+        node.create_timer(1.0, self._repeat_pose)
         return node
+
+    def _repeat_pose(self) -> None:
+        import time
+
+        now = time.monotonic()
+        for robot, pose in list(self._last_pose.items()):
+            if now - self._last_pose_sent.get(robot, 0.0) >= 1.0:
+                self._last_pose_sent[robot] = now
+                self._emit("robot.pose", pose, robot)
 
     # ── 스레드 → asyncio ─────────────────────────────────────────────
     def _emit(self, ch: str, data: dict, robot_id: str | None = None) -> None:
@@ -209,11 +233,6 @@ class RclpyBridge(Bridge):
         """6.1 — 5~10Hz 로 솎아낸다. 저장은 하지 않는다."""
         import time
 
-        now = time.monotonic()
-        period = 1.0 / max(settings().pose_hz, 0.1)
-        if now - self._last_pose_sent.get(robot, 0.0) < period:
-            return
-        self._last_pose_sent[robot] = now
         p = msg.pose.pose.position
         q = msg.pose.pose.orientation
         # ★ theta 까지 여기서 만든다. 화면이 쓰는 것은 yaw 하나이고, 쿼터니언을
@@ -224,12 +243,18 @@ class RclpyBridge(Bridge):
             2.0 * (q.w * q.z + q.x * q.y),
             1.0 - 2.0 * (q.y * q.y + q.z * q.z),
         )
-        self._emit(
-            "robot.pose",
-            {"x": p.x, "y": p.y, "theta": theta, "qz": q.z, "qw": q.w,
-             "frame": msg.header.frame_id},
-            robot,
-        )
+        pose = {"x": p.x, "y": p.y, "theta": theta, "qz": q.z, "qw": q.w,
+                "frame": msg.header.frame_id}
+        # 솎아내기 전에 기억한다 — 멈춘 직후의 마지막 자세가 버려지면
+        # _repeat_pose 가 그 앞의 낡은 자세를 계속 흘린다.
+        self._last_pose[robot] = pose
+
+        now = time.monotonic()
+        period = 1.0 / max(settings().pose_hz, 0.1)
+        if now - self._last_pose_sent.get(robot, 0.0) < period:
+            return
+        self._last_pose_sent[robot] = now
+        self._emit("robot.pose", pose, robot)
 
     # ── 요청 ─────────────────────────────────────────────────────────
     async def execute_task(self, robot_id: str, order: dict) -> None:
