@@ -138,6 +138,9 @@ class PackagingFlowController:
         )
         stack.CreateAttribute("flow:stackPayload", Sdf.ValueTypeNames.Asset).Set(Sdf.AssetPath(payload))
         UsdGeom.XformCommonAPI(stack).SetTranslate(STACK_SPAWN)
+        xform = UsdGeom.XformCommonAPI(stack)
+        xform.SetTranslate(STACK_SPAWN)
+        xform.SetRotate(Gf.Vec3f(0.0, 0.0, 90.0))
         self._moving_stacks[str(stack_path)] = MovingStack(stack_path, float(STACK_SPAWN[0]))
         print(f"[PackagingFlow] {magazine_prim.GetName()} -> {payload}")
 
