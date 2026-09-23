@@ -1228,11 +1228,11 @@ class Backend:
         팔/손목캠을 움직일지 고른다(네임스페이스 그대로: "robot1"/"robot2")."""
         self._set_arm_stiffness(robot_id, DRIVE_STIFFNESS)   # QR 디코드가 깨지지 않는 값으로
         if joints_deg is not None:
-            self._set_joint_deg(robot_id, list(joints_deg))
+            self._servo_joint_deg(robot_id, list(joints_deg))
         elif pose_name is not None:
             taught = yaml.safe_load((ISAACPJT / "tools/out/taught_poses.yaml").read_text(encoding="utf-8"))
             pose = taught[pose_name]
-            self._set_joint_deg(robot_id, pose["joints_deg"])
+            self._servo_joint_deg(robot_id, pose["joints_deg"])
         else:
             raise ValueError("observe_pose: pose_name 또는 joints_deg 가 필요하다")
         for _ in range(SETTLE_STEPS):
