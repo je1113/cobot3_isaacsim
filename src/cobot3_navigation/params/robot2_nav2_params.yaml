@@ -269,7 +269,14 @@ controller_server:
 
       stateful: true
       xy_goal_tolerance: 0.1
-      yaw_goal_tolerance: 0.05
+      # ★ 2026-09-23: 0.05(2.9°) -> 0.08(4.6°). d8c65b8 이 파지점 오차(140mm
+      #   -> 29mm) 를 위해 조인 값인데, 실측에서 이 tolerance 를 물리 시뮬(관성 ·
+      #   제어 주기)로 안정적으로 못 맞춰 최종 정렬이 계속 헌팅(제자리에서
+      #   왔다갔다) 하다가 DWB Oscillation critic 에 막혀 BLOCKED/ABORTED 로
+      #   죽는 사례가 반복됐다(로봇1 nav ABORTED, 로봇2 START 무한 대기).
+      #   0.08 로 살짝만 풀어 헌팅을 줄인다 — 파지 정확도는 일부 희생.
+      #   ☞ 그래도 헌팅/BLOCKED 가 반복되면 여기를 더 풀 것.
+      yaw_goal_tolerance: 0.08
 
     FollowPath:
       plugin: "dwb_core::DWBLocalPlanner"
