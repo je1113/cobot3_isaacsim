@@ -41,6 +41,30 @@ HEADLESS = os.environ.get("SIM_HEADLESS", "1") == "1"
 #   부팅된 세션에서도 여전히 빈 프레임이었다 — 원인이 아니다. 토글은
 #   남겨두되(기본값 True, 동작 그대로) 이 가설은 더 안 판다.
 MULTI_GPU = os.environ.get("SIM_MULTI_GPU", "1") == "1"
+# GUI 모드에서 렌더를 N 스텝마다 한 번만 한다(물리는 매 스텝 진행) —
+# 뷰포트 렌더가 스텝 시간 대부분을 먹어서 시뮬이 실시간보다 느려지는 걸
+# 줄이려는 것. 1 이면 예전처럼 매 스텝 렌더. 카메라 캡처처럼 render=True 를
+# 강제하는 곳은 이 설정과 무관하게 항상 렌더한다.
+# 주의: 렌더를 건너뛴 스텝에는 ROS 브리지(OmniGraph)의 라이다·TF·odom 이
+# 안 나갈 수 있다 → Nav2 가 흔들리면 `ros2 topic hz /clock`, 스캔/odom
+# 주기를 확인하고 SIM_RENDER_EVERY=1 로 되돌린다.
+RENDER_EVERY = max(1, int(os.environ.get("SIM_RENDER_EVERY", "2")))
+_render_tick = 0
+
+
+def _auto_render():
+    """render 를 강제하지 않는 스텝에서 이번에 렌더할지. HEADLESS 면 항상
+    False, 아니면 RENDER_EVERY 스텝마다 한 번 True."""
+    global _render_tick
+    if HEADLESS:
+        return False
+    _render_tick += 1
+    if _render_tick >= RENDER_EVERY:
+        _render_tick = 0
+        return True
+    return False
+
+
 simulation_app = SimulationApp({"headless": HEADLESS, "multi_gpu": MULTI_GPU})
 
 # 씬에 박혀 있는 ROS2 브릿지 OmniGraph(odom·lidar·clock 퍼블리셔)는 이 확장이
@@ -757,7 +781,7 @@ class Backend:
         start_deg = np.degrees(rig.robot.get_joint_positions()[idx])
         target_deg = np.array(target_joints_deg, dtype=float)
         for i in range(1, n_steps + 1):
-            self.world.step(render=not HEADLESS)
+            self.world.step(render=_auto_render())
             cur_deg = start_deg + ease(i / float(n_steps)) * (target_deg - start_deg)
             rig.robot.apply_action(ArticulationAction(
                 joint_positions=np.deg2rad(cur_deg), joint_indices=idx))
@@ -784,11 +808,10 @@ class Backend:
 
     def _settle(self, n_steps, render=None):
         """물리를 n_steps 프레임 진행시킨다. render 를 안 주면 기본 동작
-        (not HEADLESS)을, 디버그 캡처처럼 항상 렌더가 필요한 곳은
-        render=True 로 강제한다."""
-        do_render = (not HEADLESS) if render is None else render
+        (_auto_render: GUI 면 RENDER_EVERY 스텝마다 렌더)을, 디버그 캡처처럼
+        항상 렌더가 필요한 곳은 render=True 로 강제한다."""
         for _ in range(n_steps):
-            self.world.step(render=do_render)
+            self.world.step(render=_auto_render() if render is None else render)
 
     def _servo_tcp(self, robot_id, goal_tcp, phase_name):
         rig = self.rigs[robot_id]
@@ -800,7 +823,7 @@ class Backend:
         n_steps, dist = steps_for(start, goal_tcp)
         fail = 0
         for i in range(1, n_steps + 1):
-            self.world.step(render=not HEADLESS)
+            self.world.step(render=_auto_render())
             tcp = start + ease(i / float(n_steps)) * (goal_tcp - start)
             action, solved = rig.solver.compute_inverse_kinematics(
                 target_position=tcp_to_flange(tcp, target_quat),
@@ -1724,7 +1747,7 @@ def main():
     }
 
     while simulation_app.is_running() and not _shutdown_requested:
-        backend.world.step(render=not HEADLESS)
+        backend.world.step(render=_auto_render())
         # Stop → Play 를 RPC 가 오기 전에 복구해 둔다.
         backend._ensure_live()
         try:

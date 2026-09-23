@@ -88,6 +88,8 @@ else
     scene_label="(미지정 → sim_backend.py 의 기본 씬)"
 fi
 export SIM_HEADLESS="${SIM_HEADLESS:-0}"
+# GUI 렌더를 N 스텝마다 한 번만(물리는 매 스텝). 1 = 매 스텝 렌더.
+export SIM_RENDER_EVERY="${SIM_RENDER_EVERY:-2}"
 
 # ── 띄울 스크립트 ─────────────────────────────────────────────────────
 # 기본은 sim_backend.py. isaacpjt/tools/wrist_camera_ros.py 처럼 ROS2 브릿지를
@@ -131,6 +133,7 @@ fi
 echo "  스크립트   $target"
 echo "  씬        $scene_label"
 echo "  헤드리스   $SIM_HEADLESS"
+echo "  렌더 주기  ${SIM_RENDER_EVERY} 스텝마다"
 echo "  도메인     $ROS_DOMAIN_ID"
 echo
 
