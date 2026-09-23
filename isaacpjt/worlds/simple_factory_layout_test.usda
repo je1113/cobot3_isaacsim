@@ -7,8 +7,8 @@
                 double radius = 5
             }
             dictionary Perspective = {
-                double3 position = (-6.153545624217779, -14.98983681718451, 1.7189541728940032)
-                double3 target = (9.138121387628178, 28.213833729027392, -51.98347863349267)
+                double3 position = (-3.7724257244288575, -5.475802269512409, 3.597413562154773)
+                double3 target = (44.909249890474584, 64.10075172806451, -43.288655830960344)
             }
             dictionary Right = {
                 double3 position = (0, -5, 0)
@@ -675,7 +675,7 @@ def Xform "World"
                     custom asset flow:stackPayload = @../assets/F3_STKO_1.usda@
                     quatf xformOp:orient = (0.70710677, 0, 0, -0.70710677)
                     float3 xformOp:scale = (1, 1, 1)
-                    double3 xformOp:translate = (3.83, 3.0586350742021307, 0.542)
+                    double3 xformOp:translate = (3.83, 3.058635074202131, 0.542)
                     uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
                 }
             }
@@ -914,9 +914,9 @@ def Xform "World"
                     prepend payload = @../assets/magazine_2_blue_qr.usda@
                 )
                 {
-                    quatf xformOp:orient = (0, 0, 0, 1)
+                    quatf xformOp:orient = (6.123234e-17, 0, 0, 1)
                     float3 xformOp:scale = (1, 1, 1)
-                    double3 xformOp:translate = (-1.7115933222351316, -2.2, 0.6)
+                    double3 xformOp:translate = (-1.7115933222351316, -2.918676990759266, 0.6)
                     uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
                 }
             }
