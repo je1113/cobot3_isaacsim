@@ -511,6 +511,7 @@ START_DETECTED_FOR_TEST = False
 # 이전 판의 "상태" 다. 지금은 상태가 아니라 라벨이다 — 트리의 어느 노드인지,
 # 그리고 실패 기록(fail_stage)에 어느 단계였는지 적는 데만 쓴다.
 START = "start"
+START_WAIT = "start_wait"   # START 앞에서 start_delay_s 만큼 기다린다 (StartDelay)
 POSE = "pose"           # 순찰 시작 전 관측 자세 잡기. 아래 ObservePoseLeaf 참고
 PATROL = "patrol"
 HOLD = "hold"
@@ -527,8 +528,6 @@ HOLD_BACK = "hold_back" # 픽업존에서 상대가 로더에 도착하기를 �
 APPROACH = "approach"   # 대기 장소로 주행
 WAIT = "wait"           # 대기 자리에서 상대가 차선을 비우기를 기다린다
 PUSH = "push"           # 차선이 비면 대기 자리에서 로더로 주행
-# 순찰 중 상대가 손목캠·팔을 쓰는 동안 그 자리에 서서 기다린다 (YieldToPeer).
-YIELD = "yield_peer"
 # 로더 정차점(Nav2)에서 벨트 쪽으로 직진해 들어가고(creep_in), place 뒤 되나온다
 # (creep_out). LOADER_CREEP_M 주석 참고.
 CREEP_IN = "creep_in"
@@ -685,36 +684,6 @@ TICK_PERIOD_S = 0.1
 # 기다리면 아무도 안 움직인다. 두 로봇이 이 목록을 똑같이 쓰므로 이 규칙이
 # 곧 교착 부재의 근거다. isaacpjt/tools/test_peer_yield.py 가 이걸 검사한다.
 DEFAULT_PEER_BUSY_STAGES = [NAV, PUSH, CREEP_IN, PLACE, CREEP_OUT, RETURN]
-
-# ── 시뮬 자원 양보 (순찰 중) ──────────────────────────────────────────────
-# 상대가 이 단계에 있으면 이쪽은 순찰을 멈추고 제자리에 선다. 상대가 목록을
-# 벗어나면(pick 이 끝나 nav · hold_back 으로 넘어가면) 가던 정차점으로 재개한다.
-#
-# ★ 왜 — 두 로봇의 시뮬 호출이 sim_backend 의 RPC 큐 **하나**로 들어가 한 번에
-#   하나씩 처리된다. 캡처(_capture_frame)는 콜백이 올 때까지 world.step 을 수십
-#   프레임 돌리는 블로킹 호출이라, 한쪽이 순찰 QR 폴링(scan_qr)을 계속 넣으면
-#   다른 쪽의 SCAN · PICK 이 그 뒤에 줄을 선다. 실측: robot2 가 pick 하려는데
-#   robot1 의 순찰 폴링이 끼어들었고, 순찰 폴링 scan_qr 이 5 s 타임아웃으로
-#   떨어져 매거진을 지나쳤다. 뷰포트는 이미 로봇마다 따로다(Viewport-robot2) —
-#   병목은 뷰포트가 아니라 큐다.
-#   hold   상대가 막 매거진을 감지하고 서는 중. 곧 scan 이다
-#   scan   carrier_scan — 손목캠 캡처 n_frames 번
-#   pick   OBSERVE 캡처 + APPROACH·DESCEND·LIFT 서보 (world.step 을 오래 돈다)
-#   stack_scan · stack_pick  스택 자리에서의 같은 두 동작
-#
-# ★ 교착 없음 — 양보하는 쪽의 state 는 yield_peer 라 이 목록에 없다. 그래서
-#   두 대가 서로를 기다리는 일은 없다. 둘이 동시에 매거진을 감지해 둘 다 hold
-#   로 가면 둘 다 양보하지 않는다(양보는 순찰 가지 안에서만 한다) — 이전과 같다.
-DEFAULT_PEER_CAMERA_STAGES = [HOLD, SCAN, PICK, STACK_SCAN, STACK_PICK]
-# 상대 state 가 이만큼 안 오면 상대가 죽었다고 보고 양보하지 않는다. 상대는
-# STATE_PUBLISH_PERIOD_S(0.2 s)마다 발행하므로 5 s 무음이면 확실히 끊긴 것이다.
-# (차선 양보 peer_busy 는 일부러 age 를 안 쓴다 — 거기선 죽은 상대가 차선 안에
-#  있을 수 있어서다. 여기는 순찰을 멈추는 것뿐이라 죽은 상대를 기다릴 이유가 없다.)
-PEER_CAMERA_STALE_S = 5.0
-# 한 번 양보를 이만큼 넘기면 경고하고 그 상대 단계가 끝날 때까지 양보를 끈다.
-# 상대 pick 은 재시도 포함 최대 PICK_TIMEOUT_S x (PICK_RETRIES+1) = 540 s 라
-# 그보다 넉넉히 둔다. 이 시간을 넘긴다는 건 상대가 어딘가 걸렸다는 뜻이다.
-PEER_YIELD_MAX_S = 600.0
 
 # ── 대기를 푸는 기준: 로더 반경 ───────────────────────────────────────────
 # ★ 시간으로 재지 않는 이유
@@ -1443,64 +1412,6 @@ class Hold(py_trees.behaviour.Behaviour):
         return Status.SUCCESS
 
 
-class YieldToPeer(py_trees.behaviour.Behaviour):
-    """순찰 중 상대가 손목캠·팔을 쓰는 동안(DEFAULT_PEER_CAMERA_STAGES) 제자리에
-    선다. 이유는 그 상수 주석.
-
-        RUNNING  양보 중. 감싸는 Selector 가 순찰 가지를 INVALID 로 끊어서
-                 진행 중인 순찰 goal 이 거둬진다(ActionLeaf.terminate) — 선다.
-        FAILURE  양보할 일 없음. Selector 가 순찰 가지로 넘어간다.
-
-    FAILURE 가 에러가 아니라 "다음 가지로" 라 Freeze 로 감싸지 않는다.
-
-    ★ 재개할 때 가던 정차점으로 다시 간다. _NextWaypoint 는 make_goal 이 불릴
-      때마다 인덱스를 전진시키므로, 순찰 잎이 goal 을 들고 있는 채 끊기면
-      재개 시 그 정차점을 건너뛴다. 양보를 시작하는 순간 순찰 잎이 RUNNING
-      이었으면 인덱스를 하나 되감는다. (Selector 는 이 잎을 먼저 tick 하고 그
-      다음에 순찰 가지를 끊으므로, 이 시점엔 순찰 잎 상태가 아직 살아 있다.)
-    ★ 재개하면 순찰 가지가 처음부터 다시 돈다 — START 는 OneShot 캐시라 그냥
-      지나가고 POSE(관측 자세)가 한 번 더 돈다. 그리고 순찰 goal 마다 nav_server
-      가 patrol_start_hold_s 만큼 서 있다. 양보 한 번에 그만큼 더 든다.
-    """
-
-    def __init__(self, name, node):
-        super().__init__(name)
-        self.node = node
-        self._active = False
-        self._since = 0.0
-
-    def initialise(self):
-        self._active = False
-
-    def update(self):
-        should, why = self.node.peer_uses_sim()
-        if not should:
-            if self._active:
-                self.node.get_logger().info(f"양보 끝 — 상대 {why}. 순찰 재개")
-            self._active = False
-            return Status.FAILURE
-        now = time.monotonic()
-        if not self._active:
-            self._active = True
-            self._since = now
-            patrol = self.node.patrol_node
-            if patrol is not None and patrol.status == Status.RUNNING:
-                wp = self.node.patrol_waypoints
-                wp.idx = max(0, wp.idx - 1)
-            self.node.get_logger().info(
-                f"양보 — 상대가 시뮬 자원을 쓰는 중({why}). 순찰을 멈추고 기다린다")
-            self.node.publish_state()
-        elif now - self._since > PEER_YIELD_MAX_S:
-            self.node.get_logger().warning(
-                f"양보 {PEER_YIELD_MAX_S:.0f}s 초과 — 상대 {why} 에서 안 넘어간다. "
-                f"이 단계가 끝날 때까지 양보를 끄고 순찰을 재개한다")
-            self.node.suppress_peer_yield()
-            self._active = False
-            return Status.FAILURE
-        self.feedback_message = f"상대 {why}"
-        return Status.RUNNING
-
-
 class PeerClear(py_trees.behaviour.Behaviour):
     """상대 로봇이 로더 차선을 쓰고 있지 않은가. 배송 경로를 고르는 분기 조건이다.
 
@@ -1701,6 +1612,36 @@ class _Optional(py_trees.decorators.Decorator):
             return Status.SUCCESS
         self.feedback_message = child.feedback_message
         return child.status
+
+
+class StartDelay(py_trees.behaviour.Behaviour):
+    """순찰 가지에 처음 들어온 뒤 seconds 만큼 RUNNING, 그 뒤 SUCCESS.
+
+    START(OneShot) 안에 있어서 평생 한 번만 돈다. 두 대를 같이 띄워도 한 대를
+    늦게 출발시키려고 쓴다 — 도크 간격(0.98 m)이 회전 꼬리 스윕(0.656 m)과
+    붙어 있어 동시에 도크를 떠나면 서로 침범한다(mission_nodes.launch.py 의
+    START_DELAY_BY_ROBOT). 시계는 노드 기동이 아니라 "처음 출발하려는 순간"
+    부터 센다 — 웹 작업을 기다렸다 출발하는 경우에도 상대보다 늦게 나가도록.
+    """
+
+    def __init__(self, name, node, seconds):
+        super().__init__(name)
+        self.node = node
+        self.seconds = float(seconds)
+        self._deadline = None
+
+    def update(self):
+        now = time.monotonic()
+        if self._deadline is None:
+            self._deadline = now + self.seconds
+            self.node.get_logger().info(
+                f"출발 대기 {self.seconds:.0f}s — 그 뒤 순찰 시작점으로 간다")
+        left = self._deadline - now
+        if left > 0.0:
+            self.feedback_message = f"출발까지 {left:.0f}s"
+            return Status.RUNNING
+        self.node.get_logger().info("출발 대기 끝 — START")
+        return Status.SUCCESS
 
 
 class Freeze(py_trees.decorators.Decorator):
@@ -1988,16 +1929,23 @@ def build_tree(node):
             ok_fail_reasons=(NavigateTo.Result.CANCELED,),moves_base=True,),),
             node,PATROL,)
 
-    start = py_trees.decorators.OneShot(
-        "START(1회)", 
-        child=Freeze("START", ActionLeaf(
+    start_leaf = Freeze("START", ActionLeaf(
             START, node,
             # Nav2
             node.nav, "navigation/navigate_to",
             NavigateTo.Result, make_goal=lambda: NavigateTo.Goal(
             pose=_to_pose(node.patrol_route[0])),
                         timeout_s=NAV_TIMEOUT_S, moves_base=True,),
-                        node, START,),
+                        node, START,)
+    # robot2 처럼 늦게 출발할 로봇은 START 앞에 대기를 끼운다(StartDelay).
+    # OneShot 안이라 둘 다 평생 한 번이다.
+    if node.start_delay_s > 0.0:
+        start_leaf = py_trees.composites.Sequence(
+            "지연 출발", memory=True,
+            children=[StartDelay(START_WAIT, node, node.start_delay_s), start_leaf])
+    start = py_trees.decorators.OneShot(
+        "START(1회)",
+        child=start_leaf,
         policy=(py_trees.common.OneShotPolicy.ON_SUCCESSFUL_COMPLETION),)
     
     pose = Freeze("POSE", ObservePoseLeaf(POSE, node), node, POSE)
@@ -2015,17 +1963,8 @@ def build_tree(node):
     # NavigateTo goal 을 거둔다(ActionLeaf.terminate). 그래서 STOP 이 "멈춰라"
     # 를 따로 보내지 않아도 서고, goal 이 선반을 바꾸면 한 tick 닫았다 열어
     # START(캐시) → POSE → 순찰로 새 경로에 다시 들어간다(task_allows_patrol).
-    # ── 시뮬 자원 양보 ──────────────────────────────────────────────────
-    # 상대가 hold · scan · pick 중이면 순찰 가지를 끊고 제자리에 선다
-    # (YieldToPeer, DEFAULT_PEER_CAMERA_STAGES 주석). 문지기 안쪽에 두는 이유:
-    # 작업이 없어 순찰을 안 하는 동안엔 양보할 것도 없어서 state 가
-    # yield_peer 로 바뀌면 안 된다.
-    patrol_or_yield = py_trees.composites.Selector(
-        "양보/순찰", memory=False,
-        children=[YieldToPeer(YIELD, node), patrol_branch])
-
     guarded_patrol = py_trees.decorators.EternalGuard(
-        name="작업 있나?", child=patrol_or_yield, condition=node.task_allows_patrol)
+        name="작업 있나?", child=patrol_branch, condition=node.task_allows_patrol)
 
     node.patrol_node = patrol
     # 경로가 바뀌면 다음 정차점 인덱스를 되감아야 한다 (commit_pending_route).
@@ -2143,6 +2082,9 @@ class TaskManager(Node):
         self.declare_parameter("shelves_yaml", str(DEFAULT_SHELVES_YAML))
         self.declare_parameter("patrol_shelf", "")
         self.declare_parameter("patrol_route", DEFAULT_PATROL_ROUTE)
+        # 순찰 출발을 이만큼 늦춘다(StartDelay). launch 가 robot2 에 60 을 준다.
+        self.declare_parameter("start_delay_s", 0.0)
+        self.start_delay_s = max(0.0, float(self.get_parameter("start_delay_s").value))
         self.patrol_route, self.patrol_route_source = self._resolve_patrol_route()
         # ── 스택 회수 자리 ────────────────────────────────────────────────
         # shelves.yaml 의 어느 선반을 "스택 자리" 로 볼 것인가. 빈 문자열이면
@@ -2222,7 +2164,6 @@ class TaskManager(Node):
         self.declare_parameter("peer_pose_topic", "")
         self.declare_parameter("loader_clear_radius_m", DEFAULT_LOADER_CLEAR_RADIUS_M)
         self.declare_parameter("peer_busy_stages", DEFAULT_PEER_BUSY_STAGES)
-        self.declare_parameter("peer_camera_stages", DEFAULT_PEER_CAMERA_STAGES)
         self.declare_parameter("staging_pose", DEFAULT_STAGING_POSE)
         self.staging_pose = tuple(self.get_parameter("staging_pose").value)
         self.loader_clear_radius_m = float(self.get_parameter("loader_clear_radius_m").value)
@@ -2230,9 +2171,6 @@ class TaskManager(Node):
         # 넘기는 경우가 있고, 그게 그대로 들어오면 아무 단계에도 안 맞는다.
         self._peer_busy_stages = tuple(
             x for x in self.get_parameter("peer_busy_stages").value if x)
-        self._peer_camera_stages = tuple(
-            x for x in self.get_parameter("peer_camera_stages").value if x)
-        self._yield_suppressed_stage = None   # PEER_YIELD_MAX_S 를 넘긴 상대 단계
         self._peer_stage = None       # 마지막으로 본 상대 단계
         self._peer_xy = None          # 상대 베이스 위치 (map). 없으면 None
         self._peer_failed = False     # 상대가 얼어붙었나 (FAILED 토큰)
@@ -2245,7 +2183,6 @@ class TaskManager(Node):
             self.get_logger().info(
                 f"로더 차선 조율 켜짐 — 구독 {peer_topic}, "
                 f"양보 대상 {list(self._peer_busy_stages)}, "
-                f"순찰 멈춤 {list(self._peer_camera_stages)}, "
                 f"대기 자리 {tuple(round(v, 3) for v in self.staging_pose)}, "
                 f"이탈 판정 거리 {self.loader_clear_radius_m:.2f} m")
         # ★ 이 노드가 위치를 구독하는 유일한 자리다. 원래 task_manager 는 로봇
@@ -3126,30 +3063,6 @@ class TaskManager(Node):
         if self._peer_stage in self._peer_busy_stages:
             return True, f"state={self._peer_stage} ({age:.1f}s 전)"
         return False, f"state={self._peer_stage} ({age:.1f}s 전)"
-
-    def peer_uses_sim(self):
-        """(순찰을 멈춰야 하나, 이유). YieldToPeer 가 tick 마다 부른다.
-
-        멈추지 않는 경우 — 상대를 못 받았다 · 소식이 PEER_CAMERA_STALE_S 넘게
-        끊겼다 · 상대가 얼어붙었다(FAILED) · 상대 단계가 목록에 없다 · 이 상대
-        단계는 PEER_YIELD_MAX_S 를 넘겨 양보를 끈 단계다.
-        """
-        if not self._peer_camera_stages or self._peer_last_rx == 0.0:
-            return False, "상대 없음"
-        stage = self._peer_stage
-        if stage != self._yield_suppressed_stage:
-            self._yield_suppressed_stage = None
-        age = time.monotonic() - self._peer_last_rx
-        if age > PEER_CAMERA_STALE_S:
-            return False, f"state={stage} ({age:.1f}s 무음 — 끊긴 것으로 본다)"
-        if self._peer_failed:
-            return False, f"state={stage} FAILED"
-        if stage in self._peer_camera_stages and stage != self._yield_suppressed_stage:
-            return True, f"state={stage}"
-        return False, f"state={stage}"
-
-    def suppress_peer_yield(self):
-        self._yield_suppressed_stage = self._peer_stage
 
     def publish_state(self):
         """잎이 자기 상태를 즉시 알려야 할 때 부른다.
