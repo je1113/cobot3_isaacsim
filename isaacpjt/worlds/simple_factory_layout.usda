@@ -7,8 +7,8 @@
                 double radius = 5
             }
             dictionary Perspective = {
-                double3 position = (-6.153545624217779, -14.98983681718451, 1.7189541728940032)
-                double3 target = (9.138121387628178, 28.213833729027392, -51.98347863349267)
+                double3 position = (-9.047062550537742, 1.9177254747787078, 10.411673049577862)
+                double3 target = (91.24140841144653, -9.534852036156773, -61.57411982214257)
             }
             dictionary Right = {
                 double3 position = (0, -5, 0)
@@ -221,6 +221,17 @@ def Xform "World"
 
             def Xform "Shelf_02"
             {
+                def Cube "MagazinePickupRegion"
+                {
+                    custom string spawn:description = "Full magazine must leave this region for 0.3 seconds before refill."
+                    uniform token purpose = "guide"
+                    token visibility = "invisible"
+                    double size = 1
+                    double3 xformOp:translate = (0, 0, 0.6654165297785304)
+                    double3 xformOp:scale = (2.74, 1.24, 0.26)
+                    uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:scale"]
+                }
+
                 quatf xformOp:orient = (1, 0, 0, 0)
                 float3 xformOp:scale = (1, 1, 1)
                 double3 xformOp:translate = (-1.7408262933538312, -1.9728728557184216, 0)
@@ -294,6 +305,17 @@ def Xform "World"
 
             def Xform "Shelf_01"
             {
+                def Cube "MagazinePickupRegion"
+                {
+                    custom string spawn:description = "Full magazine must leave this region for 0.3 seconds before refill."
+                    uniform token purpose = "guide"
+                    token visibility = "invisible"
+                    double size = 1
+                    double3 xformOp:translate = (0, 0, 0.6654165297785304)
+                    double3 xformOp:scale = (2.74, 1.24, 0.26)
+                    uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:scale"]
+                }
+
                 quatf xformOp:orient = (1, 0, 0, 0)
                 float3 xformOp:scale = (1, 1, 1)
                 double3 xformOp:translate = (-1.7408262933538312, 2.953089041056456, 0)
@@ -536,8 +558,13 @@ def Xform "World"
                     uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
                 }
 
-                def Cube "MachineTop"
+                def Cube "MachineTop" (
+                    prepend apiSchemas = ["MaterialBindingAPI"]
+                )
                 {
+                    rel material:binding = </World/Robots/nova_carter1/Looks/Blue> (
+                        bindMaterialAs = "weakerThanDescendants"
+                    )
                     float3[] primvars:displayColor = [(0.72, 0.23, 0.18)]
                     uniform token primvars:displayColor:interpolation = "constant"
                     double size = 1
@@ -715,8 +742,13 @@ def Xform "World"
                     uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
                 }
 
-                def Cube "MachineTop"
+                def Cube "MachineTop" (
+                    prepend apiSchemas = ["MaterialBindingAPI"]
+                )
                 {
+                    rel material:binding = </World/Robots/nova_carter1/Looks/Yellow> (
+                        bindMaterialAs = "weakerThanDescendants"
+                    )
                     float3[] primvars:displayColor = [(0.72, 0.23, 0.18)]
                     uniform token primvars:displayColor:interpolation = "constant"
                     double size = 1
@@ -835,8 +867,13 @@ def Xform "World"
                     uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
                 }
 
-                def Cube "MachineTop"
+                def Cube "MachineTop" (
+                    prepend apiSchemas = ["MaterialBindingAPI"]
+                )
                 {
+                    rel material:binding = </World/Robots/nova_carter1/Looks/Green> (
+                        bindMaterialAs = "weakerThanDescendants"
+                    )
                     float3[] primvars:displayColor = [(0.72, 0.23, 0.18)]
                     uniform token primvars:displayColor:interpolation = "constant"
                     double size = 1
@@ -847,10 +884,37 @@ def Xform "World"
                 }
             }
         }
+
+        def Xform "Obstacle"
+        {
+            quatd xformOp:orient = (1, 0, 0, 0)
+            double3 xformOp:scale = (1, 1, 1)
+            double3 xformOp:translate = (0, 0, 0)
+            uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
+
+            def "traffic_cone_orange" (
+                prepend payload = @../assets/traffic_cone_orange.usda@
+            )
+            {
+                quatf xformOp:orient = (1, 0, 0, 0)
+                float3 xformOp:scale = (1, 1, 1)
+                double3 xformOp:translate = (2.3931683178429313, -4.16850517642612, -5.710554660254274e-7)
+                uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
+            }
+        }
     }
 
-    def Xform "Magazines"
+    def Xform "Magazines" (
+        prepend apiSchemas = ["OmniScriptingAPI"]
+    )
     {
+        asset[] omni:scripting:scripts = [@../scripts/magazine_spawner.py@]
+        custom asset spawn:orangeAsset = @../assets/magazine_1_orange_qr.usda@
+        custom asset spawn:blueAsset = @../assets/magazine_2_blue_qr.usda@
+        custom double spawn:confirmSeconds = 5.0
+        custom double spawn:warmupSeconds = 0.5
+        custom rel spawn:shelves = [</World/Magazines/shelf_1_magaines>, </World/Magazines/shelf_2_magaines>]
+
         quatd xformOp:orient = (1, 0, 0, 0)
         double3 xformOp:scale = (1, 1, 1)
         double3 xformOp:translate = (0, 0, 0)
@@ -858,6 +922,9 @@ def Xform "World"
 
         def Xform "shelf_1_magaines"
         {
+            custom rel spawn:slots = [</World/Magazines/shelf_1_magaines/top_magazines/magazine_1_orange>, </World/Magazines/shelf_1_magaines/top_magazines/magazine_2_blue>, </World/Magazines/shelf_1_magaines/top_magazines/magazine_1_orange_02>, </World/Magazines/shelf_1_magaines/top_magazines/magazine_2_blue_02>]
+            custom rel spawn:pickupRegion = </World/Environment/PickupZone/Shelf_01/MagazinePickupRegion>
+
             quatd xformOp:orient = (1, 0, 0, 0)
             double3 xformOp:scale = (1, 1, 1)
             double3 xformOp:translate = (1.0707670288812867, 0.5863591912997923, 0)
@@ -871,6 +938,7 @@ def Xform "World"
                 uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
 
                 def "magazine_1_orange" (
+                    active = false
                     prepend apiSchemas = ["PhysicsFilteredPairsAPI", "PhysxRigidBodyAPI"]
                     prepend payload = @../assets/magazine_1_orange_qr.usda@
                 )
@@ -884,6 +952,7 @@ def Xform "World"
                 }
 
                 def "magazine_2_blue" (
+                    active = false
                     prepend payload = @../assets/magazine_2_blue_qr.usda@
                 )
                 {
@@ -894,6 +963,7 @@ def Xform "World"
                 }
 
                 def "magazine_1_orange_02" (
+                    active = false
                     prepend payload = @../assets/magazine_1_orange_qr.usda@
                 )
                 {
@@ -905,6 +975,7 @@ def Xform "World"
                 }
 
                 def "magazine_2_blue_02" (
+                    active = false
                     prepend payload = @../assets/magazine_2_blue_qr.usda@
                 )
                 {
@@ -919,6 +990,9 @@ def Xform "World"
 
         def Xform "shelf_2_magaines"
         {
+            custom rel spawn:slots = [</World/Magazines/shelf_2_magaines/top_magazines/magazine_1_orange>, </World/Magazines/shelf_2_magaines/top_magazines/magazine_2_blue>, </World/Magazines/shelf_2_magaines/top_magazines/magazine_1_orange_02>, </World/Magazines/shelf_2_magaines/top_magazines/magazine_2_blue_02>]
+            custom rel spawn:pickupRegion = </World/Environment/PickupZone/Shelf_02/MagazinePickupRegion>
+
             quatd xformOp:orient = (1, 0, 0, 0)
             double3 xformOp:scale = (1, 1, 1)
             double3 xformOp:translate = (1.0707670288812867, 0.5863591912997923, 0)
@@ -932,6 +1006,7 @@ def Xform "World"
                 uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
 
                 def "magazine_1_orange" (
+                    active = false
                     prepend payload = @../assets/magazine_1_orange_qr.usda@
                 )
                 {
@@ -942,6 +1017,7 @@ def Xform "World"
                 }
 
                 def "magazine_2_blue" (
+                    active = false
                     prepend payload = @../assets/magazine_2_blue_qr.usda@
                 )
                 {
@@ -952,6 +1028,7 @@ def Xform "World"
                 }
 
                 def "magazine_1_orange_02" (
+                    active = false
                     prepend payload = @../assets/magazine_1_orange_qr.usda@
                 )
                 {
@@ -963,6 +1040,7 @@ def Xform "World"
                 }
 
                 def "magazine_2_blue_02" (
+                    active = false
                     prepend payload = @../assets/magazine_2_blue_qr.usda@
                 )
                 {
@@ -1702,6 +1780,10 @@ def Xform "World"
 
             over "joint_wheel_left"
             {
+                custom string isaac:nameOverride = "left_wheel" (
+                    displayName = "Name Override"
+                    doc = "Name override for prim lookup in base name search"
+                )
                 float physics:lowerLimit = -inf
                 float physics:upperLimit = inf
                 float state:angular:physics:position = 0
@@ -1710,6 +1792,10 @@ def Xform "World"
 
             over "joint_wheel_right"
             {
+                custom string isaac:nameOverride = "right_wheel" (
+                    displayName = "Name Override"
+                    doc = "Name override for prim lookup in base name search"
+                )
                 float physics:lowerLimit = -inf
                 float physics:upperLimit = inf
                 float state:angular:physics:position = 0
@@ -2036,6 +2122,10 @@ def Xform "World"
                     over "joint_1"
                     {
                         float drive:angular:physics:targetPosition = 0.4
+                        string isaac:nameOverride = "m0609_joint_1" (
+                            displayName = "Name Override"
+                            doc = "Name override for prim lookup in base name search"
+                        )
                         float physics:lowerLimit = -360.00082
                         float physics:upperLimit = 360.00082
                         float state:angular:physics:position = 0
@@ -2045,6 +2135,10 @@ def Xform "World"
                     over "joint_2"
                     {
                         float drive:angular:physics:targetPosition = 0.4
+                        string isaac:nameOverride = "m0609_joint_2" (
+                            displayName = "Name Override"
+                            doc = "Name override for prim lookup in base name search"
+                        )
                         float physics:lowerLimit = -360.00082
                         float physics:upperLimit = 360.00082
                         float state:angular:physics:position = 0
@@ -2054,6 +2148,10 @@ def Xform "World"
                     over "joint_3"
                     {
                         float drive:angular:physics:targetPosition = 88.200005
+                        string isaac:nameOverride = "m0609_joint_3" (
+                            displayName = "Name Override"
+                            doc = "Name override for prim lookup in base name search"
+                        )
                         float physics:lowerLimit = -150.00035
                         float physics:upperLimit = 150.00035
                         float state:angular:physics:position = 0
@@ -2063,6 +2161,10 @@ def Xform "World"
                     over "joint_4"
                     {
                         float drive:angular:physics:targetPosition = -16.9
+                        string isaac:nameOverride = "m0609_joint_4" (
+                            displayName = "Name Override"
+                            doc = "Name override for prim lookup in base name search"
+                        )
                         float physics:lowerLimit = -360.00082
                         float physics:upperLimit = 360.00082
                         float state:angular:physics:position = 0
@@ -2072,6 +2174,10 @@ def Xform "World"
                     over "joint_5"
                     {
                         float drive:angular:physics:targetPosition = 90.4
+                        string isaac:nameOverride = "m0609_joint_5" (
+                            displayName = "Name Override"
+                            doc = "Name override for prim lookup in base name search"
+                        )
                         float physics:lowerLimit = -360.00082
                         float physics:upperLimit = 360.00082
                         float state:angular:physics:position = 0
@@ -2081,6 +2187,10 @@ def Xform "World"
                     over "joint_6"
                     {
                         float drive:angular:physics:targetPosition = -9.900001
+                        string isaac:nameOverride = "m0609_joint_6" (
+                            displayName = "Name Override"
+                            doc = "Name override for prim lookup in base name search"
+                        )
                         float physics:lowerLimit = -360.00082
                         float physics:upperLimit = 360.00082
                         float state:angular:physics:position = 0
@@ -2833,6 +2943,44 @@ def "Render" (
                 custom bool overrideClipRange = 0
                 uniform int2 resolution = (1280, 720)
             }
+
+            def RenderProduct "Replicator_33" (
+                prepend apiSchemas = ["OmniRtxSettingsCommonAdvancedAPI_1", "OmniRtxSettingsRtAdvancedAPI_1", "OmniRtxSettingsPtAdvancedAPI_1", "OmniRtxPostColorGradingAPI_1", "OmniRtxPostChromaticAberrationAPI_1", "OmniRtxPostBloomPhysicalAPI_1", "OmniRtxPostMatteObjectAPI_1", "OmniRtxPostCompositingAPI_1", "OmniRtxPostDofAPI_1", "OmniRtxPostMotionBlurAPI_1", "OmniRtxPostTvNoiseAPI_1", "OmniRtxPostTonemapIrayReinhardAPI_1", "OmniRtxPostDebugSettingsAPI_1", "OmniRtxDebugSettingsAPI_1"]
+                hide_in_stage_window = true
+                no_delete = true
+            )
+            {
+                rel camera = </World/Robots/nova_carter1/chassis_link/sensors/XT_32/PandarXT_32_10hz>
+                custom string ogPostProcessPath = "/Render/OmniverseKit/HydraTextures/Replicator_33/PostRender"
+                bool omni:rtx:material:db:syncLoads = 1
+                bool omni:rtx:rt:ecoMode:enabled = 0
+                bool omni:rtx:scene:hydra:materialSyncLoads = 1
+                rel orderedVars = [
+                    </Render/Vars/GenericModelOutput>,
+                    </Render/Vars/RtxSensorMetadata>,
+                ]
+                custom bool overrideClipRange = 0
+                uniform int2 resolution = (1280, 720)
+            }
+
+            def RenderProduct "Replicator_34" (
+                prepend apiSchemas = ["OmniRtxSettingsCommonAdvancedAPI_1", "OmniRtxSettingsRtAdvancedAPI_1", "OmniRtxSettingsPtAdvancedAPI_1", "OmniRtxPostColorGradingAPI_1", "OmniRtxPostChromaticAberrationAPI_1", "OmniRtxPostBloomPhysicalAPI_1", "OmniRtxPostMatteObjectAPI_1", "OmniRtxPostCompositingAPI_1", "OmniRtxPostDofAPI_1", "OmniRtxPostMotionBlurAPI_1", "OmniRtxPostTvNoiseAPI_1", "OmniRtxPostTonemapIrayReinhardAPI_1", "OmniRtxPostDebugSettingsAPI_1", "OmniRtxDebugSettingsAPI_1"]
+                hide_in_stage_window = true
+                no_delete = true
+            )
+            {
+                rel camera = </World/Robots/nova_carter2/chassis_link/sensors/XT_32/PandarXT_32_10hz>
+                custom string ogPostProcessPath = "/Render/OmniverseKit/HydraTextures/Replicator_34/PostRender"
+                bool omni:rtx:material:db:syncLoads = 1
+                bool omni:rtx:rt:ecoMode:enabled = 0
+                bool omni:rtx:scene:hydra:materialSyncLoads = 1
+                rel orderedVars = [
+                    </Render/Vars/GenericModelOutput>,
+                    </Render/Vars/RtxSensorMetadata>,
+                ]
+                custom bool overrideClipRange = 0
+                uniform int2 resolution = (1280, 720)
+            }
         }
     }
 
@@ -2876,6 +3024,8 @@ def "Render" (
             </Render/OmniverseKit/HydraTextures/Replicator_30>,
             </Render/OmniverseKit/HydraTextures/Replicator_31>,
             </Render/OmniverseKit/HydraTextures/Replicator_32>,
+            </Render/OmniverseKit/HydraTextures/Replicator_33>,
+            </Render/OmniverseKit/HydraTextures/Replicator_34>,
         ]
     }
 
