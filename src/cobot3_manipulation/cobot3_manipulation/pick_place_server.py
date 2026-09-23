@@ -402,7 +402,8 @@ class PickPlaceServer(Node):
             f"gap {float(r2.get('used_gap_m', 0.0)) * 1000:+.0f} mm  "
             f"rise {float(r2.get('rise_mm', float('nan'))):.1f} mm  "
             f"tilt {float(r2.get('tilt_deg', float('nan'))):.1f} deg  "
-            f"gripped={r2.get('gripped')}")
+            f"gripped={r2.get('gripped')}  "
+            f"칸별 {r2.get('grip_log', '?')}  대상 {r2.get('attached_to', '?')}")
         return result
 
     def _holding(self, fallback=None):

@@ -178,6 +178,11 @@ TCP_SPEED, MIN_STEPS, MAX_STEPS = 0.002, 90, 600
 MAX_IK_FAIL_STEPS = 30
 LIFT_OK_MIN_M, TILT_MAX_DEG = 0.005, 5.0
 LIFT_HEIGHT_OFFSET = 0.10
+# 플랜지 위에 떠 있는 칸(gap > 0)에서 "붙었다" 가 나오면, 이만큼 살짝 들어서
+# 흡착이 진짜인지 본다. 실측: +5 mm 에서 붙었다고 나온 뒤 LIFT 에서 바로
+# gripped=False 가 세 번 연속 났다(rise 0) — 루프가 첫 "붙었다" 에서 멈춰서
+# +2 / 0 / -3 mm 칸은 시도조차 못 했다. 들어 봐서 떨어지면 다음 칸으로 간다.
+GRIP_VERIFY_LIFT_M = 0.010
 
 MAGAZINE_XFORM_PATH = "/World/Magazines/shelf_1_magaines/top_magazines/magazine_1_orange"
 
@@ -1235,6 +1240,8 @@ class Backend:
         if lift_height_m is None:
             lift_height_m = LIFT_HEIGHT_OFFSET
         flange_world = rig.flange_world
+        grip_log = []          # 칸마다 결과 — 실패 로그에 그대로 싣는다
+        attached_to = []
 
         for attempt, gap in enumerate(grip_gaps_m):
             _set_status(robot_id, phase="DESCEND", gap_m=gap)
@@ -1251,12 +1258,27 @@ class Backend:
             print(f"   [{robot_id}] 시도 {attempt+1}/{len(grip_gaps_m)}  간격 {gap*1000:+.0f} mm  "
                   f"-> {'붙었다' if ok else '안 붙었다'}")
             if ok:
+                attached_to = _flatten_gripped_paths(rig.gripper.gripped())
+            if ok and gap > 0.0:
+                # ★ 떠 있는 칸에서 붙었다 — 살짝 들어 진짜인지 본다(GRIP_VERIFY_LIFT_M).
+                self._servo_tcp(robot_id, grip_z + np.array([0, 0, GRIP_VERIFY_LIFT_M]), "VERIFY")
+                self._settle(30)
+                ok = holding(rig.gripper.gripped())
+                _set_status(robot_id, gripped=ok)
+                print(f"   [{robot_id}]   간격 {gap*1000:+.0f} mm 흡착 검증(+{GRIP_VERIFY_LIFT_M*1000:.0f} mm 들기) "
+                      f"-> {'유지' if ok else '놓침 — 다음 칸으로'}  대상 {attached_to}")
+                if not ok:
+                    grip_log.append(f"{gap*1000:+.0f}mm:붙었다가놓침")
+                    rig.gripper.open()
+                    continue
+            grip_log.append(f"{gap*1000:+.0f}mm:{'붙음' if ok else '안붙음'}")
+            if ok:
                 break
             rig.gripper.open()
         else:
             _set_status(robot_id, phase="FAILED", message="흡착 실패 — grip_gaps 전부 소진")
             return {"success": False, "fail_reason": "NO_ATTACH", "phase": "SUCTION",
-                   "used_gap_m": 0.0}
+                   "used_gap_m": 0.0, "grip_log": grip_log}
 
         # 흡착 순간 TCP 횡오차 (OFF_FLANGE 판정)
         tcp_now = self._get_tcp_pose(robot_id)
@@ -1282,6 +1304,7 @@ class Backend:
             _set_status(robot_id, phase="FAILED", message="리프트 중 놓쳤다")
             return {"success": False, "fail_reason": "SLIP", "phase": "LIFT",
                    "gripped": False, "used_gap_m": float(gap),
+                   "grip_log": grip_log, "attached_to": attached_to,
                    "rise_mm": rise_m*1000, "tilt_deg": tilt_deg,
                    "final_offset_m": final_offset_m, "offset_limit_m": offset_limit_m}
 
@@ -1300,7 +1323,7 @@ class Backend:
         _set_status(robot_id, phase="DONE" if ok else "FAILED",
                     message="" if ok else f"판정 실패 rise={rise_m*1000:.1f}mm tilt={tilt_deg:.2f}")
         return {"success": bool(ok), "fail_reason": "NONE" if ok else "SLIP",
-               "phase": "STOW",
+               "phase": "STOW", "grip_log": grip_log, "attached_to": attached_to,
                "gripped": bool(holding(rig.gripper.gripped())),
                "final_offset_m": final_offset_m, "offset_limit_m": offset_limit_m,
                "used_gap_m": float(gap), "rise_mm": rise_m*1000, "tilt_deg": tilt_deg}
