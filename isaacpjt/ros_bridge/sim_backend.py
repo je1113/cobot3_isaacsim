@@ -227,6 +227,8 @@ RELEASE_OPEN_TIMES = 3
 # 흡착 OFF 사이 간격(시뮬 시간, 초). 사용자 지시(2026-09-23) 1 초.
 RELEASE_GAP_S = 1.0
 RELEASE_FOLLOW_M = 0.01
+# RETRACT 는 놓은 높이에서 최소 이만큼 위로 간다.
+RETRACT_ABOVE_RELEASE_M = 0.10
 
 
 # ══════════════════════════════════════════════════════════════
@@ -1479,7 +1481,10 @@ class Backend:
         # 연 뒤 곧장 위로 뺀다(RELEASE_OPEN_TIMES 주석).
         top_before = measure_prim(rig.current_magazine_path)[1]
         _set_status(robot_id, phase="RETRACT")
-        retract_goal = slot_world + np.array([0, 0, approach_dist_m])
+        # 놓은 높이보다 반드시 위로 뺀다 — 접근 높이(0.15)가 놓는 높이보다 낮거나
+        # 같으면 RETRACT 가 아래로/제자리로 가서 방금 놓은 매거진을 누른다.
+        retract_goal = slot_world + np.array(
+            [0, 0, max(approach_dist_m, release_height_m + RETRACT_ABOVE_RELEASE_M)])
         self._servo_tcp(robot_id, retract_goal, "RETRACT")
         self._settle(SETTLE_STEPS)
         top_after = measure_prim(rig.current_magazine_path)[1]
