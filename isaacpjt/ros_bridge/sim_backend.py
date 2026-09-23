@@ -838,12 +838,15 @@ class Backend:
         #   view 로 다시 묶는다(_ensure_live). world.reset() 을 쓰지 않는 이유는
         #   그게 stop()/play() 를 한 번 더 돌리고 모든 객체를 기본 상태로
         #   되돌리기 때문이다 — 여기서 필요한 것은 핸들 교체뿐이다.
-        import omni.timeline
+        # ★ `import omni.timeline` 으로 쓰면 안 된다. 함수 안에서 import 하면
+        #   `omni` 가 이 함수 전체의 지역 이름이 되어, 위쪽의
+        #   omni.usd.get_context() 가 UnboundLocalError 로 죽는다(실측).
+        import omni.timeline as omni_timeline
         self._needs_reinit = False
-        self._stop_sub = (omni.timeline.get_timeline_interface()
+        self._stop_sub = (omni_timeline.get_timeline_interface()
                           .get_timeline_event_stream()
                           .create_subscription_to_pop_by_type(
-                              int(omni.timeline.TimelineEventType.STOP),
+                              int(omni_timeline.TimelineEventType.STOP),
                               self._on_timeline_stop))
 
         print(f"   scene ready — robots: {list(self.rigs.keys())}")
