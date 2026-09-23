@@ -33,7 +33,15 @@ from pathlib import Path
 from isaacsim import SimulationApp
 
 HEADLESS = os.environ.get("SIM_HEADLESS", "1") == "1"
-simulation_app = SimulationApp({"headless": HEADLESS})
+# ★ 2026-09-23 시도했다가 기각: 표준 Replicator 캡쳐(rep.create.render_product
+#   + AnnotatorRegistry)가 이 세션에서 항상 빈 프레임(shape=(0,))만 준다.
+#   Isaac Sim 5.1.0 의 알려진 이슈(멀티 GPU 렌더링에서 annotator 가 깨짐,
+#   GitHub isaac-sim/IsaacSim#507)와 정황이 비슷해서 SIM_MULTI_GPU=0 으로
+#   꺼 보고 debug_capture_prim 으로 재확인했지만, scene ready 까지 정상
+#   부팅된 세션에서도 여전히 빈 프레임이었다 — 원인이 아니다. 토글은
+#   남겨두되(기본값 True, 동작 그대로) 이 가설은 더 안 판다.
+MULTI_GPU = os.environ.get("SIM_MULTI_GPU", "1") == "1"
+simulation_app = SimulationApp({"headless": HEADLESS, "multi_gpu": MULTI_GPU})
 
 # 씬에 박혀 있는 ROS2 브릿지 OmniGraph(odom·lidar·clock 퍼블리셔)는 이 확장이
 # 꺼져 있으면 안 돈다 — Nav2 가 그 토픽들을 받아야 해서 필요하다.
