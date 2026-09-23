@@ -293,7 +293,7 @@ def _task_manager_params(ns, namespaces):
     #       shelves_yaml · patrol_shelf · patrol_route · reload_service
     #       execute_task_action · wait_for_task · empty_sweeps
     #       observe_pose_service · peer_state_topic · peer_pose_topic
-    #       loader_clear_radius_m · peer_busy_stages · staging_pose
+    #       loader_clear_radius_m · peer_busy_stages · peer_camera_stages · staging_pose
     params = {
         # 로더 차선이 막혔을 때 비켜 서는 자리. 로봇마다 달라야 한다 —
         # 같은 점을 쓰면 대기 자리에서 둘이 부딪힌다(STAGING_BY_ROBOT 주석).
