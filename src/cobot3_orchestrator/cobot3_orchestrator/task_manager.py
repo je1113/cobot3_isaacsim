@@ -450,7 +450,12 @@ DEFAULT_EMPTY_SWEEPS = 1
 #   3.42 는 차체를 점유맵에 놓아 겹침 0, 360° 제자리 회전이 되고(3.70 은
 #   ±95°), 3.42 -> 3.92 직선도 겹침 0 이다. 두 벨트(포장·검사) 모두 같다.
 #   stations.yaml PKG-01 / TEST-01 place_pose 도 3.42 로 같이 옮겼다.
-TEST_LOADER = (3.42, 4.60, 0.0)
+# ★ 2026-09-23(2): 3.42 -> 2.92, 직진 0.50 -> 1.00 (사용자 지시). 놓는 자리
+#   3.92 는 그대로다:  Nav2 2.92  +  직진 1.00  =  3.92.
+#   2.92 는 최근접 장애물까지 1.15 m(3.42 는 0.65, 3.70 은 0.35), 차체 360°
+#   회전 겹침 0(패딩 3 cm). 2.92 -> 3.92 직선도 끝점(3.92, 전과 같은 자리)
+#   말고는 겹침 0 이다. 포장·검사 벨트 모두 같다.
+TEST_LOADER = (2.92, 4.60, 0.0)
 
 # 검사 투입 벨트 정차점 — 스택을 놓는 곳. stations.yaml TEST-01 place_pose 와
 # 같은 점이어야 한다 (2026-09-23 사용자 확인: 스택은 검사 벨트에 놓는다).
@@ -458,7 +463,7 @@ TEST_LOADER = (3.42, 4.60, 0.0)
 # y 로 옮긴 모양이라 x 3.70 을 고른 근거(Nav2 내접 여유)가 그대로 성립한다.
 # 차체를 점유맵에 놓아 재면 이 점도, creep 뒤(3.92)도 겹침 0 이고 이 점에서
 # ±60° 까지 제자리 회전이 된다 — TEST_LOADER 와 같다.
-TEST_STATION = (3.42, -2.705, 0.0)   # TEST_LOADER 와 같은 이유로 3.42 (그 주석)
+TEST_STATION = (2.92, -2.705, 0.0)   # TEST_LOADER 와 같은 이유로 2.92 (그 주석)
 
 # ── 로더 앞 직진 전진 (creep) ──────────────────────────────────────────────
 # Nav2 는 위 TEST_LOADER(3.70)보다 벨트에 못 붙인다 — 3.85 에서 BLOCKED 로
@@ -488,7 +493,10 @@ TEST_STATION = (3.42, -2.705, 0.0)   # TEST_LOADER 와 같은 이유로 3.42 (�
 # ★ 2026-09-23: 0.22 -> 0.50 (사용자 지시). Nav2 정차점을 그만큼 뒤로(3.42)
 #   옮겨서 놓는 자리 3.92 는 그대로다(TEST_LOADER 주석). 0.50 은 nav_server
 #   PATROL_HOLD_MIN_DIST_M(0.6) 보다 짧아 직진 전 15 s 정지가 안 걸린다.
-LOADER_CREEP_M = 0.50
+# ★ 2026-09-23(2): 0.50 -> 1.00 (사용자 지시). Nav2 정차점을 2.92 로 옮겨
+#   놓는 자리 3.92 는 그대로다. 1.00 은 nav_server PATROL_HOLD_MIN_DIST_M 을
+#   넘으므로 그 값을 1.5 로 올렸다 — 안 올리면 직진 전에 15 s 를 선다.
+LOADER_CREEP_M = 1.00
 CREEP_TIMEOUT_S = 60.0
 
 # ── 로더 접근 차선 — 두 대가 같은 로더로 갈 때 ───────────────────────────
@@ -3068,13 +3076,14 @@ class TaskManager(Node):
     def peer_dist_to_loader(self):
         """상대 베이스와 로더 주차점의 거리. 위치를 모르면 None.
 
-        중심이 TEST_LOADER 다 — stations.yaml PKG-01 place_pose 와 같은 점이고,
-        로봇이 place 하려고 서는 자리다. WaitForPeer 가 이 거리를
+        중심은 로봇이 place 하려고 서는 자리 — TEST_LOADER(Nav2 정차점,
+        stations.yaml PKG-01 place_pose) 에서 LOADER_CREEP_M 만큼 앞이다. WaitForPeer 가 이 거리를
         loader_clear_radius_m 과 비교한다.
         """
         if self._peer_xy is None:
             return None
-        return math.hypot(self._peer_xy[0] - TEST_LOADER[0],
+        # 상대가 실제로 서서 놓는 자리는 Nav2 정차점에서 LOADER_CREEP_M 앞이다.
+        return math.hypot(self._peer_xy[0] - (TEST_LOADER[0] + LOADER_CREEP_M),
                           self._peer_xy[1] - TEST_LOADER[1])
 
     def peer_frozen(self):
