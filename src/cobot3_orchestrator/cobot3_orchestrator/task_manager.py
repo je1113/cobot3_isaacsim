@@ -674,7 +674,7 @@ SCAN_TIMEOUT_S = 40.0
 #   nav_server DRIVE_TIMEOUT_S(300 s)가 따로 있다.
 NAV_TIMEOUT_S = 600.0
 # ★ 180 인 이유: pick 서버가 성공 전에 이송 자세(carry_joints_deg)로 옮기고
-#   carry_wait_s(15 s) 서 있다. 그만큼 늘었다 — 120 이면 느린 GUI 시뮬에서
+#   carry_wait_s(지금 5 s, 예전 15 s) 서 있다. 그만큼 늘었다 — 120 이면 느린 GUI 시뮬에서
 #   다 집어 놓고 대기 중에 TIMEOUT 으로 얼 수 있다.
 PICK_TIMEOUT_S = 180.0
 PLACE_TIMEOUT_S = 180.0   # 흡착 OFF 3 회(sim_backend RELEASE_OPEN_TIMES)를 품는다

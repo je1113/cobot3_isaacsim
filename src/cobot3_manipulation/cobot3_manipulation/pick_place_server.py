@@ -67,7 +67,7 @@ pick_place_server — PickCarrier · PlaceCarrier 액션 서버.
   carry_joints_deg     pick 성공 뒤 이 관절값(도)으로 옮겨 이송한다. place 는 시작
                        전에 STOW(READY)로 되돌린다. 기본 [0]*6 — 팔이 서고 흡착면이
                        위를 본다. 빈 리스트면 끈다(STOW 그대로 이송).
-  carry_wait_s         이송 자세 도착 뒤 대기(기본 15 s). 끝나야 pick 이 성공을
+  carry_wait_s         이송 자세 도착 뒤 대기(기본 5 s). 끝나야 pick 이 성공을
                        내고 task_manager 가 NAV 로 출발한다. 0 이면 안 기다린다.
 
   기본값은 action 파일의 "제안"값이 아니라 grasp.yaml/12_pick_test.py 가
@@ -186,7 +186,7 @@ class PickPlaceServer(Node):
         self.declare_parameter("carry_joints_deg", [0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
         # 이송 자세에 도착한 뒤 이만큼 서 있다가 pick 을 끝낸다(= 그 뒤에 NAV 출발).
         # 자세를 크게 바꾼 직후라 매거진·팔이 흔들리는 걸 가라앉힌다. 0 이면 끈다.
-        self.declare_parameter("carry_wait_s", 15.0)
+        self.declare_parameter("carry_wait_s", 5.0)   # 2026-09-23 사용자 지시 15 -> 5
         self.declare_parameter("place_pos_tol_m", 0.002)         # ★ 알려진 갭: 미검증
         self.declare_parameter("place_yaw_tol_rad", 0.017)       # ★ 알려진 갭: 미검증
 
