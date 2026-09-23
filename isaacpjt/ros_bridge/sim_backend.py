@@ -84,6 +84,28 @@ enable_extension("isaacsim.ros2.bridge")
 # "SurfaceGripper node not found" 로 죽는다(재시도 프레임을 늘려도 안 됨 —
 # 익스텐션이 그 전에는 아예 등록을 안 하기 때문).
 enable_extension("isaacsim.robot.surface_gripper")
+# ★ 기본 씬(simple_factory_layout.usda)의 매거진은 고정 프림이 아니라
+#   isaacpjt/scripts/magazine_spawner.py 를 BehaviorScript(Script API)로 붙인
+#   프림이 런타임에 스폰한다(e04abb6, 82c4ec0). 근데 그 콜백(on_init/on_play)
+#   은 omni.kit.scripting(또는 최신 Kit의 omni.behavior.scripting.core)
+#   익스텐션이 켜져 있어야 애초에 불린다 — 여기서 안 켜주면 스크립트가
+#   조용히 죽은 채로 있고, 세그폴트도 에러도 없이 그냥 매거진이 하나도 안
+#   생긴다. 위 세 익스텐션과 마찬가지로 stage 를 열기 전에 켜야 한다.
+try:
+    enable_extension("omni.kit.scripting")  # Isaac Sim 5.1
+except Exception:
+    enable_extension("omni.behavior.scripting.core")  # 최신 Kit
+# ★ 익스텐션을 켜는 것만으론 부족하다. omni.kit.scripting 의 ScriptManager 는
+#   스테이지에 스크립트가 하나라도 붙어 있으면 기본적으로 "이 스크립트를
+#   신뢰합니까?" 보안 확인 팝업을 띄우고, 사람이 그 팝업에서 응답할 때까지
+#   _load_all_scripts() 를 안 부른다(script_manager.py 의
+#   /app/scripting/ignoreWarningDialog, 기본값 False) — 헤드리스/자동 실행
+#   에는 응답할 사람이 없어 영원히 안 불린다. 그래서 on_init 이 안 불려
+#   MagazineSpawner 가 조용히 죽어 있었다. 이 설정을 켜서 팝업 없이 바로
+#   실행하게 한다.
+import carb.settings
+
+carb.settings.get_settings().set_bool("/app/scripting/ignoreWarningDialog", True)
 
 import ctypes
 
