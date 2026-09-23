@@ -509,7 +509,10 @@ class PickPlaceServer(Node):
         # ── LOWER -> RELEASE -> RETREAT ──
         holder2 = {}
         t2 = threading.Thread(target=lambda: holder2.__setitem__(
-            "r", self._safe_call_place("place_phase2_finish", release_height_m=place_drop_m)))
+            "r", self._safe_call_place("place_phase2_finish", release_height_m=place_drop_m,
+                                       # 놓기를 3 번 되풀이한다(sim_backend RELEASE_RETRIES)
+                                       # — 기본 60 s 로는 GUI 렌더 모드에서 모자랄 수 있다.
+                                       timeout_s=180.0)))
         t2.start()
         self._poll_until(t2, goal_handle, feedback, phase_map=_PLACE_PHASE)
         r2 = holder2.get("r")

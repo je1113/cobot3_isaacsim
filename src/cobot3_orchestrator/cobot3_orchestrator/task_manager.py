@@ -641,7 +641,7 @@ NAV_TIMEOUT_S = 600.0
 #   carry_wait_s(15 s) 서 있다. 그만큼 늘었다 — 120 이면 느린 GUI 시뮬에서
 #   다 집어 놓고 대기 중에 TIMEOUT 으로 얼 수 있다.
 PICK_TIMEOUT_S = 180.0
-PLACE_TIMEOUT_S = 120.0
+PLACE_TIMEOUT_S = 240.0   # 놓기 3 회 되풀이(sim_backend RELEASE_RETRIES)를 품는다
 SERVER_WAIT_S = 5.0
 
 # SCAN 이 found=false 로 끝난 뒤 이만큼은 carrier_detected 를 받지 않는다.
@@ -677,6 +677,11 @@ SCAN_RETRIES = 2
 # ★ 시도마다 PICK_TIMEOUT_S 를 새로 센다. SCAN 은 한도 하나를 재시도가 나눠
 #   쓰지만 pick 은 한 번에 수십 초라 나눠 쓰면 두 번째 시도가 굶는다.
 PICK_RETRIES = 2
+# PLACE 도 success=false 면 같은 자리에서 다시 보낸다 — 최초 포함 3 번(사용자
+# 지시, 2026-09-23). pick_place_server 의 place 는 이미 든 게 없으면(NOT_GRIPPED)
+# MOVE 에서 바로 실패하므로, 실제로 놓였는데 판정만 틀린 경우 재시도가 매거진을
+# 다시 집지는 않는다.
+PLACE_RETRIES = 2
 
 # carrier_detected 가 오면 주행을 그 자리에서 끊을지, 정차점까지 가고 나서
 # 처리할지.
@@ -1864,7 +1869,7 @@ def build_tree(node):
     place = Freeze("PLACE", ActionLeaf(
         PLACE, node, node.place, "manipulation/place_carrier", PlaceCarrier.Result,
         make_goal=lambda: PlaceCarrier.Goal(variant=bb.variant),
-        timeout_s=PLACE_TIMEOUT_S,
+        timeout_s=PLACE_TIMEOUT_S, retries=PLACE_RETRIES,
         feedback_cb=node.log_phase("PLACE")), node, PLACE)
 
     # 배치를 마친 자리(TEST_LOADER)는 순찰 경로에서 멀다. 순찰 잎이 어차피
@@ -1923,7 +1928,7 @@ def build_tree(node):
             STACK_PLACE, node, node.place, "manipulation/place_carrier",
             PlaceCarrier.Result,
             make_goal=lambda: PlaceCarrier.Goal(variant=bb.variant),
-            timeout_s=PLACE_TIMEOUT_S,
+            timeout_s=PLACE_TIMEOUT_S, retries=PLACE_RETRIES,
             feedback_cb=node.log_phase("STACK_PLACE")), node, STACK_PLACE)
 
         stack_creep_in, stack_creep_out = creep_pair()

@@ -225,6 +225,11 @@ RELEASE_WAIT = 90
 RELEASE_PEEL_M = 0.02
 RELEASE_FOLLOW_M = 0.01
 RELEASE_RETRIES = 3
+# ★ 사용자 지시(2026-09-23): 놓기를 한 번 보고 끝내지 않고 **항상 3 번** 연다.
+#   매 번 GripperView 와 open_gripper 명령 둘 다로 연 뒤 살짝 들어 확인하고,
+#   다음 번을 위해 도로 내린다. 이미 떨어진 매거진 위에서 한 번 더 여는 것은
+#   해가 없다(열린 컵은 아무것도 안 잡는다). 판정은 마지막 번 결과로 한다.
+RELEASE_ALWAYS_REPEAT = True
 
 
 # ══════════════════════════════════════════════════════════════
@@ -1466,8 +1471,9 @@ class Backend:
         _set_status(robot_id, phase="RELEASE")
         released = False
         why = ""
+        status0 = rig.gripper.status()
         for attempt in range(1, RELEASE_RETRIES + 1):
-            rig.gripper.open(force=attempt > 1)
+            rig.gripper.open(force=True)
             self._settle(RELEASE_WAIT)
             listed = _flatten_gripped_paths(rig.gripper.gripped())
             status = rig.gripper.status()
@@ -1478,15 +1484,17 @@ class Backend:
             self._settle(30)
             top_after = measure_prim(rig.current_magazine_path)[1]
             follow = top_after - top_before
-            print(f"   [{robot_id}] RELEASE {attempt}/{RELEASE_RETRIES}  status={status}  "
+            released = not listed and follow < RELEASE_FOLLOW_M
+            print(f"   [{robot_id}] RELEASE {attempt}/{RELEASE_RETRIES}  status {status0} -> {status}  "
                   f"gripped={listed}  매거진 윗면 {top_before:.3f} -> {top_after:.3f} "
-                  f"({follow * 1000:+.0f} mm)  대상 {rig.current_magazine_path}")
-            if not listed and follow < RELEASE_FOLLOW_M:
-                released = True
+                  f"({follow * 1000:+.0f} mm)  -> {'떨어짐' if released else '안 떨어짐'}  "
+                  f"대상 {rig.current_magazine_path}")
+            if not released:
+                why = (f"흡착 목록 {listed}" if listed
+                       else f"목록은 비었는데 매거진이 {follow * 1000:.0f} mm 따라 올라왔다")
+            if attempt == RELEASE_RETRIES or (released and not RELEASE_ALWAYS_REPEAT):
                 break
-            why = (f"흡착 목록 {listed}" if listed
-                   else f"목록은 비었는데 매거진이 {follow * 1000:.0f} mm 따라 올라왔다")
-            # 도로 내려놓고 다시 연다.
+            # 다음 번을 위해 도로 내린다.
             self._servo_tcp(robot_id, descend_goal, "DESCEND")
             self._settle(30)
         _set_status(robot_id, gripped=not released)
