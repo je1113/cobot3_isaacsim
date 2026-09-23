@@ -417,6 +417,20 @@ def filter_collision(a, b):
     rel.AddTarget(Sdf.Path(b))
 
 
+def prim_live(stage, path):
+    """prim 이 있고 활성(active)인가.
+
+    ★ IsValid() 만으로는 부족하다. main 의 magazine spawner(isaacpjt/scripts/
+      magazine_spawner.py)가 들어오면서 선반 슬롯의 매거진은 전부
+      `active = false` 인 **틀**이 됐다 — prim 은 있지만(IsValid True) 물리
+      객체가 아니다. 거기에 SingleRigidPrim 을 붙이면 world.reset() 이
+      "Pattern ... did not match any rigid bodies" →
+      AttributeError: 'NoneType' object has no attribute 'max_shapes' 로 죽는다.
+    """
+    prim = stage.GetPrimAtPath(path)
+    return bool(prim) and prim.IsValid() and prim.IsActive()
+
+
 def find_prim_path(root_path, name):
     stage = omni.usd.get_context().get_stage()
     root = stage.GetPrimAtPath(root_path)
@@ -678,6 +692,9 @@ class RobotRig:
 # ══════════════════════════════════════════════════════════════
 class Backend:
     def __init__(self):
+        # Stop → Play 복구 표시(_ensure_live). 맨 앞에 둔다 — 아래 부팅 중에
+        # _restore_state → _set_joint_deg → _require_playing 이 이미 읽는다.
+        self._needs_reinit = False
         self.frames = yaml.safe_load(FRAMES_YAML.read_text(encoding="utf-8"))
         self.grasp = yaml.safe_load(GRASP_YAML.read_text(encoding="utf-8"))
         self.carriers = yaml.safe_load(CARRIERS_YAML.read_text(encoding="utf-8"))
@@ -706,8 +723,16 @@ class Backend:
         # 없으므로 걸러낸다. 이 우회는 robot1 하드코딩 경로(teleport_base ->
         # 재흡착)에서만 쓰였고 지금 배선(실제 Nav2)에서는 아무도 안 부른다 —
         # robot2 용 필터 쌍은 그 경로를 실제로 쓰게 되면 추가한다.
-        filter_collision(self.rigs["robot1"].gripper_prim, MAGAZINE_XFORM_PATH)
-        filter_collision(MAGAZINE_XFORM_PATH, CONVEYOR_FRAME_PATH)
+        # ★ 고정 매거진(MAGAZINE_XFORM_PATH)이 스포너의 비활성 틀이면 건너뛴다
+        #   (prim_live 독스트링). 스포너가 틀의 충돌 제외 쌍을 새 매거진에 옮겨
+        #   준다(magazine_spawner._spawn 의 incoming_filters).
+        self._fixed_magazine = prim_live(self.stage, MAGAZINE_XFORM_PATH)
+        if self._fixed_magazine:
+            filter_collision(self.rigs["robot1"].gripper_prim, MAGAZINE_XFORM_PATH)
+            filter_collision(MAGAZINE_XFORM_PATH, CONVEYOR_FRAME_PATH)
+        else:
+            print(f"   고정 매거진 {MAGAZINE_XFORM_PATH} 은 비활성 스폰 틀이다 — "
+                  f"매거진은 magazine_spawner 가 런타임에 만든다")
 
         self.world = World(stage_units_in_meters=1.0)
         for rig in self.rigs.values():
@@ -716,8 +741,12 @@ class Backend:
             rig.robot = self.world.scene.add(SingleManipulator(
                 prim_path=root_path, name=f"m0609_robot_{rig.robot_id}",
                 end_effector_prim_path=rig.ee_link_path))
-        self.magazine = self.world.scene.add(SingleRigidPrim(
+        # 고정 매거진은 옛 씬(스포너 이전)에서만 물리 객체다. 지금 씬에서는 None.
+        # 쓰는 곳은 레거시 경로 둘(reset_magazine · 텔레포트 재흡착)뿐이고
+        # 둘 다 _require_fixed_magazine 으로 막는다.
+        self.magazine = (self.world.scene.add(SingleRigidPrim(
             prim_path=MAGAZINE_XFORM_PATH, name="magazine"))
+            if self._fixed_magazine else None)
         self.world.reset()
         for rig in self.rigs.values():
             rig.robot.initialize()
@@ -749,7 +778,10 @@ class Backend:
             # READY_JOINTS_DEG 그대로 둔다 — 위 스냅이 이미 그 자세다.
             print(f"  팔 부팅 자세: READY(홈) {READY_JOINTS_DEG}")
 
-        self.magazine_spawn_pos, self.magazine_spawn_quat = self.magazine.get_world_pose()
+        if self.magazine is not None:
+            self.magazine_spawn_pos, self.magazine_spawn_quat = self.magazine.get_world_pose()
+        else:
+            self.magazine_spawn_pos = self.magazine_spawn_quat = None
 
         # ★ PICK 판정(rise/tilt)이 "지금 실제로 집은 매거진"이 아니라 항상
         # MAGAZINE_XFORM_PATH(magazine_1_orange) 하나만 쟀던 버그의 수정.
@@ -763,7 +795,9 @@ class Backend:
         # 읽어둔다(매 PICK 마다 yaml 다시 읽을 필요 없음). 두 로봇이
         # 같은 매거진 후보 목록을 공유한다 — 어느 선반 것이든 좌표로 가른다.
         meas_layout = yaml.safe_load(MEASURED.read_text(encoding="utf-8"))
-        self._all_magazine_prims = [m["prim"] for m in meas_layout["magazines"].values()]
+        # 스포너의 비활성 틀은 뺀다 — 물리 객체가 아니라 잴 수도 옮길 수도 없다.
+        self._all_magazine_prims = [m["prim"] for m in meas_layout["magazines"].values()
+                                    if prim_live(self.stage, m["prim"])]
         # ★ yaml 목록은 기본 씬의 매거진 16 개다. 다른 씬(SIM_WORLD_USD)이나
         #   스택(F3_STK*, 플랜지가 있는 캐리어면 전부)도 같은 방식으로 "실제로
         #   집은 그것" 을 찾을 수 있게, 스테이지에서 flange_plate 자식을 가진
@@ -842,7 +876,6 @@ class Backend:
         #   `omni` 가 이 함수 전체의 지역 이름이 되어, 위쪽의
         #   omni.usd.get_context() 가 UnboundLocalError 로 죽는다(실측).
         import omni.timeline as omni_timeline
-        self._needs_reinit = False
         self._stop_sub = (omni_timeline.get_timeline_interface()
                           .get_timeline_event_stream()
                           .create_subscription_to_pop_by_type(
@@ -1129,6 +1162,7 @@ class Backend:
         for _ in range(10):
             self.world.step(render=not HEADLESS)
 
+        self._require_fixed_magazine("텔레포트 재흡착")
         tcp_now = self._get_tcp_pose(robot_id)   # target_quat 자세라 월드 -Z 오프셋이 맞다
         mag_height = measure_prim(MAGAZINE_XFORM_PATH)[2]
         # 직전까지 떨어져 있던 자세(mag_quat)를 그대로 쓰면 기울어진 채로
@@ -1155,10 +1189,18 @@ class Backend:
             print(f"   !! [{robot_id}] 이송 후 재흡착 실패 — 이송 중 놓친 것으로 처리")
         return ok
 
+    def _require_fixed_magazine(self, what):
+        if self.magazine is None:
+            raise RuntimeError(
+                f"{what}: 고정 매거진 {MAGAZINE_XFORM_PATH} 이 이 씬에서는 비활성 스폰 "
+                f"틀이다 — 매거진은 magazine_spawner 가 만들고 되돌린다. Stop → Play 로 "
+                f"스포너를 리셋해라")
+
     def reset_magazine(self, robot_id=DEFAULT_ROBOT_ID):
         """반복 테스트용. carrier_code_reader/pick 결과에 영향받은 매거진을
         원위치로 되돌린다. robot_id 는 그리퍼를 열어 둘 로봇 — 매거진
         자체(MAGAZINE_XFORM_PATH)는 로봇과 무관한 전역 픽스처다."""
+        self._require_fixed_magazine("reset_magazine")
         rig = self.rigs[robot_id]
         rig.gripper.open()
         for _ in range(20):
@@ -1199,8 +1241,14 @@ class Backend:
                     "gripped_paths": _flatten_gripped_paths(rig.gripper.gripped()),
                 }
 
+            # ★ 스포너가 만든 매거진(.../Spawned/...)은 남기지 않는다. 스포너가
+            #   Stop 마다 지우고 다음 기동에 번호를 1부터 다시 매기므로, 저장해
+            #   두면 다음 기동의 **다른** 매거진이 같은 이름으로 엉뚱한 자리에
+            #   순간이동한다. 비활성 틀도 뺀다(잴 수 없다).
             magazines = {}
             for path in self._all_magazine_prims:
+                if "/Spawned/" in path or not prim_live(self.stage, path):
+                    continue
                 pos, quat = get_world_pose(path)
                 magazines[path] = {"pos": pos.tolist(), "quat_wxyz": quat.tolist()}
 
@@ -1244,8 +1292,8 @@ class Backend:
             print(f"  매거진 {n}개: 스냅샷을 건너뛰고 씬 원위치에서 시작한다")
         else:
             for path, m in (snapshot.get("magazines") or {}).items():
-                if not self.stage.GetPrimAtPath(path).IsValid():
-                    continue    # 이 씬에는 이제 없는 매거진/스택 — 조용히 건너뛴다
+                if "/Spawned/" in path or not prim_live(self.stage, path):
+                    continue    # 이 씬에는 없거나 비활성(스폰 틀)인 매거진 — 조용히 건너뛴다
                 SingleRigidPrim(prim_path=path).set_world_pose(
                     position=np.array(m["pos"]), orientation=np.array(m["quat_wxyz"]))
 
@@ -1509,13 +1557,31 @@ class Backend:
             w = (R[1,0]-R[0,1])/S; x=(R[0,2]+R[2,0])/S; y=(R[1,2]+R[2,1])/S; z=0.25*S
         return np.array([w,x,y,z])
 
+    def _magazine_candidates(self):
+        """지금 씬에 살아 있는 플랜지 캐리어 전부.
+
+        ★ 부팅 때 한 번 모은 _all_magazine_prims 만으로는 모자라다. 스포너가
+          매거진을 런타임에 만들고, 집어 가면 **새 이름으로** 다시 만든다
+          (.../top_magazines/Spawned/magazine_1_orange_000003). 그래서 부를
+          때마다 /World/Magazines 아래를 다시 훑는다 — 매거진 수십 개라 싸다.
+        """
+        out = [p for p in self._all_magazine_prims if prim_live(self.stage, p)]
+        root = self.stage.GetPrimAtPath("/World/Magazines")
+        if root:
+            for prim in Usd.PrimRange(root):
+                if prim.GetChild("flange_plate").IsValid():
+                    path = str(prim.GetPath())
+                    if path not in out:
+                        out.append(path)
+        return out
+
     def _find_nearest_magazine(self, flange_world):
         """실제로 지금 집으려는 매거진이 씬의 몇 번째 인스턴스인지는 이름
         만으로 못 가른다(위 __init__ 의 self._all_magazine_prims 주석 참고).
         pick_phase1_approach 가 이미 아는 실제 목표 flange_world(QR pose 로
         역산한 3D 좌표)에 flange_plate 가 가장 가까운 인스턴스를 찾는다."""
         best_path, best_d = None, None
-        for path in self._all_magazine_prims:
+        for path in self._magazine_candidates():
             try:
                 cx, top_z, _h = measure_prim(f"{path}/flange_plate")
             except Exception:
