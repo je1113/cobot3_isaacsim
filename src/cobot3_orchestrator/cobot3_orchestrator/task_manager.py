@@ -618,7 +618,10 @@ MISSION_STAGES = (HOLD, SCAN, PICK, HOLD_BACK, APPROACH, WAIT, PUSH, NAV,
 OBSERVE_POSE_TIMEOUT_S = 40.0
 SCAN_TIMEOUT_S = 40.0
 NAV_TIMEOUT_S = 300.0
-PICK_TIMEOUT_S = 120.0
+# ★ 180 인 이유: pick 서버가 성공 전에 이송 자세(carry_joints_deg)로 옮기고
+#   carry_wait_s(15 s) 서 있다. 그만큼 늘었다 — 120 이면 느린 GUI 시뮬에서
+#   다 집어 놓고 대기 중에 TIMEOUT 으로 얼 수 있다.
+PICK_TIMEOUT_S = 180.0
 PLACE_TIMEOUT_S = 120.0
 SERVER_WAIT_S = 5.0
 
@@ -709,7 +712,7 @@ DEFAULT_PEER_CAMERA_STAGES = [HOLD, SCAN, PICK, STACK_SCAN, STACK_PICK]
 #  있을 수 있어서다. 여기는 순찰을 멈추는 것뿐이라 죽은 상대를 기다릴 이유가 없다.)
 PEER_CAMERA_STALE_S = 5.0
 # 한 번 양보를 이만큼 넘기면 경고하고 그 상대 단계가 끝날 때까지 양보를 끈다.
-# 상대 pick 은 재시도 포함 최대 PICK_TIMEOUT_S x (PICK_RETRIES+1) = 360 s 라
+# 상대 pick 은 재시도 포함 최대 PICK_TIMEOUT_S x (PICK_RETRIES+1) = 540 s 라
 # 그보다 넉넉히 둔다. 이 시간을 넘긴다는 건 상대가 어딘가 걸렸다는 뜻이다.
 PEER_YIELD_MAX_S = 600.0
 
