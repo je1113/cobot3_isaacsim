@@ -6,7 +6,7 @@ import useApiRequest from '../hooks/useApiRequest'
 import {
   useMeta,
   useRobots,
-} from '../contexts/MetaContext'
+} from '../contexts/metaHooks'
 
 function isTeachingComplete(shelf) {
   return (

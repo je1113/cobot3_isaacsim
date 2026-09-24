@@ -281,7 +281,7 @@ class NavServer(Node):
         ns = self.get_namespace().rstrip("/")
 
         self.get_logger().info(
-            f"nav_server ready"
+            "nav_server ready"
         )
 
         self.get_logger().info(

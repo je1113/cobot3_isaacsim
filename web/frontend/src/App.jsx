@@ -17,7 +17,7 @@ import {
   saveStations,
 } from './api/config'
 import { useConfigResource } from './hooks/useConfigResource'
-import { useRobots } from './contexts/MetaContext'
+import { useRobots } from './contexts/metaHooks'
 
 import ShelfSettingsPage from './pages/ShelfSettingsPage'
 import StationSettingsPage from './pages/StationSettingsPage'

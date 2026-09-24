@@ -85,7 +85,8 @@ class FlangeObservation:
 def project_points(K, dist, R_wo, p_wo, pts_world):
     pts_world = np.atleast_2d(np.asarray(pts_world, dtype=float))
     pc = (pts_world - p_wo) @ R_wo                  # optical 좌표
-    rvec = np.zeros(3); tvec = np.zeros(3)
+    rvec = np.zeros(3)
+    tvec = np.zeros(3)
     uv, _ = cv2.projectPoints(pc.reshape(-1, 1, 3), rvec, tvec, K, dist)
     return uv.reshape(-1, 2), pc[:, 2]
 

@@ -1,7 +1,6 @@
 import {
   Fragment,
   useCallback,
-  useState,
 } from 'react'
 import { NavLink } from 'react-router-dom'
 
@@ -13,7 +12,7 @@ import { useConfigResource } from '../hooks/useConfigResource'
 import {
   useEnum,
   useMeta,
-} from '../contexts/MetaContext'
+} from '../contexts/metaHooks'
 
 // ★ 라우팅은 이제 서버(src/cobot3_bringup/config/routing.yaml)가 갖는다.
 //   localStorage 판(ROUTING_RULES_STORAGE_KEY / LEGACY_ROUTING_STEPS_KEY)과
@@ -291,6 +290,24 @@ function ProcessFlowPage({
             : rule,
         ),
     )
+  }
+
+  function createRuleId() {
+    const usedIds = new Set(
+      routingRules.map(
+        (rule) => rule.rule_id,
+      ),
+    )
+
+    let number = 1
+
+    while (
+      usedIds.has(`rule-${number}`)
+    ) {
+      number += 1
+    }
+
+    return `rule-${number}`
   }
 
   function addRule() {
