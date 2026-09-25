@@ -92,9 +92,6 @@ class Bridge:
     async def reload_config(self, robot_id: str, scope: str) -> dict:
         raise BridgeUnavailable("ROS 브리지가 꺼져 있다 (COBOT3_ROS=0)")
 
-    async def capture_pose(self, robot_id: str) -> dict:
-        raise BridgeUnavailable("ROS 브리지가 꺼져 있다 (COBOT3_ROS=0)")
-
     def latest_cctv(self) -> CctvFrame | None:
         """가장 최근 CCTV 프레임(JPEG). 아직 없거나 브리지가 꺼져 있으면 None."""
         return None
@@ -166,7 +163,6 @@ class RclpyBridge(Bridge):
         from rclpy.action import ActionClient
         from rclpy.node import Node
         from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
-        from sensor_msgs.msg import JointState
         from std_msgs.msg import String
 
         s = settings()
@@ -184,7 +180,6 @@ class RclpyBridge(Bridge):
         self._action: dict[str, Any] = {}
         self._cmd_cli: dict[str, Any] = {}
         self._reload_cli: dict[str, Any] = {}
-        self._joints: dict[str, Any] = {}
 
         for robot in s.namespaces:
             node.create_subscription(
@@ -198,14 +193,6 @@ class RclpyBridge(Bridge):
                 s.pose_topic_tmpl.format(robot=robot),
                 lambda msg, r=robot: self._on_pose(r, msg),
                 pose_qos,
-            )
-            node.create_subscription(
-                JointState,
-                f"/{robot}/joint_states",
-                lambda msg, r=robot: self._joints.__setitem__(
-                    r, {"name": list(msg.name), "position": list(msg.position)}
-                ),
-                10,
             )
             self._action[robot] = ActionClient(node, ExecuteTask, f"/{robot}/orchestrator/execute_task")
             self._cmd_cli[robot] = node.create_client(RobotCommand, f"/{robot}/orchestrator/command")
@@ -407,14 +394,6 @@ class RclpyBridge(Bridge):
             "revision": res.revision,
             "rejected_because": res.rejected_because,
         }
-
-    async def capture_pose(self, robot_id: str) -> dict:
-        """현재 관절값 (3.3). 전용 서비스를 만들지 않고 /joint_states 를 쓴다 —
-        값을 읽기만 하는 데 새 인터페이스를 늘릴 이유가 없다."""
-        snap = self._joints.get(robot_id)
-        if snap is None:
-            raise BridgeUnavailable(f"{robot_id} 의 /joint_states 를 아직 못 받았다")
-        return snap
 
     # ── 유틸 ─────────────────────────────────────────────────────────
     def _require(self, table: dict, robot_id: str, what: str):

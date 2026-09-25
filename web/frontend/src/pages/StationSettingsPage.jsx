@@ -300,12 +300,6 @@ function StationSettingsPage({
     )
   }
 
-  function saveCurrentArmPose() {
-    window.alert(
-      `${activeStationId} 현재 팔 자세 지정은 ROS2 연동 단계에서 연결합니다.`,
-    )
-  }
-
   function testPlace() {
     window.alert(
       `${activeStationId} 시험 배치는 ROS2 연동 단계에서 연결합니다.`,
@@ -575,16 +569,6 @@ function StationSettingsPage({
                   배치 시 사용할 로봇 팔 관절 자세입니다.
                 </p>
               </div>
-
-              <button
-                type="button"
-                className="save-pose-button"
-                onClick={
-                  saveCurrentArmPose
-                }
-              >
-                현재 자세 지정
-              </button>
             </div>
 
             <div className="station-joint-grid">

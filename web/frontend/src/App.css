@@ -457,21 +457,12 @@
   gap: 8px;
 }
 
-.save-pose-button,
 .delete-pass-button,
 .test-drive-button,
 .save-shelf-button {
   border-radius: 8px;
   cursor: pointer;
   font: inherit;
-}
-
-.save-pose-button {
-  padding: 10px 12px;
-  border: 1px solid #d7d2ca;
-  background: white;
-  color: #1b1b1a;
-  font-size: 11px;
 }
 
 .delete-pass-button {
@@ -2650,16 +2641,6 @@
   font-size: 11px;
 }
 
-.save-pose-button {
-  padding: 9px 12px;
-  border: 1px solid #d5d0c8;
-  border-radius: 7px;
-  background: #ffffff;
-  color: #44403c;
-  cursor: pointer;
-  white-space: nowrap;
-}
-
 .station-joint-grid {
   display: grid;
   grid-template-columns:
@@ -3040,6 +3021,39 @@
   cursor: pointer;
 }
 
+.process-save-button:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+
+.process-flow-footer {
+  align-items: center;
+  gap: 12px;
+}
+
+.process-save-notice {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.process-save-notice.ok {
+  color: #1f7a3a;
+}
+
+.process-save-notice.error {
+  color: #b42318;
+}
+
+.process-reload-button {
+  padding: 10px 14px;
+  border: 1px solid #1c1c1b;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #1c1c1b;
+  font-weight: 700;
+  cursor: pointer;
+}
+
 @media (max-width: 1050px) {
   .process-chain {
     grid-template-columns: 1fr;
@@ -3172,8 +3186,7 @@
   white-space: nowrap;
 }
 
-.station-secondary-button:hover,
-.save-pose-button:hover {
+.station-secondary-button:hover {
   background: #f5f4f1;
 }
 

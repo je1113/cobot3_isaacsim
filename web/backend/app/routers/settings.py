@@ -24,7 +24,7 @@ from fastapi import APIRouter, Body, Header, Response
 
 from .. import shapes, yamlstore
 from ..config import settings
-from ..errors import ApiError, NotFound, Unprocessable
+from ..errors import ApiError, Unprocessable
 from ..services import configstore
 from ..services.rosbridge import bridge
 from ..ws import hub
@@ -116,41 +116,6 @@ async def put_shelves(
 
     rev = await _save(path, doc, if_match, "shelves")
     return {"revision": rev, "shelves": [shapes.shelf_out(s["shelf_id"], s) for s in merged]}
-
-
-@router.post("/shelves/{shelf_id}/capture")
-async def capture_pose(shelf_id: str, body: dict = Body(...)):
-    """'현재 자세로 저장' — 로봇의 지금 관절값을 그 층(level)에 채운다.
-
-    화면은 층 단위로 티칭하므로(`arm_teach_pose` 6칸), 여기서도 층을 받는다.
-    ROS 브리지가 꺼져 있으면 503 이고, 화면은 그 메시지를 그대로 띄운다.
-    """
-    level = body.get("level")
-    robot = body.get("robot_id") or (settings().robots[0] if settings().robots else "")
-    if level is None:
-        raise Unprocessable("level 이 필요하다")
-
-    snap = await bridge.capture_pose(settings().to_ns(robot))   # 없으면 503
-    positions = list(snap.get("position") or [])[: shapes.JOINTS]
-
-    path = settings().shelves_yaml
-    doc, rev = yamlstore.load(path)
-    shelf = next((s for s in (doc.get("shelves") or []) if str(s.get("shelf_id")) == shelf_id), None)
-    if shelf is None:
-        raise NotFound(f"그런 선반이 없다: {shelf_id}")
-
-    target = next((p for p in (shelf.get("scan_passes") or []) if int(p.get("level", 0)) == int(level)), None)
-    if target is None:
-        raise NotFound(f"{shelf_id} 에 {level}층이 없다")
-
-    target["arm_teach_pose"] = shapes.joints_in(positions)
-    # 화면과 같은 규칙: 티칭이 처음 완성된 순간에만 찍고, 이후엔 안 건드린다.
-    if not shelf.get("first_taught_at") and shapes.shelf_is_taught(shelf):
-        from datetime import datetime
-        shelf["first_taught_at"] = datetime.now().astimezone().isoformat()
-
-    new_rev = await _save(path, doc, rev, "shelves")
-    return {"revision": new_rev, "shelf": shapes.shelf_out(shelf_id, shelf)}
 
 
 # ── 스테이션 ─────────────────────────────────────────────────────────

@@ -1,6 +1,7 @@
 import {
   Fragment,
   useCallback,
+  useState,
 } from 'react'
 import { NavLink } from 'react-router-dom'
 
@@ -389,24 +390,47 @@ function ProcessFlowPage({
     )
   }
 
+  // 저장 결과. { kind: 'ok' | 'error', text }
+  const [saveNotice, setSaveNotice] =
+    useState(null)
+
+  const saving =
+    resource.status === 'saving'
+
   async function saveRouting() {
     // 화면에서 먼저 막는다 — 누르자마자 이유를 알 수 있어서다.
     // 서버도 같은 규칙으로 다시 검사한다(백엔드 settings.py `_check_chain`).
     // 둘 중 하나만 있으면 안 된다: 화면만 있으면 API 를 직접 부르는 경로가
     // 뚫리고, 서버만 있으면 사람이 저장을 눌러 봐야 이유를 안다.
+    //
+    // ★ 결과를 window.alert 로만 알리지 않는다. 크롬은 alert 가 잇따르면
+    //   "이 페이지가 추가 대화상자를 만들지 못하게 차단" 을 제안하고, 한 번
+    //   누르면 그 탭의 alert 가 전부 조용히 무시된다. 그러면 저장이 되든
+    //   실패하든 버튼이 '안 먹는' 것처럼 보인다. 그래서 화면 안에 적는다.
     if (!routingComplete) {
-      window.alert(
-        '라우팅 규칙의 연결 상태, 규칙 설명, 최종 목적지를 확인하세요.',
-      )
+      setSaveNotice({
+        kind: 'error',
+        text: '라우팅 규칙의 연결 상태, 규칙 설명, 최종 목적지를 확인하세요.',
+      })
       return
     }
+
+    setSaveNotice(null)
 
     try {
       await resource.save()
 
-      window.alert('공정 흐름을 저장했습니다.')
+      setSaveNotice({
+        kind: 'ok',
+        text: '공정 흐름을 저장했습니다.',
+      })
     } catch (err) {
-      window.alert(err.message)
+      setSaveNotice({
+        kind: 'error',
+        text: err.stale
+          ? '다른 곳에서 먼저 저장했습니다. 덮어쓰지 않았으니 다시 불러온 뒤 편집하세요.'
+          : err.message,
+      })
     }
   }
 
@@ -924,14 +948,45 @@ function ProcessFlowPage({
         </section>
 
         <div className="process-flow-footer">
+          {/* '저장했습니다' 는 그 뒤로 다시 고치기 전까지만 보인다 —
+              고친 뒤에도 남아 있으면 저장된 줄 안다. */}
+          {saveNotice &&
+            !(
+              saveNotice.kind === 'ok' &&
+              resource.dirty
+            ) && (
+              <span
+                className={`process-save-notice ${saveNotice.kind}`}
+                role="status"
+              >
+                {saveNotice.text}
+              </span>
+            )}
+
+          {resource.stale && (
+            <button
+              type="button"
+              className="process-reload-button"
+              onClick={() => {
+                setSaveNotice(null)
+                resource.reload()
+              }}
+            >
+              다시 불러오기
+            </button>
+          )}
+
           <button
             type="button"
             className="process-save-button"
+            disabled={saving}
             onClick={
               saveRouting
             }
           >
-            저장
+            {saving
+              ? '저장 중…'
+              : '저장'}
           </button>
         </div>
       </div>

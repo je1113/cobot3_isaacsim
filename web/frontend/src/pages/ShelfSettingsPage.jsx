@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import { NavLink } from 'react-router-dom'
 
-import { captureShelfPose } from '../api/config'
 import {
   useEnum,
   useMeta,
@@ -39,8 +38,7 @@ const FIXED_LEVEL = 1
 /**
  * 선반의 스캔 패스를 1층 하나로 맞춘다.
  *
- * ★ 1층이 없으면 새로 만든다. '현재 자세로 저장'(POST .../capture)은 그 층이
- *   파일에 있어야 동작하므로(없으면 404), 1층은 늘 있어야 한다.
+ * ★ 1층이 없으면 새로 만든다. 티칭 관절값을 적을 자리가 늘 있어야 한다.
  * ★ 예전에 저장된 2층 이상은 다음 편집 때 떨어져 나가고, 저장하면 파일에서도 빠진다.
  */
 function withFixedLevel(
@@ -354,38 +352,6 @@ function ShelfSettingsPage({
       remainingShelves[0]
         ?.shelf_id ?? '',
     )
-  }
-
-  /**
-   * 로봇의 지금 관절값을 그 층에 채운다.
-   *
-   * ★ 이건 서버가 파일에 직접 쓴다 — 관절값의 주인은 로봇이지 화면이 아니다.
-   *   그래서 저장 안 한 다른 편집이 있으면 먼저 막는다. 서버가 파일을 쓰면
-   *   revision 이 바뀌고, 그 편집은 다음 저장에서 412 로 거절되기 때문이다.
-   */
-  async function saveCurrentPose(level) {
-    if (resource?.dirty) {
-      window.alert(
-        '저장하지 않은 변경이 있습니다. 먼저 저장한 뒤 현재 자세를 가져오세요.',
-      )
-
-      return
-    }
-
-    setBusy(true)
-
-    try {
-      await captureShelfPose(
-        selectedShelf.shelf_id,
-        level,
-      )
-
-      await resource?.reload()
-    } catch (err) {
-      window.alert(err.message)
-    } finally {
-      setBusy(false)
-    }
   }
 
   function testDrive() {
@@ -779,19 +745,6 @@ function ShelfSettingsPage({
                           ? '티칭 완료'
                           : '티칭 필요'}
                       </span>
-
-                      <button
-                        type="button"
-                        className="save-pose-button"
-                        disabled={busy}
-                        onClick={() =>
-                          saveCurrentPose(
-                            pass.level,
-                          )
-                        }
-                      >
-                        현재 자세로 저장
-                      </button>
                     </div>
                   </article>
                 )

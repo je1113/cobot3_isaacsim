@@ -10,7 +10,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, field_validator
 
 TaskKind = Literal["SCAN", "RECOVER"]
 TaskStatus = Literal["QUEUED", "RUNNING", "DONE", "FAILED"]
@@ -29,13 +29,6 @@ class ConfigDoc(BaseModel):
 
 class ConfigWrite(BaseModel):
     data: dict[str, Any]
-
-
-class CapturePose(BaseModel):
-    """현재 관절값을 taught_poses.yaml 에 append 하고 그 키를 설정에 단다 (3.3)."""
-
-    pose_name: str = Field(min_length=1, max_length=64)
-    robot_id: str
 
 
 # ── 작업 큐 (4.x) ────────────────────────────────────────────────────

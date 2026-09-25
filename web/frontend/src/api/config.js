@@ -1,6 +1,5 @@
 import {
   apiGet,
-  apiPost,
   apiPut,
 } from './client'
 
@@ -33,18 +32,6 @@ export function saveShelves(
     '/api/shelves',
     { shelves },
     revision,
-  )
-}
-
-/** '현재 자세로 저장' — 로봇의 지금 관절값을 그 층에 채운다. */
-export function captureShelfPose(
-  shelfId,
-  level,
-  robotId,
-) {
-  return apiPost(
-    `/api/shelves/${encodeURIComponent(shelfId)}/capture`,
-    { level, robot_id: robotId },
   )
 }
 
