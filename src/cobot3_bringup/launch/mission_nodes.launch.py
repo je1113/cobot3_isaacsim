@@ -178,7 +178,7 @@ LANE_PRIORITY_BY_ROBOT = {"robot1": 2, "robot2": 1}
 # ★ approach · wait · hold_back 은 넣지 말 것. 줄 서 있는 상태를 양보 대상으로
 #   만들면 양쪽이 서로의 대기를 기다려 교착이다.
 LANE_STAGES = ["nav", "push", "creep_in", "place", "creep_out",
-               "stack_nav", "stack_scan", "stack_pick",
+               "stack_nav", "stack_scan", "stack_pick", "stack_retreat",
                "stack_deliver", "stack_place"]
 
 # 상대가 누구인가. 세 대 이상이 되면 이 표로는 안 되고, 도크처럼 전역 조정

@@ -585,6 +585,13 @@ CREEP_OUT = "creep_out"
 STACK_NAV = "stack_nav"          # 스택 자리로 주행
 STACK_SCAN = "stack_scan"        # 거기서 QR 판독 (없으면 soft 실패 → 그냥 복귀)
 STACK_PICK = "stack_pick"        # 스택 집기
+# ★ 2026-09-26: STACK_PICK 직후 STACK_DELIVER(Nav2 → TEST_STATION)가 실패하는
+#   사례 — PICK 이 스택 옆 좁은 통로 한복판에서 끝나는데, 거기서 바로 Nav2
+#   장거리 플래닝을 시키는 게 원인으로 보인다(RETURN_TO_START 가 매거진
+#   PICK 뒤에 하는 것과 같은 문제, 그 주석 참고). 그래서 매거진과 같은
+#   매커니즘을 쓴다 — cmd_vel(patrol_to)로 STACK_NAV 가 쓰던 그 대기점(여유
+#   있는 통로)까지 먼저 물러난 뒤에만 Nav2(STACK_DELIVER)를 맡긴다.
+STACK_RETREAT = "stack_retreat"  # PICK 직후 cmd_vel 로 대기점까지 물러난다
 STACK_DELIVER = "stack_deliver"  # 로더로 주행
 STACK_PLACE = "stack_place"      # 로더에 놓기
 
@@ -625,7 +632,7 @@ STACK_APPROACH_CREEP_M = 2.0
 # 값을 더하는 데 마이그레이션이 필요 없다.
 LOGGED_STAGES = (PICK, RETURN_TO_START, HOLD_BACK, APPROACH, WAIT, PUSH, NAV,
                  PLACE, RETURN,
-                 STACK_NAV, STACK_PICK, STACK_DELIVER, STACK_PLACE)
+                 STACK_NAV, STACK_PICK, STACK_RETREAT, STACK_DELIVER, STACK_PLACE)
 
 # 실패 사유는 '단계' 가 정한다. return 은 같은 NavigateTo 액션이라 nav_error 다.
 # 그래서 액션 enum 에 없는 실패(TIMEOUT · SERVER_UNAVAILABLE · GOAL_REJECTED)도
@@ -638,7 +645,8 @@ STAGE_TO_REASON = {PICK: "pick_error", NAV: "nav_error",
                    WAIT: "nav_error", PUSH: "nav_error",
                    # 스택 구간도 같은 기준으로 모은다 — 주행은 nav_error,
                    # 집기는 pick_error, 놓기는 place_error.
-                   STACK_NAV: "nav_error", STACK_DELIVER: "nav_error",
+                   STACK_NAV: "nav_error", STACK_RETREAT: "nav_error",
+                   STACK_DELIVER: "nav_error",
                    STACK_PICK: "pick_error", STACK_PLACE: "place_error"}
 
 # 어디서 일어난 일인가. 순찰 중 발견 방식이라 슬롯 번호를 모르므로 place 만 채워진다.
@@ -663,7 +671,7 @@ TASK_STAGE = {PICK: "pick", RETURN_TO_START: "nav", NAV: "nav",
               WAIT: "nav", PUSH: "nav", PLACE: "place", RETURN: "return",
               CREEP_IN: "place", CREEP_OUT: "place",
               # 스택 구간도 .action 이 아는 넷으로 접어서 올린다.
-              STACK_NAV: "nav", STACK_DELIVER: "nav",
+              STACK_NAV: "nav", STACK_RETREAT: "nav", STACK_DELIVER: "nav",
               STACK_PICK: "pick", STACK_PLACE: "place"}
 
 # feedback.progress — goal.resume_progress 와 같은 축(0.0 처음부터 … 1.0 복귀
@@ -672,7 +680,7 @@ TASK_PROGRESS = {PICK: 0.3, RETURN_TO_START: 0.35, NAV: 0.5, HOLD_BACK: 0.4, APP
                  WAIT: 0.45, PUSH: 0.5, CREEP_IN: 0.6, PLACE: 0.7, CREEP_OUT: 0.8,
                  RETURN: 0.9,
                  STACK_NAV: 0.72, STACK_SCAN: 0.75, STACK_PICK: 0.78,
-                 STACK_DELIVER: 0.82, STACK_PLACE: 0.86}
+                 STACK_RETREAT: 0.80, STACK_DELIVER: 0.82, STACK_PLACE: 0.86}
 
 # Freeze 가 얼어붙은 단계 → result.fail_reason. 하위 액션의 실패를 그대로
 # 올리는 것이라(.action 주석) 단계가 곧 사유다. 목록 밖(우회·순찰·시작·자세,
@@ -691,7 +699,8 @@ TASK_FAIL_REASON = {SCAN: ExecuteTask.Result.SCAN_FAIL,
 # 놓지 않고 RETURN 까지 마친다(_execute_task).
 MISSION_STAGES = (HOLD, SCAN, PICK, RETURN_TO_START, HOLD_BACK, APPROACH, WAIT,
                   PUSH, NAV, CREEP_IN, PLACE, CREEP_OUT, RETURN,
-                  STACK_NAV, STACK_SCAN, STACK_PICK, STACK_DELIVER, STACK_PLACE)
+                  STACK_NAV, STACK_SCAN, STACK_PICK, STACK_RETREAT, STACK_DELIVER,
+                  STACK_PLACE)
 
 
 # 각 단계를 이만큼 기다려도 안 끝나면 실패로 본다. 단위 초.
@@ -2108,6 +2117,15 @@ def build_tree(node):
             timeout_s=PICK_TIMEOUT_S, retries=PICK_RETRIES,
             feedback_cb=node.log_phase("STACK_PICK"))
 
+        # ★ 2026-09-26: RETURN_TO_START 와 같은 이유(그 주석 참고) — STACK_PICK
+        #   직후 좁은 통로 한복판에서 바로 Nav2(STACK_DELIVER) 장거리 플래닝을
+        #   시키지 않고, cmd_vel 로 STACK_NAV 가 쓰던 대기점까지 먼저 물러난다.
+        forced_stack_retreat = ActionLeaf(
+            STACK_RETREAT, node, node.patrol_nav, "navigation/patrol_to", NavigateTo.Result,
+            make_goal=lambda: NavigateTo.Goal(pose=_to_pose(
+                _back_off(node.recover_route[0], STACK_APPROACH_CREEP_M))),
+            timeout_s=NAV_TIMEOUT_S, moves_base=True)
+
         forced_stack_deliver = ActionLeaf(
             STACK_DELIVER, node, node.nav, "navigation/navigate_to", NavigateTo.Result,
             make_goal=lambda: NavigateTo.Goal(pose=_to_pose(TEST_STATION)),
@@ -2125,7 +2143,8 @@ def build_tree(node):
         forced_stack_leg = py_trees.composites.Sequence(
             "(강제) 스택 회수", memory=True,
             children=[forced_stack_nav, forced_stack_creep_approach, forced_stack_scan,
-                      forced_stack_pick, forced_stack_deliver] + forced_stack_creep_in
+                      forced_stack_pick, forced_stack_retreat, forced_stack_deliver]
+            + forced_stack_creep_in
             + [forced_stack_place] + forced_stack_creep_out)
 
         forced_stack_detour = _Optional(
@@ -2233,6 +2252,16 @@ def build_tree(node):
         timeout_s=PICK_TIMEOUT_S, retries=PICK_RETRIES,
         feedback_cb=node.log_phase("STACK_PICK")), node, STACK_PICK)
 
+    # ★ 2026-09-26: RETURN_TO_START 와 같은 이유(그 주석 참고) — STACK_PICK
+    #   직후 좁은 통로 한복판에서 바로 Nav2(STACK_DELIVER) 장거리 플래닝을
+    #   시키지 않고, cmd_vel 로 STACK_NAV 가 쓰던 그 대기점까지 먼저 물러난다
+    #   (매거진 PICK -> RETURN_TO_START -> NAV 와 같은 매커니즘).
+    stack_retreat = Freeze("STACK_RETREAT", ActionLeaf(
+        STACK_RETREAT, node, node.patrol_nav, "navigation/patrol_to", NavigateTo.Result,
+        make_goal=lambda: NavigateTo.Goal(pose=_to_pose(
+            _back_off(node._task.route[0], STACK_APPROACH_CREEP_M))),
+        timeout_s=NAV_TIMEOUT_S, moves_base=True), node, STACK_RETREAT)
+
     stack_deliver = Freeze("STACK_DELIVER", ActionLeaf(
         STACK_DELIVER, node, node.nav, "navigation/navigate_to", NavigateTo.Result,
         # 스택은 검사 투입 벨트로 간다(TEST_STATION 주석). 매거진 로더 아님.
@@ -2249,7 +2278,8 @@ def build_tree(node):
     stack_creep_in, stack_creep_out = creep_pair(TEST_STATION)
     recover_leg = py_trees.composites.Sequence(
         "스택", memory=True,
-        children=[stack_nav, stack_creep_approach, stack_scan, stack_pick, stack_deliver]
+        children=[stack_nav, stack_creep_approach, stack_scan, stack_pick,
+                  stack_retreat, stack_deliver]
         + stack_creep_in + [stack_place] + stack_creep_out
         + [RecoverDone("회수 완료", node)])
 

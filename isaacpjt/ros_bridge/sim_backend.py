@@ -1278,10 +1278,22 @@ class Backend:
     def _magazine_candidates(self):
         """지금 씬에 살아 있는 플랜지 캐리어 전부. 스포너가 매거진을
         런타임에 만들고 집어 가면 새 이름으로 다시 만들기 때문에, 부팅 때
-        모은 목록만으론 모자라 매번 /World/Magazines 를 다시 훑는다."""
+        모은 목록만으론 모자라 매번 /World/Magazines 를 다시 훑는다.
+
+        ★ 2026-09-26: /World/Environment/PackagingUnloaderZone/SpawnedStacks
+        (packaging_flow.py STACK_ROOT)도 같이 훑는다 — 스택은 부팅 뒤에
+        런타임으로 계속 새로 생기는데, 여기 빠져 있으면 부팅 시점 스냅샷
+        (_all_magazine_prims)에 그 스택이 없는 한 _find_nearest_magazine() 가
+        못 찾는다. 못 찾아도 None 을 안 돌려주고(거리 문턱이 없어서) 씬에
+        남은 엉뚱한 매거진을 "가장 가깝다"며 골라 버려서, PICK 자체는
+        성공해도(진짜 흡착은 실제 그리퍼가 하니까) rig.current_magazine_path
+        가 틀어져 이후 PLACE 의 놓임 확인·rise/tilt 판정이 엉뚱한 대상을 잰다."""
         out = [p for p in self._all_magazine_prims if prim_live(self.stage, p)]
-        root = self.stage.GetPrimAtPath("/World/Magazines")
-        if root:
+        for root_path in ("/World/Magazines",
+                          "/World/Environment/PackagingUnloaderZone/SpawnedStacks"):
+            root = self.stage.GetPrimAtPath(root_path)
+            if not root:
+                continue
             for prim in Usd.PrimRange(root):
                 if prim.GetChild("flange_plate").IsValid():
                     path = str(prim.GetPath())
