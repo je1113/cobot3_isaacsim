@@ -131,6 +131,22 @@ FALLBACK_POSE_BY_SHELF = {
     "PKG-OUT": "packaging_output_scan",
 }
 
+# ★ 2026-09-24: 스택(PKG-OUT)을 실제로 집다가 로봇이 스택을 건드려 넘어뜨린
+#   사고 뒤에 추가했다. 위 patrol_scan 주석이 이미 적어 둔 것과 같은
+#   원인이다 — "팔은 충돌 계산에 안 들어간다"(Nav2 코스트맵은 차체
+#   footprint 만 안다). 그런데 그 주석은 "순찰 중" 경우만 막았지, 이
+#   서비스(_on_carrier_scan, 멈춰서 하는 관측)가 끝난 뒤 팔을 편 채로 다음
+#   단계(task_manager 의 STACK_PICK_MOVE, patrol_to 로 PICK 자리까지
+#   cmd_vel 직접주행)가 곧바로 시작되는 경우는 안 막고 있었다 — 그 틈에
+#   관측 자세(PKG-OUT 이면 스택 QR 라벨 쪽으로 팔을 뻗은 자세)를 유지한 채
+#   차체가 움직여서 스택을 스쳤다.
+#
+#   해법은 "이동 중 충돌 감지/회피"가 아니라 훨씬 단순하다 — 이동을
+#   시작하기 전에 팔을 안전한(접은) 자세로 먼저 되돌려 놓는다. 이 자세는
+#   이 코드베이스 전체에서 "홈/STOW" 로 쓰는 값과 같다(12_pick_test.py 등의
+#   READY_JOINTS_DEG, sim_backend.py 의 READY_JOINTS_DEG).
+READY_JOINTS_DEG = [0.0, 0.0, 90.0, 0.0, 90.0, 0.0]
+
 
 def _add_ros_bridge_to_syspath():
     # colcon 빌드가 src/<pkg>/<pkg>/file.py 를 build/ 밑으로 복사하거나
@@ -369,8 +385,11 @@ class CarrierCodeReader(Node):
             if not self._armed:
                 self._observe(shelf)
                 self._armed = True
+            # ★ 2026-09-26: fast_only=True — 이동하면서 계속 다시 찍는
+            #   자리라(5Hz 폴링) 외부 WeChat 디코더(IPC+디스크 왕복)를 안
+            #   쓴다, 예전처럼 로컬 cv2 만으로 빠르게 본다(사용자 지시).
             r = self.sim.call("scan_qr", timeout_s=5.0, expected_id=None, n_frames=1,
-                              robot_id=self.robot_id)
+                              robot_id=self.robot_id, fast_only=True)
         except SimClientError as e:
             self.get_logger().warn(f"carrier_detected 폴링 실패: {e}")
             return
@@ -418,6 +437,23 @@ class CarrierCodeReader(Node):
 
     # ── ③④ /perception/carrier_scan ─────────────────────────────────────
     def _on_carrier_scan(self, request, response):
+        # ★ 2026-09-24: 성공하든 실패하든 끝나면 팔을 반드시 READY(접은 자세)
+        #   로 되돌린다 — READY_JOINTS_DEG 주석 참고. 여기서 안 접으면
+        #   task_manager 의 다음 단계(STACK_PICK_MOVE, cmd_vel 직접주행)가
+        #   팔을 편 채로 차체를 움직여서 스택 같은 근처 물체를 스칠 수
+        #   있다 — 실제로 그렇게 스택을 넘어뜨린 사고가 있었다.
+        try:
+            return self._do_carrier_scan(request, response)
+        finally:
+            try:
+                self.sim.call("observe_pose", joints_deg=READY_JOINTS_DEG,
+                              robot_id=self.robot_id, timeout_s=60.0)
+            except SimClientError as e:
+                self.get_logger().warn(
+                    f"carrier_scan 뒤 READY 복귀 실패 — 팔이 편 채로 남았을 수 "
+                    f"있다: {e}")
+
+    def _do_carrier_scan(self, request, response):
         try:
             # HOLD 로 세운 자리는 patrol 이 지난 선반 앞이라 _current_shelf 가
             # 그 선반을 잡는다(amcl_pose 로 매번 다시 물어본다). 없으면

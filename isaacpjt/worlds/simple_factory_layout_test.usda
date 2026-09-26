@@ -1230,7 +1230,7 @@ def Xform "World"
             }
 
             over "m0609" (
-                prepend references = @file:/home/rokey/cobot3_ws/isaacpjt/M0609/doosan-robot2/urdf/m0609_isaac_sim/m0609_isaac_sim.usd@
+                prepend references = @../M0609/doosan-robot2/urdf/m0609_isaac_sim/m0609_isaac_sim.usd@
             )
             {
                 string isaac:namespace (
@@ -1313,9 +1313,11 @@ def Xform "World"
 
                     over "SurfaceGripper"
                     {
-                        float isaac:coaxialForceLimit = 200
+                        # ★ 2026-09-26: 100/200N -> 200/400N — simple_factory_
+                        #   layout.usda 와 동일 변경(스택 LIFT 흡착 여유).
+                        float isaac:coaxialForceLimit = 400
                         float isaac:maxGripDistance = 0.03
-                        float isaac:shearForceLimit = 100
+                        float isaac:shearForceLimit = 200
                         quatd xformOp:orient = (1, 0, -0, 0)
                         double3 xformOp:scale = (1, 1, 1)
                         double3 xformOp:translate = (0, 2.384185791015625e-7, 2.384185791015625e-7)
@@ -1844,7 +1846,7 @@ def Xform "World"
             }
 
             over "m0609" (
-                prepend references = @file:/home/rokey/cobot3_ws/isaacpjt/M0609/doosan-robot2/urdf/m0609_isaac_sim/m0609_isaac_sim.usd@
+                prepend references = @../M0609/doosan-robot2/urdf/m0609_isaac_sim/m0609_isaac_sim.usd@
             )
             {
                 string isaac:namespace (

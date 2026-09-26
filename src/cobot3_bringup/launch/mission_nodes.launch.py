@@ -188,24 +188,15 @@ PEER_OF = {"robot1": "robot2", "robot2": "robot1"}
 # ══════════════════════════════════════════════════════════════════════════
 #  스택 회수 — 누가 맡나
 #
-#  매거진을 로더에 놓은 뒤, 같은 사이클 안에서 포장 스테이션 산출물(스택)을
-#  집어 로더로 가져간다. 값은 shelves.yaml 의 shelf_id 다 — 좌표와 관측 자세
-#  (arm_teach_pose)가 그 항목에 같이 붙어 있어서 id 로 가리키면 둘이 같이
-#  따라온다.
-#
-#  ★ 스택은 씬에 하나뿐이라 한 대만 맡는다. 둘 다 주면 같은 자리로 간다.
-#    지금은 robot1 이 맡고 robot2 는 매거진만 돈다.
-#
-#  ★ 빈 문자열이면 그 로봇의 트리에 스택 구간이 아예 안 들어간다.
-#
-#  ☞ 이건 임시 배선이다. 제대로 된 회수는 place 완료 → pending_pickup →
-#    ready_at 도래 → RECOVER 작업 배차이고, 그 고리는 web/backend 의
-#    pickup.py 에 이미 있다. 다만 task_manager 에 RECOVER 미션이 없고
-#    PORT_BY_STAGE 가 stations.yaml 에 없는 "test_loader" 를 보내서 아직
-#    안 이어진다. 그때가 되면 이 파라미터는 지운다.
+#  2026-09-25 이전에는 여기서 STACK_SHELF_BY_ROBOT = {"robot1": "PKG-OUT", ...}
+#  로 스택 회수를 로봇 하나에 고정 배정했다. place 한 로봇이 다른 로봇이면
+#  아무도 회수하러 가지 않는 문제가 있었다(mission.log 분석). 지금은 웹
+#  pending_pickup 큐가 place 완료 → stations.yaml process_time 뒤 RECOVER
+#  작업을 걸고, task_manager 가 모든 로봇에 회수 가지를 갖고 있어(build_tree
+#  의 TaskKind 문지기) 그때 노는 아무 로봇이나 받는다. 이 launch 파일은 더
+#  손댈 게 없다 — task_manager 가 stations.yaml(output_shelf)에서 스스로
+#  선반을 찾는다(stations_yaml 파라미터, 기본값이 DEFAULT_STATIONS_YAML).
 # ══════════════════════════════════════════════════════════════════════════
-
-STACK_SHELF_BY_ROBOT = {"robot1": "PKG-OUT", "robot2": ""}
 
 # ── 출발 시차 ─────────────────────────────────────────────────────────────
 # 순찰 출발(START)을 이만큼 늦춘다. 도크가 0.98 m 간격인데 회전 꼬리 스윕이
@@ -297,16 +288,14 @@ def _task_manager_params(ns, namespaces):
     #   그래서 오타나 "받는 쪽이 사라진 이름" 이 여기 남아 있으면, 좌표를 준 줄
     #   알고 있는데 노드는 기본값으로 도는 상태가 되고 로그에 아무 단서도 없다.
     #   지금 task_manager 가 선언하는 이름(task_manager.py __init__ 참고):
-    #       shelves_yaml · patrol_shelf · patrol_route · reload_service
-    #       execute_task_action · wait_for_task · empty_sweeps
+    #       shelves_yaml · stations_yaml · patrol_shelf · patrol_route ·
+    #       reload_service · execute_task_action · wait_for_task · empty_sweeps
     #       observe_pose_service · peer_state_topic · peer_pose_topic
     #       loader_clear_radius_m · peer_busy_stages · staging_pose · start_delay_s
     params = {
         # 로더 차선이 막혔을 때 비켜 서는 자리. 로봇마다 달라야 한다 —
         # 같은 점을 쓰면 대기 자리에서 둘이 부딪힌다(STAGING_BY_ROBOT 주석).
         "staging_pose": STAGING_BY_ROBOT[ns],
-        # 스택을 맡을 로봇만 값이 있다 (STACK_SHELF_BY_ROBOT 주석 참고).
-        "stack_shelf": STACK_SHELF_BY_ROBOT.get(ns, ""),
         # 순찰 출발 시차 (START_DELAY_BY_ROBOT 주석)
         "start_delay_s": float(START_DELAY_BY_ROBOT.get(ns, 0.0)),
     }

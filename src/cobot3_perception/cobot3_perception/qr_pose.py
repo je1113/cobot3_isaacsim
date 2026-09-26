@@ -319,10 +319,20 @@ def _decode_text(image):
     return texts[0] if texts else ""
 
 
-def detect_qr_quads(gray_or_bgr):
+def detect_qr_quads(gray_or_bgr, allow_external=True):
     """QR 후보 사각형을 전부 돌려준다. decode 는 시도하되 실패해도 포함한다.
 
     반환: [(corners_4x2, decoded_text_or_''), ...]
+
+    allow_external : False 면 _external_decode() (상주 WeChat 프로세스에
+        이미지를 PNG 로 떨궈 IPC 로 물어보는 경로, 2026-09-26 추가)를 아예
+        안 부른다 — patrol 중 고빈도 폴링(5Hz)처럼 매 프레임 디스크 I/O +
+        IPC 왕복 지연을 감당 못 하는 자리에서 쓴다(사용자 지시: "이동하면서
+        스캔하는거라 지연이 생기면 안 된다"). 그 자리에서는 예전처럼 로컬
+        cv2.QRCodeDetector 만으로 판정한다 — 정확도는 떨어질 수 있지만
+        patrol 은 원래도 "못 봤으면 다음 tick 에 다시 본다" 는 폴링이라
+        속도가 정확도보다 중요하다. 멈춰서 확정하는 자리(carrier_scan
+        서비스, PKG-OUT SCAN)는 기본값(True)을 그대로 써서 WeChat 을 쓴다.
 
     detectAndDecodeMulti() 를 우선 쓰지 않는다 — 이 OpenCV 빌드(4.6)에서 QR
     이 하나만 있을 때도 detectAndDecodeMulti 가 종종 decode 에 실패하는데
@@ -363,7 +373,7 @@ def detect_qr_quads(gray_or_bgr):
     #   외부 디코더로 텍스트를 받아 둔다. 꼭짓점은 아래 cv2 경로가 낸다 —
     #   실패하던 건 언제나 decode 쪽이지 검출 쪽이 아니었다
     #   ("검출만 된 사각형은 있었을 수 있다"가 그 로그다).
-    ext_text = _external_decode(gray_or_bgr)
+    ext_text = _external_decode(gray_or_bgr) if allow_external else ""
     dbg = os.environ.get("QR_DEBUG") == "1"
 
     detector = cv2.QRCodeDetector()
@@ -422,7 +432,7 @@ def detect_qr_quads(gray_or_bgr):
         #   붙어서 그대로 반환된다 — 실측: 그렇게 잡힌 엉뚱한 꼭짓점으로 평면을
         #   맞춰 "벽면 법선이 77.3도 기울어 있다" 로 끝났다. crop 단위로 물어야
         #   아닌 것은 빈 문자열이 되어 다음 후보로 넘어간다.
-        txt = _decode_text(sub) or _external_decode(sub)
+        txt = _decode_text(sub) or (_external_decode(sub) if allow_external else "")
         out.append((quad, txt))
         if txt:
             return out
@@ -481,10 +491,12 @@ def estimate_qr_pose(bgr, depth, K, dist, R_wo, p_wo, *,
                      expected_id=None, roi_margin=2.5,
                      plane_thresh_m=0.003, min_plane_points=40,
                      max_wall_tilt_deg=8.0, cross_check_warn_mm=8.0,
-                     data_side_m=DATA_SIDE_M):
+                     data_side_m=DATA_SIDE_M, allow_external=True):
     """QR 한 장을 검출해 깊이-평면 기반 pose 를 잰다.
 
     expected_id   : 있으면 그 ID 로 디코딩된 것만 받는다 (여러 QR 이 보일 때)
+    allow_external: detect_qr_quads() 참고 — patrol 고빈도 폴링처럼 지연을
+                    못 견디는 자리는 False 로 호출한다.
     roi_margin    : 꼭짓점 bbox 대비 평면 탐색창 확장 배수. wall_n 이 QR 라벨
                     보다 훨씬 넓어서(250x110 vs 50x50) 키울수록 평면 피팅이
                     안정된다. 너무 크면 다른 매거진/선반이 섞일 수 있다.
@@ -496,7 +508,7 @@ def estimate_qr_pose(bgr, depth, K, dist, R_wo, p_wo, *,
     gray = cv2.cvtColor(bgr, cv2.COLOR_BGR2GRAY) if bgr.ndim == 3 else bgr
     H, W = gray.shape[:2]
 
-    candidates = detect_qr_quads(gray)
+    candidates = detect_qr_quads(gray, allow_external=allow_external)
     quad = decoded = None
     for c, text in candidates:
         if text == "":

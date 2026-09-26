@@ -76,22 +76,39 @@ magazines:
     qr_overlap: false
     labels_agree_mm: 0.0
   # ── 트레이 스택 (static_test 시나리오의 스택 pick) ──────────────────────
-  # ★ 미실측. 값은 에셋(isaacpjt/assets/F3_STKO_1.usda / F3_STKB_1.usda)의
-  #   기하에서 매거진과 같은 규칙으로 계산했다 — T_QR_grasp_xyz 는 QR 중심에서
-  #   플랜지 윗면 중심까지의 벡터를 QR 프레임(x=라벨 오른쪽, y=라벨 아래,
-  #   z=라벨 안쪽)으로 옮긴 것. 매거진 값으로 역산해 규칙이 맞는 것은 확인했다
-  #   (magazine_1_orange: QR (-0.090,-0.0705,0.075) → 플랜지 (0,0,0.142) →
-  #   [0.09, -0.067, 0.0705] 그대로). 플랜지는 넷 다 80x80 이고 색도 같아
-  #   flange_vision 은 그대로 쓴다. QR 은 40 mm 라 매거진(50 mm)보다 작다.
-  #   Isaac 에서 실제로 집히는지는 아직 확인하지 않았다.
+  # ★ 2026-09-25 실측 교정 — isaacpjt/M0609/lula_ik/15_stack_scan_pick_test.py
+  #   의 calibrate_grasp_offset()(PICK_CALIBRATE=1)로 Isaac 안에서 처음 실측
+  #   검증했다. tray_blue 로 재봤더니 GT 플랜지 위치와 163.6mm 어긋났고, QR
+  #   프레임으로 본 오차 벡터가 그때의 T_QR_grasp_xyz 값과 거의 그대로
+  #   (성분별 비율 1.97~2.01배) 겹쳤다 — 아래 "★ 미실측"이 쓰던 값이 정확히
+  #   절반이었다는 뜻이다.
+  #
+  #   원인(당시): 아래 값은 F3_STKO_1.usda/F3_STKB_1.usda 의 "로컬"(에셋
+  #   자체) 좌표로 계산됐는데, 그때 씬에 스택이 놓일 때는 xformOp:scale=2 가
+  #   걸렸다(packaging_flow.py/15_stack_scan_pick_test.py 의 SpawnedStacks).
+  #   QR→플랜지 벡터도 스케일을 그대로 받으므로 월드에서는 로컬 값의 2배가
+  #   맞았다. 매거진 쪽 값(위 orange/blue)은 스케일이 없어 이 문제가 없다.
+  #
+  #   ★ flange_size 도 같은 이유로 당시 2배였다 — 실측 크기가 160mm(80mm 의
+  #   2배)로 나와서 확인했다(run_trial_real_pipeline, PICK_REAL_PIPELINE=1).
+  #
+  #   ★★ 2026-09-26 — 스택을 절반 크기로 되돌렸다(xformOp:scale 2.0 -> 1.0,
+  #   packaging_flow.py/15_stack_scan_pick_test.py 둘 다, 질량도 부피비만큼
+  #   낮춤 — SCAN 접근 크립 여유거리·PICK 흡착+LIFT 전부 실측 확인). 그래서
+  #   위 "x2" 보정을 다시 걷어낸다 — 아래 값은 로컬(에셋 그대로) 값이다.
+  #   tray_blue 의 실측 보정값([0.2757, -0.1138, 0.1347], scale=2 기준)을
+  #   그대로 반으로 나누면 [0.13785, -0.0569, 0.06735] — 아래 로컬 계산값과
+  #   1mm 안쪽으로 일치해 이 되돌림이 맞다는 걸 다시 확인했다.
   tray_orange:
     color: orange
+    # 로컬 [0.08, 0.08, 0.006] — xformOp:scale=1.0(2026-09-26, 위 참고)
     flange_size:
     - 0.08
     - 0.08
     - 0.006
     cup_margin_m: 0.015
-    # QR 중심 (-0.1373, -0.06845, 0.02472), 플랜지 윗면 z 0.07772
+    # QR 중심(로컬) (-0.1373, -0.06845, 0.02472), 플랜지 윗면 z(로컬) 0.07772
+    # -> [0.1373, -0.053, 0.06845] — xformOp:scale=1.0(2026-09-26, 위 참고)
     T_QR_grasp_xyz:
     - 0.1373
     - -0.053
@@ -104,12 +121,16 @@ magazines:
     labels_agree_mm: 0.0
   tray_blue:
     color: blue
+    # 로컬 [0.08, 0.08, 0.01] — xformOp:scale=1.0(2026-09-26, 위 참고)
     flange_size:
     - 0.08
     - 0.08
     - 0.01
     cup_margin_m: 0.015
-    # QR 중심 (-0.1373, -0.06845, 0.03996), 플랜지 윗면 z 0.09696
+    # QR 중심(로컬) (-0.1373, -0.06845, 0.03996), 플랜지 윗면 z(로컬) 0.09696
+    # -> [0.1373, -0.057, 0.06845] — xformOp:scale=1.0(2026-09-26, 위 참고).
+    # 실측(scale=2 기준) [0.2757, -0.1138, 0.1347] 을 반으로 나누면
+    # [0.13785, -0.0569, 0.06735] — 이 값과 1mm 안쪽으로 일치한다.
     T_QR_grasp_xyz:
     - 0.1373
     - -0.057

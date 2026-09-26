@@ -115,6 +115,38 @@ BASE_WAYPOINTS = {
     # 값이다. 거기서 관측 자세를 잡아 "packaging_output_scan" 으로 캡처하면
     # 12_place_test3.py 가 그 이름을 자동으로 찾아 쓴다(OBSERVE_POSE_NAME).
     "packaging_output": dict(xy=(3.25, 1.70), yaw_deg=0.0),
+    # ★ 2026-09-25(5): PKG-OUT 스택 제자리 SCAN+PICK 재티칭용. 이력:
+    #   1) WP_SCAN 원래 자리(x=3.20,y=1.30,yaw=-90, 옆에서 보기) — 15_ 의
+    #      REACHABILITY CHECK 에서 approach tcp FAILED.
+    #   2) x=3.55,yaw=0(정면으로 보기, PLACE 규약) — 이것도 FAILED. yaw=0
+    #      에서는 팔 베이스 로컬 -0.206m 오프셋이 스택 반대 방향으로 밀려
+    #      오히려 더 멀어진다(교훈: "정면으로 크립"은 접근 *동작* 패턴이지
+    #      최종 yaw 가 0 이어야 하는 건 아니다).
+    #   3) x=3.67,y=0.85,yaw=-90 — REACHABILITY CHECK SOLVED. 그런데 접근
+    #      크립(1m 뒤→직진) 경로가 목적지 도달 전에 여유거리 66mm(<80mm)로
+    #      방어 정지 — GUI 로 직접 보고 사용자가 "너무 가깝다" 확인.
+    #   4) x=3.52,y=0.85,yaw=-90(지금 값) — REACHABILITY CHECK SOLVED,
+    #      접근 크립 여유 90mm(>=80mm) 통과. 그런데 실제 트라이얼의 AIM QR
+    #      (READY 자세에서 조금씩 서보하는 IK)은 실패했다 — reachability_
+    #      check() 의 단발 IK 는 SOLVED 인데 서보 경로가 관절 한계/국소해에
+    #      걸린 것으로 보인다. 이 GUI 는 서보가 아니라 슬라이더로 직접
+    #      관절을 돌리는 거라 이 문제를 우회해서 눈으로 확인할 수 있다.
+    #   여기서 조인트를 잡아 grasp 지점에 닿는 게 눈으로 보이면, 그
+    #   x/y/yaw 를 shelves.yaml PKG-OUT 의 waypoint_start/end 로, joints_
+    #   rad 를 arm_teach_pose 로 옮긴다.
+    "pkg_out_pick": dict(xy=(3.52, 0.85), yaw_deg=-90.0),
+    # ★ 2026-09-26: 스택을 반으로 줄이고 방어 마진을 3mm 까지 낮춰도
+    #   접근 크립(2m, pkg_out_pick 쪽 yaw 로 직진) 막판(199 중 177 스텝,
+    #   목적지 8mm 앞)에서 여유거리 2mm 로 여전히 방어 정지한다 — 크립
+    #   자체가 이 코너에서 안 끝나는 문제라, SCAN 을 크립이 끝난 자리가
+    #   아니라 크립이 "시작되는" 자리(=STACK_NAV 가 내려주는 대기점)에서
+    #   하도록 재티칭한다. 좌표는 task_manager._back_off() 와 같은 계산
+    #   (pkg_out_pick 자리에서 그 yaw 반대 방향으로 2m 뺀 점) — 실제
+    #   드라이브 로그의 크립 시작점 [+3.288 +2.510] 과 일치한다.
+    #   여기서 잡은 조인트를 "pkg_out_scan" 이름으로 캡처하면 이후
+    #   task_manager.py/15_stack_scan_pick_test.py 양쪽의 SCAN 스텝을
+    #   pkg_out_pick 과 분리해 이 자리를 쓰도록 옮길 수 있다.
+    "pkg_out_scan": dict(xy=(3.286, 2.510), yaw_deg=-82.82924),
     "dock":      None,                    # 씬에 있는 자리 그대로 둔다
 }
 

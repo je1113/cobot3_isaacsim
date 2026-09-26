@@ -1,3 +1,54 @@
+stack_shelf:
+  base_waypoint: pkg_out_pick
+  base_link_world:
+  - 3.59807
+  - 0.97085
+  - 0.0
+  base_link_quat_wxyz:
+  - 0.999971
+  - -5.0e-06
+  - -0.00079
+  - -0.007532
+  m0609_base_world:
+  - 3.39073
+  - 0.97398
+  - 0.54887
+  joints:
+    joint_1: 90.0051
+    joint_2: 54.9956
+    joint_3: 129.9982
+    joint_4: -89.9994
+    joint_5: 90.0001
+    joint_6: 89.9994
+  joints_deg:
+  - 90.0051
+  - 54.9956
+  - 129.9982
+  - -89.9994
+  - 90.0001
+  - 89.9994
+  joints_rad:
+  - 1.570885
+  - 0.959854
+  - 2.268897
+  - -1.570785
+  - 1.570798
+  - 1.570786
+  tool0_world:
+  - 3.51016
+  - 1.27674
+  - 0.55278
+  tool0_quat_wxyz:
+  - -0.474185
+  - 0.517308
+  - -0.481048
+  - 0.525485
+  camera_optical_world:
+  - 3.54496
+  - 1.26869
+  - 0.59867
+  qr_in_view: []
+  captured_at: '2026-09-25 22:52:26'
 shelf_1_top_scan:
   base_waypoint: shelf_1
   base_link_world:
@@ -222,3 +273,105 @@ s1_bottom_scan:
   - 0.26837
   qr_in_view: []
   captured_at: '2026-09-17 15:24:21'
+pkg_out_pick:
+  base_waypoint: pkg_out_pick
+  base_link_world:
+  - 3.53718
+  - 0.52602
+  - 0.0
+  base_link_quat_wxyz:
+  - 0.749942
+  - -0.000526
+  - -0.000597
+  - -0.661503
+  m0609_base_world:
+  - 3.51129
+  - 0.73177
+  - 0.54887
+  joints:
+    joint_1: -179.9989
+    joint_2: 35.5247
+    joint_3: 111.4977
+    joint_4: -74.5018
+    joint_5: 73.5002
+    joint_6: 55.5003
+  joints_deg:
+  - -179.9989
+  - 35.5247
+  - 111.4977
+  - -74.5018
+  - 73.5002
+  - 55.5003
+  joints_rad:
+  - -3.141573
+  - 0.620024
+  - 1.946001
+  - -1.300301
+  - 1.28282
+  - 0.968663
+  tool0_world:
+  - 3.56224
+  - 1.17347
+  - 0.66277
+  tool0_quat_wxyz:
+  - -0.4057
+  - 0.604392
+  - -0.568594
+  - 0.38317
+  camera_optical_world:
+  - 3.61223
+  - 1.16499
+  - 0.69126
+  qr_in_view: []
+  captured_at: '2026-09-25 23:17:17'
+pkg_out_scan:
+  base_waypoint: pkg_out_scan
+  base_link_world:
+  - 3.29309
+  - 2.45428
+  - 0.0
+  base_link_quat_wxyz:
+  - 0.750558
+  - -0.000523
+  - -0.000594
+  - -0.660804
+  m0609_base_world:
+  - 3.26682
+  - 2.65997
+  - 0.54887
+  joints:
+    joint_1: 0.0045
+    joint_2: 120.0819
+    joint_3: -29.996
+    joint_4: 90.0
+    joint_5: 89.9998
+    joint_6: 165.0012
+  joints_deg:
+  - 0.0045
+  - 120.0819
+  - -29.996
+  - 90.0
+  - 89.9998
+  - 165.0012
+  joints_rad:
+  - 7.8e-05
+  - 2.095825
+  - -0.523528
+  - 1.570796
+  - 1.570793
+  - 2.879814
+  tool0_world:
+  - 3.48455
+  - 1.9581
+  - 0.47786
+  tool0_quat_wxyz:
+  - -0.464996
+  - 0.58724
+  - -0.394148
+  - 0.532518
+  camera_optical_world:
+  - 3.51923
+  - 1.96306
+  - 0.52429
+  qr_in_view: []
+  captured_at: '2026-09-26 18:04:32'

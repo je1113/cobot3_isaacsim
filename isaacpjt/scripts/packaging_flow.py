@@ -13,7 +13,7 @@ from dataclasses import dataclass
 import omni.kit.app
 import omni.timeline
 import omni.usd
-from pxr import Gf, Sdf, Usd, UsdGeom
+from pxr import Gf, Sdf, Usd, UsdGeom, UsdPhysics
 
 
 MAGAZINE_ROOT = Sdf.Path("/World/Magazines")
@@ -26,9 +26,24 @@ STACK_SPAWN = Gf.Vec3d(7.45, 2.80, 0.64)
 UNLOADER_SPEED_MPS = 0.20
 OUTPUT_TRIGGER_X = 4.20
 
-SHELF_X = 3.25
-SHELF_Z = 0.64
-SHELF_SLOT_Y = (2.25, 2.62, 2.99, 3.36)
+# ★ Measured 2026-09-24 (Isaac Sim, 15_stack_scan_pick_test.py) — the values
+#   below (3.25 / 0.64 / 2.25..) placed stacks nowhere near the real shelf
+#   collider (/World/Environment/PackagingUnloaderZone/OutputShelf/ShelfDeck,
+#   world x [3.876,4.051], y [0.271,1.671], top z 0.54): they landed ~0.6 m
+#   off in x and fell through the floor once physics actually loaded (no
+#   collider under the old spot). Corrected to ShelfDeck's own local
+#   translate (siblings under the same parent offset, so ShelfDeck's local
+#   x/y = the right local x/y here too), then nudged +0.08 m further east
+#   (toward BeltTop/ConveyorFrame, world x [4.05,8.75]) per user direction so
+#   a freshly-arrived stack sits nearer the conveyor-facing edge of the deck.
+#   Only slot 0 (SHELF_SLOT_Y[0]=2.80, world y 0.971) was actually verified
+#   end-to-end (SCAN QR decode 5/5, PICK 3/5) in Isaac Sim; slots 1-3 got the
+#   same constant y-delta (+0.55) to keep the round-robin spacing intact, but
+#   slot 3 (local y 3.91) falls right at/past ShelfDeck's local y upper bound
+#   (~3.50) — re-verify before relying on it.
+SHELF_X = 3.963325659785515 + 0.08
+SHELF_Z = 0.54
+SHELF_SLOT_Y = (2.80, 3.17, 3.54, 3.91)
 
 ORANGE_STACK_PAYLOAD = "../assets/F3_STKB_1.usda"
 BLUE_STACK_PAYLOAD = "../assets/F3_STKO_1.usda"
@@ -44,6 +59,7 @@ class PackagingFlowController:
     def __init__(self) -> None:
         self._stage = None
         self._subscription = None
+        self._stop_subscription = None
         self._last_sim_time = None
         self._processed_magazines: set[str] = set()
         self._moving_stacks: dict[str, MovingStack] = {}
@@ -61,11 +77,64 @@ class PackagingFlowController:
             self._on_update,
             name="PackagingFlowController",
         )
+        # Stop only rewinds what physics moved. Stacks are authored straight
+        # into USD (DefinePrim), so Stop leaves them behind and the next Play
+        # starts with last run's stacks still on the belt/shelf. Clear them
+        # ourselves, the same way magazine_spawner.on_stop clears magazines.
+        self._stop_subscription = (
+            omni.timeline.get_timeline_interface()
+            .get_timeline_event_stream()
+            .create_subscription_to_pop_by_type(
+                int(omni.timeline.TimelineEventType.STOP),
+                self._on_timeline_stop,
+                name="PackagingFlowController.stop",
+            )
+        )
         print("[PackagingFlow] Started")
 
     def stop(self) -> None:
         self._subscription = None
+        self._stop_subscription = None
         self._last_sim_time = None
+
+    def _on_timeline_stop(self, _event) -> None:
+        removed = self._clear_stacks()
+        self._processed_magazines.clear()
+        self._moving_stacks.clear()
+        self._stack_ids = itertools.count(1)
+        self._shelf_index = 0
+        self._last_sim_time = None
+        print(f"[PackagingFlow] Stop - removed {removed} stack(s), flow state reset")
+
+    def _clear_stacks(self) -> int:
+        """Remove every stack this flow spawned under STACK_ROOT.
+
+        STACK_ROOT itself is defined in the world USD and stays. Children are
+        matched by the "stack_" prefix rather than tracked in memory so stacks
+        from an earlier run of this script (re-run in Script Editor) go too.
+        """
+        stage = self._stage or omni.usd.get_context().get_stage()
+        if stage is None:
+            return 0
+        root = stage.GetPrimAtPath(STACK_ROOT)
+        if not root:
+            return 0
+
+        paths = [
+            child.GetPath()
+            for child in root.GetAllChildren()
+            if child.GetName().startswith("stack_")
+        ]
+        for path in paths:
+            # The spec may live in whichever layer was the edit target at spawn
+            # time, so remove it from every editable layer that holds it.
+            for layer in stage.GetLayerStack():
+                if layer.permissionToEdit and layer.GetPrimAtPath(path):
+                    edits = Sdf.BatchNamespaceEdit()
+                    edits.Add(path, Sdf.Path.emptyPath)
+                    if not layer.Apply(edits):
+                        print(f"[PackagingFlow] Could not remove {path} from {layer.identifier}")
+        return len(paths)
 
     def _on_update(self, _event) -> None:
         timeline = omni.timeline.get_timeline_interface()
@@ -141,7 +210,20 @@ class PackagingFlowController:
         xform = UsdGeom.XformCommonAPI(stack)
         xform.SetTranslate(STACK_SPAWN)
         xform.SetRotate(Gf.Vec3f(0.0, 0.0, 90.0))
-        xform.SetScale(Gf.Vec3f(2.0, 2.0, 2.0))
+        # ★ 2026-09-26: 2.0 -> 1.0 (원본 에셋 크기 그대로) — 15_stack_scan_
+        #   pick_test.py 에서 절반 크기로 SCAN(크립 여유거리)·PICK(흡착+LIFT)
+        #   전부 성공 확인 후 사용자 지시로 production 에도 적용한다. 질량도
+        #   부피비(0.5^3)만큼 같이 낮춘다 — physics:mass=1(kg) 이 F3_STKB_1/
+        #   F3_STKO_1.usda 양쪽 다 스케일과 무관한 명시적 오버라이드라, 안
+        #   낮추면 밀도가 8배가 되어(그 테스트에서 실제로 LIFT 도중 놓치는
+        #   원인이었다) 흡착이 훨씬 불리해진다.
+        #   ★★ 주의 — shelves.yaml PKG-OUT 의 waypoint_start/arm_teach_pose
+        #   는 지금까지의 2.0 배 스택 크기에 맞춰 사람이 직접 티칭한 값이다
+        #   (QR 라벨 위치·카메라 시야가 스택 크기에 따라 달라진다). 스택이
+        #   작아졌으니 그 자세들도 다시 확인/재티칭해야 실제 회수 흐름이
+        #   맞물린다 — 이 커밋만으로는 그 재티칭까지 포함하지 않는다.
+        xform.SetScale(Gf.Vec3f(1.0, 1.0, 1.0))
+        UsdPhysics.MassAPI(stack).CreateMassAttr().Set(1.0 * (0.5 ** 3))
         self._moving_stacks[str(stack_path)] = MovingStack(stack_path, float(STACK_SPAWN[0]))
         print(f"[PackagingFlow] {magazine_prim.GetName()} -> {payload}")
 

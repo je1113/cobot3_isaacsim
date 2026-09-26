@@ -16,6 +16,12 @@
 #  ★ station_type      : '' | PACKAGING | TEST | STORAGE
 #    completion_signal : '' | TIMER | VISION | 'TIMER + VISION' | EXTERNAL
 #    (공백 포함까지 화면 코드의 문자열과 정확히 같아야 한다)
+#
+#  ★ output_shelf(2026-09-25) : PACKAGING 스테이션의 산출물이 쌓이는
+#    shelves.yaml shelf_id. RECOVER 작업(웹 pending_pickup 큐)이 이 값으로
+#    "어느 선반으로 회수하러 갈지" 를 찾는다 — task_manager.
+#    _route_for_recover_target() 참고. 화면에는 아직 입력 칸이 없다(파일/
+#    백엔드 레벨에서만 왕복 보존, shapes.py station_in/station_out).
 # ══════════════════════════════════════════════════════════════════════
 meta:
   units: m, rad, s
@@ -46,14 +52,20 @@ stations:
     # ★ 2026-09-23: 3.70 -> 2.92 — task_manager TEST_LOADER 와 같다. Nav2 는 여기
     #   까지, 그 뒤 1.00 m 는 직진(LOADER_CREEP_M)으로 3.92 에 서서 놓는다.
     place_pose: {x: 2.92, y: 4.60, theta: 0.0}
-    place_arm_pose: [null, null, null, null, null, null]
     # ⚠️ 실측 필요. 이 값이 그대로 "회수 가능 시각 = place 완료 + process_time"
     #    이 된다. 너무 짧으면 회수하러 가서 헛탕 치고 재시도만 쌓인다.
-    process_time: 60
+    process_time: 15
     output_type: stack
+    # ★ 2026-09-25: RECOVER 작업(ExecuteTask.action target_ref=station_id)이
+    #   "이 스테이션 산출물이 어느 선반에 쌓이나"를 알아야 해서 추가했다.
+    #   task_manager._route_for_recover_target() 이 이 값으로 shelves.yaml 의
+    #   shelf_id 를 찾는다. packaging_flow.py 의 SHELF_X/SHELF_SLOT_Y 를
+    #   ShelfDeck 기준으로 고칠 때(15_stack_scan_pick_test.py) 확인한 대로
+    #   PKG-01 의 산출물은 shelves.yaml 의 PKG-OUT 선반에 쌓인다.
+    output_shelf: PKG-OUT
     completion_signal: TIMER
     capacity: 1
-    updated_at: null
+    updated_at: '2026-09-25T02:37:53.561Z'
 
   - station_id: TEST-01
     station_type: TEST
@@ -70,9 +82,9 @@ stations:
     #     여기 놓은 매거진은 벨트가 받아 가지 않을 수 있다.
     # ★ 2026-09-23: 3.70 -> 2.92 — task_manager TEST_STATION 과 같다(PKG-01 주석).
     place_pose: {x: 2.92, y: -2.705, theta: 0.0}
-    place_arm_pose: [null, null, null, null, null, null]
-    process_time: null
+    process_time:
     output_type: ''
     completion_signal: ''
-    capacity: null
-    updated_at: null
+    capacity:
+    updated_at: '2026-09-25T11:37:54.757024+09:00'
+    output_shelf: ''

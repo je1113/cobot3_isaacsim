@@ -23,6 +23,7 @@ import json
 import math
 import os
 import queue
+import shutil
 import signal
 import socket
 import sys
@@ -123,8 +124,115 @@ ISAACPJT = THIS_DIR.parent
 WS_ROOT = ISAACPJT.parent
 
 sys.path.insert(0, str(WS_ROOT / "src/cobot3_perception"))
-from cobot3_perception.qr_pose import estimate_qr_pose, aggregate_qr_poses  # noqa: E402
+from cobot3_perception.qr_pose import (  # noqa: E402
+    estimate_qr_pose, aggregate_qr_poses, set_external_decoder,
+)
 from cobot3_perception.flange_topview import detect_flange  # noqa: E402
+
+# ══════════════════════════════════════════════════════════════
+#  QR 외부 디코더 — Isaac 번들 cv2 에는 WeChat(각도에 강한 디코더)이 없다
+#  (2026-09-25/26 확인: hasattr(cv2, "wechat_qrcode_WeChatQRCode") == False).
+#  대신 있는 cv2.QRCodeDetector 는 크롭 여백 몇 px 차이로 되다 안 되다
+#  하는 걸 실측으로 확인했다(15_stack_scan_pick_test.py PICK_DUMP_FRAME
+#  으로 뜬 프레임 — margin 20/50/60px 은 디코드되는데 딱 52px(실제 production
+#  코드가 계산하는 값)만 실패). 시스템 python3(/usr/bin/python3)에
+#  opencv-contrib-python 을 설치해 WeChat 을 쓸 수 있게 하고, qr_pose.py 의
+#  set_external_decoder() 로 그 프로세스에 이미지를 넘겨 디코딩만 받아온다.
+#
+#  ★ subprocess 를 안 쓴다 — Kit 의 24 스레드 프로세스에서 fork 하면 죽는다
+#  (12_place_test2.py 의 같은 주석 참고). posix_spawn 을 쓴다.
+#  ★ 상주 프로세스로 둔다 — 매번 새로 띄우면 파이썬+OpenCV 임포트에만
+#  0.27초가 든다(실측, 12_place_test2.py). SCAN 한 번에 여러 프레임을
+#  부르므로 상주가 아니면 시뮬 전체가 그동안 멈춘다.
+# ══════════════════════════════════════════════════════════════
+QR_DECODE_PYTHON = os.environ.get("QR_DECODE_PYTHON", "/usr/bin/python3")
+
+_QR_SERVER_SRC = (
+    "import sys, cv2\n"
+    "d = cv2.wechat_qrcode_WeChatQRCode()\n"
+    "sys.stdout.write('READY\\n'); sys.stdout.flush()\n"
+    "for line in sys.stdin:\n"
+    "    p = line.strip()\n"
+    "    if not p:\n"
+    "        continue\n"
+    "    try:\n"
+    "        img = cv2.imread(p)\n"
+    "        r = d.detectAndDecode(img)\n"
+    "        t = [x for x in (r[0] if isinstance(r, tuple) else r) if x]\n"
+    "        out = t[0] if t else ''\n"
+    "    except Exception:\n"
+    "        out = ''\n"
+    "    sys.stdout.write(out + '\\n'); sys.stdout.flush()\n"
+)
+
+_qr_srv = None          # (pid, 쓰기 fd, 읽기 파일객체)
+_qr_srv_failed = False
+
+
+def _qr_decoder_env():
+    """isaac_python 이 심어 둔 PYTHONHOME/PYTHONPATH 가 자식(시스템 python3)
+    으로 그대로 상속되면 Isaac 의 컴파일된 확장(_sre 등)을 대신 줍고 죽는다
+    (12_place_test2.py._clean_ros2_env 와 같은 문제) — 이 디코더는 ROS
+    패키지가 필요 없으니 그냥 통째로 지운다."""
+    env = dict(os.environ)
+    env.pop("PYTHONHOME", None)
+    env.pop("PYTHONPATH", None)
+    return env
+
+
+def _qr_server():
+    """상주 디코더를 띄우고 (pid, w_fd, r_file) 을 돌려준다. 실패하면 None."""
+    global _qr_srv, _qr_srv_failed
+    if _qr_srv is not None or _qr_srv_failed:
+        return _qr_srv
+    try:
+        in_r, in_w = os.pipe()          # 부모 -> 자식 (경로)
+        out_r, out_w = os.pipe()        # 자식 -> 부모 (결과)
+        exe = shutil.which(QR_DECODE_PYTHON) or QR_DECODE_PYTHON
+        pid = os.posix_spawn(
+            exe, [exe, "-c", _QR_SERVER_SRC], _qr_decoder_env(),
+            file_actions=[
+                (os.POSIX_SPAWN_DUP2, in_r, 0),
+                (os.POSIX_SPAWN_DUP2, out_w, 1),
+                (os.POSIX_SPAWN_CLOSE, in_w),
+                (os.POSIX_SPAWN_CLOSE, out_r),
+            ],
+        )
+        os.close(in_r); os.close(out_w)
+        rf = os.fdopen(out_r, "r")
+        if rf.readline().strip() != "READY":
+            raise RuntimeError("디코더가 READY 를 안 보냈다")
+        _qr_srv = (pid, in_w, rf)
+        print(f"QR 외부 디코더(WeChat) 상주 시작  pid={pid}  ({QR_DECODE_PYTHON})")
+    except Exception as e:
+        print(f"!! 외부 QR 디코더를 못 띄웠다: {type(e).__name__}: {e}")
+        print(f"   {QR_DECODE_PYTHON} 에 opencv-contrib-python 이 있는지 확인할 것")
+        _qr_srv_failed = True
+        _qr_srv = None
+    return _qr_srv
+
+
+def _external_qr_decode(image):
+    """프레임/크롭을 임시 PNG 로 떨구고 상주 디코더에 물어본다. 실패하면 ""."""
+    global _qr_srv, _qr_srv_failed
+    srv = _qr_server()
+    if srv is None:
+        return ""
+    import cv2
+    pid, w_fd, rf = srv
+    tmp = Path("/tmp") / "_cobot3_extdecode.png"
+    try:
+        if not cv2.imwrite(str(tmp), image):
+            return ""
+        os.write(w_fd, (str(tmp) + "\n").encode())
+        return rf.readline().strip()
+    except Exception as e:
+        print(f"!! 외부 QR 디코더 통신 실패: {type(e).__name__}: {e}")
+        _qr_srv, _qr_srv_failed = None, True
+        return ""
+
+
+set_external_decoder(_external_qr_decode)
 
 # 기본 씬. SIM_WORLD_USD 로 다른 씬(예: static_test 용 simple_factory_layout_test.usda)을
 # 줄 수 있다 — 두 씬은 prim 경로가 같아야 한다(nova_carter1, magazine_1_orange 등).
@@ -1090,10 +1198,17 @@ class Backend:
         rig.pending_capture = None
         raise RuntimeError("프레임 캡쳐 타임아웃 — rgb/depth 콜백이 오지 않았다")
 
-    def scan_qr(self, expected_id=None, n_frames=3, robot_id=DEFAULT_ROBOT_ID):
+    def scan_qr(self, expected_id=None, n_frames=3, robot_id=DEFAULT_ROBOT_ID,
+                fast_only=False):
         """cobot3_perception.qr_pose 로 QR 자세를 재고, base_link 프레임으로
         변환해 돌려준다. observe_pose(robot_id=...) 로 이미 그 로봇의 관측
-        자세/카메라가 준비돼 있어야 한다."""
+        자세/카메라가 준비돼 있어야 한다.
+
+        fast_only: True 면 외부 WeChat 디코더(2026-09-26 추가, 상주 프로세스
+        IPC + 디스크 I/O 왕복)를 안 쓴다 — carrier_code_reader 가 patrol 중
+        고빈도 폴링(_detect_tick, 5Hz)에서 넘긴다. 이동하면서 계속 다시
+        찍는 자리라 지연보다 속도가 우선이라는 사용자 지시. 멈춰서 확정하는
+        carrier_scan 서비스는 기본값(False)대로 WeChat 을 쓴다."""
         rig = self.rigs[robot_id]
         base_p, base_q = get_world_pose(rig.chassis_link_path)
         R_base = quat_to_matrix(base_q)
@@ -1107,7 +1222,8 @@ class Backend:
             R_opt = R_l6 @ self.R_l6_cam @ self.R_cam_opt
             p_opt = l6_p + R_l6 @ self.t_l6_cam
             obs = estimate_qr_pose(rgb, depth, self.K, self.dist, R_opt, p_opt,
-                                   expected_id=expected_id)
+                                   expected_id=expected_id,
+                                   allow_external=not fast_only)
             obs_list.append(obs)
             if obs.ok:
                 decoded = obs.decoded
