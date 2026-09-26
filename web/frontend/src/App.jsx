@@ -462,6 +462,7 @@ function App() {
                 setShelves={setShelves}
                 resource={shelvesRes}
                 stations={stations}
+                robotStates={robotStates}
               />
             }
           />

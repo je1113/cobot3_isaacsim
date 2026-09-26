@@ -1,9 +1,9 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 
-import {
-  useMeta,
-  useRobots,
-} from '../contexts/metaHooks'
+import { useRobots } from '../contexts/metaHooks'
+import { fetchMapInfo } from '../api/map'
+import { FactoryTopView } from '../components/FactoryTopView'
+import { computeTopViewViewBox } from '../components/topViewLayout'
 
 function isTeachingComplete(shelf) {
   return (
@@ -38,20 +38,54 @@ function TaskAssignmentPage({
   setShelves,
   resource,
   stations = [],
+  robotStates = {},
 }) {
   // ★ 로봇 목록은 서버가 준다(GET /api/meta ← COBOT3_ROBOTS).
   const robots = useRobots()
-
-  const {
-    scan_direction_arrows:
-      directionArrows,
-  } = useMeta()
 
   const [saving, setSaving] =
     useState(false)
 
   const [saveError, setSaveError] =
     useState('')
+
+  // Top View — 2026-09-26: 실시간 모니터링에서 이 화면으로 옮겼다(사용자
+  // 지시). world 범위(origin/resolution/크기)만 /api/map 에서 받아 화면
+  // 좌표계를 map 프레임에 맞춘다 — 세션 내내 안 바뀌니 한 번만 받는다.
+  const [worldBounds, setWorldBounds] =
+    useState(null)
+
+  useEffect(() => {
+    let cancelled = false
+
+    fetchMapInfo()
+      .then((info) => {
+        if (!cancelled) {
+          setWorldBounds(info)
+        }
+      })
+      .catch(() => {
+        // 못 받아도 화면은 그대로 쓸 수 있어야 한다 — 아래 렌더링이
+        // worldBounds 없으면 빈 캔버스로 폴백한다.
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  // 컨테이너 비율 — FactoryTopView 의 viewBox 와 똑같이
+  // computeTopViewViewBox() 로 계산한다(스테이션 풋프린트까지 담은 크기).
+  const topViewViewBox =
+    computeTopViewViewBox(
+      worldBounds,
+      stations,
+    )
+  const topViewAspectRatio =
+    topViewViewBox
+      ? topViewViewBox.width /
+        topViewViewBox.height
+      : null
 
   function getAssignedRobot(shelfId) {
     return (
@@ -216,130 +250,7 @@ function TaskAssignmentPage({
       )}
 
       <div className="assignment-layout">
-        <div className="assignment-left">
-          <div className="assignment-map-card">
-            <div className="assignment-card-header">
-              <h2>Top View</h2>
-              <span>개념 배치 · 좌표 미사용</span>
-            </div>
-
-                        <div className="assignment-map-schematic">
-              <div className="assignment-shelf-lanes">
-                {shelves.map((shelf) => {
-                  const passes =
-                    shelf.scan_passes ?? []
-
-                  const assignedRobot =
-                    getAssignedRobot(
-                      shelf.shelf_id,
-                    )
-
-                  return (
-                    <article
-                      className="assignment-shelf-lane"
-                      key={shelf.shelf_id}
-                    >
-                      <div className="assignment-lane-title">
-                        <strong>
-                          {shelf.shelf_id}
-                        </strong>
-
-                        <span>
-                          {passes.length} pass
-                        </span>
-                      </div>
-
-                      <div className="assignment-pass-track">
-                        {passes.length === 0 ? (
-                          <span className="assignment-no-pass">
-                            스캔 구간 없음
-                          </span>
-                        ) : (
-                          passes.map((pass) => (
-                            <span
-                              className="assignment-pass-chip"
-                              key={pass.pass_id}
-                            >
-                              Level {pass.level}
-
-                              <b>
-                                {directionArrows[
-                                  pass.direction
-                                ] ?? '→'}
-                              </b>
-                            </span>
-                          ))
-                        )}
-                      </div>
-
-                      <div className="assignment-lane-state">
-                        <span
-                          className={
-                            isTeachingComplete(
-                              shelf,
-                            )
-                              ? 'complete'
-                              : 'incomplete'
-                          }
-                        >
-                          {isTeachingComplete(
-                            shelf,
-                          )
-                            ? '티칭 완료'
-                            : '티칭 미완료'}
-                        </span>
-
-                        {assignedRobot && (
-                          <strong>
-                            {assignedRobot}
-                          </strong>
-                        )}
-                      </div>
-                    </article>
-                  )
-                })}
-              </div>
-
-              <aside className="assignment-station-overview">
-                <div className="assignment-station-overview-header">
-                  <strong>
-                    등록 스테이션
-                  </strong>
-
-                  <span>
-                    {stations.length}개
-                  </span>
-                </div>
-
-                <div className="assignment-station-chip-list">
-                  {stations.length === 0 ? (
-                    <span className="assignment-no-station">
-                      등록된 스테이션이 없습니다.
-                    </span>
-                  ) : (
-                    stations.map((station) => (
-                      <div
-                        className="assignment-station-chip"
-                        key={
-                          station.station_id
-                        }
-                      >
-                        <strong>
-                          {station.station_id}
-                        </strong>
-
-                        <span>
-                          {station.station_type ||
-                            '유형 미설정'}
-                        </span>
-                      </div>
-                    ))
-                  )}
-                </div>
-              </aside>
-            </div>
-          </div>
-
+        <div className="assignment-top-row">
           <div className="available-shelf-card">
             <div className="assignment-card-header">
               <h2>선반</h2>
@@ -425,9 +336,7 @@ function TaskAssignmentPage({
               })}
             </div>
           </div>
-        </div>
 
-        <div className="robot-queue-column">
           {robots.map((robotId) => {
             const shelfId =
               getAssignedShelfId(robotId)
@@ -441,6 +350,35 @@ function TaskAssignmentPage({
               />
             )
           })}
+        </div>
+
+        <div className="monitor-map-card">
+          <div className="monitor-map-header">
+            <div>
+              <h2>Top View</h2>
+              <p>공장 배치도입니다.</p>
+            </div>
+          </div>
+
+          <div
+            className="monitor-map-surface"
+            style={
+              topViewAspectRatio
+                ? {
+                    aspectRatio:
+                      topViewAspectRatio,
+                  }
+                : undefined
+            }
+          >
+            <FactoryTopView
+              worldBounds={worldBounds}
+              shelves={shelves}
+              stations={stations}
+              robots={robots}
+              robotStates={robotStates}
+            />
+          </div>
         </div>
       </div>
     </section>

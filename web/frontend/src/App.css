@@ -1241,207 +1241,6 @@
   color: white;
 }
 
-.assignment-layout {
-  display: grid;
-  grid-template-columns: minmax(0, 1.5fr) minmax(300px, 0.8fr);
-  gap: 18px;
-  align-items: start;
-}
-
-.assignment-left,
-.robot-queue-column {
-  display: flex;
-  flex-direction: column;
-  gap: 18px;
-}
-
-.assignment-map-card,
-.available-shelf-card,
-.robot-queue-card {
-  padding: 20px;
-  border: 1px solid #d8d4cc;
-  border-radius: 14px;
-  background: white;
-}
-
-.assignment-card-header,
-.robot-queue-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 14px;
-  margin-bottom: 14px;
-}
-
-.assignment-card-header h2,
-.robot-queue-header h2 {
-  margin: 0;
-  font-size: 19px;
-}
-
-.assignment-card-header span,
-.robot-queue-header span {
-  color: #88837b;
-  font-size: 13px;
-}
-
-.assignment-map-placeholder {
-  display: flex;
-  min-height: 260px;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  border: 1px dashed #cfc9bf;
-  border-radius: 12px;
-  background: #f5f3ef;
-  text-align: center;
-}
-
-.assignment-map-placeholder p {
-  max-width: 340px;
-  margin: 8px 0 0;
-  color: #88837b;
-  font-size: 14px;
-}
-
-.assignable-shelf-list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.assignable-shelf-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 14px;
-  padding: 12px;
-  border-radius: 10px;
-  background: #f6f5f2;
-}
-
-.assignable-shelf-item > div:first-child {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.assignment-teach-status,
-.assigned-badge {
-  padding: 4px 8px;
-  border-radius: 999px;
-  font-size: 12px;
-  font-weight: bold;
-}
-
-.assignment-teach-status.complete {
-  color: #166534;
-  background: #dcfce7;
-}
-
-.assignment-teach-status.incomplete {
-  color: #92400e;
-  background: #fef3c7;
-}
-
-.assigned-badge {
-  color: #1d4ed8;
-  background: #dbeafe;
-}
-
-.assign-buttons {
-  display: flex;
-  gap: 6px;
-}
-
-.assign-buttons button,
-.queue-item button {
-  padding: 7px 10px;
-  border: 1px solid #d7d2ca;
-  border-radius: 7px;
-  background: white;
-  cursor: pointer;
-}
-
-.queue-time {
-  font-size: 12px;
-}
-
-.empty-queue {
-  padding: 28px 12px;
-  border: 1px dashed #d8d4cc;
-  border-radius: 10px;
-  color: #88837b;
-  text-align: center;
-  font-size: 14px;
-}
-
-.queue-list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.queue-item {
-  display: grid;
-  grid-template-columns: 28px 1fr auto;
-  gap: 10px;
-  align-items: center;
-  padding: 11px;
-  border-radius: 9px;
-  background: #f6f5f2;
-}
-
-.queue-index {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 26px;
-  height: 26px;
-  border-radius: 50%;
-  background: #1b1b1a;
-  color: white;
-  font-size: 13px;
-  font-weight: bold;
-}
-
-@media (max-width: 900px) {
-  .assignment-layout {
-    grid-template-columns: 1fr;
-  }
-
-  .assignment-header {
-    flex-direction: column;
-  }
-}
-
-.queue-item {
-  grid-template-columns: 28px minmax(0, 1fr) auto;
-}
-
-.queue-controls {
-  display: flex;
-  gap: 5px;
-}
-
-.queue-controls button {
-  min-width: 32px;
-  padding: 6px 8px;
-  border: 1px solid #d7d2ca;
-  border-radius: 7px;
-  background: white;
-  cursor: pointer;
-}
-
-.queue-controls button:disabled {
-  cursor: not-allowed;
-  opacity: 0.35;
-}
-
-.queue-controls button:last-child {
-  color: #991b1b;
-}
-
 /* =========================================================
    4-15. 실시간 모니터링
    ========================================================= */
@@ -3840,24 +3639,18 @@
 }
 
 .assignment-layout {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* 선반 + 로봇별 카드가 나란히(작으면 줄바꿈) — Top View(.monitor-map-card)
+   는 이 행 밖, assignment-layout 의 다음 형제라 항상 100% 폭 한 줄이다. */
+.assignment-top-row {
   display: grid;
-  grid-template-columns:
-    repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
   gap: 16px;
   align-items: start;
-}
-
-.assignment-left,
-.robot-queue-column {
-  display: contents;
-}
-
-.assignment-map-card {
-  grid-column: 1 / -1;
-  overflow: hidden;
-  border: 1px solid #e2ded7;
-  border-radius: 12px;
-  background: #ffffff;
 }
 
 .assignment-card-header,
@@ -4099,21 +3892,6 @@
   text-align: center;
 }
 
-@media (max-width: 1050px) {
-  .assignment-layout {
-    grid-template-columns:
-      repeat(2, minmax(0, 1fr));
-  }
-
-  .assignment-map-card {
-    grid-column: 1 / -1;
-  }
-
-  .available-shelf-card {
-    grid-column: 1 / -1;
-  }
-}
-
 @media (max-width: 720px) {
   .assignment-header {
     flex-direction: column;
@@ -4127,13 +3905,8 @@
     flex: 1;
   }
 
-  .assignment-layout {
+  .assignment-top-row {
     grid-template-columns: 1fr;
-  }
-
-  .assignment-map-card,
-  .available-shelf-card {
-    grid-column: auto;
   }
 }
 
@@ -4520,12 +4293,12 @@
     );
 }
 
-.robot-queue-column .robot-queue-card:first-child
+.assignment-top-row .robot-queue-card:first-of-type
   .queue-index {
   background: #292724;
 }
 
-.robot-queue-column .robot-queue-card:last-child
+.assignment-top-row .robot-queue-card:last-of-type
   .queue-index {
   background: #5e5953;
 }
