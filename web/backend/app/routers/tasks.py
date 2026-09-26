@@ -8,8 +8,11 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Query
 
+from ..config import settings
+from ..errors import ApiError
 from ..models import AutoDistribute, QueueReplace, TaskCreate, TaskPatch
 from ..services import dispatcher, queue
+from ..services.rosbridge import bridge
 from ..ws import hub
 
 router = APIRouter(tags=["tasks"])
@@ -45,10 +48,33 @@ async def patch_task(task_id: int, body: TaskPatch):
 
 @router.delete("/tasks/{task_id}", status_code=204)
 async def delete_task(task_id: int):
-    """취소 (4.5). QUEUED 만 지운다 — 실행 중인 것은 STOP 명령으로 세운다."""
+    """취소 (4.5) — 무슨 상태든 화면에서 누르면 지워진다.
+
+    RUNNING 이면 정중하게(STOP 과 같은 경로, bridge.cancel_task) 먼저
+    요청해 본 뒤, 결과를 기다리지 않고 표를 강제로 지운다 — goal_handle 이
+    죽은 프로세스 것으로 남아 STOP 이 조용히 무시되는 경우(queue.cancel
+    독스트링 참고)에도 화면에서 확실히 치워지게 하려는 것이다. bridge 가
+    꺼져 있거나 handle 이 없어도 실패로 안 친다 — 정중한 요청은 "되면 좋고"
+    지 이 취소의 필수 조건이 아니다.
+
+    pending_pickup 정리(QUEUED→GAVE_UP, RUNNING→WAITING 재예약)는
+    queue.cancel() 이 같은 트랜잭션 안에서 다 한다 — 여기서 따로 안 건드린다.
+    """
     row = await queue.get(task_id)
-    await queue.cancel(task_id)
-    await hub.publish("task_changed", {"task_id": task_id, "status": "CANCELED"}, row["robot_id"])
+    if row["status"] == "RUNNING":
+        try:
+            await bridge.cancel_task(settings().to_ns(row["robot_id"]))
+        except ApiError:
+            pass
+    outcome = await queue.cancel(task_id)
+    status = "CANCELED" if outcome == "QUEUED" else "FAILED"
+    await hub.publish("task_changed", {"task_id": task_id, "status": status}, row["robot_id"])
+    # queue.cancel() 이 RECOVER 작업이면 연결된 pending_pickup 도 같이 건드릴
+    # 수 있다(GAVE_UP/WAITING) — 그 여부를 여기서 다시 조회하지 않고 화면에
+    # 새로고침만 시킨다. "회수 대기" 패널은 내용과 무관하게 이 이벤트를
+    # 받으면 통째로 다시 불러온다(MonitoringPage loadPendingPickups).
+    await hub.publish("pickup_changed", {}, row["robot_id"])
+    dispatcher.wake(row["robot_id"])
 
 
 @router.get("/robots/{robot_id}/queue")
@@ -77,3 +103,19 @@ async def auto_distribute(body: AutoDistribute):
     PUT /robots/{id}/queue 로 적용한다. 적용 경로가 하나면 불변식 검사도 한 곳이다.
     """
     return {"plan": await queue.auto_distribute(body.robots)}
+
+
+@router.post("/tasks/reset-sim", status_code=204)
+async def reset_sim():
+    """개발용 — 시뮬레이션을 새로 껐다 켰을 때 큐를 통째로 비운다.
+
+    ★ 2026-09-25: Isaac Sim 재시작은 물리 세계를 리셋하지만 DB 큐는 "이전
+      세계"를 가리킨 채 남는다(queue.reset_all 독스트링 참고) — 화면에서
+      하나씩 강제삭제하던 걸 버튼 하나로 묶는다. run 기록(magazine_log/
+      stack_log)은 안 건드린다.
+    """
+    await queue.reset_all()
+    for robot_id in settings().robots:
+        await hub.publish("task_changed", {"reset": True}, robot_id)
+        dispatcher.wake(robot_id)
+    await hub.publish("pickup_changed", {"reset": True})

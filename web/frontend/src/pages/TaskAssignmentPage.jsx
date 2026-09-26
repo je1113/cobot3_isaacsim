@@ -1,8 +1,5 @@
-import {
-  requestTaskStart,
-} from '../api/tasks'
+import { useState } from 'react'
 
-import useApiRequest from '../hooks/useApiRequest'
 import {
   useMeta,
   useRobots,
@@ -19,16 +16,30 @@ function isTeachingComplete(shelf) {
   )
 }
 
+/**
+ * 작업 할당 — 로봇마다 담당 선반을 **하나씩** 저장한다.
+ *
+ * ★ 2026-09-25 이전에는 이 화면이 "선반을 로봇 작업 큐에 넣고 작업 시작을
+ *   누르는" 화면이었다. 그런데 로봇을 실제로 순찰 돌게 만드는 건 그 큐가
+ *   아니라 shelves.yaml 의 assigned_robot 이다(task_manager._resolve_patrol_
+ *   route) — mission_nodes.launch.py 를 띄우는 순간 이미 그 값을 보고
+ *   움직이기 시작한다. "작업 시작" 버튼은 그 사실과 안 맞았고, assigned_
+ *   robot 을 고칠 화면은 어디에도 없었다(ShelfSettingsPage 에도 없다).
+ *   그래서 이 화면을 그 자리로 바꿨다 — shelves 리소스(App.jsx 의
+ *   shelvesRes, ShelfSettingsPage 와 공유)에 직접 쓰고 저장한다.
+ *
+ * ★ 로봇 하나에 선반 하나뿐이다 — _resolve_patrol_route 가 assigned_robot
+ *   이 여럿이면 "첫 번째만 쓰고 경고"로 처리해서, 여러 개를 넣어 봐야
+ *   나머지는 조용히 무시된다. 그래서 화면도 다중 큐가 아니라 1:1 배정으로
+ *   맞춘다.
+ */
 function TaskAssignmentPage({
   shelves,
+  setShelves,
+  resource,
   stations = [],
-  queues,
-  setQueues,
 }) {
   // ★ 로봇 목록은 서버가 준다(GET /api/meta ← COBOT3_ROBOTS).
-  //   예전에는 'AMR-01' / 'AMR-02' 가 이 파일에만 12곳 박혀 있었고,
-  //   큐도 robot1Queue / robot2Queue 두 개의 useState 였다. 그러면 로봇이
-  //   3대가 되는 날 화면 전체를 다시 훑어야 한다.
   const robots = useRobots()
 
   const {
@@ -36,34 +47,28 @@ function TaskAssignmentPage({
       directionArrows,
   } = useMeta()
 
-  const {
-    loading: taskStartLoading,
-    error: taskStartError,
-    execute,
-  } = useApiRequest()
+  const [saving, setSaving] =
+    useState(false)
 
-  const queueOf = (robotId) =>
-    queues[robotId] ?? []
-
-  const updateQueue = (
-    robotId,
-    updater,
-  ) =>
-    setQueues((prev) => ({
-      ...prev,
-      [robotId]: updater(
-        prev[robotId] ?? [],
-      ),
-    }))
+  const [saveError, setSaveError] =
+    useState('')
 
   function getAssignedRobot(shelfId) {
     return (
-      robots.find((robotId) =>
-        queueOf(robotId).some(
-          (shelf) =>
-            shelf.shelf_id === shelfId,
-        ),
-      ) ?? null
+      shelves.find(
+        (shelf) =>
+          shelf.shelf_id === shelfId,
+      )?.assigned_robot || null
+    )
+  }
+
+  function getAssignedShelfId(robotId) {
+    return (
+      shelves.find(
+        (shelf) =>
+          shelf.assigned_robot ===
+          robotId,
+      )?.shelf_id ?? null
     )
   }
 
@@ -75,143 +80,97 @@ function TaskAssignmentPage({
       return
     }
 
-    const assignedRobot =
-      getAssignedRobot(shelf.shelf_id)
+    setShelves((prev) =>
+      prev.map((s) => {
+        if (s.shelf_id === shelf.shelf_id) {
+          return {
+            ...s,
+            assigned_robot: robotId,
+          }
+        }
 
-    if (assignedRobot) {
-      window.alert(
-        `${shelf.shelf_id}은 이미 ${assignedRobot}에 배정되어 있습니다.`,
-      )
-      return
-    }
+        // 그 로봇이 맡고 있던 다른 선반은 배정을 뗀다 — 로봇 하나엔
+        // 담당 선반이 하나뿐이다(위 헤더 주석).
+        if (s.assigned_robot === robotId) {
+          return {
+            ...s,
+            assigned_robot: null,
+          }
+        }
 
-    updateQueue(robotId, (prev) => [
-      ...prev,
-      shelf,
-    ])
+        return s
+      }),
+    )
   }
 
-  function removeShelf(
-    robotId,
-    shelfId,
-  ) {
-    updateQueue(robotId, (prev) =>
-      prev.filter(
-        (shelf) =>
-          shelf.shelf_id !== shelfId,
+  function unassignShelf(shelfId) {
+    setShelves((prev) =>
+      prev.map((s) =>
+        s.shelf_id === shelfId
+          ? { ...s, assigned_robot: null }
+          : s,
       ),
     )
   }
 
-  function moveQueueItem(
-    robotId,
-    index,
-    direction,
-  ) {
-    updateQueue(robotId, (prev) => {
-      const nextIndex =
-        index + direction
-
-      if (
-        nextIndex < 0 ||
-        nextIndex >= prev.length
-      ) {
-        return prev
-      }
-
-      const nextQueue = [...prev]
-
-      const currentItem =
-        nextQueue[index]
-
-      nextQueue[index] =
-        nextQueue[nextIndex]
-
-      nextQueue[nextIndex] =
-        currentItem
-
-      return nextQueue
-    })
-  }
-
-  /** 가장 적게 맡은 로봇에게 하나씩 — 대수와 무관하게 같은 규칙이다. */
+  /** 담당 선반이 없는 로봇에게, 배정 안 된 티칭완료 선반을 하나씩 짝지어준다. */
   function autoDistribute() {
+    const idleRobots = robots.filter(
+      (robotId) =>
+        !getAssignedShelfId(robotId),
+    )
+
     const unassignedShelves =
       shelves.filter(
         (shelf) =>
           isTeachingComplete(shelf) &&
-          !getAssignedRobot(
-            shelf.shelf_id,
-          ),
+          !shelf.assigned_robot,
       )
 
-    const next = Object.fromEntries(
-      robots.map((robotId) => [
+    const pairs = new Map(
+      idleRobots.map((robotId, i) => [
+        unassignedShelves[i]?.shelf_id,
         robotId,
-        [...queueOf(robotId)],
       ]),
     )
 
-    unassignedShelves.forEach(
-      (shelf) => {
-        // 동점이면 robots 순서가 앞선 쪽. 결과가 매번 같아야 사람이 예측한다.
-        const target = robots.reduce(
-          (best, robotId) =>
-            next[robotId].length <
-            next[best].length
-              ? robotId
-              : best,
-          robots[0],
-        )
+    if (pairs.size === 0) {
+      return
+    }
 
-        next[target].push(shelf)
-      },
+    setShelves((prev) =>
+      prev.map((s) =>
+        pairs.has(s.shelf_id)
+          ? {
+              ...s,
+              assigned_robot: pairs.get(
+                s.shelf_id,
+              ),
+            }
+          : s,
+      ),
     )
-
-    setQueues((prev) => ({
-      ...prev,
-      ...next,
-    }))
   }
 
-  async function startTasks() {
-    const isEmpty = robots.every(
-      (robotId) =>
-        queueOf(robotId).length === 0,
-    )
-
-    if (isEmpty) {
-      window.alert(
-        '작업 Queue가 비어 있습니다.',
-      )
-      return
-    }
-
-    // 큐가 빈 로봇도 실어 보낸다 — 서버는 이 목록으로 대기 큐를 **교체**하므로,
-    // 빠뜨리면 그 로봇의 기존 대기 작업이 그대로 남는다.
-    const taskRequest = {
-      robots: robots.map(
-        (robotId) => ({
-          robot_id: robotId,
-          queue: queueOf(robotId).map(
-            (shelf) => shelf.shelf_id,
-          ),
-        }),
-      ),
-    }
+  async function saveAssignments() {
+    setSaving(true)
+    setSaveError('')
 
     try {
-      await execute(() =>
-        requestTaskStart(
-          taskRequest,
-        ),
-      )
+      await resource.save()
 
       window.alert(
-        '작업 시작 요청을 Backend에 전달했습니다.',
+        '담당 선반을 저장했습니다.',
       )
-    } catch {
-      return
+    } catch (err) {
+      // 백엔드 메시지를 그대로 보여준다(ShelfSettingsPage 와 같은 이유).
+      setSaveError(
+        err instanceof Error
+          ? err.message
+          : '저장 실패',
+      )
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -222,7 +181,9 @@ function TaskAssignmentPage({
           <h1>작업 할당</h1>
 
           <p>
-            선반을 {robots.join(' / ')} 작업 큐에 배정합니다.
+            로봇마다 담당 선반을 하나씩 지정합니다. 지정한 선반을 순찰하며
+            매거진을 처리합니다 — 저장 즉시가 아니라 그 로봇이 다음 순찰
+            사이클에 들어갈 때 반영됩니다.
           </p>
         </div>
 
@@ -238,19 +199,19 @@ function TaskAssignmentPage({
           <button
             type="button"
             className="start-task-button"
-            disabled={taskStartLoading}
-            onClick={startTasks}
+            disabled={
+              saving || !resource.dirty
+            }
+            onClick={saveAssignments}
           >
-            {taskStartLoading
-              ? '작업 시작 요청 중...'
-              : '작업 시작'}
+            {saving ? '저장 중...' : '저장'}
           </button>
         </div>
       </header>
 
-      {taskStartError && (
+      {saveError && (
         <div className="assignment-api-error">
-          {taskStartError}
+          {saveError}
         </div>
       )}
 
@@ -423,9 +384,22 @@ function TaskAssignmentPage({
                     </div>
 
                     {assignedRobot ? (
-                      <span className="assigned-badge">
-                        {assignedRobot} 배정됨
-                      </span>
+                      <div className="assign-buttons">
+                        <span className="assigned-badge">
+                          {assignedRobot} 배정됨
+                        </span>
+
+                        <button
+                          type="button"
+                          onClick={() =>
+                            unassignShelf(
+                              shelf.shelf_id,
+                            )
+                          }
+                        >
+                          해제
+                        </button>
+                      </div>
                     ) : (
                       <div className="assign-buttons">
                         {robots.map(
@@ -454,26 +428,29 @@ function TaskAssignmentPage({
         </div>
 
         <div className="robot-queue-column">
-          {robots.map((robotId) => (
-            <RobotQueue
-              key={robotId}
-              robotId={robotId}
-              queue={queueOf(robotId)}
-              onRemove={removeShelf}
-              onMove={moveQueueItem}
-            />
-          ))}
+          {robots.map((robotId) => {
+            const shelfId =
+              getAssignedShelfId(robotId)
+
+            return (
+              <RobotAssignment
+                key={robotId}
+                robotId={robotId}
+                shelfId={shelfId}
+                onUnassign={unassignShelf}
+              />
+            )
+          })}
         </div>
       </div>
     </section>
   )
 }
 
-function RobotQueue({
+function RobotAssignment({
   robotId,
-  queue,
-  onRemove,
-  onMove,
+  shelfId,
+  onUnassign,
 }) {
   return (
     <article className="robot-queue-card">
@@ -482,84 +459,37 @@ function RobotQueue({
           <h2>{robotId}</h2>
 
           <span>
-            {queue.length}개 작업
+            {shelfId
+              ? '담당 선반 1개'
+              : '담당 선반 없음'}
           </span>
         </div>
-
-        <span className="queue-time">
-          예상 소요시간 -
-        </span>
       </div>
 
-      {queue.length === 0 ? (
-        <div className="empty-queue">
-          배정된 선반이 없습니다.
+      {shelfId ? (
+        <div className="queue-list">
+          <div className="queue-item">
+            <span className="queue-index">
+              1
+            </span>
+
+            <strong>{shelfId}</strong>
+
+            <div className="queue-actions">
+              <button
+                type="button"
+                onClick={() =>
+                  onUnassign(shelfId)
+                }
+              >
+                해제
+              </button>
+            </div>
+          </div>
         </div>
       ) : (
-        <div className="queue-list">
-          {queue.map(
-            (shelf, index) => (
-              <div
-                className="queue-item"
-                key={shelf.shelf_id}
-              >
-                <span className="queue-index">
-                  {index + 1}
-                </span>
-
-                <strong>
-                  {shelf.shelf_id}
-                </strong>
-
-                <div className="queue-actions">
-                  <button
-                    type="button"
-                    disabled={
-                      index === 0
-                    }
-                    onClick={() =>
-                      onMove(
-                        robotId,
-                        index,
-                        -1,
-                      )
-                    }
-                  >
-                    ↑
-                  </button>
-
-                  <button
-                    type="button"
-                    disabled={
-                      index ===
-                      queue.length - 1
-                    }
-                    onClick={() =>
-                      onMove(
-                        robotId,
-                        index,
-                        1,
-                      )
-                    }
-                  >
-                    ↓
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() =>
-                      onRemove(
-                        robotId,
-                        shelf.shelf_id,
-                      )
-                    }
-                  >
-                    제거
-                  </button>
-                </div>
-              </div>
-            ),
-          )}
+        <div className="empty-queue">
+          담당 선반이 없습니다.
         </div>
       )}
     </article>

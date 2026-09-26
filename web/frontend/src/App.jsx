@@ -272,24 +272,9 @@ function App() {
   // finalDestination 은 routing 리소스의 일부라 ProcessFlowPage 가 직접 갖는다.
   // 규칙과 최종 목적지는 "완성됐는가" 판정을 같이 받으므로 한 리소스다.
 
-  // ★ 큐를 로봇별 useState 두 개로 두면 대수가 코드 구조에 박힌다.
-  //   robots 를 키로 하는 map 하나면 3대가 돼도 이 파일은 안 바뀐다.
-  const [queues, setQueues] =
-    useState(() =>
-      loadStoredState(
-        'magazine-ops:queues',
-        {},
-      ),
-    )
-
-  // 로봇 큐는 아직 화면 로컬이다. '작업 시작' 을 누르는 순간에만 서버로 간다
-  // (POST /api/tasks/start) — 그때 서버의 대기 큐가 이 목록으로 교체된다.
-  useEffect(() => {
-    localStorage.setItem(
-      'magazine-ops:queues',
-      JSON.stringify(queues),
-    )
-  }, [queues])
+  // ★ 2026-09-25: 로봇별 작업 큐(로컬 상태 + '작업 시작')는 걷어냈다 —
+  //   TaskAssignmentPage 주석 참고. 담당 선반은 이제 shelves 리소스의
+  //   assigned_robot 필드 하나로 산다(ShelfSettingsPage 와 공유).
 
   // 실시간 상태는 어디에도 저장하지 않는다 — WebSocket 이 밀어 주는 대로만 산다.
   // 시드도 로봇 목록에서 만든다(예전에는 'AMR-01'/'AMR-02' 를 적어 뒀다).
@@ -474,9 +459,9 @@ function App() {
             element={
               <TaskAssignmentPage
                 shelves={shelves}
+                setShelves={setShelves}
+                resource={shelvesRes}
                 stations={stations}
-                queues={queues}
-                setQueues={setQueues}
               />
             }
           />
@@ -487,7 +472,6 @@ function App() {
               <MonitoringPage
                 robotStates={robotStates}
                 setRobotStates={setRobotStates}
-                queues={queues}
               />
             }
           />

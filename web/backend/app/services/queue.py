@@ -182,15 +182,85 @@ async def patch(task_id: int, robot_id: str | None, queue_order: int | None) -> 
 
 
 # ── 취소 (4.5) ───────────────────────────────────────────────────────
-async def cancel(task_id: int) -> None:
+async def cancel(task_id: int) -> str:
+    """화면에서 무슨 상태든 강제로 지운다. 돌려주는 값은 지우기 전 상태.
+
+    ★ 2026-09-25: 처음엔 QUEUED 만 지우고 RUNNING 은 거절(STOP 명령으로
+      세우라고만)했다. 그런데 STOP(bridge.cancel_task)은 백엔드가 들고 있는
+      goal_handle 에 기대는데, ROS 쪽(task_manager)만 재시작되고 웹 백엔드는
+      안 재시작된 경우 그 handle 이 죽은 프로세스의 것으로 남는다 —
+      cancel_goal_async() 가 아무 데도 안 닿아 조용히 무시되고, 표는 RUNNING
+      에 영원히 박혀 claim_next() 가 그 로봇에게 다음 작업을 못 준다(orphan
+      row). "화면에서 지워도 안 지워진다"는 바로 이 문제였다.
+
+    ★ 그 다음엔 QUEUED/RUNNING 만 받고 나머지(DONE/FAILED/CANCELED 등)는
+      Conflict 로 거절했는데, 그마저도 걷어냈다 — **어떤 상태든 삭제 버튼을
+      누르면 지워진다.** 이미 끝난 행을 지우는 건 다른 표를 깨지 않는다
+      (표시만 없어질 뿐이다) — "왜 안 지워지지" 로 헤매는 것보다 그게 낫다.
+      로봇이 실제로 아직 그 작업을 하고 있었더라도 안전하다 — 다음 goal 이
+      배차되면 task_manager 의 _on_task_goal 이 "작업이 이미 진행 중이다"
+      로 거절하고, dispatcher 가 자동으로 재큐잉한다. 최악의 경우도 재시도
+      한 번 낭비하는 것뿐이지 충돌은 안 난다. 호출부(routers/tasks.py)가
+      RUNNING 이면 이거 전에 bridge.cancel_task() 로 정중하게도 같이
+      요청한다.
+
+    ★ pending_pickup 연동 — RECOVER 작업은 pending_pickup 행이 task_id 로
+      이 행을 가리킨다(ON DELETE SET NULL). pending_pickup 의 체크 제약
+      (pickup_task_when_queued)은 status 가 QUEUED 인 동안은 task_id 가
+      비면 안 된다고 하므로, task 를 그냥 지우면 그 SET NULL 이 걸려서
+      "new row ... violates check constraint" 500 이 났다 — 처음 "삭제가
+      안 된다"의 진짜 원인이 이거였다. 그래서 같은 트랜잭션 안에서 먼저
+      pending_pickup 을 정리하고서 task 를 지운다: QUEUED 였다면 아무
+      일도 안 했으니 GAVE_UP(사람이 명시적으로 지운 것이니 자동 재시도
+      없이 끝낸다 — WAITING 으로 되돌리면 ready_at 이 이미 지난 채라 다음
+      스케줄러 tick 에 바로 재생성돼 "지웠는데 또 생긴다"가 된다).
+      RUNNING 이었다면 로봇이 실제로 뭔가 하고 있었을 수 있어(산출물이
+      여전히 거기 있을 수 있다) 포기 대신 WAITING 으로 되돌려 다시 시도할
+      기회를 준다. 그 외 상태는 이미 정리돼 있거나(on_task_finished),
+      안 됐어도 5초 안에 스케줄러 안전망(pickup._reconcile_orphaned_
+      queued)이 알아서 맞춘다.
+    """
     row = await get(task_id)
-    if row["status"] != "QUEUED":
-        raise Conflict(
-            f"{row['status']} 인 작업은 취소할 수 없다. "
-            "실행 중이면 STOP 명령으로 세운다.",
-            status=row["status"],
-        )
-    await db.execute("DELETE FROM task WHERE task_id = %s", (task_id,))
+    status = row["status"]
+
+    async with db.tx() as conn:
+        if status == "QUEUED":
+            await conn.execute(
+                "UPDATE pending_pickup SET status = 'GAVE_UP' "
+                "WHERE task_id = %s AND status = 'QUEUED'",
+                (task_id,),
+            )
+        elif status == "RUNNING":
+            await conn.execute(
+                "UPDATE pending_pickup SET status = 'WAITING', task_id = NULL, "
+                "retry_count = retry_count + 1, ready_at = now() "
+                "WHERE task_id = %s AND status = 'QUEUED'",
+                (task_id,),
+            )
+        await conn.execute("DELETE FROM task WHERE task_id = %s", (task_id,))
+    return status
+
+
+# ── 시뮬레이션 초기화 (개발용) ────────────────────────────────────────
+async def reset_all() -> None:
+    """task · pending_pickup 을 통째로 비운다 — Isaac Sim 을 껐다 켤 때 쓴다.
+
+    ★ 2026-09-25: 이 큐는 "프로세스는 죽어도 물리 세계는 그대로다"(DB구성.md,
+      production 전제)를 깔고 DB 에 상태를 둔다. Isaac Sim 은 반대다 — 껐다
+      켜면 스택/매거진/로봇 위치 같은 물리 세계 자체가 리셋되는데, DB 의
+      task/pending_pickup 행은 "이전 세계"를 계속 가리킨 채 남아서, 새
+      시뮬레이션을 시작할 때마다 화면에서 하나씩 강제삭제해야 했다(사용자
+      지적). 그 반복을 없애려고 한 번에 비우는 자리다.
+
+      run 기록(magazine_log/stack_log)은 건드리지 않는다 — 과거 실적이라
+      리셋 대상이 아니다(사용자 결정). pending_pickup 을 먼저 지운다 — task
+      를 먼저 지우면 그 FK(ON DELETE SET NULL)가 걸려도 행 자체는 남으므로,
+      어차피 둘 다 지울 거면 순서를 신경 쓸 필요는 없지만 명확하게 이 순서로
+      한다.
+    """
+    async with db.tx() as conn:
+        await conn.execute("DELETE FROM pending_pickup")
+        await conn.execute("DELETE FROM task")
 
 
 # ── 자동 분배 (4.6) ──────────────────────────────────────────────────

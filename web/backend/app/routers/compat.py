@@ -73,7 +73,7 @@ async def meta():
             shapes.DIRECTIONS[1]: "←",
         },
         "route_start": shapes.ROUTE_START,
-        # 팔 축 수. arm_teach_pose / place_arm_pose 의 길이.
+        # 팔 축 수. arm_teach_pose 의 길이.
         "joints": shapes.JOINTS,
     }
 

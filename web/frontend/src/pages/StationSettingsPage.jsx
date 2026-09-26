@@ -13,8 +13,8 @@ import {
   useMeta,
 } from '../contexts/metaHooks'
 
-/** 새 스테이션. `joints` 는 서버가 준다 — 팔 축 수를 화면이 정할 일이 아니다. */
-function createStation(stationId, joints) {
+/** 새 스테이션. */
+function createStation(stationId) {
   return {
     station_id: stationId,
     station_type: '',
@@ -23,10 +23,6 @@ function createStation(stationId, joints) {
       y: '',
       theta: '',
     },
-    place_arm_pose: Array.from(
-      { length: joints },
-      () => '',
-    ),
     process_time: '',
     output_type: '',
     completion_signal: '',
@@ -94,7 +90,6 @@ function StationSettingsPage({
     useState(false)
 
   const {
-    joints,
     completion_signal_help:
       completionHelp,
   } = useMeta()
@@ -196,29 +191,6 @@ function StationSettingsPage({
     )
   }
 
-  function updateArmJoint(
-    index,
-    value,
-  ) {
-    updateSelectedStation(
-      (station) => {
-        const nextPose = [
-          ...station.place_arm_pose,
-        ]
-
-        nextPose[index] = value
-
-        return {
-          ...station,
-          place_arm_pose:
-            nextPose,
-          updated_at:
-            new Date().toISOString(),
-        }
-      },
-    )
-  }
-
   function addStation() {
     const stationId =
       window.prompt(
@@ -254,7 +226,6 @@ function StationSettingsPage({
       ...prev,
       createStation(
         trimmedStationId,
-        joints,
       ),
     ])
 
@@ -555,50 +526,6 @@ function StationSettingsPage({
                   />
                 </label>
               ))}
-            </div>
-          </section>
-
-          <section className="station-section station-arm-card">
-            <div className="station-arm-header">
-              <div>
-                <h3>
-                  Place 팔 자세 (J1-J6)
-                </h3>
-
-                <p>
-                  배치 시 사용할 로봇 팔 관절 자세입니다.
-                </p>
-              </div>
-            </div>
-
-            <div className="station-joint-grid">
-              {selectedStation
-                .place_arm_pose
-                .map(
-                  (
-                    joint,
-                    index,
-                  ) => (
-                    <label
-                      key={index}
-                    >
-                      <span>
-                        J{index + 1}
-                      </span>
-
-                      <input
-                        type="number"
-                        value={joint}
-                        onChange={(event) =>
-                          updateArmJoint(
-                            index,
-                            event.target.value,
-                          )
-                        }
-                      />
-                    </label>
-                  ),
-                )}
             </div>
           </section>
 

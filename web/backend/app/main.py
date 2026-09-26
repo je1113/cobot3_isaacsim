@@ -72,7 +72,7 @@ async def lifespan(app: FastAPI):
     # 5.2 — ready_at 도래 감시
     background.append(
         asyncio.create_task(
-            pickup.run_scheduler(lambda row: hub.publish("pickup_changed", row)),
+            pickup.run_scheduler(_pickup_row_changed),
             name="pickup:scheduler",
         )
     )
@@ -100,6 +100,22 @@ async def _place_done(run_id, station_ref, ended_at) -> None:
     row = await pickup.on_place_done(run_id, station_ref, ended_at)
     if row:
         await hub.publish("pickup_changed", row)
+
+
+async def _pickup_row_changed(row: dict) -> None:
+    """pickup.tick() 이 바꾼 행마다 호출된다.
+
+    ★ 2026-09-25: pickup_changed 만 쏘면 MonitoringPage 「작업 큐」 패널이
+      모른다 — 그 패널은 task_changed 로만 새로고침한다(로봇 카드 하나만
+      다시 불러오는 구조라 pickup_changed 까지 구독시키면 범위가 커진다).
+      pickup.tick() 이 새로 RECOVER 를 배차한 행에는 robot_id 를 실어
+      보내므로, 그 경우에만 task_changed 를 같이 쏜다.
+    """
+    await hub.publish("pickup_changed", row)
+    robot_id = row.get("robot_id")
+    task_id = row.get("task_id")
+    if robot_id and task_id:
+        await hub.publish("task_changed", {"task_id": task_id, "robot_id": robot_id}, robot_id)
 
 
 app = FastAPI(

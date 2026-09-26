@@ -155,7 +155,16 @@ async def put_stations(
     for station_id, item in zip(ids, incoming):
         target = kept.get(station_id)
         converted = {"station_id": station_id, **shapes.station_in(item)}
-        merged.append(yamlstore.merge_into(target, converted) if target is not None else converted)
+        if target is not None:
+            # ★ output_shelf 는 화면에 입력 칸이 없다 — 화면이 안 보내면
+            #   파일의 기존 값을 지킨다(shelves.yaml assigned_robot 과 같은
+            #   이유, put_shelves 주석 참고). 안 지키면 스테이션을 한 번
+            #   저장할 때마다 RECOVER 매핑이 사라진다.
+            if "output_shelf" not in converted and "output_shelf" in target:
+                converted["output_shelf"] = target["output_shelf"]
+            merged.append(yamlstore.merge_into(target, converted))
+        else:
+            merged.append(converted)
     doc["stations"] = merged
 
     rev = await _save(path, doc, if_match, "stations")

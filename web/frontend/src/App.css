@@ -37,7 +37,7 @@
 
 .sidebar-brand {
   margin: 0;
-  font-size: 16px;
+  font-size: 19px;
   letter-spacing: 0.4px;
   white-space: nowrap;
 }
@@ -50,7 +50,7 @@
   border-radius: 6px;
   background: transparent;
   color: #aaa7a1;
-  font-size: 14px;
+  font-size: 17px;
   line-height: 1;
   cursor: pointer;
 }
@@ -74,7 +74,7 @@
   border-radius: 8px;
   color: #aaa7a1;
   text-decoration: none;
-  font-size: 14px;
+  font-size: 17px;
   white-space: nowrap;
   overflow: hidden;
 }
@@ -134,14 +134,14 @@
 
 .settings-page-header h1 {
   margin: 0 0 6px;
-  font-size: 30px;
+  font-size: 36px;
   font-weight: 700;
 }
 
 .settings-page-header p {
   margin: 0;
   color: #77736c;
-  font-size: 13px;
+  font-size: 16px;
 }
 
 .page-add-shelf-button {
@@ -168,7 +168,7 @@
   padding: 10px 18px 14px;
   color: #77736c;
   text-decoration: none;
-  font-size: 14px;
+  font-size: 17px;
 }
 
 .settings-tab.active {
@@ -203,7 +203,7 @@
 .shelf-list-count {
   margin: 2px 0 12px;
   color: #77736c;
-  font-size: 12px;
+  font-size: 14px;
 }
 
 .shelf-list {
@@ -227,12 +227,12 @@
 }
 
 .shelf-list-item strong {
-  font-size: 14px;
+  font-size: 17px;
 }
 
 .shelf-list-item span {
   color: #77736c;
-  font-size: 11px;
+  font-size: 13px;
 }
 
 .shelf-list-item.active {
@@ -264,12 +264,12 @@
 
 .selected-shelf-header h2 {
   margin: 0;
-  font-size: 20px;
+  font-size: 24px;
 }
 
 .last-teaching {
   color: #88837b;
-  font-size: 11px;
+  font-size: 13px;
 }
 
 .coordinate-summary {
@@ -283,7 +283,7 @@
 .coordinate-card h3 {
   margin: 0 0 8px;
   color: #77736c;
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 500;
 }
 
@@ -298,7 +298,7 @@
   flex-direction: column;
   gap: 4px;
   color: #77736c;
-  font-size: 9px;
+  font-size: 11px;
 }
 
 .coordinate-card input,
@@ -328,13 +328,13 @@
 
 .scan-pass-section-header h2 {
   margin: 0 0 5px;
-  font-size: 14px;
+  font-size: 17px;
 }
 
 .scan-pass-section-header p {
   margin: 0;
   color: #88837b;
-  font-size: 11px;
+  font-size: 13px;
 }
 
 .scan-pass-row-list {
@@ -368,7 +368,7 @@
   border-radius: 50%;
   background: #2864d8;
   color: white;
-  font-size: 12px;
+  font-size: 14px;
   font-weight: bold;
 }
 
@@ -383,12 +383,12 @@
 }
 
 .pass-info strong {
-  font-size: 13px;
+  font-size: 16px;
 }
 
 .pass-direction {
   width: fit-content;
-  font-size: 10px;
+  font-size: 12px;
 }
 
 .pass-direction.forward {
@@ -413,13 +413,13 @@
 .pass-pose-header p {
   margin: 0;
   color: #88837b;
-  font-size: 10px;
+  font-size: 12px;
 }
 
 .pass-teach-status {
   padding: 3px 7px;
   border-radius: 999px;
-  font-size: 9px;
+  font-size: 11px;
   font-weight: bold;
 }
 
@@ -444,7 +444,7 @@
   flex-direction: column;
   gap: 3px;
   color: #88837b;
-  font-size: 9px;
+  font-size: 11px;
 }
 
 .joint-row input {
@@ -470,7 +470,7 @@
   border: 1px solid #e5ddd1;
   background: white;
   color: #8a5d24;
-  font-size: 11px;
+  font-size: 13px;
 }
 
 .add-pass-row {
@@ -501,7 +501,7 @@
 .empty-pass-state p {
   margin: 0;
   color: #88837b;
-  font-size: 12px;
+  font-size: 14px;
 }
 
 .shelf-footer-actions {
@@ -600,7 +600,7 @@
 .station-list-count {
   margin: 2px 0 12px;
   color: #77736c;
-  font-size: 12px;
+  font-size: 14px;
 }
 
 .station-list {
@@ -625,7 +625,7 @@
 
 .station-list-item span {
   color: #77736c;
-  font-size: 11px;
+  font-size: 13px;
 }
 
 .station-list-item.active {
@@ -656,12 +656,12 @@
 
 .selected-station-header h2 {
   margin: 0;
-  font-size: 20px;
+  font-size: 24px;
 }
 
 .selected-station-header span {
   color: #77736c;
-  font-size: 12px;
+  font-size: 14px;
 }
 
 .station-section {
@@ -670,7 +670,7 @@
 
 .station-section h3 {
   margin: 0 0 14px;
-  font-size: 14px;
+  font-size: 17px;
 }
 
 .station-basic-grid {
@@ -686,7 +686,7 @@
   flex-direction: column;
   gap: 6px;
   color: #77736c;
-  font-size: 11px;
+  font-size: 13px;
 }
 
 .station-basic-grid input,
@@ -723,7 +723,7 @@
 .station-arm-header p {
   margin: 0;
   color: #88837b;
-  font-size: 11px;
+  font-size: 13px;
 }
 
 .station-joint-grid {
@@ -787,7 +787,7 @@
 .station-list-count {
   margin: 2px 0 12px;
   color: #77736c;
-  font-size: 12px;
+  font-size: 14px;
 }
 
 .station-list {
@@ -812,7 +812,7 @@
 
 .station-list-item span {
   color: #77736c;
-  font-size: 11px;
+  font-size: 13px;
 }
 
 .station-list-item.active {
@@ -843,12 +843,12 @@
 
 .selected-station-header h2 {
   margin: 0;
-  font-size: 20px;
+  font-size: 24px;
 }
 
 .selected-station-header span {
   color: #77736c;
-  font-size: 12px;
+  font-size: 14px;
 }
 
 .station-section {
@@ -857,7 +857,7 @@
 
 .station-section h3 {
   margin: 0 0 14px;
-  font-size: 14px;
+  font-size: 17px;
 }
 
 .station-basic-grid {
@@ -873,7 +873,7 @@
   flex-direction: column;
   gap: 6px;
   color: #77736c;
-  font-size: 11px;
+  font-size: 13px;
 }
 
 .station-basic-grid input,
@@ -910,7 +910,7 @@
 .station-arm-header p {
   margin: 0;
   color: #88837b;
-  font-size: 11px;
+  font-size: 13px;
 }
 
 .station-joint-grid {
@@ -965,7 +965,7 @@
 
 .selected-station-header h2 {
   margin: 0;
-  font-size: 20px;
+  font-size: 24px;
 }
 
 .station-type-badge {
@@ -974,7 +974,7 @@
   border-radius: 999px;
   background: #ece9e2;
   color: #5f5a52;
-  font-size: 10px;
+  font-size: 12px;
   font-weight: bold;
 }
 
@@ -1032,19 +1032,19 @@
 
 .process-flow-header h2 {
   margin: 0 0 5px;
-  font-size: 18px;
+  font-size: 22px;
 }
 
 .process-flow-header p {
   margin: 0;
   color: #88837b;
-  font-size: 11px;
+  font-size: 13px;
 }
 
 .routing-status {
   padding: 6px 10px;
   border-radius: 999px;
-  font-size: 10px;
+  font-size: 12px;
   font-weight: bold;
 }
 
@@ -1085,7 +1085,7 @@
   border-radius: 50%;
   background: #1b1b1a;
   color: white;
-  font-size: 12px;
+  font-size: 14px;
   font-weight: bold;
 }
 
@@ -1098,17 +1098,17 @@
 .route-node span,
 .route-node small {
   color: #88837b;
-  font-size: 10px;
+  font-size: 12px;
 }
 
 .route-node strong {
-  font-size: 14px;
+  font-size: 17px;
 }
 
 .route-arrow {
   color: #77736c;
   text-align: center;
-  font-size: 20px;
+  font-size: 24px;
 }
 
 .destination-node select {
@@ -1123,7 +1123,7 @@
 
 .destination-node label {
   color: #77736c;
-  font-size: 10px;
+  font-size: 12px;
 }
 
 .process-chain {
@@ -1151,7 +1151,7 @@
 
 .chain-node span {
   color: #88837b;
-  font-size: 10px;
+  font-size: 12px;
 }
 
 .chain-node.unset {
@@ -1161,7 +1161,7 @@
 
 .chain-arrow {
   color: #77736c;
-  font-size: 18px;
+  font-size: 22px;
 }
 
 .process-flow-footer {
@@ -1206,14 +1206,14 @@
 
 .assignment-header h1 {
   margin: 0 0 6px;
-  font-size: 30px;
+  font-size: 36px;
   font-weight: 500;
 }
 
 .assignment-header p {
   margin: 0;
   color: #77736c;
-  font-size: 13px;
+  font-size: 16px;
 }
 
 .assignment-header-actions {
@@ -1276,13 +1276,13 @@
 .assignment-card-header h2,
 .robot-queue-header h2 {
   margin: 0;
-  font-size: 16px;
+  font-size: 19px;
 }
 
 .assignment-card-header span,
 .robot-queue-header span {
   color: #88837b;
-  font-size: 11px;
+  font-size: 13px;
 }
 
 .assignment-map-placeholder {
@@ -1301,7 +1301,7 @@
   max-width: 340px;
   margin: 8px 0 0;
   color: #88837b;
-  font-size: 12px;
+  font-size: 14px;
 }
 
 .assignable-shelf-list {
@@ -1330,7 +1330,7 @@
 .assigned-badge {
   padding: 4px 8px;
   border-radius: 999px;
-  font-size: 10px;
+  font-size: 12px;
   font-weight: bold;
 }
 
@@ -1364,7 +1364,7 @@
 }
 
 .queue-time {
-  font-size: 10px;
+  font-size: 12px;
 }
 
 .empty-queue {
@@ -1373,7 +1373,7 @@
   border-radius: 10px;
   color: #88837b;
   text-align: center;
-  font-size: 12px;
+  font-size: 14px;
 }
 
 .queue-list {
@@ -1401,7 +1401,7 @@
   border-radius: 50%;
   background: #1b1b1a;
   color: white;
-  font-size: 11px;
+  font-size: 13px;
   font-weight: bold;
 }
 
@@ -1474,7 +1474,7 @@
   border-radius: 999px;
   background: #ffffff;
   color: #6b7280;
-  font-size: 13px;
+  font-size: 16px;
   font-weight: 600;
 }
 
@@ -1507,19 +1507,19 @@
 .monitoring-card-header h2,
 .monitoring-section-header h2 {
   margin: 0;
-  font-size: 17px;
+  font-size: 20px;
 }
 
 .monitoring-card-header p,
 .monitoring-section-header p {
   margin: 5px 0 0;
   color: #77736d;
-  font-size: 13px;
+  font-size: 16px;
 }
 
 .monitoring-card-status {
   color: #77736d;
-  font-size: 13px;
+  font-size: 16px;
 }
 
 .monitoring-map-placeholder {
@@ -1551,13 +1551,13 @@
 }
 
 .monitoring-map-message strong {
-  font-size: 18px;
+  font-size: 22px;
 }
 
 .monitoring-map-message span {
   max-width: 320px;
   color: #77736d;
-  font-size: 13px;
+  font-size: 16px;
   line-height: 1.6;
 }
 
@@ -1576,7 +1576,7 @@
 
 .monitoring-section-header > span {
   color: #77736d;
-  font-size: 13px;
+  font-size: 16px;
 }
 
 .monitoring-robot-grid {
@@ -1606,7 +1606,7 @@
 
 .monitoring-robot-header h3 {
   margin: 0;
-  font-size: 16px;
+  font-size: 19px;
 }
 
 .monitoring-robot-dot {
@@ -1621,7 +1621,7 @@
   border-radius: 999px;
   background: #f3f1ed;
   color: #77736d;
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 600;
 }
 
@@ -1641,11 +1641,11 @@
 
 .monitoring-info-row span {
   color: #77736d;
-  font-size: 13px;
+  font-size: 16px;
 }
 
 .monitoring-info-row strong {
-  font-size: 13px;
+  font-size: 16px;
 }
 
 .monitoring-queue {
@@ -1662,12 +1662,12 @@
 }
 
 .monitoring-queue-header strong {
-  font-size: 13px;
+  font-size: 16px;
 }
 
 .monitoring-queue-header span {
   color: #77736d;
-  font-size: 12px;
+  font-size: 14px;
 }
 
 .monitoring-empty-queue {
@@ -1676,7 +1676,7 @@
   border-radius: 9px;
   background: #faf9f7;
   color: #8a857d;
-  font-size: 13px;
+  font-size: 16px;
   text-align: center;
 }
 
@@ -1715,12 +1715,12 @@
   border-radius: 50%;
   background: #1b1b1a;
   color: white;
-  font-size: 10px;
+  font-size: 12px;
   font-weight: bold;
 }
 
 .monitoring-queue-item strong {
-  font-size: 12px;
+  font-size: 14px;
 }
 
 /* =========================================================
@@ -1755,7 +1755,7 @@
   border-radius: 999px;
   background: #ffffff;
   color: #6b7280;
-  font-size: 13px;
+  font-size: 16px;
   font-weight: 600;
 }
 
@@ -1778,11 +1778,11 @@
 
 .logs-summary-card span {
   color: #77736d;
-  font-size: 13px;
+  font-size: 16px;
 }
 
 .logs-summary-card strong {
-  font-size: 25px;
+  font-size: 30px;
 }
 
 .logs-table-card {
@@ -1803,13 +1803,13 @@
 
 .logs-table-header h2 {
   margin: 0;
-  font-size: 17px;
+  font-size: 20px;
 }
 
 .logs-table-header p {
   margin: 5px 0 0;
   color: #77736d;
-  font-size: 13px;
+  font-size: 16px;
 }
 
 .logs-filter-group {
@@ -1825,7 +1825,7 @@
 
 .logs-filter-group label > span {
   color: #77736d;
-  font-size: 11px;
+  font-size: 13px;
 }
 
 .logs-filter-group select {
@@ -1850,13 +1850,13 @@
   padding: 13px 16px;
   border-bottom: 1px solid #efebe5;
   text-align: left;
-  font-size: 13px;
+  font-size: 16px;
 }
 
 .logs-table th {
   background: #f8f7f4;
   color: #77736d;
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 600;
 }
 
@@ -1897,7 +1897,7 @@
   border-radius: 8px;
   background: #1b1b1a;
   color: #ffffff;
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 600;
   cursor: pointer;
 }
@@ -1947,7 +1947,7 @@
   border-radius: 8px;
   background: #ffffff;
   color: #44403c;
-  font-size: 13px;
+  font-size: 16px;
   font-weight: 600;
   cursor: pointer;
 }
@@ -1964,7 +1964,7 @@
 .monitoring-connection-error {
   max-width: 320px;
   color: #b45309;
-  font-size: 12px;
+  font-size: 14px;
   text-align: right;
 }
 
@@ -1997,7 +1997,7 @@
 
 .monitoring-map-label {
   fill: #44403c;
-  font-size: 3px;
+  font-size: 4px;
   font-weight: 600;
 }
 
@@ -2012,7 +2012,7 @@
   border-radius: 8px;
   background: #fffaf3;
   color: #b45309;
-  font-size: 12px;
+  font-size: 14px;
 }
 
 .logs-refresh-button {
@@ -2021,7 +2021,7 @@
   border-radius: 8px;
   background: #ffffff;
   color: #44403c;
-  font-size: 13px;
+  font-size: 16px;
   font-weight: 600;
   cursor: pointer;
 }
@@ -2041,7 +2041,7 @@
   border-radius: 8px;
   background: #fffaf3;
   color: #b45309;
-  font-size: 12px;
+  font-size: 14px;
 }
 
 /* ===== 4.1-1 Shelf visual refresh ===== */
@@ -2058,14 +2058,14 @@
 
 .shelf-settings-page .settings-page-header h1 {
   margin: 0;
-  font-size: 28px;
+  font-size: 34px;
   line-height: 1.2;
 }
 
 .shelf-settings-page .settings-page-header p {
   margin: 10px 0 0;
   color: #77736d;
-  font-size: 13px;
+  font-size: 16px;
 }
 
 .shelf-settings-page .settings-tabs {
@@ -2090,7 +2090,7 @@
 .shelf-list-count {
   margin: 0 0 12px;
   color: #8a857d;
-  font-size: 12px;
+  font-size: 14px;
 }
 
 .shelf-list {
@@ -2114,12 +2114,12 @@
 .shelf-list-item strong {
   display: block;
   margin-bottom: 5px;
-  font-size: 13px;
+  font-size: 16px;
 }
 
 .shelf-list-item span {
   color: #8a857d;
-  font-size: 11px;
+  font-size: 13px;
 }
 
 .shelf-list-item.active {
@@ -2151,14 +2151,14 @@
 
 .selected-shelf-header h2 {
   margin: 0;
-  font-size: 22px;
+  font-size: 26px;
 }
 
 .shelf-detail-panel .teaching-status {
   padding: 0;
   border: 0;
   background: transparent;
-  font-size: 13px;
+  font-size: 16px;
   font-weight: 600;
 }
 
@@ -2184,7 +2184,7 @@
 .shelf-standoff-section h3 {
   margin: 0 0 10px;
   color: #6f6a63;
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 600;
 }
 
@@ -2206,7 +2206,7 @@
 .coordinate-grid label > span,
 .shelf-standoff-section label > span {
   color: #9a948c;
-  font-size: 10px;
+  font-size: 12px;
 }
 
 .coordinate-grid input,
@@ -2230,13 +2230,13 @@
 
 .scan-pass-section-header h3 {
   margin: 0;
-  font-size: 14px;
+  font-size: 17px;
 }
 
 .scan-pass-section-header p {
   margin: 5px 0 0;
   color: #9a948c;
-  font-size: 11px;
+  font-size: 13px;
 }
 
 .scan-pass-list {
@@ -2273,19 +2273,19 @@
   border-radius: 50%;
   background: #2764d8;
   color: #ffffff;
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 700;
 }
 
 .scan-pass-level strong {
   display: block;
   margin-bottom: 3px;
-  font-size: 13px;
+  font-size: 16px;
 }
 
 .scan-pass-direction {
   color: #6b7280;
-  font-size: 10px;
+  font-size: 12px;
 }
 
 .scan-pass-joints {
@@ -2296,7 +2296,7 @@
   display: block;
   margin-bottom: 6px;
   color: #8a857d;
-  font-size: 10px;
+  font-size: 12px;
 }
 
 .joint-grid {
@@ -2315,7 +2315,7 @@
 
 .joint-grid label > span {
   color: #9a948c;
-  font-size: 9px;
+  font-size: 11px;
 }
 
 .joint-grid input {
@@ -2341,7 +2341,7 @@
   justify-self: end;
   padding: 5px 9px;
   border-radius: 999px;
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 700;
 }
 
@@ -2438,14 +2438,14 @@
 
 .station-settings-page .settings-page-header h1 {
   margin: 0;
-  font-size: 28px;
+  font-size: 34px;
   line-height: 1.2;
 }
 
 .station-settings-page .settings-page-header p {
   margin: 10px 0 0;
   color: #77736d;
-  font-size: 13px;
+  font-size: 16px;
 }
 
 .station-settings-page .settings-tabs {
@@ -2487,7 +2487,7 @@
 .station-list-count {
   margin: 0 0 12px;
   color: #8a857d;
-  font-size: 12px;
+  font-size: 14px;
 }
 
 .station-list {
@@ -2511,12 +2511,12 @@
 .station-list-item strong {
   display: block;
   margin-bottom: 5px;
-  font-size: 13px;
+  font-size: 16px;
 }
 
 .station-list-item span {
   color: #8a857d;
-  font-size: 11px;
+  font-size: 13px;
 }
 
 .station-list-item.active {
@@ -2550,7 +2550,7 @@
 
 .selected-station-title h2 {
   margin: 0;
-  font-size: 22px;
+  font-size: 26px;
 }
 
 .station-type-badge {
@@ -2558,7 +2558,7 @@
   border-radius: 999px;
   background: #ebe8e2;
   color: #6f6a63;
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 700;
 }
 
@@ -2572,7 +2572,7 @@
 
 .station-section h3 {
   margin: 0 0 14px;
-  font-size: 14px;
+  font-size: 17px;
 }
 
 .station-overview-grid {
@@ -2597,7 +2597,7 @@
 .station-joint-grid label > span,
 .station-output-grid label > span {
   color: #8a857d;
-  font-size: 10px;
+  font-size: 12px;
 }
 
 .station-overview-grid input,
@@ -2638,7 +2638,7 @@
 .station-arm-header p {
   margin: 5px 0 0;
   color: #9a948c;
-  font-size: 11px;
+  font-size: 13px;
 }
 
 .station-joint-grid {
@@ -2723,14 +2723,14 @@
 
 .process-flow-page .settings-page-header h1 {
   margin: 0;
-  font-size: 28px;
+  font-size: 34px;
   line-height: 1.2;
 }
 
 .process-flow-page .settings-page-header p {
   margin: 10px 0 0;
   color: #77736d;
-  font-size: 13px;
+  font-size: 16px;
 }
 
 .process-flow-page .settings-tabs {
@@ -2755,19 +2755,19 @@
 
 .process-flow-top h2 {
   margin: 0;
-  font-size: 22px;
+  font-size: 26px;
 }
 
 .process-flow-top p {
   margin: 7px 0 0;
   color: #8a857d;
-  font-size: 12px;
+  font-size: 14px;
 }
 
 .routing-status {
   padding: 6px 10px;
   border-radius: 999px;
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 700;
   white-space: nowrap;
 }
@@ -2800,12 +2800,12 @@
 
 .process-chain-title h3 {
   margin: 0;
-  font-size: 14px;
+  font-size: 17px;
 }
 
 .process-chain-title > span {
   color: #9a948c;
-  font-size: 10px;
+  font-size: 12px;
 }
 
 .process-chain {
@@ -2843,7 +2843,7 @@
   border-radius: 50%;
   background: #1c1c1b;
   color: #ffffff;
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 700;
 }
 
@@ -2851,18 +2851,18 @@
   display: block;
   margin-bottom: 4px;
   color: #9a948c;
-  font-size: 9px;
+  font-size: 11px;
 }
 
 .process-chain-node strong {
   display: block;
   margin-bottom: 4px;
-  font-size: 14px;
+  font-size: 17px;
 }
 
 .process-chain-node div > span {
   color: #77736d;
-  font-size: 10px;
+  font-size: 12px;
 }
 
 .process-chain-node.packaging-node {
@@ -2888,7 +2888,7 @@
 
 .process-chain-arrow {
   color: #aaa49b;
-  font-size: 18px;
+  font-size: 22px;
   text-align: center;
 }
 
@@ -2902,13 +2902,13 @@
 
 .routing-rule-section-header h3 {
   margin: 0;
-  font-size: 14px;
+  font-size: 17px;
 }
 
 .routing-rule-section-header p {
   margin: 5px 0 0;
   color: #9a948c;
-  font-size: 11px;
+  font-size: 13px;
 }
 
 .routing-rule-list {
@@ -2935,7 +2935,7 @@
 
 .routing-rule-number {
   color: #aaa49b;
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 700;
 }
 
@@ -2943,18 +2943,18 @@
   display: block;
   margin-bottom: 3px;
   color: #aaa49b;
-  font-size: 9px;
+  font-size: 11px;
 }
 
 .routing-rule-node strong {
   display: block;
   margin-bottom: 3px;
-  font-size: 13px;
+  font-size: 16px;
 }
 
 .routing-rule-node span {
   color: #8a857d;
-  font-size: 10px;
+  font-size: 12px;
 }
 
 .routing-rule-arrow {
@@ -2969,7 +2969,7 @@
   border-radius: 999px;
   background: #f0eee8;
   color: #77736d;
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 700;
 }
 
@@ -2991,7 +2991,7 @@
 
 .routing-rule-destination label > span {
   color: #8a857d;
-  font-size: 10px;
+  font-size: 12px;
 }
 
 .routing-rule-destination select {
@@ -3032,7 +3032,7 @@
 }
 
 .process-save-notice {
-  font-size: 14px;
+  font-size: 17px;
   font-weight: 600;
 }
 
@@ -3111,7 +3111,7 @@
 
 .shelf-first-taught {
   color: #8a857d;
-  font-size: 11px;
+  font-size: 13px;
   white-space: nowrap;
 }
 
@@ -3160,7 +3160,7 @@
 
 .station-modified-time {
   color: #8a857d;
-  font-size: 11px;
+  font-size: 13px;
   white-space: nowrap;
 }
 
@@ -3200,7 +3200,7 @@
   border-radius: 8px;
   background: #eff6ff;
   color: #3b67a3;
-  font-size: 10px;
+  font-size: 12px;
   line-height: 1.5;
 }
 
@@ -3228,11 +3228,11 @@
 
 .station-next-process span {
   color: #8a857d;
-  font-size: 11px;
+  font-size: 13px;
 }
 
 .station-next-process strong {
-  font-size: 12px;
+  font-size: 14px;
 }
 
 .station-next-process button {
@@ -3240,7 +3240,7 @@
   border: 0;
   background: transparent;
   color: #2563c9;
-  font-size: 11px;
+  font-size: 13px;
   cursor: pointer;
 }
 
@@ -3290,12 +3290,12 @@
 
 .routing-chain-heading h3 {
   margin: 0;
-  font-size: 14px;
+  font-size: 17px;
 }
 
 .routing-chain-heading > span {
   color: #9a948c;
-  font-size: 10px;
+  font-size: 12px;
 }
 
 .dynamic-process-chain {
@@ -3337,13 +3337,13 @@
 .process-step-name-input {
   margin-bottom: 6px;
   color: #171717;
-  font-size: 13px;
+  font-size: 16px;
   font-weight: 700;
 }
 
 .process-step-label-input {
   color: #7d7871;
-  font-size: 10px;
+  font-size: 12px;
 }
 
 .process-step-name-input:focus,
@@ -3394,7 +3394,7 @@
   outline: 0;
   background: transparent;
   color: #171717;
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 700;
 }
 
@@ -3411,7 +3411,7 @@
 
 .routing-description-field > span {
   color: #9a948c;
-  font-size: 9px;
+  font-size: 11px;
 }
 
 .routing-description-field input {
@@ -3423,7 +3423,7 @@
   border: 1px solid #d8d3cb;
   border-radius: 6px;
   background: #faf9f7;
-  font-size: 11px;
+  font-size: 13px;
 }
 
 .routing-rule-delete-button {
@@ -3432,7 +3432,7 @@
   border-radius: 7px;
   background: #ffffff;
   color: #9a3412;
-  font-size: 10px;
+  font-size: 12px;
   cursor: pointer;
 }
 
@@ -3463,7 +3463,7 @@
   border-radius: 8px;
   background: #eff6ff;
   color: #3569ae;
-  font-size: 10px;
+  font-size: 12px;
   line-height: 1.6;
 }
 
@@ -3487,11 +3487,11 @@
   display: block;
   margin-bottom: 5px;
   color: #8a857d;
-  font-size: 10px;
+  font-size: 12px;
 }
 
 .routing-final-row strong {
-  font-size: 13px;
+  font-size: 16px;
 }
 
 .routing-final-arrow {
@@ -3570,7 +3570,7 @@
 .process-fixed-station-id {
   margin-bottom: 6px;
   color: #171717;
-  font-size: 13px;
+  font-size: 16px;
   font-weight: 700;
 }
 
@@ -3584,7 +3584,7 @@
   border-radius: 6px;
   background: #ffffff;
   color: #171717;
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 600;
 }
 
@@ -3613,11 +3613,11 @@
 
 .routing-validation-box span {
   color: #817b73;
-  font-size: 10px;
+  font-size: 12px;
 }
 
 .routing-validation-box strong {
-  font-size: 10px;
+  font-size: 12px;
   white-space: nowrap;
 }
 
@@ -3663,7 +3663,7 @@
   display: block;
   margin-bottom: 3px;
   overflow: hidden;
-  font-size: 12px;
+  font-size: 14px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -3672,14 +3672,14 @@
   display: block;
   margin-bottom: 5px;
   color: #9a948c;
-  font-size: 8px;
+  font-size: 10px;
 }
 
 .routing-chain-node-content > span {
   display: block;
   overflow: hidden;
   color: #77736d;
-  font-size: 9px;
+  font-size: 11px;
   line-height: 1.35;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -3690,7 +3690,7 @@
   border: 1px dashed #d8d3cb;
   border-radius: 8px;
   color: #9a948c;
-  font-size: 11px;
+  font-size: 13px;
   text-align: center;
 }
 
@@ -3708,7 +3708,7 @@
   display: block;
   min-height: 32px;
   line-height: 32px;
-  font-size: 12px;
+  font-size: 14px;
 }
 
 .routing-rule-destination-select {
@@ -3720,7 +3720,7 @@
 
 .routing-rule-destination-select > span {
   color: #9a948c;
-  font-size: 9px;
+  font-size: 11px;
 }
 
 .routing-rule-destination-select select {
@@ -3730,7 +3730,7 @@
   border: 1px solid #d8d3cb;
   border-radius: 6px;
   background: #ffffff;
-  font-size: 11px;
+  font-size: 13px;
 }
 
 .routing-validation-five {
@@ -3800,7 +3800,7 @@
 .assignment-header h1 {
   margin: 0 0 7px;
   color: #171717;
-  font-size: 28px;
+  font-size: 34px;
   font-weight: 700;
   letter-spacing: -0.04em;
 }
@@ -3808,7 +3808,7 @@
 .assignment-header p {
   margin: 0;
   color: #8a857d;
-  font-size: 12px;
+  font-size: 14px;
 }
 
 .assignment-header-actions {
@@ -3822,7 +3822,7 @@
   min-height: 38px;
   padding: 0 16px;
   border-radius: 8px;
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 700;
   cursor: pointer;
 }
@@ -3875,14 +3875,14 @@
 .robot-queue-header h2 {
   margin: 0;
   color: #24211f;
-  font-size: 13px;
+  font-size: 16px;
 }
 
 .assignment-card-header > span,
 .robot-queue-header > div > span,
 .queue-time {
   color: #9a948c;
-  font-size: 9px;
+  font-size: 11px;
 }
 
 .assignment-map-placeholder {
@@ -3936,14 +3936,14 @@
   display: block;
   margin-bottom: 7px;
   color: #44403b;
-  font-size: 12px;
+  font-size: 14px;
 }
 
 .assignment-map-placeholder p {
   max-width: 380px;
   margin: 0;
   color: #99938b;
-  font-size: 10px;
+  font-size: 12px;
   line-height: 1.6;
 }
 
@@ -3990,11 +3990,11 @@
 .assignable-shelf-item strong,
 .queue-item strong {
   color: #292724;
-  font-size: 11px;
+  font-size: 13px;
 }
 
 .assignment-teach-status {
-  font-size: 9px;
+  font-size: 11px;
 }
 
 .assignment-teach-status.complete {
@@ -4011,7 +4011,7 @@
   border-radius: 999px;
   background: #efede9;
   color: #716b64;
-  font-size: 8px;
+  font-size: 10px;
   font-weight: 700;
 }
 
@@ -4028,7 +4028,7 @@
   border-radius: 6px;
   background: #ffffff;
   color: #4d4944;
-  font-size: 8px;
+  font-size: 10px;
   font-weight: 700;
   cursor: pointer;
 }
@@ -4058,7 +4058,7 @@
   border-radius: 50%;
   background: #292724;
   color: #ffffff;
-  font-size: 8px;
+  font-size: 10px;
   font-weight: 700;
 }
 
@@ -4078,7 +4078,7 @@
   border-radius: 6px;
   background: #ffffff;
   color: #69645e;
-  font-size: 9px;
+  font-size: 11px;
   cursor: pointer;
 }
 
@@ -4095,7 +4095,7 @@
   padding: 18px;
   box-sizing: border-box;
   color: #aaa49c;
-  font-size: 10px;
+  font-size: 12px;
   text-align: center;
 }
 
@@ -4192,14 +4192,14 @@
 .assignment-lane-title strong {
   overflow: hidden;
   color: #292724;
-  font-size: 11px;
+  font-size: 13px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .assignment-lane-title span {
   color: #989189;
-  font-size: 8px;
+  font-size: 10px;
 }
 
 .assignment-pass-track {
@@ -4237,20 +4237,20 @@
   border-radius: 999px;
   background: #ffffff;
   color: #706a63;
-  font-size: 8px;
+  font-size: 10px;
   white-space: nowrap;
 }
 
 .assignment-pass-chip b {
   color: #292724;
-  font-size: 11px;
+  font-size: 13px;
 }
 
 .assignment-no-pass {
   padding: 4px 7px;
   background: #faf9f7;
   color: #aaa39b;
-  font-size: 8px;
+  font-size: 10px;
 }
 
 .assignment-lane-state {
@@ -4261,7 +4261,7 @@
 }
 
 .assignment-lane-state > span {
-  font-size: 8px;
+  font-size: 10px;
   white-space: nowrap;
 }
 
@@ -4278,7 +4278,7 @@
   border-radius: 999px;
   background: #292724;
   color: #ffffff;
-  font-size: 7px;
+  font-size: 8px;
   white-space: nowrap;
 }
 
@@ -4301,12 +4301,12 @@
 
 .assignment-station-overview-header strong {
   color: #312e2a;
-  font-size: 10px;
+  font-size: 12px;
 }
 
 .assignment-station-overview-header span {
   color: #9b958d;
-  font-size: 8px;
+  font-size: 10px;
 }
 
 .assignment-station-chip-list {
@@ -4333,7 +4333,7 @@
 .assignment-station-chip strong {
   overflow: hidden;
   color: #35312d;
-  font-size: 9px;
+  font-size: 11px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -4341,13 +4341,13 @@
 .assignment-station-chip span {
   flex: 0 0 auto;
   color: #99928a;
-  font-size: 7px;
+  font-size: 8px;
 }
 
 .assignment-no-station {
   padding: 18px 4px;
   color: #aaa39b;
-  font-size: 8px;
+  font-size: 10px;
   text-align: center;
 }
 
@@ -4467,7 +4467,7 @@
   border-radius: 999px;
   background: #292724;
   color: #ffffff;
-  font-size: 6px;
+  font-size: 7px;
   font-weight: 800;
   letter-spacing: 0.08em;
 }
@@ -4562,14 +4562,14 @@
 .monitoring-page-header h1 {
   margin: 0 0 7px;
   color: #171717;
-  font-size: 26px;
+  font-size: 31px;
   letter-spacing: -0.04em;
 }
 
 .monitoring-page-header p {
   margin: 0;
   color: #8a857d;
-  font-size: 12px;
+  font-size: 14px;
 }
 
 .monitoring-connection-badge {
@@ -4581,7 +4581,7 @@
   border-radius: 999px;
   background: #ffffff;
   color: #716b64;
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 700;
   white-space: nowrap;
 }
@@ -4615,14 +4615,14 @@
 .monitoring-section-header h2 {
   margin: 0 0 3px;
   color: #292724;
-  font-size: 13px;
+  font-size: 16px;
 }
 
 .monitoring-card-header p,
 .monitoring-section-header p {
   margin: 0;
   color: #99928a;
-  font-size: 9px;
+  font-size: 11px;
 }
 
 .monitoring-card-status,
@@ -4632,7 +4632,7 @@
   border-radius: 999px;
   background: #f2f0ec;
   color: #7e7871;
-  font-size: 8px;
+  font-size: 10px;
   font-weight: 700;
 }
 
@@ -4669,11 +4669,11 @@
 
 .monitoring-map-message strong {
   color: #4b4641;
-  font-size: 12px;
+  font-size: 14px;
 }
 
 .monitoring-map-message span {
-  font-size: 9px;
+  font-size: 11px;
   line-height: 1.6;
 }
 
@@ -4717,7 +4717,7 @@
 .monitoring-robot-header h3 {
   margin: 0;
   color: #292724;
-  font-size: 12px;
+  font-size: 14px;
 }
 
 .monitoring-robot-dot {
@@ -4733,7 +4733,7 @@
   border-radius: 999px;
   background: #f0eeea;
   color: #716b64;
-  font-size: 8px;
+  font-size: 10px;
   font-weight: 700;
 }
 
@@ -4756,14 +4756,14 @@
 
 .monitoring-info-row span {
   color: #99928a;
-  font-size: 9px;
+  font-size: 11px;
 }
 
 .monitoring-info-row strong {
   min-width: 0;
   overflow: hidden;
   color: #37332f;
-  font-size: 10px;
+  font-size: 12px;
   text-align: right;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -4788,12 +4788,12 @@
 
 .monitoring-queue-header strong {
   color: #4b4641;
-  font-size: 9px;
+  font-size: 11px;
 }
 
 .monitoring-queue-header span {
   color: #99928a;
-  font-size: 8px;
+  font-size: 10px;
 }
 
 .monitoring-queue-list {
@@ -4824,13 +4824,13 @@
   border-radius: 50%;
   background: #35312d;
   color: #ffffff;
-  font-size: 7px;
+  font-size: 8px;
   font-weight: 700;
 }
 
 .monitoring-queue-item strong {
   color: #49443f;
-  font-size: 9px;
+  font-size: 11px;
 }
 
 .monitoring-empty-queue {
@@ -4839,7 +4839,7 @@
   align-items: center;
   justify-content: center;
   color: #aaa39b;
-  font-size: 8px;
+  font-size: 10px;
   text-align: center;
 }
 
@@ -4952,7 +4952,7 @@
   border-radius: 999px;
   background: #35312d;
   color: #ffffff;
-  font-size: 6px;
+  font-size: 7px;
   font-weight: 800;
   letter-spacing: 0.08em;
 }
@@ -4997,7 +4997,7 @@
 
 @media (max-width: 650px) {
   .monitoring-queue-item:first-child::after {
-    font-size: 5px;
+    font-size: 6px;
   }
 }
 
@@ -5090,7 +5090,7 @@
 
 .monitoring-camera-header strong {
   color: #292724;
-  font-size: 10px;
+  font-size: 12px;
 }
 
 .monitoring-camera-header span {
@@ -5098,7 +5098,7 @@
   border-radius: 999px;
   background: #f1efeb;
   color: #8d867f;
-  font-size: 7px;
+  font-size: 8px;
   font-weight: 700;
 }
 
@@ -5123,12 +5123,12 @@
 
 .monitoring-camera-placeholder strong {
   color: #ffffff;
-  font-size: 10px;
+  font-size: 12px;
 }
 
 .monitoring-camera-placeholder span {
   color: #8e8e8a;
-  font-size: 8px;
+  font-size: 10px;
   line-height: 1.55;
 }
 
@@ -5179,7 +5179,7 @@
 .logs-page-header h1 {
   margin: 0 0 6px;
   color: #171717;
-  font-size: 28px;
+  font-size: 34px;
   font-weight: 700;
   letter-spacing: -0.04em;
 }
@@ -5187,7 +5187,7 @@
 .logs-page-header p {
   margin: 0;
   color: #8d867e;
-  font-size: 10px;
+  font-size: 12px;
 }
 
 .logs-header-actions {
@@ -5211,7 +5211,7 @@
   border-radius: 8px;
   background: #ffffff;
   color: #4c4741;
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 700;
   cursor: pointer;
 }
@@ -5251,12 +5251,12 @@
 
 .logs-summary-card span {
   color: #8d867e;
-  font-size: 9px;
+  font-size: 11px;
 }
 
 .logs-summary-card strong {
   color: #171717;
-  font-size: 24px;
+  font-size: 29px;
   line-height: 1;
   letter-spacing: -0.04em;
 }
@@ -5280,13 +5280,13 @@
 .logs-table-header h2 {
   margin: 0 0 3px;
   color: #34302c;
-  font-size: 11px;
+  font-size: 13px;
 }
 
 .logs-table-header p {
   margin: 0;
   color: #99928a;
-  font-size: 8px;
+  font-size: 10px;
 }
 
 .logs-toolbar {
@@ -5309,7 +5309,7 @@
   outline: none;
   background: #ffffff;
   color: #403b36;
-  font-size: 9px;
+  font-size: 11px;
 }
 
 .logs-search-input:focus {
@@ -5334,7 +5334,7 @@
   border-radius: 999px;
   background: #ffffff;
   color: #68625c;
-  font-size: 8px;
+  font-size: 10px;
   font-weight: 700;
   cursor: pointer;
 }
@@ -5375,7 +5375,7 @@
   padding: 11px 14px;
   border-bottom: 1px solid #ece8e2;
   color: #514c46;
-  font-size: 8px;
+  font-size: 10px;
   text-align: left;
   white-space: nowrap;
 }
@@ -5383,7 +5383,7 @@
 .logs-table th {
   background: #faf9f7;
   color: #8f8880;
-  font-size: 7px;
+  font-size: 8px;
   font-weight: 700;
 }
 
@@ -5406,7 +5406,7 @@
   justify-content: center;
   padding: 0 7px;
   border-radius: 999px;
-  font-size: 7px;
+  font-size: 8px;
   font-weight: 700;
 }
 
@@ -5437,7 +5437,7 @@
   align-items: center;
   padding: 0 14px;
   color: #928b83;
-  font-size: 8px;
+  font-size: 10px;
   background: #ffffff;
 }
 
@@ -5495,20 +5495,40 @@
 .monitor-control-page-header h1 {
   margin: 0;
   color: #181714;
-  font-size: 28px;
+  font-size: 34px;
   font-weight: 700;
 }
 
 .monitor-control-page-header p {
   margin: 7px 0 0;
   color: #888178;
-  font-size: 13px;
+  font-size: 16px;
 }
 
 .monitor-connection-area {
   display: flex;
   align-items: center;
   gap: 8px;
+}
+
+.monitor-reset-sim-button {
+  min-height: 34px;
+  padding: 0 12px;
+  border: 1px solid #d99a9a;
+  border-radius: 8px;
+  background: #fdf1f1;
+  color: #a83232;
+  font-size: 16px;
+  cursor: pointer;
+}
+
+.monitor-reset-sim-button:hover:not(:disabled) {
+  filter: brightness(0.98);
+}
+
+.monitor-reset-sim-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .monitor-connection-badge {
@@ -5521,7 +5541,7 @@
   border-radius: 999px;
   background: #fff;
   color: #867f76;
-  font-size: 11px;
+  font-size: 13px;
 }
 
 .monitor-connection-badge i {
@@ -5546,7 +5566,7 @@
   border-radius: 9px;
   background: #fff2ef;
   color: #a84834;
-  font-size: 12px;
+  font-size: 14px;
 }
 
 .monitor-control-layout {
@@ -5586,14 +5606,14 @@
 .monitor-event-header h2 {
   margin: 0;
   color: #24211d;
-  font-size: 14px;
+  font-size: 17px;
 }
 
 .monitor-map-header p,
 .monitor-event-header p {
   margin: 4px 0 0;
   color: #989187;
-  font-size: 11px;
+  font-size: 13px;
 }
 
 /* Top View 와 CCTV 를 세로로 쌓는 왼쪽 열 */
@@ -5625,7 +5645,7 @@
   height: 100%;
   padding: 16px;
   color: #b8b0a5;
-  font-size: 12px;
+  font-size: 14px;
   text-align: center;
 }
 
@@ -5644,7 +5664,7 @@
   justify-content: center;
   height: 100%;
   color: #999086;
-  font-size: 13px;
+  font-size: 16px;
 }
 
 .monitor-topview-svg {
@@ -5673,7 +5693,7 @@
 
 .monitor-topview-shelf text {
   fill: #756f67;
-  font-size: 0.26px;
+  font-size: 0.31px;
   font-weight: 600;
   text-anchor: middle;
   dominant-baseline: hanging;
@@ -5714,7 +5734,7 @@
 
 .monitor-topview-station text {
   fill: #4b4640;
-  font-size: 0.22px;
+  font-size: 0.26px;
   font-weight: 600;
   text-anchor: middle;
   /* 이름표를 아이콘 위에 적으므로(위 ConveyorIcon 주석) 텍스트가 y 에서
@@ -5745,7 +5765,7 @@
 
 .monitor-topview-robot text {
   fill: #26231f;
-  font-size: 0.32px;
+  font-size: 0.38px;
   font-weight: 600;
   text-anchor: middle;
 }
@@ -5777,7 +5797,7 @@
 
 .monitor-robot-control-header h3 {
   margin: 0;
-  font-size: 13px;
+  font-size: 16px;
 }
 
 .monitor-robot-dot {
@@ -5801,7 +5821,7 @@
   align-items: center;
   padding: 0 8px;
   border-radius: 999px;
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 700;
 }
 
@@ -5846,7 +5866,7 @@
 
 .monitor-robot-details span {
   color: #9a9389;
-  font-size: 10px;
+  font-size: 12px;
 }
 
 .monitor-robot-details strong {
@@ -5855,8 +5875,163 @@
   text-align: right;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 11px;
+  font-size: 13px;
 }
+
+/* 로봇 카드 안 실제 작업 큐(표 5) — 서버가 들고 있는 값을 그대로 보여준다.
+   TaskAssignmentPage 의 계획용 큐와 달리 RECOVER 가 자동으로 생겨도 보인다. */
+.monitor-task-queue {
+  padding: 10px 14px 12px;
+  border-top: 1px solid #ece7e0;
+}
+
+.monitor-task-queue-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.monitor-task-queue-header span {
+  color: #9a9389;
+  font-size: 12px;
+}
+
+.monitor-task-queue-header strong {
+  color: #39342f;
+  font-size: 13px;
+}
+
+.monitor-task-queue-empty {
+  padding: 10px 0;
+  color: #aaa39b;
+  font-size: 12px;
+  text-align: center;
+}
+
+.monitor-task-queue-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.monitor-task-queue-item {
+  display: grid;
+  grid-template-columns: 52px minmax(0, 1fr) auto 20px;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border: 1px solid #ece7e0;
+  border-radius: 7px;
+  background: #faf9f7;
+}
+
+.monitor-task-remove-button {
+  display: inline-flex;
+  width: 20px;
+  height: 20px;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 1px solid #e6cfc9;
+  border-radius: 50%;
+  background: #fff5f3;
+  color: #b5402e;
+  font-size: 12px;
+  line-height: 1;
+}
+
+.monitor-task-remove-button:hover:not(:disabled) {
+  background: #ffe9e5;
+}
+
+.monitor-task-remove-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.monitor-task-stop-button {
+  display: inline-flex;
+  width: 20px;
+  height: 20px;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 1px solid #e2b46a;
+  border-radius: 50%;
+  background: #fff6e8;
+  color: #a86400;
+  font-size: 10px;
+  line-height: 1;
+}
+
+.monitor-task-stop-button:hover:not(:disabled) {
+  background: #ffedcc;
+}
+
+.monitor-task-stop-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.monitor-task-queue-error {
+  margin-top: 6px;
+  padding: 6px 8px;
+  border: 1px solid #e6cfc9;
+  border-radius: 7px;
+  background: #fff5f3;
+  color: #b5402e;
+  font-size: 12px;
+}
+
+.monitor-task-queue-item strong {
+  overflow: hidden;
+  color: #39342f;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+}
+
+.monitor-task-kind {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px 6px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.monitor-task-kind.scan {
+  background: #e8f1ff;
+  color: #2a67b7;
+}
+
+.monitor-task-kind.recover {
+  background: #fde9d9;
+  color: #b4650c;
+}
+
+.monitor-task-status {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 7px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.monitor-task-status.running {
+  background: #e3f1dc;
+  color: #3f7d2c;
+}
+
+.monitor-task-status.queued {
+  background: #f0eee9;
+  color: #777068;
+}
+
 
 .monitor-control-buttons {
   display: grid;
@@ -5869,7 +6044,7 @@
 .monitor-control-buttons button {
   min-height: 38px;
   border-radius: 8px;
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 700;
 }
 
@@ -5914,7 +6089,7 @@
   padding: 24px 16px;
   color: #aaa299;
   text-align: center;
-  font-size: 11px;
+  font-size: 13px;
 }
 
 .monitor-event-list {
@@ -5928,7 +6103,7 @@
   gap: 10px;
   padding: 10px 0;
   border-bottom: 1px solid #f0ece6;
-  font-size: 11px;
+  font-size: 13px;
 }
 
 .monitor-event-row:last-child {

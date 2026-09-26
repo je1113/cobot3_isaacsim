@@ -91,15 +91,15 @@ async def on_place_done(run_id: str, station_ref: str | None, ended_at: datetime
 # ── 5.2 — 스케줄러 ───────────────────────────────────────────────────
 async def tick() -> list[dict]:
     """ready_at 이 지난 WAITING 을 RECOVER 작업으로 바꾼다. 갱신된 행을 돌려준다."""
+    changed: list[dict] = await _reconcile_orphaned_queued()
+
     due = await db.fetch(
         f"SELECT {_COLS} FROM pending_pickup "
         "WHERE status = 'WAITING' AND ready_at <= now() ORDER BY ready_at"
     )
-    changed: list[dict] = []
     for row in due:
         try:
-            plan = await queue.auto_distribute()
-            robot = min(plan, key=lambda r: (len(plan[r]), r))
+            robot = await _pick_recover_robot()
             task = await queue.create(robot, row["station_ref"], kind="RECOVER")
         except Exception as e:  # 배정 실패는 회수 자체를 버릴 이유가 아니다
             log.warning("회수 배차 실패 pending=%s: %s", row["pending_id"], e)
@@ -112,6 +112,87 @@ async def tick() -> list[dict]:
         if updated:
             dispatcher.wake(robot)   # 노는 로봇이면 즉시 회수하러 간다
             log.info("회수 배차 pending=%s → task=%s (%s)", row["pending_id"], task["task_id"], robot)
+            # ★ 2026-09-25: robot_id 를 같이 실어 보낸다 — main.py 가 이걸로
+            #   task_changed 도 같이 쏴야, 화면 "작업 큐" 패널(task_changed 로만
+            #   새로고침한다)이 스케줄러가 만든 RECOVER 를 곧바로 보여준다.
+            #   실측: task=29 가 QUEUED 로 잡혔는데도 화면엔 안 떴었다 —
+            #   여기서 pickup_changed 만 쏘고 task_changed 를 안 쏘던 게 원인.
+            changed.append({**updated, "robot_id": robot})
+    return changed
+
+
+async def _pick_recover_robot() -> str:
+    """RECOVER 하나를 어느 로봇에게 줄지 고른다.
+
+    ★ 2026-09-25: 원래 queue.auto_distribute()(작업 할당 화면이 선반 큐를
+      재분배할 때 쓰던 함수)를 그대로 빌려 썼다. 그 함수는 QUEUED 작업만
+      다시 나누는 계획을 돌려주는데, RECOVER 는 배차되자마자 QUEUED 목록이
+      비어서 매 tick 마다 두 로봇 다 부하 0 — 그 동점을 robot_id 문자열
+      비교(min 의 튜플 정렬)로 깨다 보니 "robot1" 이 알파벳순으로 항상
+      이겼다. 예전엔 "작업 할당" 화면이 SCAN 작업도 같이 큐에 넣어서 이
+      편향이 부하 차이에 묻혔는데, 그 화면을 assigned_robot 저장 방식으로
+      바꾸면서(TaskAssignmentPage) task 표에 RECOVER 밖에 안 남아 100%
+      robot1 로 드러났다 — "robot1 에게만 쌓인다" 는 이게 원인이었다.
+
+      여기서는 QUEUED+RUNNING 을 합친 실제 부하로 먼저 거르고(바쁜 로봇은
+      피한다), 그래도 동점이면 RECOVER 를 가장 오래 안 받은 로봇을 고른다
+      — 그래야 실제로 돌아가며 처리된다.
+    """
+    robots = list(settings().robots)
+    rows = await db.fetch(
+        "SELECT robot_id, count(*) AS n FROM task "
+        "WHERE status IN ('QUEUED', 'RUNNING') AND robot_id = ANY(%s) GROUP BY robot_id",
+        (robots,),
+    )
+    load = {r: 0 for r in robots}
+    for row in rows:
+        load[row["robot_id"]] = row["n"]
+
+    min_load = min(load.values())
+    tied = [r for r in robots if load[r] == min_load]
+    if len(tied) == 1:
+        return tied[0]
+
+    last = await db.fetchrow(
+        "SELECT robot_id FROM task WHERE kind = 'RECOVER' AND robot_id = ANY(%s) "
+        "ORDER BY created_at DESC LIMIT 1",
+        (tied,),
+    )
+    if last is not None:
+        others = [r for r in tied if r != last["robot_id"]]
+        if others:
+            return others[0]
+    return tied[0]
+
+
+async def _reconcile_orphaned_queued() -> list[dict]:
+    """QUEUED 인데 그 task 가 이미 끝나 있는 행을 정리한다 (고아 행).
+
+    ★ 2026-09-25: on_task_finished(task_id, success) 는 dispatcher._on_result
+      (ROS 쪽 "task.result" 이벤트)가 불러야 도는데, 그 이벤트 한 번이
+      유실되면(브리지 재연결 타이밍, 웹 백엔드가 안 재시작된 채 ROS 쪽만
+      재시작 등) pending_pickup 은 영원히 QUEUED 로 남는다 — task 는 DONE/
+      FAILED 로 끝났는데 표 6 만 그걸 모른다. 스케줄러가 매 tick 마다
+      "표 5 기준으로" 다시 맞춰 보는 안전망이다. 이벤트가 제때 왔으면 여기서
+      할 일이 없다(이미 WAITING/DONE 으로 넘어가 있어 이 질의에 안 걸린다).
+    """
+    orphaned = await db.fetch(
+        f"SELECT p.pending_id, t.status AS task_status "
+        f"FROM pending_pickup p JOIN task t ON t.task_id = p.task_id "
+        f"WHERE p.status = 'QUEUED' AND t.status IN ('DONE', 'FAILED')"
+    )
+    changed: list[dict] = []
+    for row in orphaned:
+        log.warning(
+            "회수 대기 pending=%s 가 이미 끝난 task 를 들고 QUEUED 로 남아 있었다"
+            " (task_status=%s) — 놓친 task.result 이벤트를 뒤늦게 반영한다",
+            row["pending_id"], row["task_status"],
+        )
+        updated = await (
+            done(row["pending_id"]) if row["task_status"] == "DONE"
+            else retry(row["pending_id"])
+        )
+        if updated:
             changed.append(updated)
     return changed
 

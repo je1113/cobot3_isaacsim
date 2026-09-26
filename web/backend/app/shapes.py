@@ -26,7 +26,7 @@ from typing import Any
 
 from .config import settings
 
-JOINTS = 6  # arm_teach_pose · place_arm_pose 는 항상 정확히 6칸이다
+JOINTS = 6  # arm_teach_pose 는 항상 정확히 6칸이다
 
 DIRECTIONS = ("FORWARD", "BACKWARD")
 STATION_TYPES = ("", "PACKAGING", "TEST", "STORAGE")
@@ -167,9 +167,14 @@ def station_out(station_id: str, data: dict) -> dict:
         "station_id": station_id,
         "station_type": data.get("station_type") or "",
         "place_pose": pose_out(data.get("place_pose")),
-        "place_arm_pose": joints_out(data.get("place_arm_pose")),
         "process_time": to_text(data.get("process_time")),
         "output_type": data.get("output_type") or "",
+        # ★ 2026-09-25: RECOVER 작업이 쓰는 station→shelf 매핑(stations.yaml
+        #   머리주석 참고). 화면 입력 칸은 아직 없지만, 여기서 안 돌려주면
+        #   routers/settings.py 의 merge_into 가 다음 저장 때 지운다
+        #   (shelves.yaml assigned_robot 때 겪은 것과 같은 함정) — 그래서
+        #   화면이 안 보내도 station_in 에서 원본 값을 그대로 지킨다.
+        "output_shelf": data.get("output_shelf") or "",
         "completion_signal": data.get("completion_signal") or "",
         "capacity": to_text(data.get("capacity")),
         "updated_at": data.get("updated_at"),
@@ -177,16 +182,23 @@ def station_out(station_id: str, data: dict) -> dict:
 
 
 def station_in(body: dict) -> dict:
-    return {
+    out = {
         "station_type": body.get("station_type") or "",
         "place_pose": pose_in(body.get("place_pose")),
-        "place_arm_pose": joints_in(body.get("place_arm_pose")),
         "process_time": to_number(body.get("process_time")),
         "output_type": body.get("output_type") or "",
         "completion_signal": body.get("completion_signal") or "",
         "capacity": to_number(body.get("capacity")),
         "updated_at": body.get("updated_at") or datetime.now().astimezone().isoformat(),
     }
+    # ★ 화면이 보낸 것만 쓴다(shelf_in 의 assigned_robot 과 같은 규칙 —
+    #   그 함수 주석 참고). 키가 없으면 여기 안 넣는다 — 호출부
+    #   (routers/settings.py put_stations) 가 파일의 기존 output_shelf 를
+    #   지켜서 넣어준다. 여기서 ""로 채우면 화면에 입력 칸이 없는 지금은
+    #   저장 한 번마다 RECOVER 매핑이 사라진다.
+    if "output_shelf" in body:
+        out["output_shelf"] = body.get("output_shelf") or ""
+    return out
 
 
 def process_seconds(station: dict, default: int = 60) -> int:
