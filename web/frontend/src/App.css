@@ -5618,6 +5618,12 @@
   color: #777068;
 }
 
+/* 충전(도킹) 중 — DOCK_* 상태 */
+.monitor-state-badge.charging {
+  background: #e6f6ec;
+  color: #1f7a45;
+}
+
 .monitor-robot-details {
   display: flex;
   flex-direction: column;

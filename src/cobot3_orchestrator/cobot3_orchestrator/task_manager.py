@@ -47,8 +47,23 @@ docs/08_ROS2_NODE_Graph.html 의 확정안(01-03)이 기준이다. 노드 5개 �
      │   │       ├─ WAIT               대기 장소에서 — 상대가 로더를 비울 때까지
      │   │       └─ PUSH               로더로 주행
      │   ├─ PLACE                      배치
+     │   ├─ [?] 복귀 경로              Selector, memory=True — 충전이 필요한가
+     │   │   ├─ [→] 충전 복귀          가동 15분(soft_threshold_s)을 넘었다
+     │   │   │   ├─ 충전 필요?         타이머 조건 (NeedsCharge)
+     │   │   │   ├─ DOCK_NAV           Nav2 로 도크 줄 위 대기점(2 m 서쪽)까지
+     │   │   │   ├─ DOCK_IN            patrol_to 로 2 m 직진 — 자기 도크 자리
+     │   │   │   ├─ DOCK               /docking/dock (Dock.action) — 충전 대기
+     │   │   │   ├─ DOCK_OUT           patrol_to 로 2 m 후진 — 대기점으로
+     │   │   │   └─ 충전 완료          타이머 리셋 (ChargeDone)
+     │   │   └─ [→] 그냥 복귀          (임시) 강제 스택 회수만 한다
      │   ├─ RETURN                     순찰 시작 좌표로 복귀
      │   └─ 사이클 완료
+     ├─ [→] 충전(대기 중)              Sequence, memory=False — 순찰·대기 중에 15분이
+     │   ├─ 충전 필요?                 넘은 로봇. 손이 빈 것이 구조로 보장된다 —
+     │   └─ [→] 충전 왕복              위 두 가지가 다 FAILURE 일 때만 여기 온다
+     │       ├─ DOCK_NAV · DOCK_IN · DOCK · DOCK_OUT   (위와 같은 잎을 따로 한 벌)
+     │       ├─ DOCK_RETURN            Nav2 로 patrol_route[0]
+     │       └─ 충전 완료              타이머 리셋 + waypoints.idx 되감기
      └─ (guard) 작업 있나?             EternalGuard — 웹 작업(ExecuteTask)의
          │                             문지기. wait_for_task 면 goal 이 올 때까지
          │                             아래 가지를 닫아 둔다. 아래 "웹 작업 지시"
@@ -193,9 +208,25 @@ docs/08_ROS2_NODE_Graph.html 의 확정안(01-03)이 기준이다. 노드 5개 �
   나머지 로봇별 값(대기 자리 · 상대 토픽)은 mission_nodes.launch.py 의 표에서
   파라미터로 온다. 아래 좌표 상수는 둘 다 없을 때의 폴백일 뿐이다.
 
-  예외가 하나 생길 예정이다: docking_server 는 도크가 공용 자원이라 전역 1개로
-  두므로 /docking/dock 만 절대이름이고, 대신 Dock.action 의 robot_name 필드로
-  어느 로봇인지 말한다(docs/02 §2). 아직 미구현.
+  예외가 하나 있다: docking_server(cobot3_docking) 는 도크가 공용 자원이라 전역
+  1개로 두므로 /docking/dock 만 절대이름이고, 대신 Dock.action 의 robot_name
+  필드로 어느 로봇인지 말한다(docs/02 §2). 자기 도크 자리는 frames.yaml 의
+  dock_pads[robot_id] 에서 읽는다(_resolve_dock_pose) — 여기도 좌표를 안 박는다.
+
+★ 충전(도킹) — docs/도킹스테이션구현.md 가 결정 기록이다
+  시뮬에는 배터리가 없어 "가동시간 타이머" 가 배터리다(NavigateTo.action 머리주석).
+  START 가 성공한 순간(첫 출발, MarkDeparted)부터 세고, 충전이 끝나면(ChargeDone)
+  0 으로 되돌린다. soft_threshold_s(기본 900 = 15분)를 넘으면 "충전 필요" 다.
+  들어가는 자리는 둘이다 — 위 트리의 "복귀 경로"(place 를 마친 직후, 요구사항)와
+  "충전(대기 중)"(순찰만 오래 해 캐리어를 못 만난 로봇 · wait_for_task 대기 ·
+  RECOVER 를 마친 로봇). 두 자리가 같은 잎 넷(dock_leg)을 한 벌씩 따로 가진다 —
+  py_trees 잎은 트리에서 한 자리만 차지한다.
+  hard_threshold_s(즉시 중단)는 파라미터만 있고 동작은 없다(0) — 캐리어를 든 채
+  끊는 경로는 만들지 않기로 했다.
+  충전 중(DOCK_* 가 RUNNING)이거나 곧 충전하러 갈 때(타이머 초과 + 미션 아님)는
+  ExecuteTask goal 을 거절한다(_on_task_goal 의 "docking:" 사유). 웹 dispatcher 는
+  로봇 상태가 dock* 인 동안의 거절을 경보 없이 대기시키고 RECOVER 는 상대 로봇으로
+  넘긴다(web/backend/app/services/dispatcher.py).
 
 ★ /orchestrator/state 는 디버그 토픽이 아니라 계약이다
   cobot3_perception/carrier_code_reader 가 이걸 구독해서 두 가지를 판정한다.
@@ -315,7 +346,7 @@ from rclpy.node import Node
 from std_msgs.msg import Bool, String
 from std_srvs.srv import SetBool, Trigger
 
-from cobot3_interfaces.action import ExecuteTask, NavigateTo, PickCarrier, PlaceCarrier
+from cobot3_interfaces.action import Dock, ExecuteTask, NavigateTo, PickCarrier, PlaceCarrier
 from cobot3_interfaces.msg import TraceEvent
 from cobot3_interfaces.srv import CarrierScan, ReloadConfig, RobotCommand
 
@@ -595,6 +626,26 @@ STACK_RETREAT = "stack_retreat"  # PICK 직후 cmd_vel 로 대기점까지 물�
 STACK_DELIVER = "stack_deliver"  # 로더로 주행
 STACK_PLACE = "stack_place"      # 로더에 놓기
 
+# ── 충전(도킹) 단계 — 2026-09-28 ─────────────────────────────────────────
+# 네 잎이 한 벌(dock_leg)이고 build_tree 가 두 벌 만든다(미션 안 · 대기 중).
+# state= 값으로 그대로 나간다 — carrier_code_reader 는 "patrol 아님" 으로 묶어
+# 팔을 내리고, 웹은 dock 접두사로 "충전 중" 을 안다(dispatcher._docking).
+DOCK_NAV = "dock_nav"        # Nav2 로 도크 줄 위 대기점(DOCK_APPROACH_CREEP_M 서쪽)까지
+DOCK_IN = "dock_in"          # patrol_to(cmd_vel) 직진 — 자기 도크 자리에 전진으로 선다
+DOCK = "dock"                # /docking/dock — 접점 붙이고 charge_duration_s 대기
+DOCK_OUT = "dock_out"        # patrol_to 후진 — 대기점으로 되짚어 나온다(도크 구역에서 회전 금지)
+DOCK_RETURN = "dock_return"  # "충전(대기 중)" 가지만 — Nav2 로 patrol_route[0]. 미션 안은 기존 RETURN
+DOCK_STAGES = (DOCK_NAV, DOCK_IN, DOCK, DOCK_OUT, DOCK_RETURN)
+# 도크 앞 대기점까지의 거리. STACK_APPROACH_CREEP_M 과 같은 값·같은 이유 — Nav2 는
+# 여기까지만, 마지막은 cmd_vel 직진. 2.0 인 근거는 frames.yaml dock_pads 주석
+# (옆자리 상대 차체 + Nav2 팽창 1.0 m 를 피한다). frames.yaml 의 approach_m 이
+# 있으면 그 값이 우선이고 이건 폴백이다.
+DOCK_APPROACH_CREEP_M = 2.0
+# 가동시간 문턱. NavigateTo.action 머리주석의 세 파라미터 기본값.
+DEFAULT_SOFT_THRESHOLD_S = 900.0    # 15분 (사용자 결정 — 스택까지 놓으려면 그만큼 걸린다)
+DEFAULT_HARD_THRESHOLD_S = 0.0      # 0 = 미사용. 캐리어를 든 채 끊지 않는다
+DOCK_TIMEOUT_MARGIN_S = 60.0        # DOCK 잎 timeout = charge_duration_s + 이 값
+
 # ── 스택 선반 훑기 (2026-09-23 사용자 지시) ─────────────────────────────
 # 스택 출력 선반(OutputShelf)은 y 로 길고(y 0.27~1.67) 카메라는 +x 로 선반을
 # 본다. 그래서 스택을 찾을 때는 한 점에 서지 않고 **y 방향으로 순찰**한다 —
@@ -647,7 +698,11 @@ STAGE_TO_REASON = {PICK: "pick_error", NAV: "nav_error",
                    # 집기는 pick_error, 놓기는 place_error.
                    STACK_NAV: "nav_error", STACK_RETREAT: "nav_error",
                    STACK_DELIVER: "nav_error",
-                   STACK_PICK: "pick_error", STACK_PLACE: "place_error"}
+                   STACK_PICK: "pick_error", STACK_PLACE: "place_error",
+                   # 충전 — DB ENUM 의 넷째 값 dock_error 가 여기다. 도크까지의
+                   # 주행·크립은 다른 주행과 같이 nav_error.
+                   DOCK: "dock_error", DOCK_NAV: "nav_error", DOCK_IN: "nav_error",
+                   DOCK_OUT: "nav_error", DOCK_RETURN: "nav_error"}
 
 # 어디서 일어난 일인가. 순찰 중 발견 방식이라 슬롯 번호를 모르므로 place 만 채워진다.
 # ★ 2026-09-25: "test_loader" 는 stations.yaml 의 어떤 station_id 와도 안 맞는
@@ -672,7 +727,11 @@ TASK_STAGE = {PICK: "pick", RETURN_TO_START: "nav", NAV: "nav",
               CREEP_IN: "place", CREEP_OUT: "place",
               # 스택 구간도 .action 이 아는 넷으로 접어서 올린다.
               STACK_NAV: "nav", STACK_RETREAT: "nav", STACK_DELIVER: "nav",
-              STACK_PICK: "pick", STACK_PLACE: "place"}
+              STACK_PICK: "pick", STACK_PLACE: "place",
+              # 충전은 .action 의 넷에 없는 다섯째 값 "dock" 으로 올린다 — 웹은
+              # 문자열을 그대로 표시한다(dispatcher 는 stage 를 해석하지 않는다).
+              DOCK_NAV: "dock", DOCK_IN: "dock", DOCK: "dock", DOCK_OUT: "dock",
+              DOCK_RETURN: "return"}
 
 # feedback.progress — goal.resume_progress 와 같은 축(0.0 처음부터 … 1.0 복귀
 # 끝)이라 단계마다 고정값이다. 화면이 막대로 그릴 뿐 로봇은 안 읽는다.
@@ -680,7 +739,9 @@ TASK_PROGRESS = {PICK: 0.3, RETURN_TO_START: 0.35, NAV: 0.5, HOLD_BACK: 0.4, APP
                  WAIT: 0.45, PUSH: 0.5, CREEP_IN: 0.6, PLACE: 0.7, CREEP_OUT: 0.8,
                  RETURN: 0.9,
                  STACK_NAV: 0.72, STACK_SCAN: 0.75, STACK_PICK: 0.78,
-                 STACK_RETREAT: 0.80, STACK_DELIVER: 0.82, STACK_PLACE: 0.86}
+                 STACK_RETREAT: 0.80, STACK_DELIVER: 0.82, STACK_PLACE: 0.86,
+                 DOCK_NAV: 0.82, DOCK_IN: 0.84, DOCK: 0.86, DOCK_OUT: 0.88,
+                 DOCK_RETURN: 0.9}
 
 # Freeze 가 얼어붙은 단계 → result.fail_reason. 하위 액션의 실패를 그대로
 # 올리는 것이라(.action 주석) 단계가 곧 사유다. 목록 밖(우회·순찰·시작·자세,
@@ -701,6 +762,12 @@ MISSION_STAGES = (HOLD, SCAN, PICK, RETURN_TO_START, HOLD_BACK, APPROACH, WAIT,
                   PUSH, NAV, CREEP_IN, PLACE, CREEP_OUT, RETURN,
                   STACK_NAV, STACK_SCAN, STACK_PICK, STACK_RETREAT, STACK_DELIVER,
                   STACK_PLACE)
+# ★ DOCK_* 는 일부러 여기 없다. 미션 안 충전(복귀 경로)은 PICK 이 이미
+#   mission_started 를 세운 뒤라 SKIP 이 와도 충전·RETURN 까지 마치고 닫힌다(값이
+#   sticky). 반면 "충전(대기 중)" 가지는 순찰 중 받아 둔 SCAN 작업이 있는 채로도
+#   돌 수 있는데, 그때 DOCK_* 가 미션으로 잡히면 취소(SKIP/STOP)가 "미션 중" 으로
+#   오인돼 끝나지 않는 result 를 기다린다. 두 벌이 같은 stage 이름을 쓰므로 표로는
+#   못 가르고, 빼는 쪽이 둘 다 맞다.
 
 
 # 각 단계를 이만큼 기다려도 안 끝나면 실패로 본다. 단위 초.
@@ -890,6 +957,10 @@ DEFAULT_SHELVES_YAML = WS_ROOT / "src/cobot3_bringup/config/shelves.yaml"
 # 쌓이나"를 찾는 파일. 웹 관제 UI 「설정 > 스테이션」 탭이 쓰는 그 파일이다
 # (stations.yaml 머리주석의 output_shelf 항목 참고).
 DEFAULT_STATIONS_YAML = WS_ROOT / "src/cobot3_bringup/config/stations.yaml"
+
+# 도크 자리(dock_pads[robot_id])를 읽는 파일. 좌표계 단일 출처이고 docking_server
+# 도 같은 절을 읽는다. 여기 좌표를 코드에 다시 적지 않는다(frames.yaml 머리주석).
+DEFAULT_FRAMES_YAML = WS_ROOT / "src/cobot3_bringup/config/frames.yaml"
 
 # isaacpjt 는 ament 패키지가 아니라 그냥으로는 import 되지 않는다. carrier_code.py 는
 # 의존성 없는 순수 파이썬이고 QR 코드 규칙의 유일한 주인이라, 복사본을 만드는 대신
@@ -1795,6 +1866,79 @@ class RecoverNoCarrier(py_trees.behaviour.Behaviour):
         return Status.SUCCESS
 
 
+class NeedsCharge(py_trees.behaviour.Behaviour):
+    """가동시간이 soft_threshold_s 를 넘었나 — 충전 가지 둘의 문지기.
+
+    Detected · TaskKind 와 같은 자리다: 상태를 저장하지 않고 tick 마다 계산한다.
+    시뮬에는 배터리가 없어 타이머가 배터리다(node.needs_charge). 도크 자리를
+    못 읽었으면(dock_pose None) 영원히 FAILURE — 충전하러 가다 엉뚱한 곳에 서는
+    것보다 안 가는 쪽이 안전하다. 그 경고는 _resolve_dock_pose 가 뜰 때 한 번 찍는다.
+    """
+
+    def __init__(self, name, node):
+        super().__init__(name)
+        self.node = node
+        self._said = False
+
+    def update(self):
+        if self.node.dock_pose is None:
+            return Status.FAILURE
+        if not self.node.needs_charge():
+            self._said = False
+            return Status.FAILURE
+        if not self._said:
+            self._said = True
+            self.node.get_logger().info(
+                f"충전 필요 — 가동 {self.node.uptime_s():.0f} s ≥ "
+                f"{self.node.soft_threshold_s:.0f} s. 도크 "
+                f"{tuple(round(v, 3) for v in self.node.dock_pose)} 로 간다")
+        return Status.SUCCESS
+
+
+class MarkDeparted(py_trees.behaviour.Behaviour):
+    """START 가 성공한 직후 한 번 — 가동시간 타이머를 지금부터 센다.
+
+    노드 기동 시점이 아니라 실제 첫 출발 시점이다. robot2 는 StartDelay 로
+    60 s 도크에 서 있는데, 그 시간은 충전 중인 것과 같다(사용자 결정 3).
+    OneShot 안에 있어 평생 한 번만 돈다.
+    """
+
+    def __init__(self, name, node):
+        super().__init__(name)
+        self.node = node
+
+    def update(self):
+        self.node.mark_departed()
+        return Status.SUCCESS
+
+
+class ChargeDone(py_trees.behaviour.Behaviour):
+    """Dock 이 성공하고 도크에서 빠져나온 뒤 한 번. 타이머를 0 으로 되돌린다.
+
+    ★ 리셋 시점이 여기(DOCK_OUT 뒤)인 것이 중요하다 — 최상위 Selector 가
+      memory=False 라 리셋이 늦으면 복귀하자마자 "아직 충전 필요" 가 참이라 또
+      도킹하러 간다(docs/02 §4-6). 반대로 Dock 이 취소·실패하면 여기 못 오므로
+      타이머는 그대로다 — 부분 충전은 인정하지 않는다(재개하면 다시 도킹).
+
+    rewind: "충전(대기 중)" 가지에서 True. DOCK_RETURN 이 patrol_route[0] 에
+      데려다 놨으니 순찰 정차점 인덱스를 1 로 되감는다(CycleDone 과 같은 이유 —
+      안 되감으면 이미 서 있는 자리로 goal 을 한 번 더 보낸다). 미션 안 충전은
+      뒤따르는 CycleDone 이 되감으므로 False.
+    """
+
+    def __init__(self, name, node, waypoints=None, rewind=False):
+        super().__init__(name)
+        self.node = node
+        self.waypoints = waypoints
+        self.rewind = rewind
+
+    def update(self):
+        self.node.charge_done()
+        if self.rewind and self.waypoints is not None:
+            self.waypoints.idx = 1
+        return Status.SUCCESS
+
+
 # ══════════════════════════════════════════════════════════════════════════
 #  데코레이터
 # ══════════════════════════════════════════════════════════════════════════
@@ -2160,19 +2304,78 @@ def build_tree(node):
     # 배치를 마친 자리(TEST_LOADER)는 순찰 경로에서 멀다. 순찰 잎이 어차피
     # 다음 정차점으로 goal 을 내기는 하지만, 복귀를 단계로 세워 두면 어디서
     # 실패했는지가 갈리고(TraceEvent.msg 의 stage 목록에도 RETURN 이 있다),
-    # 나중에 배터리 검사를 끼울 자리가 생긴다 — NavigateTo.action 의
-    # "넘으면 다음 RETURN 에서 dock_pad 로" 가 여기다.
+    # 배터리 검사를 끼울 자리가 생긴다 — NavigateTo.action 의 "넘으면 다음
+    # RETURN 에서 dock_pad 로" 가 아래 "복귀 경로" Selector 다.
     ret = Freeze("RETURN", ActionLeaf(
         RETURN, node, node.nav, "navigation/navigate_to", NavigateTo.Result,
         make_goal=lambda: NavigateTo.Goal(pose=_to_pose(node.patrol_route[0])),
         timeout_s=NAV_TIMEOUT_S, moves_base=True), node, RETURN)
 
+    # ── 충전(도킹) 잎 한 벌 — 2026-09-28, docs/도킹스테이션구현.md ─────────
+    # PLACE 의 CREEP_IN/OUT · 스택의 STACK_NAV→크립과 같은 패턴이다:
+    #   DOCK_NAV   Nav2 로 도크 줄 위 대기점(도크에서 approach_m 서쪽, yaw 0)까지.
+    #              옆자리에 상대가 주차돼 있으면 도크 자리 자체가 Nav2 팽창 반경
+    #              안이라 goal 이 거절된다 — 그래서 Nav2 는 여기까지만.
+    #   DOCK_IN    patrol_to(cmd_vel 직진) 로 approach_m 전진 → 자기 도크 자리.
+    #   DOCK      /docking/dock (★ 절대이름, 전역 docking_server). 접점 · 충전 대기.
+    #   DOCK_OUT   patrol_to 후진 으로 대기점까지 되짚어 나온다. 도크 구역 안에서
+    #              회전하지 않는다 — 줄 간격 0.98 m, 회전 꼬리 스윕 0.656 m.
+    # py_trees 잎은 트리에서 한 자리만 차지하므로(docs/02 §4-5) 미션 안 · 대기 중
+    # 두 자리에 한 벌씩 따로 만든다. 이름 접미(tag)로 로그에서 어느 벌인지 갈린다.
+    # frames.yaml dock_pads 가 없으면(node.dock_pose None) NeedsCharge 가 항상
+    # FAILURE 라 이 잎들은 tick 되지 않는다 — 좌표 없이 만들어 두기만 한다.
+    def dock_leg(tag):
+        def pad():
+            return node.dock_pose or (0.0, 0.0, 0.0)
+
+        def stand_off():
+            return _back_off(pad(), node.dock_approach_m)
+
+        dock_nav = Freeze(f"DOCK_NAV{tag}", ActionLeaf(
+            DOCK_NAV, node, node.nav, "navigation/navigate_to", NavigateTo.Result,
+            make_goal=lambda: NavigateTo.Goal(pose=_to_pose(stand_off())),
+            timeout_s=NAV_TIMEOUT_S, moves_base=True), node, DOCK_NAV)
+        dock_in = Freeze(f"DOCK_IN{tag}", ActionLeaf(
+            DOCK_IN, node, node.patrol_nav, "navigation/patrol_to", NavigateTo.Result,
+            make_goal=lambda: NavigateTo.Goal(pose=_to_pose(pad())),
+            timeout_s=CREEP_TIMEOUT_S, moves_base=True), node, DOCK_IN)
+        dock = Freeze(f"DOCK{tag}", ActionLeaf(
+            DOCK, node, node.dock, "/docking/dock", Dock.Result,
+            make_goal=lambda: Dock.Goal(robot_name=node.robot_id, charge_target_pct=100.0),
+            timeout_s=node.charge_duration_s + DOCK_TIMEOUT_MARGIN_S,
+            feedback_cb=node.log_charge), node, DOCK)
+        dock_out = Freeze(f"DOCK_OUT{tag}", ActionLeaf(
+            DOCK_OUT, node, node.patrol_nav, "navigation/patrol_to", NavigateTo.Result,
+            make_goal=lambda: NavigateTo.Goal(pose=_to_pose(stand_off())),
+            timeout_s=CREEP_TIMEOUT_S, moves_base=True), node, DOCK_OUT)
+        return [dock_nav, dock_in, dock, dock_out]
+
+    # ── 복귀 경로 — place 직후 "충전 필요?" 를 한 번 본다 (결정 1-A) ────────
+    # Selector memory=True: 배송 Selector 와 같은 이유 — 한 번 고른 가지를 끝까지
+    # 들고 간다. 충전 가지가 RUNNING 인 동안 타이머가 어떻게 되든 다시 안 묻는다.
+    #   충전 복귀  타이머 초과. 로더에서 도크로 직행 → 충전 → 대기점까지 나온 뒤
+    #              아래 공통 RETURN(Nav2 → patrol_route[0]) 으로 이어진다. "return 을
+    #              안 한다" 는 불가능하다 — 순찰 잎(patrol_to)은 직선 cmd_vel 주행이라
+    #              반드시 patrol_route[0] 에서 출발해야 한다(도크에서 바로 순찰을
+    #              시키면 선반을 관통한다).
+    #   그냥 복귀  지금까지와 같다. (임시) 강제 스택 회수가 있으면 그것만 한다 —
+    #              충전이 필요할 때는 스택도 건너뛴다("다음 작업을 하지 않는다").
+    charge_return = py_trees.composites.Sequence(
+        "충전 복귀", memory=True,
+        children=[NeedsCharge("충전 필요?", node)] + dock_leg("")
+        + [ChargeDone("충전 완료", node)])
+    plain_return = py_trees.composites.Sequence(
+        "그냥 복귀", memory=True,
+        children=([forced_stack_detour] if forced_stack_detour is not None
+                  else [py_trees.behaviours.Success("스택 없음")]))
+    return_path = py_trees.composites.Selector(
+        "복귀 경로", memory=True, children=[charge_return, plain_return])
+
     mission = py_trees.composites.Sequence(
         "캐리어 처리", memory=True,
         children=[Detected("detected?", node), Hold(HOLD, node),
                   scan, pick, return_to_start, to_loader] + creep_in + [place] + creep_out
-        + ([forced_stack_detour] if forced_stack_detour is not None else [])
-        + [ret, CycleDone("사이클 완료", node, waypoints)])
+        + [return_path, ret, CycleDone("사이클 완료", node, waypoints)])
 
     # ── 회수 처리 (독립된 최상위 가지, RECOVER 작업) ───────────────────────
     # 웹 pending_pickup 큐가 배차한 RECOVER goal 을 받은 로봇만 돈다(TaskKind
@@ -2343,6 +2546,12 @@ def build_tree(node):
         start_leaf = py_trees.composites.Sequence(
             "지연 출발", memory=True,
             children=[StartDelay(START_WAIT, node, node.start_delay_s), start_leaf])
+    # START 성공 직후 가동시간 타이머를 켠다(MarkDeparted). OneShot 안이라 한 번.
+    # 여기가 아니라 노드 기동 시점부터 세면 robot2 의 출발 대기 60 s 가 가동시간에
+    # 들어가고, 무엇보다 도크에 서 있는 채로 "충전 필요" 가 참이 될 수 있다.
+    start_leaf = py_trees.composites.Sequence(
+        "출발", memory=True,
+        children=[start_leaf, MarkDeparted("출발 기록", node)])
     start = py_trees.decorators.OneShot(
         "START(1회)",
         child=start_leaf,
@@ -2370,13 +2579,42 @@ def build_tree(node):
     # 경로가 바뀌면 다음 정차점 인덱스를 되감아야 한다 (commit_pending_route).
     node.patrol_waypoints = waypoints
 
+    # ── 충전(대기 중) — 미션 밖에서 15분이 넘은 로봇 (결정 1-B) ────────────
+    # "복귀 경로" 는 place 직후에만 묻는다. 순찰만 오래 해 캐리어를 못 만난 로봇,
+    # wait_for_task 로 서 있는 로봇, RECOVER 를 마치고 스테이션 앞에 선 로봇은
+    # 거기를 지나지 않는다 — 그 구멍을 이 가지가 막는다.
+    #
+    # 손이 빈 것은 구조로 보장된다: 최상위 Selector 에서 stack(RECOVER 진행 중)
+    # 과 mission(캐리어 처리 진행 중·얼어붙음 포함 — Freeze 는 RUNNING) 이 둘 다
+    # FAILURE 일 때만 여기 온다. 즉 아무것도 들고 있지 않다.
+    #
+    # 바깥 Sequence 가 memory=False 인 이유는 "회수 처리" 와 같다 — 매 tick
+    # NeedsCharge 를 다시 본다. 안쪽 "충전 왕복" 은 memory=True 라 진행을 잃지
+    # 않는다. ChargeDone 이 타이머를 리셋하면 다음 tick 에 NeedsCharge 가 FAILURE
+    # → 이 가지가 닫히고 순찰 가지(START 캐시 → POSE → 순찰)로 돌아간다.
+    # DOCK_RETURN 이 patrol_route[0] 에 데려다 놓고 ChargeDone 이 idx 를 되감는다.
+    dock_return = Freeze("DOCK_RETURN", ActionLeaf(
+        DOCK_RETURN, node, node.nav, "navigation/navigate_to", NavigateTo.Result,
+        make_goal=lambda: NavigateTo.Goal(pose=_to_pose(node.patrol_route[0])),
+        timeout_s=NAV_TIMEOUT_S, moves_base=True), node, DOCK_RETURN)
+    idle_charge = py_trees.composites.Sequence(
+        "충전(대기 중)", memory=False,
+        children=[NeedsCharge("충전 필요?(대기)", node),
+                  py_trees.composites.Sequence(
+                      "충전 왕복", memory=True,
+                      children=dock_leg("(대기)") + [
+                          dock_return,
+                          ChargeDone("충전 완료(대기)", node, waypoints, rewind=True)])])
+
     # 가지를 더한다면 여기다. 위에 있을수록 먼저 기회를 받는다 — stack 을
     # 맨 위에 둔다. 로봇 하나에 활성 작업은 한 번에 하나뿐이라(_on_task_goal
     # 의 "작업이 이미 진행 중이다" 거절) RECOVER 가 도는 동안은 mission
     # (Detected 문지기)이 어차피 FAILURE 뿐이지만, 우선순위를 명시해 두면
-    # 가지를 더 늘릴 때 헷갈리지 않는다.
+    # 가지를 더 늘릴 때 헷갈리지 않는다. 충전(대기 중)은 순찰보다 위, 미션보다
+    # 아래다 — 들고 있는 것을 먼저 놓고, 그 다음 충전, 그 다음 순찰.
     return py_trees.composites.Selector(
-        "우선순위", memory=False, children=[stack, mission, guarded_patrol])
+        "우선순위", memory=False,
+        children=[stack, mission, idle_charge, guarded_patrol])
 
 
 def current_stage(root):
@@ -2462,6 +2700,9 @@ class TaskManager(Node):
         self.patrol_nav = ActionClient(self, NavigateTo, "navigation/patrol_to",)
         self.pick = ActionClient(self, PickCarrier, "manipulation/pick_carrier")
         self.place = ActionClient(self, PlaceCarrier, "manipulation/place_carrier")
+        # ★ 절대이름 — 전역 docking_server 하나를 두 로봇이 같이 부른다.
+        #   상대이름으로 두면 /robot1/docking/dock 을 찾다가 서버가 없어 얼어붙는다.
+        self.dock = ActionClient(self, Dock, "/docking/dock")
         self.create_subscription(
             Bool, "perception/carrier_detected", self._on_carrier_detected, 10)
         self._state_pub = self.create_publisher(String, "orchestrator/state", 10)
@@ -2508,6 +2749,24 @@ class TaskManager(Node):
         #   grasp.yaml 과 place.yaml 이 갈라져서 pick 이 죽었던 일이 있다.
         self.declare_parameter("stations_yaml", str(DEFAULT_STATIONS_YAML))
         self.recover_route, self.recover_shelf_id = self._resolve_recover_route()
+        # ── 충전(도킹) — 2026-09-28 ──────────────────────────────────────
+        # 시뮬에는 배터리가 없어 가동시간 타이머가 배터리다(NavigateTo.action
+        # 머리주석의 세 파라미터). 자리는 frames.yaml dock_pads[robot_id].
+        # ★ 트리 조립보다 먼저다 — dock_leg 의 잎들이 dock_pose · charge_duration_s
+        #   를 읽는다.
+        self.declare_parameter("frames_yaml", str(DEFAULT_FRAMES_YAML))
+        self.declare_parameter("soft_threshold_s", DEFAULT_SOFT_THRESHOLD_S)
+        self.declare_parameter("hard_threshold_s", DEFAULT_HARD_THRESHOLD_S)
+        self.declare_parameter("charge_duration_s", 60.0)
+        self.soft_threshold_s = max(0.0, float(self.get_parameter("soft_threshold_s").value))
+        self.hard_threshold_s = max(0.0, float(self.get_parameter("hard_threshold_s").value))
+        self.charge_duration_s = max(0.0, float(self.get_parameter("charge_duration_s").value))
+        self._departed_at = None        # monotonic. None = 아직 첫 출발 전(MarkDeparted)
+        self.dock_pose, self.dock_approach_m = self._resolve_dock_pose()
+        if self.hard_threshold_s > 0.0:
+            self.get_logger().warning(
+                f"hard_threshold_s={self.hard_threshold_s:.0f} 가 설정됐지만 이 판은 즉시 중단을 "
+                f"구현하지 않는다(캐리어를 든 채 끊지 않기로 함) — soft 만 동작한다.")
         # 웹이 좌표를 고쳤을 때 갈아끼울 값. 바로 반영하지 않는 이유는
         # _on_reload_config 독스트링 ★ 참고 — POSE 잎이 커밋한다.
         self._pending_route = None
@@ -3151,6 +3410,13 @@ class TaskManager(Node):
         elif self.failed:
             why = (f"{self.bb.fail_stage} 단계에서 얼어붙어 있다 — "
                    f"/{self.robot_id}/orchestrator/resume 으로 먼저 푼다")
+        elif self._docking_now():
+            # ★ 2026-09-28 (사용자 결정 4): dock 상태에서는 작업을 받지 않는다.
+            #   웹 dispatcher 는 로봇 상태(state=dock*)를 보고 이 거절을 경보 없이
+            #   대기시키고, RECOVER 는 상대 로봇 큐로 옮긴다. 거절 응답에는 사유가
+            #   실리지 않으므로(ROS 액션 goal_response) 웹은 상태 토픽으로 안다.
+            why = (f"docking: 충전 중이거나 곧 충전하러 간다 (가동 {self.uptime_s():.0f} s ≥ "
+                   f"{self.soft_threshold_s:.0f} s) — 충전이 끝나면 다시 받는다")
         elif request.kind == "RECOVER" and not self._recover_ok_now():
             # ★ 2026-09-25: 순찰 중이거나, 캐리어 처리의 CREEP_OUT/RETURN
             #   (PLACE 를 이미 마치고 손이 빈 채 순찰 시작점으로 돌아가는
@@ -3374,9 +3640,90 @@ class TaskManager(Node):
         ret) 이 두 단계면 항상 손이 빈 상태다. RETURN_TO_START(픽 직후,
         아직 들고 있다)는 일부러 안 넣는다 — 거긴 여전히 캐리어를 든 채다.
         """
+        if self.needs_charge():
+            # ★ 2026-09-28: 충전이 필요하면 CREEP_OUT/RETURN 중이라도 RECOVER 를
+            #   받지 않는다 — 받으면 "복귀 경로" 의 충전 가지 대신 회수 가지가
+            #   먼저 돌아 도킹을 가로챈다("다음 작업을 하지 않는다" 위반).
+            return False
         if self.patrolling:
             return True
         return current_stage(self.tree.root) in (CREEP_OUT, RETURN)
+
+    # ── 충전(도킹) ─────────────────────────────────────────────────────────
+    def _resolve_dock_pose(self):
+        """frames.yaml dock_pads[robot_id] → ((x, y, yaw_deg), approach_m).
+
+        없으면 (None, DOCK_APPROACH_CREEP_M) — NeedsCharge 가 영원히 FAILURE 라
+        충전 가지가 안 돈다. 좌표 없이 도킹하러 가는 것보다 안 가는 쪽이 안전하고,
+        그 대신 여기서 크게 경고한다. 좌표를 코드나 launch 에 폴백으로 두지 않는
+        이유는 frames.yaml 머리주석("이 파일이 단일 출처") 그대로다.
+        """
+        path = Path(self.get_parameter("frames_yaml").value)
+        try:
+            cfg = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+            pad = (cfg.get("dock_pads") or {}).get(self.robot_id)
+            if not pad:
+                raise KeyError(f"dock_pads.{self.robot_id} 없음")
+            xy = pad["xy_yaw_deg"]
+            pose = (float(xy[0]), float(xy[1]), float(xy[2]))
+            approach = float(pad.get("approach_m", DOCK_APPROACH_CREEP_M))
+        except Exception as e:   # noqa: BLE001 — 뜨긴 뜬다. 충전만 안 한다
+            self.get_logger().error(
+                f"도크 자리를 못 읽었다({path}: {e}) — 이 로봇은 충전하러 가지 않는다. "
+                f"frames.yaml 의 dock_pads.{self.robot_id}.xy_yaw_deg 를 채워라.")
+            return None, DOCK_APPROACH_CREEP_M
+        self.get_logger().info(
+            f"도크 자리 {tuple(round(v, 3) for v in pose)} (대기점 {approach:.1f} m 앞) · "
+            f"충전 문턱 {self.soft_threshold_s:.0f} s · 충전 {self.charge_duration_s:.0f} s")
+        return pose, approach
+
+    def mark_departed(self):
+        """MarkDeparted 가 부른다 — START 성공. 가동시간을 지금부터 센다."""
+        self._departed_at = time.monotonic()
+        self.get_logger().info("첫 출발 — 가동시간 타이머 시작")
+
+    def charge_done(self):
+        """ChargeDone 이 부른다 — 충전 끝. 가동시간을 0 으로."""
+        self._departed_at = time.monotonic()
+        self.get_logger().info(f"충전 완료 — 가동시간 리셋 (다음 충전은 {self.soft_threshold_s:.0f} s 뒤)")
+        self.publish_state()
+
+    def uptime_s(self):
+        """첫 출발(또는 마지막 충전) 이후 흐른 초. 출발 전이면 0."""
+        if self._departed_at is None:
+            return 0.0
+        return time.monotonic() - self._departed_at
+
+    def needs_charge(self):
+        """soft_threshold_s 를 넘었나. 0 이면 끈 것이다."""
+        if self.soft_threshold_s <= 0.0 or self._departed_at is None:
+            return False
+        return self.uptime_s() >= self.soft_threshold_s
+
+    def _docking_now(self):
+        """지금 ExecuteTask goal 을 거절해야 하는 충전 상태인가 — _on_task_goal 이 쓴다.
+
+        둘이다: (1) 충전 잎(DOCK_*) 이 RUNNING 이다. (2) 타이머가 넘었고 미션 밖
+        (순찰·대기)이라 다음 tick 에 "충전(대기 중)" 가지가 열린다 — 이때 받으면
+        goal 은 잡힌 채 충전이 끝날 때까지 서 있게 된다. 미션 중(캐리어를 든 채)
+        타이머가 넘은 경우는 여기 안 든다 — 그 goal 은 어차피 "작업이 이미 진행
+        중" 으로 거절되거나, 순찰 경로 교체용으로 받아도 무해하다.
+        """
+        if self.dock_pose is None:
+            return False
+        stage = current_stage(self.tree.root)
+        if stage in DOCK_STAGES:
+            return True
+        return self.needs_charge() and stage not in MISSION_STAGES
+
+    def log_charge(self, msg):
+        """Dock feedback — 10% 마다 한 줄. (log_phase 와 같이 msg.feedback 을 본다)"""
+        fb = msg.feedback
+        pct = float(fb.charge_pct)
+        bucket = int(pct // 10)
+        if bucket != getattr(self, "_charge_bucket", -1):
+            self._charge_bucket = bucket
+            self.get_logger().info(f"충전 중 {pct:.0f}% (남은 {float(fb.remaining_s):.0f} s)")
 
     def task_allows_patrol(self):
         """순찰 가지 EternalGuard 의 조건. tick 마다 불린다(tick 스레드).
@@ -3626,6 +3973,12 @@ class TaskManager(Node):
             parts.append(f"run={self.bb.run_id[:8]}")
         if self.bb.variant:
             parts.append(f"variant={self.bb.variant}")
+        if self._departed_at is not None:
+            # 사람이 보는 용도 + 웹 표시. 모르는 필드는 carrier_code_reader 도
+            # 웹 parse_state 도 무시한다. charge_due 는 "타이머가 넘었다" 신호.
+            parts.append(f"uptime_s={int(self.uptime_s())}")
+            if self.needs_charge():
+                parts.append("charge_due=True")
         if self.paused:
             # state= 는 그대로 둔다. carrier_code_reader 는 state 가 patrol 이
             # 아니게 되면 팔 자세를 다시 잡고, 상대 로봇은 state 로 차선을

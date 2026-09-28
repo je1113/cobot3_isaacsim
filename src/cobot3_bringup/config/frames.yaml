@@ -570,3 +570,35 @@ layout:
     qr_center_local: [-0.115, -0.1005, 0.035]
     qr_to_flange_lever_m: 0.1527
   arm_base_world_z: 0.6288             # nova_carter1 기준. 팔 베이스가 Level_2 보다 33.4 mm 위
+
+# ── 도크 자리 (충전) ─────────────────────────────────────────────────
+# 로봇별 고정 자리. 주인은 이 파일이고 task_manager(DOCK_NAV · DOCK_IN 목표)와
+# docking_server(robot_name 검증)가 같은 절을 읽는다. 좌표를 코드나 launch 에
+# 다시 적지 않는다 — mission_nodes.launch.py 의 DOCK_ROUTE_BY_ROBOT 마지막 점은
+# 옛 판의 기록이고, 지금 실제로 쓰는 값은 여기다.
+#
+# 근거: 씬(simple_factory_layout.usda · _test.usda 동일)의 로봇 스폰 위치이자
+#   Nav2 AMCL initial_pose(robot*_nav2_params.yaml)와 같은 점이다 —
+#   nova_carter1 translate (5.5, -6.591442953894261), nova_carter2 (5.5, -7.574740272404805).
+#   둘 다 /World/.../DockingZone/ParkingPad (2.4 m × 2.4 m, 중심 약 (5.64, -7.07)) 위에
+#   0.98 m 간격으로 나란히 있다. 충전기 프림은 없고 바닥 표시(ParkingMark_*)만 있다.
+#
+# ★ yaw 가 0 이다(스폰은 180). 사용자 결정(2026-09-28): 도크에는 전진으로 들어간다.
+#   task_manager 가 Nav2 로 approach_m(2.0 m) 서쪽 대기점 (3.5, y, 0°) 까지 간 뒤
+#   patrol_to(cmd_vel 직진)로 +x 방향 2 m 를 들어와 이 자리에 선다. 나올 때는 같은
+#   선을 patrol_to 후진으로 되짚어 대기점으로 빠진 뒤 Nav2(RETURN)를 맡긴다 —
+#   도크 구역 안에서는 회전하지 않는다(줄 간격 0.98 m · 회전 꼬리 스윕 0.656 m ·
+#   이웃 차체까지 0.73 m 라 여유가 7 cm 뿐이다).
+# ★ approach_m 이 2.0 인 이유: 옆자리에 상대가 주차돼 있으면 Nav2 팽창 반경
+#   (global 1.0 m)에 걸린다. 1 m 앞 대기점은 상대 차체에서 약 1.2 m 라 경계선이고,
+#   2 m 면 2.2 m 로 확실히 밖이다. 스택 접근(task_manager STACK_APPROACH_CREEP_M)과
+#   같은 값이다.
+dock_pads:
+  robot1:
+    xy_yaw_deg: [5.5, -6.591, 0.0]
+    approach_m: 2.0
+    source: nova_carter1 스폰 위치 = robot1_nav2_params.yaml initial_pose (yaw 만 0 으로)
+  robot2:
+    xy_yaw_deg: [5.5, -7.575, 0.0]
+    approach_m: 2.0
+    source: nova_carter2 스폰 위치 = robot2_nav2_params.yaml initial_pose (yaw 만 0 으로)

@@ -39,6 +39,7 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "action/PickCarrier.action" # task_manager → pick_place_server
   "action/PlaceCarrier.action" # task_manager → pick_place_server
   "action/ExecuteTask.action" # web → task_manager            (WBS 0.3 · 4.7 · 4.8)
+  "action/Dock.action"        # task_manager → docking_server (★ 전역 1개 · /docking/dock)
 
   DEPENDENCIES
     builtin_interfaces

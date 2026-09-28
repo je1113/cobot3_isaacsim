@@ -3,9 +3,13 @@
 <package format="3">
   <name>cobot3_docking</name>
   <version>0.0.0</version>
-  <description>TODO: Package description</description>
+  <description>전역 1개 docking_server — /docking/dock (Dock.action). 도크 접점 붙이기·충전 대기. 시뮬은 타이머.</description>
   <maintainer email="maymayko9559@gmail.com">may</maintainer>
   <license>Apache-2.0</license>
+
+  <depend>rclpy</depend>
+  <depend>cobot3_interfaces</depend>
+  <depend>python3-yaml</depend>
 
   <test_depend>ament_copyright</test_depend>
   <test_depend>ament_flake8</test_depend>

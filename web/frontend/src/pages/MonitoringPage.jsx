@@ -229,6 +229,12 @@ function getStateClass(state) {
     return 'error'
   }
 
+  // 충전(도킹). task_manager 의 DOCK_* 단계(dock_nav · dock_in · dock · dock_out
+  // · dock_return)가 전부 DOCK 으로 시작한다 — 2026-09-28 도킹스테이션구현.md
+  if (normalized.includes('DOCK')) {
+    return 'charging'
+  }
+
   return 'idle'
 }
 
