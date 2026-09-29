@@ -141,7 +141,10 @@ NAV2_GOAL_RETRY_WAIT_S = 2.0
 #   기본값을 observe_pose 의 블로킹 한도(15 s)에 맞춘 이유: 정지가 그보다
 #   짧으면 팔이 올라가는 중에 다시 굴러가서 원래 문제로 돌아간다.
 #   0 으로 두면 이 단계를 끈다.
-DEFAULT_PATROL_START_HOLD_S = 15.0
+#   ★ 2026-09-29: 15 -> 5 (사용자 지시). launch(mission_nodes.launch.py
+#     PATROL_START_HOLD_S)와 같은 값으로 맞춘다. 위 이유대로 팔이 5 s 안에
+#     못 올라가면 올라가는 중에 굴러간다 — QR 을 놓치면 다시 늘린다.
+DEFAULT_PATROL_START_HOLD_S = 5.0
 # 목표까지 이보다 가까우면 위 정지를 건너뛴다. 순찰 구간은 3 m 넘게 길고,
 # 이 액션을 짧게 쓰는 건 task_manager 의 로더 앞 직진 전진/후진(creep, 0.30 m)
 # 이다 — 그때는 팔이 매거진을 들고 있어 관측 자세를 올릴 일이 없는데, 들어갈 때
