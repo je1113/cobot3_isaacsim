@@ -64,11 +64,18 @@ pick_place_server — PickCarrier · PlaceCarrier 액션 서버.
                        ★ 알려진 갭: 선언만 하고 아직 검증하지 않는다 —
                        비교할 배치 목표 실측(포트 마커)이 씬에 없다
                        (PlaceCarrier.action "남은 것" 참고).
-  carry_joints_deg     pick 성공 뒤 이 관절값(도)으로 옮겨 이송한다. place 는 시작
-                       전에 STOW(READY)로 되돌린다. 기본 [0]*6 — 팔이 서고 흡착면이
-                       위를 본다. 빈 리스트면 끈다(STOW 그대로 이송).
+  carry_joints_deg     pick 성공 뒤 이 관절값(도)으로 옮겨 이송한다. 기본은
+                       READY [0, 0, 90, 0, 90, 0](sim_backend READY_JOINTS_DEG 와
+                       같은 값) — 2026-09-29 사용자 지시로 [0]*6 에서 바꿨다.
+                       READY 가 아닌 값을 주면 place 는 시작 전에 READY 로
+                       되돌린다(APPROACH IK 가 흡착면 아래 자세에서 출발해야
+                       한다). 빈 리스트면 끈다(STOW 그대로 이송).
   carry_wait_s         이송 자세 도착 뒤 대기(기본 5 s). 끝나야 pick 이 성공을
-                       내고 task_manager 가 NAV 로 출발한다. 0 이면 안 기다린다.
+                       내고 task_manager 가 RETURN_TO_START(cmd_vel 로 순찰
+                       시작점 복귀)로 출발한다. 0 이면 안 기다린다.
+  place 가 끝나면(RELEASE·RETREAT 성공) 팔을 READY 로 되돌린 뒤 성공을 낸다
+  (2026-09-29 사용자 지시). 이 복귀가 실패해도 place 자체는 성공이다 —
+  매거진은 이미 놓였다.
 
   기본값은 action 파일의 "제안"값이 아니라 grasp.yaml/12_pick_test.py 가
   실측으로 검증한 값을 쓴다(approach_dist_m=0.15, lift_height_m=0.10) —
@@ -152,6 +159,11 @@ _FAIL = {"NONE": PickCarrier.Result.NONE, "NO_IK": PickCarrier.Result.NO_IK,
 # 공간이다) — 그래서 딕셔너리 키는 그대로 두고 값만 현재 액션 상수로 맞춘다.
 _PLACE_PHASE = {"APPROACH": PlaceCarrier.Feedback.MOVE, "DESCEND": PlaceCarrier.Feedback.LOWER,
                "RELEASE": PlaceCarrier.Feedback.RELEASE, "RETRACT": PlaceCarrier.Feedback.RETREAT}
+# sim_backend.READY_JOINTS_DEG 와 같은 값 — 팔을 접은 홈(STOW) 자세. 이송 자세의
+# 기본값이자 place 뒤 복귀 자세다. sim_backend 의 move_joints(joints_deg=None)
+# 도 이 자세로 간다.
+READY_JOINTS_DEG = [0.0, 0.0, 90.0, 0.0, 90.0, 0.0]
+
 _PLACE_FAIL = {"NONE": PlaceCarrier.Result.NONE, "NO_IK": PlaceCarrier.Result.NO_IK,
               "COLLISION": PlaceCarrier.Result.COLLISION,
               "PORT_OCCUPIED": PlaceCarrier.Result.PORT_OCCUPIED,
@@ -179,12 +191,14 @@ class PickPlaceServer(Node):
         # 곳에서 흡착을 끄고 곧장 위로 뺀다. 매거진·스택 공통.
         self.declare_parameter("place_drop_m", 0.155)
         # pick 이 끝나면(STOW 판정 통과 뒤) 팔을 이 관절값(도)으로 옮긴 채 이송한다.
-        # place 는 시작 전에 STOW 자세(READY)로 되돌린 뒤 평소대로 한다 — place 의
-        # APPROACH 는 흡착면이 아래를 보는 자세에서 출발해야 IK 가 풀린다.
-        # ★ [0]*6 은 팔이 똑바로 서고 흡착면이 **위**를 본다(URDF FK). 매거진이
-        #   뒤집혀 머리 위에 얹힌 채 이동한다. 빈 리스트면 이 단계를 끈다(STOW 그대로).
-        self.declare_parameter("carry_joints_deg", [0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
-        # 이송 자세에 도착한 뒤 이만큼 서 있다가 pick 을 끝낸다(= 그 뒤에 NAV 출발).
+        # 2026-09-29 사용자 지시: [0]*6(팔이 서고 흡착면이 위) 대신 READY
+        # [0, 0, 90, 0, 90, 0] 로 접은 채 이송한다. 그 자세에서 carry_wait_s 서
+        # 있다가 pick 을 끝내면 task_manager 가 RETURN_TO_START(cmd_vel)로 출발한다.
+        # READY 가 아닌 값을 주면 place 는 시작 전에 READY 로 되돌린 뒤 평소대로
+        # 한다 — place 의 APPROACH 는 흡착면이 아래를 보는 자세에서 출발해야 IK 가
+        # 풀린다. 빈 리스트면 이 단계를 끈다(STOW 그대로).
+        self.declare_parameter("carry_joints_deg", list(READY_JOINTS_DEG))
+        # 이송 자세에 도착한 뒤 이만큼 서 있다가 pick 을 끝낸다(= 그 뒤에 출발).
         # 자세를 크게 바꾼 직후라 매거진·팔이 흔들리는 걸 가라앉힌다. 0 이면 끈다.
         self.declare_parameter("carry_wait_s", 5.0)   # 2026-09-23 사용자 지시 15 -> 5
         self.declare_parameter("place_pos_tol_m", 0.002)         # ★ 알려진 갭: 미검증
@@ -477,9 +491,11 @@ class PickPlaceServer(Node):
         # ── MOVE ──
         feedback.phase = PlaceCarrier.Feedback.MOVE
         goal_handle.publish_feedback(feedback)
-        if self._carry_joints():
+        carry = self._carry_joints()
+        if carry and not self._is_ready(carry):
             # 이송 자세 -> STOW(READY). APPROACH 는 흡착면이 아래를 보는 자세에서
-            # 출발해야 한다(carry_joints_deg 주석).
+            # 출발해야 한다(carry_joints_deg 주석). 이송 자세가 이미 READY(기본값)
+            # 면 건너뛴다 — 같은 자리로 또 보간 이동하는 건 시간만 쓴다.
             r0 = self._safe_call_place("move_joints", joints_deg=None, timeout_s=60.0)
             if "gripped" not in r0:
                 # RPC 실패 — pick 쪽도 같은 이유로 이송 자세를 못 탔을 것이라 팔은
@@ -530,6 +546,19 @@ class PickPlaceServer(Node):
         result.success = bool(r2.get("success", False))
         result.fail_reason = _PLACE_FAIL.get(r2.get("fail_reason", "NONE"), PlaceCarrier.Result.NONE)
         if result.success:
+            # ── 놓은 뒤 READY 복귀 (2026-09-29 사용자 지시) ──
+            # RETREAT 가 끝난 팔은 슬롯 위 접근 높이에 뻗어 있다. 그대로 후진·주행
+            # 하지 않고 [0, 0, 90, 0, 90, 0] 으로 접고 나서 성공을 낸다. 매거진은
+            # 이미 놓였으므로 이 복귀가 실패해도 place 는 성공으로 본다 — 뒤의
+            # ObservePoseLeaf 가 어차피 관측 자세로 다시 세운다.
+            r3 = self._safe_call_place("move_joints", joints_deg=list(READY_JOINTS_DEG),
+                                       timeout_s=60.0)
+            if not r3.get("success"):
+                self.get_logger().warn(
+                    f"PLACE 뒤 READY 복귀 실패({r3.get('fail_reason')}) — 팔이 RETREAT "
+                    f"자세로 남는다. 시뮬 PC 의 sim_backend 가 최신인지 확인해라")
+            else:
+                self.get_logger().info(f"PLACE 뒤 READY {READY_JOINTS_DEG} 복귀")
             goal_handle.succeed()
             self.get_logger().info("PLACE 성공")
         else:
@@ -542,6 +571,11 @@ class PickPlaceServer(Node):
         """carry_joints_deg 파라미터. 6칸이 아니면(빈 리스트 포함) None — 이송 자세를 끈다."""
         v = [float(x) for x in (self.get_parameter("carry_joints_deg").value or [])]
         return v if len(v) == 6 else None
+
+    @staticmethod
+    def _is_ready(joints_deg, tol_deg=0.5):
+        """관절값이 READY_JOINTS_DEG 와 같은가(도 단위 허용오차)."""
+        return all(abs(a - b) <= tol_deg for a, b in zip(joints_deg, READY_JOINTS_DEG))
 
     def _safe_call_place(self, method, **kw):
         kw.setdefault("robot_id", self.robot_id)

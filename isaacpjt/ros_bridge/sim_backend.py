@@ -1518,7 +1518,7 @@ class Backend:
 
     def move_joints(self, joints_deg=None, n_steps=None, robot_id=DEFAULT_ROBOT_ID):
         """팔을 관절 목표로 보간 이동한다. 흡착 중이어도 쓴다 — pick 뒤 이송 자세,
-        place 앞 READY 복귀(pick_place_server 의 carry_joints_deg 참고).
+        place 뒤 READY 복귀(pick_place_server 의 carry_joints_deg 참고).
 
         joints_deg 가 없으면 READY_JOINTS_DEG(STOW 자세). stiffness 는 건드리지
         않는다 — pick 이 올려 둔 DRIVE_STIFFNESS_PICK 을 그대로 써야 들고 옮길 때

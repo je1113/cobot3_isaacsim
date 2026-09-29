@@ -717,11 +717,14 @@ SCAN_TIMEOUT_S = 40.0
 #   nav_server 쪽 한도가 없어서 이 값이 유일한 한도다. 순찰 직진 주행은
 #   nav_server DRIVE_TIMEOUT_S(300 s)가 따로 있다.
 NAV_TIMEOUT_S = 600.0
-# ★ 180 인 이유: pick 서버가 성공 전에 이송 자세(carry_joints_deg)로 옮기고
-#   carry_wait_s(지금 5 s, 예전 15 s) 서 있다. 그만큼 늘었다 — 120 이면 느린 GUI 시뮬에서
-#   다 집어 놓고 대기 중에 TIMEOUT 으로 얼 수 있다.
+# ★ 180 인 이유: pick 서버가 성공 전에 이송 자세(carry_joints_deg, 기본 READY
+#   0, 0, 90, 0, 90, 0)로 옮기고 carry_wait_s(지금 5 s, 예전 15 s) 서 있다. 그만큼
+#   늘었다 — 120 이면 느린 GUI 시뮬에서 다 집어 놓고 대기 중에 TIMEOUT 으로 얼 수
+#   있다. 대기가 끝나면 바로 아래 RETURN_TO_START(cmd_vel)로 출발한다.
 PICK_TIMEOUT_S = 180.0
-PLACE_TIMEOUT_S = 180.0   # 흡착 OFF 3 회(sim_backend RELEASE_OPEN_TIMES)를 품는다
+# 흡착 OFF 3 회(sim_backend RELEASE_OPEN_TIMES)에 더해, place 서버가 성공 전에
+# 팔을 READY(0, 0, 90, 0, 90, 0)로 접는 시간(move_joints 보간 + 정착)까지 품는다.
+PLACE_TIMEOUT_S = 180.0
 SERVER_WAIT_S = 5.0
 
 # SCAN 이 found=false 로 끝난 뒤 이만큼은 carrier_detected 를 받지 않는다.
