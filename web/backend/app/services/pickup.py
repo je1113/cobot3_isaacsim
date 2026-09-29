@@ -66,7 +66,13 @@ async def on_place_done(run_id: str, station_ref: str | None, ended_at: datetime
 
     station_ref 가 없으면(§4-5 — task_manager 가 port 를 대부분 모른다)
     회수를 걸지 않는다. 어디서 꺼낼지 모르는 채로 로봇을 보낼 수는 없다.
+
+    자동 회수가 꺼져 있으면(settings.pickup_auto_recover) 행을 만들지 않는다.
     """
+    if not settings().pickup_auto_recover:
+        log.info("place 완료(run=%s) — 자동 회수 꺼짐(COBOT3_PICKUP_AUTO_RECOVER), "
+                 "회수를 예약하지 않는다", run_id)
+        return None
     if not station_ref:
         log.warning("place 완료(run=%s)에 port 가 없어 회수를 걸지 않는다 (§4-5)", run_id)
         return None
@@ -90,7 +96,13 @@ async def on_place_done(run_id: str, station_ref: str | None, ended_at: datetime
 
 # ── 5.2 — 스케줄러 ───────────────────────────────────────────────────
 async def tick() -> list[dict]:
-    """ready_at 이 지난 WAITING 을 RECOVER 작업으로 바꾼다. 갱신된 행을 돌려준다."""
+    """ready_at 이 지난 WAITING 을 RECOVER 작업으로 바꾼다. 갱신된 행을 돌려준다.
+
+    자동 회수가 꺼져 있으면(settings.pickup_auto_recover) 아무것도 안 한다 —
+    DB 에 이전 실행의 WAITING 행이 남아 있어도 RECOVER 를 만들지 않는다.
+    """
+    if not settings().pickup_auto_recover:
+        return []
     changed: list[dict] = await _reconcile_orphaned_queued()
 
     due = await db.fetch(

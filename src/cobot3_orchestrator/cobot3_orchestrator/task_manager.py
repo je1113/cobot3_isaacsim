@@ -1361,20 +1361,31 @@ class ScanLeaf(PauseGate, py_trees.behaviour.Behaviour):
         self.server_deadline = now + SERVER_WAIT_S
         self.deadline = now + SCAN_TIMEOUT_S
 
+    def _not_found(self):
+        """판독 실패 처리. 매거진 SCAN 이면 감지 쿨다운을 건다(on_scan_not_found).
+
+        ★ 스택 SCAN(STACK_SCAN)은 쿨다운을 걸지 않는다. 스택이 아직 안 나와
+          있는 건 정상이고(place 뒤 스택 자리에 가 봤는데 없으면 순찰로 돌아간다),
+          여기서 쿨다운을 걸면 순찰로 돌아간 뒤 30 초 동안 매거진 QR 감지를 못
+          받아 선반 앞 매거진을 지나친다."""
+        if self.name == STACK_SCAN:
+            return
+        self.node.on_scan_not_found()
+
     def update(self):
         # 일시정지면 새 요청을 내지 않는다. 이미 나간 요청은 받아서 쓴다.
         if self.future is None and self._paused():
             return Status.RUNNING
 
         if time.monotonic() > self.deadline:
-            self.node.on_scan_not_found()      # 쿨다운. 없으면 곧바로 또 시도한다
+            self._not_found()      # 쿨다운. 없으면 곧바로 또 시도한다
             self.feedback_message = f"TIMEOUT({SCAN_TIMEOUT_S:.0f}s)"
             return Status.FAILURE
 
         if self.future is None:
             if not self.node.carrier_scan.service_is_ready():
                 if time.monotonic() > self.server_deadline:
-                    self.node.on_scan_not_found()
+                    self._not_found()
                     self.feedback_message = "SERVICE_UNAVAILABLE(/perception/carrier_scan)"
                     return Status.FAILURE
                 self.feedback_message = "서비스 대기"
@@ -1398,14 +1409,14 @@ class ScanLeaf(PauseGate, py_trees.behaviour.Behaviour):
             # 다수결을 못 채웠다고 본다. 멈추지 않고 순찰로 돌아간다 — 물건은
             # 그 자리에 그대로 있다.
             self.soft = True
-            self.node.on_scan_not_found()
+            self._not_found()
             self.feedback_message = (
                 f"NOT_FOUND(found=false) x{self.attempt} — patrol 로 돌아간다")
             return Status.FAILURE
 
         variant = _variant_of(res.payload)
         if variant is None:
-            self.node.on_scan_not_found()
+            self._not_found()
             self.feedback_message = f"UNKNOWN_PAYLOAD({res.payload!r})"
             return Status.FAILURE
 
@@ -2097,7 +2108,12 @@ def build_tree(node):
 
     creep_in, creep_out = creep_pair()
 
-    # ── (임시 테스트 전용) RETURN 전에 무조건 스택 회수 시도 ────────────────
+    # ── RETURN 전에 무조건 스택 회수 시도 ────────────────────────────────────
+    # ★ 2026-09-29(사용자 지시, 시험 영상): 매거진을 놓으면 무조건 스택 자리
+    #   (패키지 언로더)로 가서 본다. 스택이 보이면 집어 검사 스테이션에 놓고,
+    #   안 보이면 _Optional 이 건너뛰어 RETURN → 순찰로 돌아간다. 웹 자동 회수
+    #   (pending_pickup → RECOVER)는 같은 스택에 두 경로가 걸리지 않게 기본
+    #   꺼짐이다(web config pickup_auto_recover). 아래는 처음 넣을 때의 주석이다.
     # ★ 2026-09-25: 사용자 지시 — 웹 작업 큐(pending_pickup → RECOVER 배차)가
     #   지금 제대로 안 돈다. 그 경로를 기다리지 않고 스택 pick/place 물리
     #   동작만 먼저 검증하려고, CREEP_OUT 뒤 RETURN 전에 무조건 끼워 넣는다.

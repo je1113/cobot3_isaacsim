@@ -76,6 +76,13 @@ class Settings:
     pickup_tick_sec: float = float(os.environ.get("COBOT3_PICKUP_TICK_SEC", "5"))
     pickup_max_retry: int = _env_int("COBOT3_PICKUP_MAX_RETRY", 3)
     pickup_retry_backoff_sec: int = _env_int("COBOT3_PICKUP_RETRY_BACKOFF_SEC", 30)
+    # ★ 2026-09-29: 자동 회수(place 완료 → pending_pickup → RECOVER 배차)를 끈다
+    #   (기본 꺼짐, 사용자 지시). 지금은 매거진을 놓은 로봇이 곧바로 스택 자리로
+    #   가서 보고, 있으면 검사 스테이션에 놓고 없으면 순찰로 돌아간다(task_manager
+    #   의 place 뒤 스택 회수 구간). 이 자동 회수까지 켜 두면 같은 스택에 두 경로가
+    #   걸려, 픽 한 번 안 한 순찰 로봇이 빈 스택 자리로 헛걸음한다.
+    #   다시 켜려면 COBOT3_PICKUP_AUTO_RECOVER=1.
+    pickup_auto_recover: bool = _env_bool("COBOT3_PICKUP_AUTO_RECOVER", False)
 
     # ── ROS 경계 ─────────────────────────────────────────────────────
     # 0 이면 NullBridge — 백엔드는 ROS 없이 완전히 뜬다. 실시간 채널만 조용해진다.
