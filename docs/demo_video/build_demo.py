@@ -29,84 +29,95 @@ C = dict(
     text=(0xE0, 0xE3, 0xE1), acc1=(0x68, 0xA7, 0xB1), acc2=(0x44, 0x68, 0x90),
 )
 
-PROCESS = ["시작", "순찰", "Pick", "순찰선 복귀", "이송", "Place", "스택 Pick", "스택 Place"]
+PROCESS = ["시작", "순찰", "Pick", "통로 이탈", "이송", "Place", "스택 Pick", "스택 Place"]
 DOCK_MINI = ["접근", "진입", "충전", "이탈", "복귀"]
 
-TITLE = "AMR Carrier Transfer System"
-SLOGAN = "순찰에서 이송, 회수, 충전까지 — 사람 개입 없이, 모든 단계가 기록으로 남는다"
+TITLE_TOP = "[두산로보틱스] 지능형로보틱스 엔지니어"
+TITLE_1 = "반도체 후공정 라인의"
+TITLE_2 = "부품 캐리어 이송·피킹 시스템"
+TITLE_SUB = "협동3- 디지털 트윈 기반 로봇 자동화 시뮬레이션 시스템 구현"
+TEAM = [("A-2", "FABorite"), ("팀원", "전주은 고은빈 박성은 김희성"), ("[멘토]", "손미란 강사님")]
+TITLE = TITLE_1 + " " + TITLE_2
+SLOGAN = "순찰에서 이송, 회수, 충전까지 — 사람 개입 없이, 모든 단계가 기록으로 남습니다"
 
-# ── 챕터 정의 (§2 자막, §4 컷 포인트) ───────────────────────────────────
+# ── 챕터 정의 (§2 자막, §4 컷 포인트 — v2: 2026-09-29 피드백 31개 반영) ──
 # segs: (원본 시작 s, 원본 끝 s, 배속[, 부제 덮어쓰기, 미니 바 인덱스])
 # hl:   (원본 시작, 원본 끝, 제목, 부제) — 배속 없이 1× 로 확대 리플레이
+# extra: (원본 시작, 원본 끝, 자막) — 화면 상단 가운데 칩
 CHAPTERS = [
     dict(n=1, clip=1, code="START", title="Start",
-         card="두 로봇이 같은 주차 패드에서 출발한다. 순찰 시작점으로 이동한 뒤 팔을 관측 자세로 잡고 순찰에 들어간다.",
-         sub="주차 패드 → 순찰 시작점 · 팔 관측 자세 → 순찰 시작",
+         card="두 로봇이 같은 주차 패드에서 출발합니다.\n순찰 시작점으로 이동한 뒤 팔을 관측 자세로 잡고 순찰에 들어갑니다.",
+         sub="시작 좌표 (도킹 스테이션) → 순찰 시작점으로 이동 (Nav2를 통한 장애물 회피)",
          state="state=start → pose → patrol",
          segs=[(0, 95.3, 3)],
-         extra=[(60, 78, "두 로봇의 출발 지점이 같아 출발이 서로 막히지 않도록 robot2 는 60 s 늦게 출발하도록 설계 (start_delay_s)")],
+         extra=[(60, 78, "두 로봇의 출발 지점이 같아 출발이 서로 막히지 않도록 robot2 는 60 s 늦게 출발하도록 설계했습니다 (start_delay_s)")],
          hl=None,
          badge=("✓ 01 Start 완료", "robot1 순찰 시작 · robot2 60 s 뒤 출발")),
     dict(n=2, clip=2, code="PATROL", title="Patrol",
-         card="선반 정차점 사이를 왕복하며 손목 카메라로 QR을 폴링한다. 보이면 그 자리에 선다.",
-         sub="선반 정차점 왕복 · QR 감지 → 정지 · 판독",
+         card="패트롤 좌표 사이를 왕복하며 손목 카메라로 QR을 탐색합니다.\n보이면 그 자리에 정차합니다.",
+         sub="패트롤 좌표 왕복 · QR 탐색 → 정차 · 판독",
          state="state=patrol → hold → scan",
-         segs=[(0, 20, 6), (20, 65, 3), (65, 84, 3)],
-         hl=(68, 74, "QR 감지 → 정지", "팔이 선반을 향해 멈추는 순간"),
-         badge=("✓ 02 Patrol 완료", "QR 감지 → HOLD → SCAN")),
+         # 0–10 팔 인식 자세(현재의 0.5배), 10–66 느린 주행은 뒷부분(66–91) 화면 속도에 맞춰 12×
+         segs=[(0, 10, 3), (10, 66, 12), (66, 90.7, 3)],
+         hl=(78, 90.7, "매거진 앞 정차", "QR을 인식하고 그 자리에 정차합니다"),
+         badge=("✓ 02 Patrol 완료", "QR 탐색 → 정차 → 판독")),
     dict(n=3, clip=3, code="PICK", title="Pick",
-         card="멈춘 그 자리에서 판독한 위치로 팔을 내려 흡착 컵으로 매거진을 집는다.",
-         sub="흡착 컵 Ø50 · 매거진 파지",
+         card="멈춘 그 자리에서 판독한 위치로 로봇팔을 움직여\n흡착 그리퍼로 매거진을 집습니다.",
+         sub="흡착 그리퍼 · 매거진 파지",
          state="state=pick detected=True",
-         segs=[(0, 33.9, 3)],
-         hl=(7, 13, "흡착 파지", "흡착 컵이 상자에 닿아 들어 올리는 순간"),
-         badge=("✓ 03 Pick 완료", "매거진 파지 → 등판 적재")),
-    dict(n=4, clip=4, code="RETURN TO ROUTE", title="Return to Route",
-         card="선반 앞 좁은 통로에서 바로 장거리 플래닝을 시키지 않는다. 순찰이 검증한 경로로 시작점까지 먼저 빠져나온다.",
-         sub="좁은 통로 → 순찰 시작점 · Nav2 전 안전 지점 확보",
+         segs=[(0, 33.9, 2.25)],
+         hl=None,
+         badge=("✓ 03 Pick 완료", "매거진 파지")),
+    dict(n=4, clip=4, code="RETREAT", title="Retreat",
+         card="선반 앞 좁은 통로에서 바로 Nav2로 움직이지 않습니다.\nPatrol 시작 좌표까지 먼저 cmd_vel로 빠져나옵니다.",
+         sub="좁은 통로 → Patrol 시작 좌표 · cmd_vel 후진",
          state="state=return_to_start",
          segs=[(0, 14, 6), (14, 32.5, 3)],
          hl=None,
-         badge=("✓ 04 순찰선 복귀", "patrol_to(cmd_vel) → patrol_route[0]")),
+         badge=("✓ 04 Retreat 완료", "cmd_vel → patrol 시작 좌표")),
     dict(n=5, clip=5, code="NAV", title="Nav",
-         card="여유 있는 지점에서 Nav2에 로더까지 주행을 맡긴다. 상대 로봇이 로더 차선을 쓰고 있으면 대기 후 진입한다.",
-         sub="Nav2 로 로더까지 주행",
+         card="여유 있는 지점에서 Nav2로 패키징 로더까지 움직입니다.\n상대 로봇이 로더 차선을 쓰고 있으면 대기 후 진입합니다.",
+         sub="Nav2 로 패키징 로더까지 주행",
          state="state=nav",
-         segs=[(0, 42.7, 3)],
+         segs=[(0, 42.7, 1.5)],
          hl=None,
-         badge=("✓ 05 이송 완료", "로더 정차점 도착")),
+         badge=("✓ 05 이송 완료", "패키징 로더 정차점 도착")),
     dict(n=6, clip=6, code="PLACE", title="Place",
-         card="정차점에서 벨트 쪽으로 천천히 들어가 매거진을 내려놓고 같은 선으로 되나온다.",
-         sub="크립 진입 → 로더에 배치 → 후진",
+         card="정차점에서 벨트 쪽으로 천천히 들어가 매거진을 내려놓고 같은 선으로 되나옵니다.",
+         sub="진입 → 로더에 배치 → 후진",
          state="state=creep_in → place → creep_out",
          segs=[(0, 36.1, 3)],
-         hl=(27, 33, "로더 배치", "벨트에 내려놓는 순간"),
-         badge=("✓ 06 Place 완료", "매거진 → 로더 · TraceEvent 기록")),
+         hl=None,
+         badge=("✓ 06 Place 완료", "매거진 → 패키징 로더 · TraceEvent 기록")),
     dict(n=7, clip=7, code="STACK PICK", title="Stack Pick",
-         card="웹이 배차한 RECOVER 작업. 패키지 언로더에 나온 스택을 판독하고 집은 뒤 대기점으로 물러난다.",
-         sub="언로더 대기 → 스택 판독 · 파지 → 대기점 후퇴",
+         card="웹을 통해 회수 작업이 배정되었을 경우,\n패키지 언로더에서 나온 스택을 집습니다.",
+         sub="패키지 언로더 · 스택 파지 → 대기점 후퇴",
          state="state=stack_scan → stack_pick → stack_retreat",
-         segs=[(0, 18, 7), (18, 80.5, 3)],
-         hl=(28, 34, "스택 파지", "패키지 언로더에서 스택을 집는 순간"),
+         # 15 s 홈 자세부터. 팔 자세 변경(19–30, 42–48)은 현재의 0.5배. 집은 뒤 정지(48–65)는 버리고 바로 후진.
+         segs=[(15, 19, 3), (19, 30, 1.5), (30, 42, 3), (42, 48, 1.5), (65, 80.5, 3)],
+         extra=[(19, 48, "Pick 실패 시 최대 2회 재시도 (총 3번)")],
+         hl=None,
          badge=("✓ 07 Stack Pick 완료", "웹 배정(pending_pickup) → 스택 파지")),
     dict(n=8, clip=8, code="STACK PLACE", title="Stack Place",
-         card="대기점에서 Nav2로 검사 스테이션까지 가서 투입구에 스택을 놓는다.",
-         sub="검사 스테이션 주행 · 투입구 배치",
+         card="Nav2로 테스트 로더까지 가서 스택을 놓습니다.",
+         sub="테스트 로더 주행 · 스택 배치",
          state="state=stack_deliver → stack_place",
-         segs=[(0, 33, 6), (33, 58.9, 3)],
-         hl=(50, 56, "스택 배치", "검사 스테이션 벨트에 놓는 순간"),
-         badge=("✓ 08 Stack Place 완료", "사이클 종료 · 8 / 8 COMPLETE")),
-    dict(n=9, clip=9, code="DOCKING SYSTEM", title="Docking", new=True,
-         card="작업을 마친 로봇의 가동시간이 15분을 넘으면 복귀 대신 도크로 향한다. 충전이 끝나면 순찰 시작점으로 돌아가 다시 일한다.",
-         sub="가동시간 초과 → 도크 복귀 · 충전 · 재출발",
-         state="state=dock_nav → dock_in → dock → dock_out → returning",
-         segs=[(0, 136, 6, "배터리(가동시간) 15분 초과 · 다음 작업 대신 도크로", 0),
-               (136, 144, 3, "도크 앞 대기점에서 직진 진입", 1),
-               (150, 152.5, 1, "충전 중 · 이 동안 웹 작업은 거절되고 상대 로봇에게 넘어간다", 2),
-               (288, 300, 3, "후진 이탈 · 도크 구역에서는 회전하지 않는다", 3),
-               (300, 331, 3, "순찰 시작점으로 복귀 · 가동시간 타이머 0", 4)],
+         # 0–12 삭제. 배치 동작(45–53)은 현재의 0.75배.
+         segs=[(12, 33, 6), (33, 45, 3), (45, 53, 2.25), (53, 58.9, 3)],
          hl=None,
-         badge=("✓ Docking 완료", "충전 후 순찰 시작점 복귀 · 가동시간 타이머 0")),
+         badge=("✓ 08 Stack Place 완료", "사이클 종료 · 8 / 8 COMPLETE")),
+    dict(n=9, clip=9, code="DOCKING SYSTEM", title="Docking", tag="ADDITIONAL",
+         card="작업을 마친 로봇의 배터리가 일정 수준 이하로 내려갈 경우 패트롤 복귀 대신 도킹 스테이션으로 향합니다.\n충전이 끝나면 패트롤로 복귀하여 업무를 계속 수행합니다.",
+         sub="배터리 임계값 이하 → 도킹 스테이션 복귀 · 충전 · 재출발",
+         state_center="배터리 부족 시 도킹 스테이션으로 자동으로 복귀한 다음 다시 업무를 지속하러 감을 보여주는 예시 화면입니다.",
+         # 0–84 우회 구간 삭제. 전 구간 배속을 절반으로(2배 길게).
+         segs=[(84, 136, 3, "배터리 임계값 이하 · 다음 작업 대신 도킹 스테이션으로", 0),
+               (136, 160, 2, "도크 앞 대기점에서 직진 진입", 1),
+               (160, 165, 1, "충전 중 · 이 동안 웹 작업은 거절되고 상대 로봇에게 넘어갑니다", 2),
+               (242, 291, 2.5, "후진 이탈 · 도크 구역에서는 회전하지 않습니다", 3),
+               (291, 331, 1.5, "패트롤로 복귀 · 업무를 계속 수행합니다", 4)],
+         hl=None,
+         badge=("✓ Docking 완료", "충전 후 패트롤 복귀")),
 ]
 
 
@@ -171,6 +182,11 @@ def text_w(d, s, f):
 
 
 def wrap(d, s, f, maxw):
+    if "\n" in s:
+        out = []
+        for part in s.split("\n"):
+            out.extend(wrap(d, part, f, maxw))
+        return out
     words = s.split(" ")
     lines, cur = [], ""
     for w_ in words:
@@ -251,16 +267,18 @@ def ov_chip(text, y=24, align="right", size=16, weight=500, fg=None, bg=None, x=
     return Ov(im)
 
 
-def ov_card(n, code, title, desc, new=False):
+def ov_card(n, code, title, desc, tag=None):
     im, d = canvas()
     f_lab, f_t, f_d = FONTS.get(22, 500), FONTS.get(64, 700), FONTS.get(24, 400)
     x0, y0 = 90, 210
     lab = f"{n:02d} · {code}"
     d.text((x0, y0), lab, font=f_lab, fill=rgba(C["acc2"]))
-    if new:
+    if tag:
+        f_tag = FONTS.get(15, 700)
         lx = x0 + text_w(d, lab, f_lab) + 16
-        rrect(d, (lx, y0 + 1, lx + 64, y0 + 27), 6, rgba(C["acc1"]))
-        d.text((lx + 12, y0 + 3), "NEW", font=FONTS.get(17, 700), fill=rgba(C["panel"]))
+        tw = text_w(d, tag, f_tag) + 22
+        rrect(d, (lx, y0 + 1, lx + tw, y0 + 27), 6, rgba(C["acc1"]))
+        d.text((lx + 11, y0 + 4), tag, font=f_tag, fill=rgba(C["panel"]))
     d.text((x0 - 2, y0 + 36), title, font=f_t, fill=rgba(C["panel"]))
     d.line([(x0, y0 + 122), (x0 + 56, y0 + 122)], fill=rgba(C["acc1"]), width=4)
     for i, l in enumerate(wrap(d, desc, f_d, 640)):
@@ -321,7 +339,7 @@ def ov_chapter_chips(y):
         d.rectangle((x, y + 60, x + cw, y + 64), fill=rgba(C["acc1"] if i == 8 else C["line"]))
         d.text((x + 12, y + 8), f"{i + 1:02d}", font=f_n, fill=rgba(C["acc2"]))
         if i == 8:
-            d.text((x + cw - 40, y + 8), "NEW", font=FONTS.get(12, 700), fill=rgba(C["acc1"]))
+            d.text((x + cw - 36, y + 8), "ADD", font=FONTS.get(12, 700), fill=rgba(C["acc1"]))
         d.text((x + 12, y + 28), nm, font=f_t, fill=rgba(C["panel"]))
         x += cw + gap
     return Ov(im)
@@ -332,7 +350,7 @@ def ov_data_left():
     f_lab, f_t, f_i, f_s = FONTS.get(22, 500), FONTS.get(52, 700), FONTS.get(24, 600), FONTS.get(19, 400)
     x0, y0 = 90, 150
     d.text((x0, y0), "DATA COLLECTION", font=f_lab, fill=rgba(C["acc2"]))
-    d.text((x0 - 2, y0 + 36), "작업 로그 및 트레이스 DB", font=f_t, fill=rgba(C["panel"]))
+    d.text((x0 - 2, y0 + 36), "물류 이력 추적(Traceability) 및 관제 DB", font=f_t, fill=rgba(C["panel"]))
     d.line([(x0, y0 + 108), (x0 + 56, y0 + 108)], fill=rgba(C["acc1"]), width=4)
     return Ov(im)
 
@@ -472,15 +490,28 @@ def whiten(fr, amount=0.6, blur=0):
 
 
 # ── 블록 렌더링 ──────────────────────────────────────────────────────────
+def ov_team(y):
+    im, d = canvas()
+    f_k, f_v = FONTS.get(19, 700), FONTS.get(19, 400)
+    rows = [(k, v) for k, v in TEAM]
+    kw = max(text_w(d, k, f_k) for k, _ in rows) + 16
+    vw = max(text_w(d, v, f_v) for _, v in rows)
+    x0 = W - 90 - kw - vw
+    for i, (k, v) in enumerate(rows):
+        d.text((x0, y + i * 32), k, font=f_k, fill=rgba(C["panel"]))
+        d.text((x0 + kw, y + i * 32), v, font=f_v, fill=rgba(C["sub"]))
+    return Ov(im)
+
+
 def render_intro(out, bgfr):
-    bg = whiten(bgfr, 0.7, 6)
+    bg = whiten(bgfr, 0.78, 6)
     els = [
-        (0.0, ov_centered_text("ISAAC SIM · MOBILE MANIPULATOR", 208, 20, 500, C["acc2"])),
-        (0.5, ov_centered_text(TITLE, 244, 76, 700, C["panel"])),
-        (0.5, ov_underline(352)),
-        (1.5, ov_centered_text("순찰 · QR 판독 · Pick & Place · 스택 회수 · 도킹", 372, 26, 400, C["sub"])),
-        (3.0, ov_chapter_chips(450)),
-        (5.0, ov_chip("작업 지시 방식: 자동 순찰 · 웹 배정 (RECOVER)", y=560, align="center", size=18)),
+        (0.0, ov_centered_text(TITLE_TOP, 118, 20, 700, C["panel"])),
+        (0.5, ov_centered_text(TITLE_1, 168, 66, 800, C["panel"])),
+        (0.9, ov_centered_text(TITLE_2, 248, 66, 300, C["panel"])),
+        (1.6, ov_centered_text(TITLE_SUB, 350, 24, 400, C["sub"])),
+        (3.0, ov_chapter_chips(430)),
+        (4.5, ov_team(560)),
     ]
     out.begin(xfade=False)
     for k in range(8 * FPS):
@@ -497,14 +528,17 @@ def render_chapter(out, ch, src, thumbs):
     first = fit(src.frame_at(ch["segs"][0][0]))
     # (a) 챕터 카드 3 s
     card_bg = whiten(first, 0.62, 4)
-    card = ov_card(n, ch["code"], ch["title"], ch["card"], new=ch.get("new", False))
+    card = ov_card(n, ch["code"], ch["title"], ch["card"], tag=ch.get("tag"))
     out.begin()
     for k in range(3 * FPS):
         fr = card_bg.copy()
         card.apply(fr, fade(k / FPS, 0.2, 0.5))
         out.push(fr)
     # (b) 본 클립
-    state_chip = ov_chip(ch["state"], y=24, align="right", size=15, weight=400)
+    if ch.get("state_center"):
+        state_chip = ov_chip(ch["state_center"], y=24, align="center", size=17, weight=500)
+    else:
+        state_chip = ov_chip(ch["state"], y=24, align="right", size=15, weight=400)
     done = set(range(n - 1)) if not is_dock else set()
     prog_cache = {}
     thumb = None
@@ -568,9 +602,9 @@ def render_data(out, bgfr):
     bg = whiten(bgfr, 0.75, 6)
     els = [
         (0.0, ov_data_left()),
-        (1.0, ov_data_item(0, "TraceEvent 자동 기록", "단계 · 시각 · 물체 상태를 로봇이 단계마다 발행")),
-        (2.0, ov_data_item(1, "append-only 로그 축적", "magazine_log · stack_log — 고치지 않고 행을 더한다")),
-        (3.0, ov_data_item(2, "관제와 배차에 활용", "LogsPage · pending_pickup 회수 큐")),
+        (1.0, ov_data_item(0, "이동·인식·파지·도킹 등 태스크 스텝별 상태 데이터 자동 수집", "TraceEvent → event_logger → PostgreSQL 로 단계마다 발행합니다")),
+        (2.0, ov_data_item(1, "데이터 무결성(Integrity)을 보장하는 로그 적재", "magazine_log · stack_log 에 append-only 로 적재합니다")),
+        (3.0, ov_data_item(2, "Top-view 기반 전체 공정 및 개별 로봇 상태 실시간 모니터링", "로봇별 순찰(Patrol) 구역 및 타겟 객체에 대한 개별 작업 지시")),
         (5.0, ov_pipeline(570)),
     ]
     out.begin()
@@ -584,7 +618,7 @@ def render_data(out, bgfr):
 
 def render_outro(out, bgfr, thumbs):
     bg = whiten(bgfr, 0.75, 6)
-    title = ov_centered_text(TITLE, 96, 60, 700, C["panel"])
+    title = ov_centered_text(TITLE, 104, 46, 700, C["panel"])
     ul = ov_underline(184)
     slogan = ov_centered_text(SLOGAN, 600, 24, 400, C["sub"])
     # 썸네일 9장을 두 줄로
