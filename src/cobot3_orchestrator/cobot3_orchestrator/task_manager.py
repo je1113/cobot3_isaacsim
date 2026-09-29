@@ -215,7 +215,7 @@ docs/08_ROS2_NODE_Graph.html 의 확정안(01-03)이 기준이다. 노드 5개 �
 
 ★ 충전(도킹) — docs/도킹스테이션구현.md 가 결정 기록이다
   시뮬에는 배터리가 없어 "가동시간 타이머" 가 배터리다(NavigateTo.action 머리주석).
-  START 가 성공한 순간(첫 출발, MarkDeparted)부터 세고, 충전이 끝나면(ChargeDone)
+  START goal 을 내는 순간(첫 출발, MarkDeparted)부터 세고, 충전이 끝나면(ChargeDone)
   0 으로 되돌린다. soft_threshold_s(기본 900 = 15분)를 넘으면 "충전 필요" 다.
   들어가는 자리는 둘이다 — 위 트리의 "복귀 경로"(place 를 마친 직후, 요구사항)와
   "충전(대기 중)"(순찰만 오래 해 캐리어를 못 만난 로봇 · wait_for_task 대기 ·
@@ -645,6 +645,7 @@ DOCK_APPROACH_CREEP_M = 2.0
 DEFAULT_SOFT_THRESHOLD_S = 900.0    # 15분 (사용자 결정 — 스택까지 놓으려면 그만큼 걸린다)
 DEFAULT_HARD_THRESHOLD_S = 0.0      # 0 = 미사용. 캐리어를 든 채 끊지 않는다
 DOCK_TIMEOUT_MARGIN_S = 60.0        # DOCK 잎 timeout = charge_duration_s + 이 값
+CHARGE_LOG_PERIOD_S = 5.0           # 충전까지 남은 시간 로그 주기
 
 # ── 스택 선반 훑기 (2026-09-23 사용자 지시) ─────────────────────────────
 # 스택 출력 선반(OutputShelf)은 y 로 길고(y 0.27~1.67) 카메라는 +x 로 선반을
@@ -1896,9 +1897,9 @@ class NeedsCharge(py_trees.behaviour.Behaviour):
 
 
 class MarkDeparted(py_trees.behaviour.Behaviour):
-    """START 가 성공한 직후 한 번 — 가동시간 타이머를 지금부터 센다.
+    """START goal 을 내기 직전 한 번 — 가동시간 타이머를 지금부터 센다.
 
-    노드 기동 시점이 아니라 실제 첫 출발 시점이다. robot2 는 StartDelay 로
+    노드 기동 시점이 아니라 실제 첫 출발 시점이다(StartDelay 뒤). robot2 는 StartDelay 로
     60 s 도크에 서 있는데, 그 시간은 충전 중인 것과 같다(사용자 결정 3).
     OneShot 안에 있어 평생 한 번만 돈다.
     """
@@ -2540,18 +2541,17 @@ def build_tree(node):
             pose=_to_pose(node.patrol_route[0])),
                         timeout_s=NAV_TIMEOUT_S, moves_base=True,),
                         node, START,)
+    # START goal 을 내는 순간(= 도크에서 움직이기 시작할 때) 가동시간 타이머를
+    # 켠다(MarkDeparted). 도착(START 성공)까지 기다리면 첫 주행 시간이 빠진다.
+    # 노드 기동 시점부터 세지 않는 것은 robot2 의 출발 대기(StartDelay) 60 s 가
+    # 가동시간에 들어가지 않게 하려는 것이다 — 그래서 대기 뒤에 둔다.
     # robot2 처럼 늦게 출발할 로봇은 START 앞에 대기를 끼운다(StartDelay).
-    # OneShot 안이라 둘 다 평생 한 번이다.
+    # OneShot 안이라 모두 평생 한 번이다.
+    children = [MarkDeparted("출발 기록", node), start_leaf]
     if node.start_delay_s > 0.0:
-        start_leaf = py_trees.composites.Sequence(
-            "지연 출발", memory=True,
-            children=[StartDelay(START_WAIT, node, node.start_delay_s), start_leaf])
-    # START 성공 직후 가동시간 타이머를 켠다(MarkDeparted). OneShot 안이라 한 번.
-    # 여기가 아니라 노드 기동 시점부터 세면 robot2 의 출발 대기 60 s 가 가동시간에
-    # 들어가고, 무엇보다 도크에 서 있는 채로 "충전 필요" 가 참이 될 수 있다.
+        children.insert(0, StartDelay(START_WAIT, node, node.start_delay_s))
     start_leaf = py_trees.composites.Sequence(
-        "출발", memory=True,
-        children=[start_leaf, MarkDeparted("출발 기록", node)])
+        "출발", memory=True, children=children)
     start = py_trees.decorators.OneShot(
         "START(1회)",
         child=start_leaf,
@@ -2878,6 +2878,7 @@ class TaskManager(Node):
         self.create_timer(TICK_PERIOD_S, self.tree.tick)
         # 이 주기가 상대가 보는 정보의 최대 지연이다 — 상수 주석 참고.
         self.create_timer(STATE_PUBLISH_PERIOD_S, self._publish_state)
+        self.create_timer(CHARGE_LOG_PERIOD_S, self._log_charge_timer)
 
         self.get_logger().info("task_manager ready — 행동트리 tick 시작")
         pts = " → ".join(f"({x:.3f}, {y:.3f}, {yaw:.1f}°)"
@@ -3678,7 +3679,7 @@ class TaskManager(Node):
         return pose, approach
 
     def mark_departed(self):
-        """MarkDeparted 가 부른다 — START 성공. 가동시간을 지금부터 센다."""
+        """MarkDeparted 가 부른다 — START 출발. 가동시간을 지금부터 센다."""
         self._departed_at = time.monotonic()
         self.get_logger().info("첫 출발 — 가동시간 타이머 시작")
 
@@ -3699,6 +3700,19 @@ class TaskManager(Node):
         if self.soft_threshold_s <= 0.0 or self._departed_at is None:
             return False
         return self.uptime_s() >= self.soft_threshold_s
+
+    def _log_charge_timer(self):
+        """CHARGE_LOG_PERIOD_S 마다 — 충전 문턱까지 남은 시간. 출발 전·문턱 0(끔)이면 조용하다."""
+        if self.soft_threshold_s <= 0.0 or self._departed_at is None:
+            return
+        up = self.uptime_s()
+        left = self.soft_threshold_s - up
+        if left > 0.0:
+            self.get_logger().info(
+                f"충전 타이머 — 가동 {up:.0f} s · 충전까지 {int(left // 60)}분 {int(left % 60):02d}초")
+        else:
+            self.get_logger().info(
+                f"충전 타이머 — 가동 {up:.0f} s · 문턱 {-left:.0f} s 초과 (충전 대기/진행 중)")
 
     def _docking_now(self):
         """지금 ExecuteTask goal 을 거절해야 하는 충전 상태인가 — _on_task_goal 이 쓴다.

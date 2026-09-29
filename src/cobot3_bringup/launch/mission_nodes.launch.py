@@ -253,7 +253,7 @@ def _nav_server_params():
 #  도크 자리는 frames.yaml dock_pads 가 주인이다(두 노드가 같은 파일을 읽는다).
 # ══════════════════════════════════════════════════════════════════════════
 
-SOFT_THRESHOLD_S = 900.0
+SOFT_THRESHOLD_S = 60.0
 HARD_THRESHOLD_S = 0.0
 CHARGE_DURATION_S = 60.0
 
