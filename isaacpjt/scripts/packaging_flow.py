@@ -45,8 +45,11 @@ SHELF_X = 3.963325659785515 + 0.08
 SHELF_Z = 0.54
 SHELF_SLOT_Y = (2.80, 3.17, 3.54, 3.91)
 
-ORANGE_STACK_PAYLOAD = "../assets/F3_STKB_1.usda"
-BLUE_STACK_PAYLOAD = "../assets/F3_STKO_1.usda"
+# ★ 2026-09-29: 이름과 에셋이 뒤바뀌어 있었다(ORANGE 에 STKB=파랑, BLUE 에
+#   STKO=주황). 이제 주황 매거진 -> 주황 스택(F3-STKO, tray_orange),
+#   파랑 매거진 -> 파랑 스택(F3-STKB, tray_blue).
+ORANGE_STACK_PAYLOAD = "../assets/F3_STKO_1.usda"
+BLUE_STACK_PAYLOAD = "../assets/F3_STKB_1.usda"
 
 
 @dataclass
