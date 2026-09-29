@@ -21,6 +21,7 @@ from PIL import Image, ImageDraw, ImageFont
 
 W, H, FPS = 1280, 720, 30
 XF = 15  # 크로스 디졸브 프레임 수 (0.5 s)
+CARD_S = 9  # 챕터 카드 길이 (s)
 
 # ── 팔레트 (§1-1, 실제 클립 프레임에서 뽑은 색) ─────────────────────────
 C = dict(
@@ -531,15 +532,12 @@ def render_chapter(out, ch, src, thumbs):
     card_bg = whiten(first, 0.62, 4)
     card = ov_card(n, ch["code"], ch["title"], ch["card"], tag=ch.get("tag"))
     out.begin()
-    for k in range(3 * FPS):
+    for k in range(CARD_S * FPS):
         fr = card_bg.copy()
         card.apply(fr, fade(k / FPS, 0.2, 0.5))
         out.push(fr)
     # (b) 본 클립
-    if ch.get("state_center"):
-        state_chip = ov_chip(ch["state_center"], y=24, align="center", size=17, weight=500)
-    else:
-        state_chip = ov_chip(ch["state"], y=24, align="right", size=15, weight=400)
+    state_chip = ov_chip(ch["state_center"], y=24, align="center", size=17, weight=500) if ch.get("state_center") else None
     done = set(range(n - 1)) if not is_dock else set()
     prog_cache = {}
     thumb = None
@@ -548,7 +546,7 @@ def render_chapter(out, ch, src, thumbs):
         a, b, speed = seg[0], seg[1], seg[2]
         sub = seg[3] if len(seg) > 3 else ch["sub"]
         mini = seg[4] if len(seg) > 4 else None
-        panel = ov_step_panel(n, ch["title"], sub)
+        panel = ov_step_panel(n, DOCK_MINI[mini] if is_dock and mini is not None else ch["title"], sub)
         if is_dock:
             prog = ov_progress(DOCK_MINI, mini, set(range(mini)), label="DOCKING", counter=f"{mini + 1} / 5")
         else:
@@ -561,12 +559,13 @@ def render_chapter(out, ch, src, thumbs):
             last = fr.copy()
             panel.apply(fr)
             prog.apply(fr)
-            state_chip.apply(fr, 0.9)
+            if state_chip is not None:
+                state_chip.apply(fr, 0.9)
             for ea, eb, ov in extras:
                 if ea <= t_src <= eb:
                     ov.apply(fr, fade(t_src, ea, 1.0) * fade(eb, t_src, 1.0))
             if thumb is None and t_src >= (a + b) / 2:
-                thumb = fr.copy()
+                thumb = last.copy()
             out.push(fr)
             k += 1
     # (c) 하이라이트 — 원본 속도 1×, 1.4× 확대
@@ -582,7 +581,7 @@ def render_chapter(out, ch, src, thumbs):
             hov.apply(fr)
             tag.apply(fr)
             if i == int((hb - ha) * FPS / hsp / 2):
-                thumb = fr.copy()
+                thumb = last.copy()
             out.push(fr)
             i += 1
     thumbs.append((f"{n:02d} {ch['title']}", thumb if thumb is not None else last))
