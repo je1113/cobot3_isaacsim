@@ -174,6 +174,8 @@ LANE_PRIORITY_BY_ROBOT = {"robot1": 2, "robot2": 1}
 #   nav · push    로더로 들어가는 중
 #   place         로더에 붙어서 내려놓는 중
 #   creep_in/out  로더 정차점 ↔ 벨트 사이 직진 구간
+#   unloader_wait place 뒤 로더 정차점에서 언로더(스택 자리)가 비기를 기다리는
+#                 중 (task_manager UNLOADER_STAGES 주석)
 #   returning     놓고 후진으로 차선을 빠져나오는 중. ★ 문자열은 "return" 이
 #                 아니라 "returning" 이다 — task_manager 의 RETURN 상수 값이고
 #                 orchestrator/state 에 그대로 실린다("return" 은 ExecuteTask
@@ -188,7 +190,8 @@ LANE_PRIORITY_BY_ROBOT = {"robot1": 2, "robot2": 1}
 #   에서 떨어져 있어 로더 차선과 겹치지 않는다. 두 로봇의 주행 경로가 교차하는
 #   건 Nav2·collision_monitor 몫이지 로더 차선 양보로 막을 일이 아니다.
 #   ※ 되돌려야 하면 이 커밋을 git revert 하면 된다.
-LANE_STAGES = ["nav", "push", "creep_in", "place", "creep_out", "returning"]
+LANE_STAGES = ["nav", "push", "creep_in", "place", "creep_out", "unloader_wait",
+               "returning"]
 
 # 상대가 누구인가. 세 대 이상이 되면 이 표로는 안 되고, 도크처럼 전역 조정
 # 노드를 두는 편이 낫다(docs/02 §2 의 docking_server 논리와 같다).
