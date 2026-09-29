@@ -59,3 +59,4 @@ web/backend/.ruff_cache/
 web/backend/.mypy_cache/
 web/backend/.coverage
 web/backend/htmlcov/
+docs/demo_video/out/
