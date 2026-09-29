@@ -22,6 +22,7 @@ from PIL import Image, ImageDraw, ImageFont
 W, H, FPS = 1280, 720, 30
 XF = 15  # 크로스 디졸브 프레임 수 (0.5 s)
 CARD_S = 9  # 챕터 카드 길이 (s)
+ROBOT_SPEED = 1.0  # 로봇 영상(본 클립·하이라이트)에만 곱하는 배속. --robot-speed 로 바꾼다
 
 # ── 팔레트 (§1-1, 실제 클립 프레임에서 뽑은 색) ─────────────────────────
 C = dict(
@@ -543,7 +544,7 @@ def render_chapter(out, ch, src, thumbs):
     thumb = None
     out.begin()
     for seg in ch["segs"]:
-        a, b, speed = seg[0], seg[1], seg[2]
+        a, b, speed = seg[0], seg[1], seg[2] * ROBOT_SPEED
         sub = seg[3] if len(seg) > 3 else ch["sub"]
         mini = seg[4] if len(seg) > 4 else None
         panel = ov_step_panel(n, DOCK_MINI[mini] if is_dock and mini is not None else ch["title"], sub)
@@ -575,7 +576,7 @@ def render_chapter(out, ch, src, thumbs):
         tag = ov_chip("↗ REPLAY · 확대 화면", y=24, align="right", size=15)
         out.begin()
         i = 0
-        hsp = ch.get("hl_speed", 1.0)
+        hsp = ch.get("hl_speed", 1.0) * ROBOT_SPEED
         for fr in src.frames(ha, hb, hsp, zoom=1.4):
             last = fr.copy()
             hov.apply(fr)
@@ -663,8 +664,12 @@ def main():
     ap.add_argument("--out", required=True)
     ap.add_argument("--ffmpeg", default=None)
     ap.add_argument("--only", type=int, default=None, help="챕터 하나만 렌더(테스트용)")
+    ap.add_argument("--robot-speed", type=float, default=1.0,
+                    help="로봇 영상 구간에만 곱할 배속 (카드·배지·인트로·데이터·아웃트로는 그대로)")
     args = ap.parse_args()
     FONTS = Fonts(args.font)
+    global ROBOT_SPEED
+    ROBOT_SPEED = args.robot_speed
     ffmpeg = args.ffmpeg
     if not ffmpeg:
         import imageio_ffmpeg
