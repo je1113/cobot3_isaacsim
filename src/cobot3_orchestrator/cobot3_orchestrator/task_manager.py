@@ -2048,111 +2048,6 @@ def build_tree(node):
 
     creep_in, creep_out = creep_pair()
 
-    # ── (임시 테스트 전용) RETURN 전에 무조건 스택 회수 시도 ────────────────
-    # ★ 2026-09-25: 사용자 지시 — 웹 작업 큐(pending_pickup → RECOVER 배차)가
-    #   지금 제대로 안 돈다. 그 경로를 기다리지 않고 스택 pick/place 물리
-    #   동작만 먼저 검증하려고, CREEP_OUT 뒤 RETURN 전에 무조건 끼워 넣는다.
-    #   ☞ 임시 코드다 — 웹 큐가 정상화되면 이 블록과 아래 mission 의
-    #   forced_stack_detour 삽입을 지운다.
-    #
-    #   self._task 는 절대 건드리지 않는다 — 이 시점의 _task 는 지금 돌고
-    #   있는 매거진 미션(SCAN/patrol 로 잡힌 것)일 수 있는데, RecoverDone/
-    #   RecoverNoCarrier 처럼 task.finish() 를 부르면 그 매거진 작업이
-    #   조기에 엉뚱하게 닫혀 버린다. 같은 이유로 Freeze 도 안 쓴다(Freeze
-    #   실패 시 _task_on_freeze 가 _task 를 실패로 닫는다) — raw ActionLeaf
-    #   를 그대로 쓰고, 전체를 _Optional 로 감싸 뭘 실패하든 SUCCESS 로
-    #   넘겨 RETURN 으로 이어간다("무조건 갔다가 어떻게든 복귀"가 목적).
-    #
-    #   route 는 node._task.route 가 아니라 node.recover_route(설정 파일
-    #   기준, 기동 시 한 번 계산)를 직접 읽는다 — 이 시점엔 RECOVER goal 이
-    #   없을 수 있어 node._task.route 가 없을 수 있다.
-    #
-    #   ☞ 주의: 이 아래 스택 SCAN(STACK_SCAN)이 매거진과 같은 블랙보드
-    #   키(variant/qr_pose/carrier_id)를 덮어쓴다 — 뒤이은 CycleDone 로그의
-    #   carrier= 표시가 스택 쪽 값으로 보일 수 있다. 테스트용이라 감수한다.
-    forced_stack_detour = None
-    if node.recover_route is not None:
-        f_sx, f_sy, _f_syaw = node.recover_route[0]
-        f_ex, f_ey, _ = node.recover_route[1]
-        f_span = math.hypot(f_ex - f_sx, f_ey - f_sy)
-        f_n_stops = 1 + (int(math.ceil(f_span / STACK_SCAN_STEP_M - 1e-6)) if f_span > 1e-3 else 0)
-
-        # ★ 2026-09-25: PLACE 의 CREEP_IN 과 같은 패턴 — Nav2 는 STACK_APPROACH_
-        #   CREEP_M 만큼 뒤로 뺀 대기점까지만 보내고(관대한 tolerance라도
-        #   상관없다), cmd_vel 로 마지막 직진만 정확히 크립해 manipulator 가
-        #   기대하는 그 자세에 정확히 선다.
-        forced_stack_nav = ActionLeaf(
-            STACK_NAV, node, node.nav, "navigation/navigate_to", NavigateTo.Result,
-            make_goal=lambda: NavigateTo.Goal(pose=_to_pose(
-                _back_off(node.recover_route[0], STACK_APPROACH_CREEP_M))),
-            timeout_s=NAV_TIMEOUT_S, moves_base=True)
-
-        forced_stack_creep_approach = ActionLeaf(
-            STACK_NAV, node, node.patrol_nav, "navigation/patrol_to", NavigateTo.Result,
-            make_goal=lambda: NavigateTo.Goal(pose=_to_pose(node.recover_route[0])),
-            timeout_s=CREEP_TIMEOUT_S, moves_base=True)
-
-        # ★ 2026-09-25: PICK 재이동(STACK_PICK_MOVE) 없앴다 — 사용자가 SCAN
-        #   자리에서 팔이 스택과 안 부딪히는 걸 직접 확인했고, 그 자리에서
-        #   바로 잡도록 다시 티칭하기로 했다(STACK_PICK_OFFSET_XY 주석은
-        #   이제 역사적 기록이다 — 더는 안 쓴다).
-        forced_tries = []
-        for i in range(f_n_stops):
-            f_scan_i = ScanLeaf(STACK_SCAN, node)
-            if i == 0:
-                forced_tries.append(f_scan_i)
-                continue
-            f_move_i = ActionLeaf(
-                STACK_SCAN, node, node.patrol_nav, "navigation/patrol_to",
-                NavigateTo.Result,
-                make_goal=lambda i=i: NavigateTo.Goal(
-                    pose=_to_pose(_interp_stop(node.recover_route, i, f_n_stops))),
-                timeout_s=CREEP_TIMEOUT_S, moves_base=True)
-            forced_tries.append(py_trees.composites.Sequence(
-                f"(강제) 스택 칸 {i + 1}/{f_n_stops}", memory=True,
-                children=[f_move_i, f_scan_i]))
-        forced_stack_scan = py_trees.composites.Selector(
-            "(강제) 스택 훑기", memory=True, children=forced_tries)
-
-        forced_stack_pick = ActionLeaf(
-            STACK_PICK, node, node.pick, "manipulation/pick_carrier", PickCarrier.Result,
-            make_goal=lambda: PickCarrier.Goal(variant=bb.variant, qr_pose=bb.qr_pose),
-            timeout_s=PICK_TIMEOUT_S, retries=PICK_RETRIES,
-            feedback_cb=node.log_phase("STACK_PICK"))
-
-        # ★ 2026-09-26: RETURN_TO_START 와 같은 이유(그 주석 참고) — STACK_PICK
-        #   직후 좁은 통로 한복판에서 바로 Nav2(STACK_DELIVER) 장거리 플래닝을
-        #   시키지 않고, cmd_vel 로 STACK_NAV 가 쓰던 대기점까지 먼저 물러난다.
-        forced_stack_retreat = ActionLeaf(
-            STACK_RETREAT, node, node.patrol_nav, "navigation/patrol_to", NavigateTo.Result,
-            make_goal=lambda: NavigateTo.Goal(pose=_to_pose(
-                _back_off(node.recover_route[0], STACK_APPROACH_CREEP_M))),
-            timeout_s=NAV_TIMEOUT_S, moves_base=True)
-
-        forced_stack_deliver = ActionLeaf(
-            STACK_DELIVER, node, node.nav, "navigation/navigate_to", NavigateTo.Result,
-            make_goal=lambda: NavigateTo.Goal(pose=_to_pose(TEST_STATION)),
-            timeout_s=NAV_TIMEOUT_S, moves_base=True)
-
-        forced_stack_place = ActionLeaf(
-            STACK_PLACE, node, node.place, "manipulation/place_carrier",
-            PlaceCarrier.Result,
-            make_goal=lambda: PlaceCarrier.Goal(variant=bb.variant),
-            timeout_s=PLACE_TIMEOUT_S,
-            feedback_cb=node.log_phase("STACK_PLACE"))
-
-        forced_stack_creep_in, forced_stack_creep_out = creep_pair(TEST_STATION)
-
-        forced_stack_leg = py_trees.composites.Sequence(
-            "(강제) 스택 회수", memory=True,
-            children=[forced_stack_nav, forced_stack_creep_approach, forced_stack_scan,
-                      forced_stack_pick, forced_stack_retreat, forced_stack_deliver]
-            + forced_stack_creep_in
-            + [forced_stack_place] + forced_stack_creep_out)
-
-        forced_stack_detour = _Optional(
-            "(강제) 스택 회수 (실패해도 통과)", forced_stack_leg, node)
-
     # 놓을 자리는 종류로 정해진다 — 좌표를 넘기지 않는다.
     place = Freeze("PLACE", ActionLeaf(
         PLACE, node, node.place, "manipulation/place_carrier", PlaceCarrier.Result,
@@ -2174,7 +2069,6 @@ def build_tree(node):
         "캐리어 처리", memory=True,
         children=[Detected("detected?", node), Hold(HOLD, node),
                   scan, pick, return_to_start, to_loader] + creep_in + [place] + creep_out
-        + ([forced_stack_detour] if forced_stack_detour is not None else [])
         + [ret, CycleDone("사이클 완료", node, waypoints)])
 
     # ── 회수 처리 (독립된 최상위 가지, RECOVER 작업) ───────────────────────
