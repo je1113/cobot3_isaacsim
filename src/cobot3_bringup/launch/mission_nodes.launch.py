@@ -173,13 +173,22 @@ LANE_PRIORITY_BY_ROBOT = {"robot1": 2, "robot2": 1}
 # DEFAULT_PEER_BUSY_STAGES 와 같은 값이어야 한다.
 #   nav · push    로더로 들어가는 중
 #   place         로더에 붙어서 내려놓는 중
-#   stack_*       스택 자리와 검사 스테이션이 로더 곁이라, 그 사이 로더로
-#                 들어가면 상대의 경로를 가로지른다
+#   creep_in/out  로더 정차점 ↔ 벨트 사이 직진 구간
+#   returning     놓고 후진으로 차선을 빠져나오는 중. ★ 문자열은 "return" 이
+#                 아니라 "returning" 이다 — task_manager 의 RETURN 상수 값이고
+#                 orchestrator/state 에 그대로 실린다("return" 은 ExecuteTask
+#                 feedback.stage 이름이라 상대 양보 판정에는 안 쓰인다).
 # ★ approach · wait · hold_back 은 넣지 말 것. 줄 서 있는 상태를 양보 대상으로
 #   만들면 양쪽이 서로의 대기를 기다려 교착이다.
-LANE_STAGES = ["nav", "push", "creep_in", "place", "creep_out",
-               "stack_nav", "stack_scan", "stack_pick", "stack_retreat",
-               "stack_deliver", "stack_place"]
+# ★ stack_* 는 넣지 않는다 (2026-09-29 사용자 지시로 원래 설계로 되돌림).
+#   2026-09-22 static_test 를 걷어낼 때 그 시나리오 전용 목록(STATIC_LANE_STAGES)
+#   의 스택 단계가 순찰용 목록에 섞여 들어와, 상대가 스택 회수 사이클(스캔·
+#   집기·검사 스테이션 배달) 내내 이쪽이 로더 앞 대기 자리에서 서 있었다.
+#   스택 선반(PKG-OUT, y≈2.2)과 검사 스테이션(y≈-2.7)은 매거진 로더(y=4.6)
+#   에서 떨어져 있어 로더 차선과 겹치지 않는다. 두 로봇의 주행 경로가 교차하는
+#   건 Nav2·collision_monitor 몫이지 로더 차선 양보로 막을 일이 아니다.
+#   ※ 되돌려야 하면 이 커밋을 git revert 하면 된다.
+LANE_STAGES = ["nav", "push", "creep_in", "place", "creep_out", "returning"]
 
 # 상대가 누구인가. 세 대 이상이 되면 이 표로는 안 되고, 도크처럼 전역 조정
 # 노드를 두는 편이 낫다(docs/02 §2 의 docking_server 논리와 같다).
