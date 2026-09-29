@@ -25,6 +25,8 @@ docs/08_ROS2_NODE_Graph.html 의 확정안(01-03)이 기준이다. 노드 5개 �
 이 노드의 트리
 
     [?] 우선순위                      Selector, memory=False
+     ├─ [→] 회수 처리 (RECOVER 작업)    UNLOADER_WAIT(언로더 근처에 상대가
+     │                                 있으면 대기) → STACK_NAV → … → 회수 완료
      ├─ [→] 캐리어 처리                Sequence, memory=True
      │   ├─ detected?                  QR 이 보인다는 신호가 와 있나
      │   ├─ HOLD                       로봇이 실제로 설 때까지 기다린다
@@ -47,8 +49,7 @@ docs/08_ROS2_NODE_Graph.html 의 확정안(01-03)이 기준이다. 노드 5개 �
      │   │       ├─ WAIT               대기 장소에서 — 상대가 로더를 비울 때까지
      │   │       └─ PUSH               로더로 주행
      │   ├─ PLACE                      배치
-     │   ├─ STACK_YIELD                로더 앞에서 — 상대가 스택으로 가거나
-     │   │                             집거나 집고 빠져나오는 중이면 기다린다
+     │   ├─ (임시) 스택 회수           UNLOADER_WAIT → STACK_NAV → … (실패해도 통과)
      │   ├─ RETURN                     순찰 시작 좌표로 복귀
      │   └─ 사이클 완료
      └─ (guard) 작업 있나?             EternalGuard — 웹 작업(ExecuteTask)의
@@ -596,9 +597,9 @@ STACK_PICK = "stack_pick"        # 스택 집기
 STACK_RETREAT = "stack_retreat"  # PICK 직후 cmd_vel 로 대기점까지 물러난다
 STACK_DELIVER = "stack_deliver"  # 로더로 주행
 STACK_PLACE = "stack_place"      # 로더에 놓기
-# place(+CREEP_OUT) 뒤 RETURN 전에, 상대가 스택 쪽에 있으면 로더 정차점에서
-# 기다린다. STACK_YIELD_STAGES 주석 참고.
-STACK_YIELD = "stack_yield"
+# 스택 자리(패키지 언로더, PKG-OUT)로 출발하기 전에 상대가 그 구역을 쓰거나
+# 근처에 있으면 기다린다. UNLOADER_STAGES 주석 참고.
+UNLOADER_WAIT = "unloader_wait"
 
 # ── 스택 선반 훑기 (2026-09-23 사용자 지시) ─────────────────────────────
 # 스택 출력 선반(OutputShelf)은 y 로 길고(y 0.27~1.67) 카메라는 +x 로 선반을
@@ -636,8 +637,8 @@ STACK_APPROACH_CREEP_M = 2.0
 # docs/DB구성.md §4 가 stage 를 TEXT 로 둔 이유가 "가지가 늘어날 자리" 다.
 # 값을 더하는 데 마이그레이션이 필요 없다.
 LOGGED_STAGES = (PICK, RETURN_TO_START, HOLD_BACK, APPROACH, WAIT, PUSH, NAV,
-                 PLACE, STACK_YIELD, RETURN,
-                 STACK_NAV, STACK_PICK, STACK_RETREAT, STACK_DELIVER, STACK_PLACE)
+                 PLACE, RETURN,
+                 UNLOADER_WAIT, STACK_NAV, STACK_PICK, STACK_RETREAT, STACK_DELIVER, STACK_PLACE)
 
 # 실패 사유는 '단계' 가 정한다. return 은 같은 NavigateTo 액션이라 nav_error 다.
 # 그래서 액션 enum 에 없는 실패(TIMEOUT · SERVER_UNAVAILABLE · GOAL_REJECTED)도
@@ -648,7 +649,7 @@ STAGE_TO_REASON = {PICK: "pick_error", NAV: "nav_error",
                    # 우회 세 단계는 전부 주행/대기라 nav_error 로 모인다.
                    HOLD_BACK: "nav_error", APPROACH: "nav_error",
                    WAIT: "nav_error", PUSH: "nav_error",
-                   STACK_YIELD: "nav_error",
+                   UNLOADER_WAIT: "nav_error",
                    # 스택 구간도 같은 기준으로 모은다 — 주행은 nav_error,
                    # 집기는 pick_error, 놓기는 place_error.
                    STACK_NAV: "nav_error", STACK_RETREAT: "nav_error",
@@ -675,8 +676,9 @@ PORT_BY_STAGE = {PLACE: "PKG-01", PUSH: "PKG-01",
 TASK_STAGE = {PICK: "pick", RETURN_TO_START: "nav", NAV: "nav",
               HOLD_BACK: "nav", APPROACH: "nav",
               WAIT: "nav", PUSH: "nav", PLACE: "place", RETURN: "return",
-              CREEP_IN: "place", CREEP_OUT: "place", STACK_YIELD: "place",
+              CREEP_IN: "place", CREEP_OUT: "place",
               # 스택 구간도 .action 이 아는 넷으로 접어서 올린다.
+              UNLOADER_WAIT: "nav",
               STACK_NAV: "nav", STACK_RETREAT: "nav", STACK_DELIVER: "nav",
               STACK_PICK: "pick", STACK_PLACE: "place"}
 
@@ -684,9 +686,8 @@ TASK_STAGE = {PICK: "pick", RETURN_TO_START: "nav", NAV: "nav",
 # 끝)이라 단계마다 고정값이다. 화면이 막대로 그릴 뿐 로봇은 안 읽는다.
 TASK_PROGRESS = {PICK: 0.3, RETURN_TO_START: 0.35, NAV: 0.5, HOLD_BACK: 0.4, APPROACH: 0.45,
                  WAIT: 0.45, PUSH: 0.5, CREEP_IN: 0.6, PLACE: 0.7, CREEP_OUT: 0.8,
-                 STACK_YIELD: 0.85,
                  RETURN: 0.9,
-                 STACK_NAV: 0.72, STACK_SCAN: 0.75, STACK_PICK: 0.78,
+                 UNLOADER_WAIT: 0.70, STACK_NAV: 0.72, STACK_SCAN: 0.75, STACK_PICK: 0.78,
                  STACK_RETREAT: 0.80, STACK_DELIVER: 0.82, STACK_PLACE: 0.86}
 
 # Freeze 가 얼어붙은 단계 → result.fail_reason. 하위 액션의 실패를 그대로
@@ -705,8 +706,8 @@ TASK_FAIL_REASON = {SCAN: ExecuteTask.Result.SCAN_FAIL,
 # 이 단계들 중 하나가 RUNNING 이면 미션이 시작된 것이다 — 취소가 와도 캐리어를
 # 놓지 않고 RETURN 까지 마친다(_execute_task).
 MISSION_STAGES = (HOLD, SCAN, PICK, RETURN_TO_START, HOLD_BACK, APPROACH, WAIT,
-                  PUSH, NAV, CREEP_IN, PLACE, CREEP_OUT, STACK_YIELD, RETURN,
-                  STACK_NAV, STACK_SCAN, STACK_PICK, STACK_RETREAT, STACK_DELIVER,
+                  PUSH, NAV, CREEP_IN, PLACE, CREEP_OUT, RETURN,
+                  UNLOADER_WAIT, STACK_NAV, STACK_SCAN, STACK_PICK, STACK_RETREAT, STACK_DELIVER,
                   STACK_PLACE)
 
 
@@ -793,10 +794,12 @@ TICK_PERIOD_S = 0.1
 # 둘 다 차선 밖이라 방해되지 않고, ★ 넣으면 교착이다 — 양쪽이 서로의 대기를
 # 기다리면 아무도 안 움직인다. 두 로봇이 이 목록을 똑같이 쓰므로 이 규칙이
 # 곧 교착 부재의 근거다. isaacpjt/tools/test_peer_yield.py 가 이걸 검사한다.
-#   stack_yield  place 를 마치고 로더 정차점에 선 채 상대의 스택 집기를
-#                기다리는 중 — 차선을 막고 서 있으므로 place 와 같다
-#                (교착 아님: 상대의 스택 회수 가지는 아무것도 기다리지 않는다)
-DEFAULT_PEER_BUSY_STAGES = [NAV, PUSH, CREEP_IN, PLACE, CREEP_OUT, STACK_YIELD, RETURN]
+#   unloader_wait  place 뒤 로더 정차점에 선 채 언로더가 비기를 기다리는 중
+#                  (임시 스택 회수 구간의 입구) — 차선을 막고 서 있으므로
+#                  place 와 같다. 교착 아님: 이 대기가 붙잡는 상대 단계
+#                  (UNLOADER_STAGES)는 아무것도 기다리지 않고, 상대의 대기
+#                  자리(WAIT · HOLD_BACK)는 언로더 반경 밖이다.
+DEFAULT_PEER_BUSY_STAGES = [NAV, PUSH, CREEP_IN, PLACE, CREEP_OUT, UNLOADER_WAIT, RETURN]
 
 # ── 대기를 푸는 기준: 로더 반경 ───────────────────────────────────────────
 # ★ 시간으로 재지 않는 이유
@@ -875,21 +878,25 @@ PEER_LEAVING_STAGES = [RETURN]
 #   WAIT 이 로더 진입을 막는다.
 HOLD_BACK_STAGES = [NAV, PUSH, RETURN]
 
-# STACK_YIELD 가 로더 정차점에서 붙잡고 있는 상대 단계 (2026-09-29 사용자 지시).
-# 이쪽이 place 를 마치고 RETURN 으로 나가려는데 상대가 PKG-OUT 스택 쪽에서
-#   stack_nav      스택 자리로 가는 중 (Nav2 대기점 + cmd_vel 크립 둘 다)
-#   stack_scan     스택 앞에서 QR 판독 중 (칸 사이 이동 포함)
-#   stack_pick     스택 집는 중
-#   stack_retreat  집고 대기점까지 빠져나오는 중
-# 이면 기다린다. 스택 자리와 그 대기점이 로더 → 순찰 시작점 복귀 경로 곁이라
-# 그 사이 나가면 상대와 엇갈린다.
-# ★ stack_deliver · stack_place(스택을 검사 스테이션에 놓으러 가는 중/놓는 중)는
-#   일부러 뺐다(사용자 지시) — 그때는 기다리지 않는다.
-# ★ 이쪽의 STACK_YIELD 는 양보 목록(DEFAULT_PEER_BUSY_STAGES)에 들어 있다.
-#   로더 정차점에 서 있으니 상대가 로더로 들어오면 안 된다. HOLD_BACK_STAGES 에는
-#   안 넣는다 — place 와 같이 '멈춰 있는' 구간이라 상대가 대기 장소까지는
-#   올라와도 된다.
-STACK_YIELD_STAGES = [STACK_NAV, STACK_SCAN, STACK_PICK, STACK_RETREAT]
+# ── 패키지 언로더(스택 자리, PKG-OUT) 구역 조율 (2026-09-29 사용자 지시) ──
+# 로더 앞에서 상대를 기다리는 것(WAIT)과 같은 방식으로, 스택을 집으러 출발하기
+# 전(UNLOADER_WAIT)에 상대가 언로더 구역을 쓰고 있으면 기다린다. 스택으로
+# 들어가는 두 입구(웹 RECOVER 작업의 회수 가지, place 뒤 임시 스택 회수 구간)
+# 둘 다 이 잎으로 시작한다.
+#
+#   상태  상대가 UNLOADER_STAGES(스택으로 가는 중 · 읽는 중 · 집는 중 · 집고
+#         대기점까지 빠져나오는 중) 중 하나면 기다린다.
+#   위치  상대가 언로더 접근 구간 근처(unloader_clear_radius_m 안)에 있으면
+#         상태와 무관하게 기다린다. 접근 구간은 STACK_NAV 의 Nav2 대기점에서
+#         집는 자리까지의 선분(STACK_APPROACH_CREEP_M, 2 m)이다 — 둘 다 로봇이
+#         서는 자리라 점 하나가 아니라 선분까지의 거리로 잰다.
+#
+# ★ 상대가 UNLOADER_WAIT 이면 위치 판정에서 뺀다. 둘 다 언로더 근처에서 서로를
+#   기다리면 교착이다.
+# ★ stack_deliver · stack_place 는 상태 목록에 없다 — 검사 스테이션으로 떠나는
+#   중이다. 다만 막 떠나 아직 구간 근처에 있으면 위치 판정이 잡는다.
+UNLOADER_STAGES = [STACK_NAV, STACK_SCAN, STACK_PICK, STACK_RETREAT]
+DEFAULT_UNLOADER_CLEAR_RADIUS_M = 1.0
 
 # 상태 발행 주기. 이 값이 상대가 보는 정보의 최대 지연이다 — 1 초로 두면
 # 상대가 1 초 묵은 값으로 출발 판단을 한다. 메시지가 짧은 문자열이라
@@ -1655,17 +1662,29 @@ class WaitForPeer(PauseGate, py_trees.behaviour.Behaviour):
     한 대만 띄웠을 때 영원히 기다리는 걸 막는다.
     """
 
-    def __init__(self, name, node, stages=None, use_radius=True, arrive_log=""):
+    def __init__(self, name, node, stages=None, use_radius=True, arrive_log="",
+                 zone="로더", dist_fn=None, radius_fn=None, leaving=None,
+                 radius_ignore=()):
         """stages      기다릴 상대 단계. None 이면 peer_busy_stages 전체.
         use_radius  로더 반경으로도 판정할지. 로더에서 멀리 떨어져 기다리는
                     자리(픽업존)에서는 반경이 의미가 없어서 끈다.
         arrive_log  이 잎에 처음 들어갈 때 남길 로그 한 줄.
+        zone · dist_fn · radius_fn · leaving
+                    반경 판정의 대상 구역. 기본은 로더(peer_dist_to_loader ·
+                    loader_clear_radius_m · PEER_LEAVING_STAGES). 언로더
+                    (UNLOADER_WAIT)가 다른 값을 넘긴다.
+        radius_ignore  이 단계의 상대는 반경 판정에서 뺀다(서로 기다리는 교착 방지).
         """
         super().__init__(name)
         self.node = node
         self.stages = stages
         self.use_radius = use_radius
         self.arrive_log = arrive_log
+        self.zone = zone
+        self.dist_fn = dist_fn or node.peer_dist_to_loader
+        self.radius_fn = radius_fn or (lambda: node.loader_clear_radius_m)
+        self.leaving = PEER_LEAVING_STAGES if leaving is None else leaving
+        self.radius_ignore = tuple(radius_ignore)
         self.soft = False
 
     def _busy(self):
@@ -1699,7 +1718,7 @@ class WaitForPeer(PauseGate, py_trees.behaviour.Behaviour):
             self._clear_since = None
             return Status.RUNNING
         # 자기 목록(stages)의 단계에서 얼어붙은 상대도 비켜 주지 않는다 —
-        # STACK_YIELD 처럼 양보 목록 밖 단계(stack_*)를 기다리는 잎을 위해서다.
+        # UNLOADER_WAIT 처럼 양보 목록 밖 단계(stack_*)를 기다리는 잎을 위해서다.
         if self.node.peer_frozen() or (
                 self.stages is not None and self.node.peer_frozen(self.stages)):
             self.feedback_message = f"PEER_FROZEN(state={self.node.peer_stage()})"
@@ -1711,8 +1730,9 @@ class WaitForPeer(PauseGate, py_trees.behaviour.Behaviour):
         now = time.monotonic()
         stage = self.node.peer_stage()
         busy, why = self._busy()
-        dist = self.node.peer_dist_to_loader() if self.use_radius else None
-        need = self.node.loader_clear_radius_m
+        dist = (self.dist_fn()
+                if self.use_radius and stage not in self.radius_ignore else None)
+        need = self.radius_fn()
 
         # ① 위치가 먼저다. 상대가 로더 반경 안에 있으면 상태와 무관하게 기다린다.
         #    상태 목록이 못 잡는 경우(엉뚱한 단계인데 물리적으로 로더에 붙어 있다)
@@ -1720,17 +1740,17 @@ class WaitForPeer(PauseGate, py_trees.behaviour.Behaviour):
         #    의미를 갖는 유일한 자리다.
         if dist is not None and dist < need:
             self._clear_since = None
-            self.feedback_message = f"대기 — 상대가 로더 {dist:.2f}/{need:.2f} m"
+            self.feedback_message = f"대기 — 상대가 {self.zone} {dist:.2f}/{need:.2f} m"
             return Status.RUNNING
 
         # ② 상대가 로더에서 멀어지는 중이면, 반경을 벗어난 것으로 충분하다.
         #    단계가 끝날 때까지(return 이면 6.5 m 를 다 갈 때까지) 기다리지 않는다.
-        if busy and stage in PEER_LEAVING_STAGES:
+        if busy and stage in self.leaving:
             if dist is None:
                 # 위치를 못 받는다. 거리 판정을 포기하고 상태 변화를 기다린다.
                 self.feedback_message = f"대기 — 상대 {why} (위치 모름)"
                 return Status.RUNNING
-            busy, why = False, f"로더 {dist:.2f} m 밖"
+            busy, why = False, f"{self.zone} {dist:.2f} m 밖"
 
         # ③ 상대가 로더로 다가오는 중이면 거리와 무관하게 기다린다. 지금 멀어도
         #    곧 들어오므로, 거리를 보면 "멀다" 는 오답이 나온다.
@@ -2077,21 +2097,128 @@ def build_tree(node):
 
     creep_in, creep_out = creep_pair()
 
+    # ── (임시 테스트 전용) RETURN 전에 무조건 스택 회수 시도 ────────────────
+    # ★ 2026-09-25: 사용자 지시 — 웹 작업 큐(pending_pickup → RECOVER 배차)가
+    #   지금 제대로 안 돈다. 그 경로를 기다리지 않고 스택 pick/place 물리
+    #   동작만 먼저 검증하려고, CREEP_OUT 뒤 RETURN 전에 무조건 끼워 넣는다.
+    #   ☞ 임시 코드다 — 웹 큐가 정상화되면 이 블록과 아래 mission 의
+    #   forced_stack_detour 삽입을 지운다.
+    #
+    #   self._task 는 절대 건드리지 않는다 — 이 시점의 _task 는 지금 돌고
+    #   있는 매거진 미션(SCAN/patrol 로 잡힌 것)일 수 있는데, RecoverDone/
+    #   RecoverNoCarrier 처럼 task.finish() 를 부르면 그 매거진 작업이
+    #   조기에 엉뚱하게 닫혀 버린다. 같은 이유로 Freeze 도 안 쓴다(Freeze
+    #   실패 시 _task_on_freeze 가 _task 를 실패로 닫는다) — raw ActionLeaf
+    #   를 그대로 쓰고, 전체를 _Optional 로 감싸 뭘 실패하든 SUCCESS 로
+    #   넘겨 RETURN 으로 이어간다("무조건 갔다가 어떻게든 복귀"가 목적).
+    #
+    #   route 는 node._task.route 가 아니라 node.recover_route(설정 파일
+    #   기준, 기동 시 한 번 계산)를 직접 읽는다 — 이 시점엔 RECOVER goal 이
+    #   없을 수 있어 node._task.route 가 없을 수 있다.
+    #
+    #   ☞ 주의: 이 아래 스택 SCAN(STACK_SCAN)이 매거진과 같은 블랙보드
+    #   키(variant/qr_pose/carrier_id)를 덮어쓴다 — 뒤이은 CycleDone 로그의
+    #   carrier= 표시가 스택 쪽 값으로 보일 수 있다. 테스트용이라 감수한다.
+    forced_stack_detour = None
+    if node.recover_route is not None:
+        f_sx, f_sy, _f_syaw = node.recover_route[0]
+        f_ex, f_ey, _ = node.recover_route[1]
+        f_span = math.hypot(f_ex - f_sx, f_ey - f_sy)
+        f_n_stops = 1 + (int(math.ceil(f_span / STACK_SCAN_STEP_M - 1e-6)) if f_span > 1e-3 else 0)
+
+        # ★ 2026-09-25: PLACE 의 CREEP_IN 과 같은 패턴 — Nav2 는 STACK_APPROACH_
+        #   CREEP_M 만큼 뒤로 뺀 대기점까지만 보내고(관대한 tolerance라도
+        #   상관없다), cmd_vel 로 마지막 직진만 정확히 크립해 manipulator 가
+        #   기대하는 그 자세에 정확히 선다.
+        # 언로더 입구 대기 (UNLOADER_STAGES 주석). Freeze 를 안 쓰는 이유는 이
+        # 구간의 다른 잎과 같다(위 주석) — 실패(PEER_FROZEN · 타임아웃)하면
+        # _Optional 이 스택 회수를 건너뛰고 RETURN 으로 넘어간다.
+        forced_unloader_wait = WaitForPeer(
+            UNLOADER_WAIT, node, stages=UNLOADER_STAGES, use_radius=True,
+            arrive_log="상대가 언로더(스택 자리) 쪽에 있다 — 로더 앞에서 기다린다",
+            zone="언로더", dist_fn=node.peer_dist_to_unloader,
+            radius_fn=lambda: node.unloader_clear_radius_m, leaving=[],
+            radius_ignore=(UNLOADER_WAIT,))
+
+        forced_stack_nav = ActionLeaf(
+            STACK_NAV, node, node.nav, "navigation/navigate_to", NavigateTo.Result,
+            make_goal=lambda: NavigateTo.Goal(pose=_to_pose(
+                _back_off(node.recover_route[0], STACK_APPROACH_CREEP_M))),
+            timeout_s=NAV_TIMEOUT_S, moves_base=True)
+
+        forced_stack_creep_approach = ActionLeaf(
+            STACK_NAV, node, node.patrol_nav, "navigation/patrol_to", NavigateTo.Result,
+            make_goal=lambda: NavigateTo.Goal(pose=_to_pose(node.recover_route[0])),
+            timeout_s=CREEP_TIMEOUT_S, moves_base=True)
+
+        # ★ 2026-09-25: PICK 재이동(STACK_PICK_MOVE) 없앴다 — 사용자가 SCAN
+        #   자리에서 팔이 스택과 안 부딪히는 걸 직접 확인했고, 그 자리에서
+        #   바로 잡도록 다시 티칭하기로 했다(STACK_PICK_OFFSET_XY 주석은
+        #   이제 역사적 기록이다 — 더는 안 쓴다).
+        forced_tries = []
+        for i in range(f_n_stops):
+            f_scan_i = ScanLeaf(STACK_SCAN, node)
+            if i == 0:
+                forced_tries.append(f_scan_i)
+                continue
+            f_move_i = ActionLeaf(
+                STACK_SCAN, node, node.patrol_nav, "navigation/patrol_to",
+                NavigateTo.Result,
+                make_goal=lambda i=i: NavigateTo.Goal(
+                    pose=_to_pose(_interp_stop(node.recover_route, i, f_n_stops))),
+                timeout_s=CREEP_TIMEOUT_S, moves_base=True)
+            forced_tries.append(py_trees.composites.Sequence(
+                f"(강제) 스택 칸 {i + 1}/{f_n_stops}", memory=True,
+                children=[f_move_i, f_scan_i]))
+        forced_stack_scan = py_trees.composites.Selector(
+            "(강제) 스택 훑기", memory=True, children=forced_tries)
+
+        forced_stack_pick = ActionLeaf(
+            STACK_PICK, node, node.pick, "manipulation/pick_carrier", PickCarrier.Result,
+            make_goal=lambda: PickCarrier.Goal(variant=bb.variant, qr_pose=bb.qr_pose),
+            timeout_s=PICK_TIMEOUT_S, retries=PICK_RETRIES,
+            feedback_cb=node.log_phase("STACK_PICK"))
+
+        # ★ 2026-09-26: RETURN_TO_START 와 같은 이유(그 주석 참고) — STACK_PICK
+        #   직후 좁은 통로 한복판에서 바로 Nav2(STACK_DELIVER) 장거리 플래닝을
+        #   시키지 않고, cmd_vel 로 STACK_NAV 가 쓰던 대기점까지 먼저 물러난다.
+        forced_stack_retreat = ActionLeaf(
+            STACK_RETREAT, node, node.patrol_nav, "navigation/patrol_to", NavigateTo.Result,
+            make_goal=lambda: NavigateTo.Goal(pose=_to_pose(
+                _back_off(node.recover_route[0], STACK_APPROACH_CREEP_M))),
+            timeout_s=NAV_TIMEOUT_S, moves_base=True)
+
+        forced_stack_deliver = ActionLeaf(
+            STACK_DELIVER, node, node.nav, "navigation/navigate_to", NavigateTo.Result,
+            make_goal=lambda: NavigateTo.Goal(pose=_to_pose(TEST_STATION)),
+            timeout_s=NAV_TIMEOUT_S, moves_base=True)
+
+        forced_stack_place = ActionLeaf(
+            STACK_PLACE, node, node.place, "manipulation/place_carrier",
+            PlaceCarrier.Result,
+            make_goal=lambda: PlaceCarrier.Goal(variant=bb.variant),
+            timeout_s=PLACE_TIMEOUT_S,
+            feedback_cb=node.log_phase("STACK_PLACE"))
+
+        forced_stack_creep_in, forced_stack_creep_out = creep_pair(TEST_STATION)
+
+        forced_stack_leg = py_trees.composites.Sequence(
+            "(강제) 스택 회수", memory=True,
+            children=[forced_unloader_wait, forced_stack_nav, forced_stack_creep_approach,
+                      forced_stack_scan,
+                      forced_stack_pick, forced_stack_retreat, forced_stack_deliver]
+            + forced_stack_creep_in
+            + [forced_stack_place] + forced_stack_creep_out)
+
+        forced_stack_detour = _Optional(
+            "(강제) 스택 회수 (실패해도 통과)", forced_stack_leg, node)
+
     # 놓을 자리는 종류로 정해진다 — 좌표를 넘기지 않는다.
     place = Freeze("PLACE", ActionLeaf(
         PLACE, node, node.place, "manipulation/place_carrier", PlaceCarrier.Result,
         make_goal=lambda: PlaceCarrier.Goal(variant=bb.variant),
         timeout_s=PLACE_TIMEOUT_S,
         feedback_cb=node.log_phase("PLACE")), node, PLACE)
-
-    # ── place 뒤 한 번 더 본다 (STACK_YIELD_STAGES 주석) ────────────────
-    # CREEP_OUT 으로 로더 정차점까지 물러난 뒤, RETURN 으로 나가기 전에 상대가
-    # 스택 쪽(가는 중·집는 중·집고 빠져나오는 중)이면 그 자리에서 기다린다.
-    # 반경 판정은 끈다 — 로더 반경이 아니라 상대 단계만 본다.
-    stack_yield = Freeze("STACK_YIELD", WaitForPeer(
-        STACK_YIELD, node, stages=STACK_YIELD_STAGES, use_radius=False,
-        arrive_log="상대가 스택 쪽에 있다 — 로더 앞에서 기다린다"),
-        node, STACK_YIELD)
 
     # 배치를 마친 자리(TEST_LOADER)는 순찰 경로에서 멀다. 순찰 잎이 어차피
     # 다음 정차점으로 goal 을 내기는 하지만, 복귀를 단계로 세워 두면 어디서
@@ -2107,7 +2234,8 @@ def build_tree(node):
         "캐리어 처리", memory=True,
         children=[Detected("detected?", node), Hold(HOLD, node),
                   scan, pick, return_to_start, to_loader] + creep_in + [place] + creep_out
-        + [stack_yield, ret, CycleDone("사이클 완료", node, waypoints)])
+        + ([forced_stack_detour] if forced_stack_detour is not None else [])
+        + [ret, CycleDone("사이클 완료", node, waypoints)])
 
     # ── 회수 처리 (독립된 최상위 가지, RECOVER 작업) ───────────────────────
     # 웹 pending_pickup 큐가 배차한 RECOVER goal 을 받은 로봇만 돈다(TaskKind
@@ -2122,6 +2250,17 @@ def build_tree(node):
     # shelves.yaml 을 고치면 다음 회수부터 바로 반영된다.
     # ★ 2026-09-25: PLACE 의 CREEP_IN 과 같은 패턴(STACK_APPROACH_CREEP_M
     #   주석 참고) — Nav2 는 대기점까지만, 마지막 정밀 접근은 cmd_vel 크립.
+    # ── 언로더 진입 전 대기 (UNLOADER_STAGES 주석) ────────────────────────
+    # 로더 앞 WAIT 과 같은 잎(WaitForPeer)을 언로더 구역 기준으로 쓴다. 지금
+    # 서 있는 자리(순찰 중 또는 로더에서 복귀 중)에서 기다린다.
+    unloader_wait = Freeze("UNLOADER_WAIT", WaitForPeer(
+        UNLOADER_WAIT, node, stages=UNLOADER_STAGES, use_radius=True,
+        arrive_log="상대가 언로더(스택 자리) 쪽에 있다 — 들어가기 전에 기다린다",
+        zone="언로더", dist_fn=node.peer_dist_to_unloader,
+        radius_fn=lambda: node.unloader_clear_radius_m, leaving=[],
+        radius_ignore=(UNLOADER_WAIT,)),
+        node, UNLOADER_WAIT)
+
     stack_nav = Freeze("STACK_NAV", ActionLeaf(
         STACK_NAV, node, node.nav, "navigation/navigate_to", NavigateTo.Result,
         make_goal=lambda: NavigateTo.Goal(pose=_to_pose(
@@ -2213,7 +2352,7 @@ def build_tree(node):
     stack_creep_in, stack_creep_out = creep_pair(TEST_STATION)
     recover_leg = py_trees.composites.Sequence(
         "스택", memory=True,
-        children=[stack_nav, stack_creep_approach, stack_scan, stack_pick,
+        children=[unloader_wait, stack_nav, stack_creep_approach, stack_scan, stack_pick,
                   stack_retreat, stack_deliver]
         + stack_creep_in + [stack_place] + stack_creep_out
         + [RecoverDone("회수 완료", node)])
@@ -2509,6 +2648,10 @@ class TaskManager(Node):
         self.declare_parameter("staging_pose", DEFAULT_STAGING_POSE)
         self.staging_pose = tuple(self.get_parameter("staging_pose").value)
         self.loader_clear_radius_m = float(self.get_parameter("loader_clear_radius_m").value)
+        # 언로더(스택 자리) 근처 판정 반경 — DEFAULT_UNLOADER_CLEAR_RADIUS_M 주석.
+        self.declare_parameter("unloader_clear_radius_m", DEFAULT_UNLOADER_CLEAR_RADIUS_M)
+        self.unloader_clear_radius_m = float(
+            self.get_parameter("unloader_clear_radius_m").value)
         # 빈 문자열은 걸러낸다 — rclpy 는 빈 리스트의 타입을 못 정해서 [""] 로
         # 넘기는 경우가 있고, 그게 그대로 들어오면 아무 단계에도 안 맞는다.
         self._peer_busy_stages = tuple(
@@ -3485,6 +3628,29 @@ class TaskManager(Node):
         # 상대가 실제로 서서 놓는 자리는 Nav2 정차점에서 LOADER_CREEP_M 앞이다.
         return math.hypot(self._peer_xy[0] - (TEST_LOADER[0] + LOADER_CREEP_M),
                           self._peer_xy[1] - TEST_LOADER[1])
+
+    def peer_dist_to_unloader(self):
+        """상대 베이스와 언로더 접근 구간(선분)의 거리. 위치나 구간을 모르면 None.
+
+        구간은 STACK_NAV 가 Nav2 로 가는 대기점 → 집는 자리(회수 경로의 첫
+        점)다. 지금 RECOVER 작업 중이면 그 경로를, 아니면(place 뒤 임시 스택
+        회수) 기동 때 읽은 recover_route 를 쓴다. WaitForPeer 가
+        unloader_clear_radius_m 과 비교한다.
+        """
+        if self._peer_xy is None:
+            return None
+        task = self._task
+        route = (task.route if task is not None and getattr(task, "kind", "") == "RECOVER"
+                 and getattr(task, "route", None) else self.recover_route)
+        if not route:
+            return None
+        bx, by, _ = _back_off(route[0], STACK_APPROACH_CREEP_M)
+        px, py = route[0][0], route[0][1]
+        qx, qy = self._peer_xy
+        vx, vy = px - bx, py - by
+        seg2 = vx * vx + vy * vy
+        t = 0.0 if seg2 < 1e-9 else max(0.0, min(1.0, ((qx - bx) * vx + (qy - by) * vy) / seg2))
+        return math.hypot(qx - (bx + t * vx), qy - (by + t * vy))
 
     def peer_frozen(self, stages=None):
         """상대가 차선 안에서 얼어붙었나. stages 를 주면 그 단계들로 본다.
