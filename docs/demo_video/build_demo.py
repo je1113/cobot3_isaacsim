@@ -47,10 +47,10 @@ SLOGAN = "순찰에서 이송, 회수, 충전까지 — 사람 개입 없이, �
 CHAPTERS = [
     dict(n=1, clip=1, code="START", title="Start",
          card="두 로봇이 같은 주차 패드에서 출발합니다.\n순찰 시작점으로 이동한 뒤 팔을 관측 자세로 잡고 순찰에 들어갑니다.",
-         sub="시작 좌표 (도킹 스테이션) → 순찰 시작점으로 이동 (Nav2를 통한 장애물 회피)",
+         sub="시작 좌표 (도킹 스테이션) → 순찰 시작점으로 이동\n(Nav2를 통한 장애물 회피)",
          state="state=start → pose → patrol",
-         segs=[(0, 95.3, 3)],
-         extra=[(60, 78, "두 로봇의 출발 지점이 같아 출발이 서로 막히지 않도록 robot2 는 60 s 늦게 출발하도록 설계했습니다 (start_delay_s)")],
+         segs=[(0, 95.3, 4.5)],
+         extra=[(60, 95.3, "두 로봇의 출발 지점이 같아 출발이 서로 막히지 않도록 robot2 는 60 s 늦게 출발하도록 설계했습니다 (start_delay_s)", "left")],
          hl=None,
          badge=("✓ 01 Start 완료", "robot1 순찰 시작 · robot2 60 s 뒤 출발")),
     dict(n=2, clip=2, code="PATROL", title="Patrol",
@@ -58,8 +58,8 @@ CHAPTERS = [
          sub="패트롤 좌표 왕복 · QR 탐색 → 정차 · 판독",
          state="state=patrol → hold → scan",
          # 0–10 팔 인식 자세(현재의 0.5배), 10–66 느린 주행은 뒷부분(66–91) 화면 속도에 맞춰 12×
-         segs=[(0, 10, 3), (10, 66, 12), (66, 90.7, 3)],
-         hl=(78, 90.7, "매거진 앞 정차", "QR을 인식하고 그 자리에 정차합니다"),
+         segs=[(0, 10, 3.75), (10, 66, 15), (66, 90.7, 3.75)],
+         hl=(78, 90.7, "매거진 앞 정차", "QR을 인식하고 그 자리에 정차합니다"), hl_speed=1.25,
          badge=("✓ 02 Patrol 완료", "QR 탐색 → 정차 → 판독")),
     dict(n=3, clip=3, code="PICK", title="Pick",
          card="멈춘 그 자리에서 판독한 위치로 로봇팔을 움직여\n흡착 그리퍼로 매거진을 집습니다.",
@@ -79,14 +79,15 @@ CHAPTERS = [
          card="여유 있는 지점에서 Nav2로 패키징 로더까지 움직입니다.\n상대 로봇이 로더 차선을 쓰고 있으면 대기 후 진입합니다.",
          sub="Nav2 로 패키징 로더까지 주행",
          state="state=nav",
-         segs=[(0, 42.7, 1.5)],
+         segs=[(0, 39.3, 1.5)],  # 39 s 이후 정지 → 버림
          hl=None,
          badge=("✓ 05 이송 완료", "패키징 로더 정차점 도착")),
     dict(n=6, clip=6, code="PLACE", title="Place",
-         card="정차점에서 벨트 쪽으로 천천히 들어가 매거진을 내려놓고 같은 선으로 되나옵니다.",
+         card="지정 좌표에서 매거진을 내려 놓습니다.",
          sub="진입 → 로더에 배치 → 후진",
          state="state=creep_in → place → creep_out",
          segs=[(0, 36.1, 3)],
+         extra=[(0, 36.1, "장애물 근처에서는 Nav2가 아닌 cmd_vel로 움직입니다", "left")],
          hl=None,
          badge=("✓ 06 Place 완료", "매거진 → 패키징 로더 · TraceEvent 기록")),
     dict(n=7, clip=7, code="STACK PICK", title="Stack Pick",
@@ -103,7 +104,7 @@ CHAPTERS = [
          sub="테스트 로더 주행 · 스택 배치",
          state="state=stack_deliver → stack_place",
          # 0–12 삭제. 배치 동작(45–53)은 현재의 0.75배.
-         segs=[(12, 33, 6), (33, 45, 3), (45, 53, 2.25), (53, 58.9, 3)],
+         segs=[(33, 45, 3), (45, 53, 2.25), (53, 58.9, 3)],  # 0–33 위치 조정 구간은 버림
          hl=None,
          badge=("✓ 08 Stack Place 완료", "사이클 종료 · 8 / 8 COMPLETE")),
     dict(n=9, clip=9, code="DOCKING SYSTEM", title="Docking", tag="ADDITIONAL",
@@ -113,7 +114,7 @@ CHAPTERS = [
          # 0–84 우회 구간 삭제. 전 구간 배속을 절반으로(2배 길게).
          segs=[(84, 136, 3, "배터리 임계값 이하 · 다음 작업 대신 도킹 스테이션으로", 0),
                (136, 160, 2, "도크 앞 대기점에서 직진 진입", 1),
-               (160, 165, 1, "충전 중 · 이 동안 웹 작업은 거절되고 상대 로봇에게 넘어갑니다", 2),
+               (160, 165, 1, "충전 중 · 이 동안 웹 작업은 거절되고\n상대 로봇에게 넘어갑니다", 2),
                (242, 291, 2.5, "후진 이탈 · 도크 구역에서는 회전하지 않습니다", 3),
                (291, 331, 1.5, "패트롤로 복귀 · 업무를 계속 수행합니다", 4)],
          hl=None,
@@ -308,8 +309,8 @@ def ov_badge(head, summary):
     h = 118
     x0, y0 = (W - w) // 2, H - 150 - h
     rrect(d, (x0, y0, x0 + w, y0 + h), 12, rgba(C["panel"], 225))
-    d.text((x0 + pad, y0 + 18), head, font=f_h, fill=rgba(C["text"]))
-    d.text((x0 + pad, y0 + 72), summary, font=f_s, fill=rgba(C["acc1"]))
+    d.text((x0 + (w - text_w(d, head, f_h)) / 2, y0 + 18), head, font=f_h, fill=rgba(C["text"]))
+    d.text((x0 + (w - text_w(d, summary, f_s)) / 2, y0 + 72), summary, font=f_s, fill=rgba(C["acc1"]))
     return Ov(im)
 
 
@@ -552,7 +553,8 @@ def render_chapter(out, ch, src, thumbs):
             prog = ov_progress(DOCK_MINI, mini, set(range(mini)), label="DOCKING", counter=f"{mini + 1} / 5")
         else:
             prog = ov_progress(PROCESS, n - 1, done, counter=f"STEP {n:02d} / 08")
-        extras = [(ea, eb, ov_chip(txt, y=24, align="center", size=17)) for ea, eb, txt in ch.get("extra", [])]
+        extras = [(e[0], e[1], ov_chip(e[2], y=24, align=(e[3] if len(e) > 3 else "center"), size=17))
+                  for e in ch.get("extra", [])]
         k = 0
         for fr in src.frames(a, b, speed):
             t_src = a + k * speed / FPS
@@ -574,11 +576,12 @@ def render_chapter(out, ch, src, thumbs):
         tag = ov_chip("↗ REPLAY · 확대 화면", y=24, align="right", size=15)
         out.begin()
         i = 0
-        for fr in src.frames(ha, hb, 1.0, zoom=1.4):
+        hsp = ch.get("hl_speed", 1.0)
+        for fr in src.frames(ha, hb, hsp, zoom=1.4):
             last = fr.copy()
             hov.apply(fr)
             tag.apply(fr)
-            if i == int((hb - ha) * FPS / 2):
+            if i == int((hb - ha) * FPS / hsp / 2):
                 thumb = fr.copy()
             out.push(fr)
             i += 1
@@ -602,13 +605,12 @@ def render_data(out, bgfr):
     bg = whiten(bgfr, 0.75, 6)
     els = [
         (0.0, ov_data_left()),
-        (1.0, ov_data_item(0, "이동·인식·파지·도킹 등 태스크 스텝별 상태 데이터 자동 수집", "TraceEvent → event_logger → PostgreSQL 로 단계마다 발행합니다")),
-        (2.0, ov_data_item(1, "데이터 무결성(Integrity)을 보장하는 로그 적재", "magazine_log · stack_log 에 append-only 로 적재합니다")),
-        (3.0, ov_data_item(2, "Top-view 기반 전체 공정 및 개별 로봇 상태 실시간 모니터링", "로봇별 순찰(Patrol) 구역 및 타겟 객체에 대한 개별 작업 지시")),
-        (5.0, ov_pipeline(570)),
+        (4.0, ov_data_item(0, "이동·인식·파지·도킹 등 태스크 스텝별 상태 데이터 자동 수집", "PostgreSQL에 로봇의 상태, 성공 여부, 실패 원인 등을 자동으로 저장합니다")),
+        (8.0, ov_data_item(1, "데이터 무결성(Integrity)을 보장하는 로그 적재", "magazine_log, stack_log에 적재합니다")),
+        (12.0, ov_data_item(2, "Top-view 기반 전체 공정 및 개별 로봇 상태 실시간 모니터링", "로봇별 순찰(Patrol) 구역 및 타겟 객체에 대한 개별 작업 지시")),
     ]
     out.begin()
-    for k in range(8 * FPS):
+    for k in range(17 * FPS):
         t = k / FPS
         fr = bg.copy()
         for t0, ov in els:
@@ -638,19 +640,19 @@ def render_outro(out, bgfr, thumbs):
             c.paste(pil, (x, y))
             d = ImageDraw.Draw(c)
             d.text((x, y + th + 6), lab, font=f_l, fill=rgba(C["panel"]))
-            thumb_ovs.append((1.0 + 0.35 * (len(thumb_ovs)), Ov(c)))
+            thumb_ovs.append((1.0 + 1.4 * (len(thumb_ovs)), Ov(c)))
             x += tw + gap
     out.begin()
-    for k in range(9 * FPS):
+    for k in range(19 * FPS):
         t = k / FPS
         fr = bg.copy()
         title.apply(fr, fade(t, 0.0))
         ul.apply(fr, fade(t, 0.0))
         for t0, ov in thumb_ovs:
             ov.apply(fr, fade(t, t0))
-        slogan.apply(fr, fade(t, 5.5))
-        if t > 8.2:
-            fr = whiten(fr, fade(t, 8.2, 0.8))
+        slogan.apply(fr, fade(t, 14.0))
+        if t > 18.0:
+            fr = whiten(fr, fade(t, 18.0, 0.9))
         out.push(fr)
 
 
