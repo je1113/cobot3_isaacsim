@@ -7,8 +7,8 @@
                 double radius = 5
             }
             dictionary Perspective = {
-                double3 position = (1.0056332741246483, 3.1035878668515093, 3.0760308427773304)
-                double3 target = (97.18455892543544, -49.30349837821342, -55.010154147880705)
+                double3 position = (-3.3857632058091824, 1.3936133049368904, 3.2855655526669456)
+                double3 target = (69.15201281770076, -92.27733853273868, -64.28918320455145)
             }
             dictionary Right = {
                 double3 position = (0, -5, 0)
@@ -378,13 +378,15 @@ def Xform "World"
                 )
                 {
                     def Mesh "UpperShelf" (
-                        prepend apiSchemas = ["MaterialBindingAPI"]
+                        prepend apiSchemas = ["MaterialBindingAPI", "PhysicsCollisionAPI", "PhysxCollisionAPI", "PhysxTriangleMeshCollisionAPI", "PhysicsMeshCollisionAPI"]
                     )
                     {
                         float3[] extent = [(-1.25, -0.5, -0.025), (1.25, 0.5, 0.025)]
                         int[] faceVertexCounts = [3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3]
                         int[] faceVertexIndices = [1, 0, 2, 22, 23, 21, 11, 10, 9, 18, 20, 19, 8, 6, 7, 4, 5, 3, 13, 14, 12, 16, 15, 17, 6, 0, 3, 6, 3, 9, 10, 6, 9, 10, 7, 6, 22, 7, 10, 22, 19, 7, 11, 9, 3, 11, 3, 5, 11, 5, 17, 11, 17, 23, 11, 22, 10, 11, 23, 22, 15, 23, 17, 15, 21, 23, 18, 21, 15, 18, 15, 12, 18, 12, 14, 18, 14, 20, 18, 19, 22, 18, 22, 21, 8, 7, 19, 8, 19, 20, 8, 20, 14, 8, 14, 2, 8, 0, 6, 8, 2, 0, 4, 3, 0, 4, 0, 1, 13, 2, 14, 13, 1, 2, 16, 12, 15, 16, 13, 12, 16, 17, 5, 16, 5, 4, 16, 4, 1, 16, 1, 13]
                         rel material:binding = </World/Looks/StorageIndustrial/ShelfDeck>
+                        uniform token physics:approximation = "none"
+                        bool physics:collisionEnabled = 1
                         point3f[] points = [(-1.25, -0.49, -0.015), (-1.24, -0.5, -0.015), (-1.24, -0.49, -0.025), (-1.25, -0.49, 0.015), (-1.24, -0.5, 0.015), (-1.24, -0.49, 0.025), (-1.25, 0.49, -0.015), (-1.24, 0.5, -0.015), (-1.24, 0.49, -0.025), (-1.25, 0.49, 0.015), (-1.24, 0.5, 0.015), (-1.24, 0.49, 0.025), (1.25, -0.49, -0.015), (1.24, -0.5, -0.015), (1.24, -0.49, -0.025), (1.25, -0.49, 0.015), (1.24, -0.5, 0.015), (1.24, -0.49, 0.025), (1.25, 0.49, -0.015), (1.24, 0.5, -0.015), (1.24, 0.49, -0.025), (1.25, 0.49, 0.015), (1.24, 0.5, 0.015), (1.24, 0.49, 0.025)]
                         uniform token subdivisionScheme = "none"
                         double3 xformOp:translate = (0, 0, 1.1658330595570607)
@@ -1022,13 +1024,15 @@ def Xform "World"
                 )
                 {
                     def Mesh "UpperShelf" (
-                        prepend apiSchemas = ["MaterialBindingAPI"]
+                        prepend apiSchemas = ["MaterialBindingAPI", "PhysicsCollisionAPI", "PhysxCollisionAPI", "PhysxTriangleMeshCollisionAPI", "PhysicsMeshCollisionAPI"]
                     )
                     {
                         float3[] extent = [(-1.25, -0.5, -0.025), (1.25, 0.5, 0.025)]
                         int[] faceVertexCounts = [3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3]
                         int[] faceVertexIndices = [1, 0, 2, 22, 23, 21, 11, 10, 9, 18, 20, 19, 8, 6, 7, 4, 5, 3, 13, 14, 12, 16, 15, 17, 6, 0, 3, 6, 3, 9, 10, 6, 9, 10, 7, 6, 22, 7, 10, 22, 19, 7, 11, 9, 3, 11, 3, 5, 11, 5, 17, 11, 17, 23, 11, 22, 10, 11, 23, 22, 15, 23, 17, 15, 21, 23, 18, 21, 15, 18, 15, 12, 18, 12, 14, 18, 14, 20, 18, 19, 22, 18, 22, 21, 8, 7, 19, 8, 19, 20, 8, 20, 14, 8, 14, 2, 8, 0, 6, 8, 2, 0, 4, 3, 0, 4, 0, 1, 13, 2, 14, 13, 1, 2, 16, 12, 15, 16, 13, 12, 16, 17, 5, 16, 5, 4, 16, 4, 1, 16, 1, 13]
                         rel material:binding = </World/Looks/StorageIndustrial/ShelfDeck>
+                        uniform token physics:approximation = "none"
+                        bool physics:collisionEnabled = 1
                         point3f[] points = [(-1.25, -0.49, -0.015), (-1.24, -0.5, -0.015), (-1.24, -0.49, -0.025), (-1.25, -0.49, 0.015), (-1.24, -0.5, 0.015), (-1.24, -0.49, 0.025), (-1.25, 0.49, -0.015), (-1.24, 0.5, -0.015), (-1.24, 0.49, -0.025), (-1.25, 0.49, 0.015), (-1.24, 0.5, 0.015), (-1.24, 0.49, 0.025), (1.25, -0.49, -0.015), (1.24, -0.5, -0.015), (1.24, -0.49, -0.025), (1.25, -0.49, 0.015), (1.24, -0.5, 0.015), (1.24, -0.49, 0.025), (1.25, 0.49, -0.015), (1.24, 0.5, -0.015), (1.24, 0.49, -0.025), (1.25, 0.49, 0.015), (1.24, 0.5, 0.015), (1.24, 0.49, 0.025)]
                         uniform token subdivisionScheme = "none"
                         double3 xformOp:translate = (0, 0, 1.1658330595570607)
@@ -6760,6 +6764,254 @@ def Xform "World"
             double3 xformOp:translate = (1.15, -1.117, 9.3)
             uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:rotateXYZ"]
         }
+
+        def Xform "DummyMagazines"
+        {
+            quatd xformOp:orient = (1, 0, 0, 0)
+            double3 xformOp:scale = (1, 1, 1)
+            double3 xformOp:translate = (0, 0, 0)
+            uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
+
+            def "magazine_1_orange" (
+                prepend payload = @../assets/magazine_1_orange.usda@
+            )
+            {
+                quatf xformOp:orient = (1, 0, 0, 0)
+                float3 xformOp:scale = (1, 1, 1)
+                double3 xformOp:translate = (-0.8066530976954417, -1.6861624717712402, 0.5954164862632751)
+                uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
+            }
+
+            def "magazine_2_blue" (
+                prepend payload = @../assets/magazine_2_blue.usda@
+            )
+            {
+                quatf xformOp:orient = (1, 0, 0, 0)
+                float3 xformOp:scale = (1, 1, 1)
+                double3 xformOp:translate = (-1.3005424015935003, -1.6584757566452026, 0.5954166054725647)
+                uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
+            }
+
+            def "magazine_1_orange_01" (
+                prepend payload = @../assets/magazine_1_orange.usda@
+            )
+            {
+                quatf xformOp:orient = (1, 0, 0, 0)
+                float3 xformOp:scale = (1, 1, 1)
+                double3 xformOp:translate = (-1.7866937829004408, -1.6861624717712402, 0.5954164862632751)
+                uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
+            }
+
+            def "magazine_2_blue_01" (
+                prepend payload = @../assets/magazine_2_blue.usda@
+            )
+            {
+                quatf xformOp:orient = (1, 0, 0, 0)
+                float3 xformOp:scale = (1, 1, 1)
+                double3 xformOp:translate = (-2.226014887391477, -1.6584757566452026, 0.5954166054725647)
+                uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
+            }
+
+            def "magazine_1_orange_02" (
+                prepend payload = @../assets/magazine_1_orange.usda@
+            )
+            {
+                quatf xformOp:orient = (1, 0, 0, 0)
+                float3 xformOp:scale = (1, 1, 1)
+                double3 xformOp:translate = (-0.8066530976954418, -1.6861624717712402, 1.1968423017997072)
+                uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
+            }
+
+            def "magazine_2_blue_02" (
+                prepend payload = @../assets/magazine_2_blue.usda@
+            )
+            {
+                quatf xformOp:orient = (1, 0, 0, 0)
+                float3 xformOp:scale = (1, 1, 1)
+                double3 xformOp:translate = (-1.3005424015935003, -1.6584757566452026, 1.1968424210089967)
+                uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
+            }
+
+            def "magazine_1_orange_03" (
+                prepend payload = @../assets/magazine_1_orange.usda@
+            )
+            {
+                quatf xformOp:orient = (1, 0, 0, 0)
+                float3 xformOp:scale = (1, 1, 1)
+                double3 xformOp:translate = (-1.7866937829004408, -1.6861624717712402, 1.1968423017997072)
+                uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
+            }
+
+            def "magazine_2_blue_03" (
+                prepend payload = @../assets/magazine_2_blue.usda@
+            )
+            {
+                quatf xformOp:orient = (1, 0, 0, 0)
+                float3 xformOp:scale = (1, 1, 1)
+                double3 xformOp:translate = (-2.226014887391477, -1.6584757566452026, 1.1968424210089967)
+                uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
+            }
+
+            def "magazine_1_orange_04" (
+                prepend payload = @../assets/magazine_1_orange.usda@
+            )
+            {
+                quatf xformOp:orient = (1, 0, 0, 0)
+                float3 xformOp:scale = (1, 1, 1)
+                double3 xformOp:translate = (-0.8066530976954418, -2.2523050290710556, 1.1968423017997072)
+                uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
+            }
+
+            def "magazine_2_blue_04" (
+                prepend payload = @../assets/magazine_2_blue.usda@
+            )
+            {
+                quatf xformOp:orient = (1, 0, 0, 0)
+                float3 xformOp:scale = (1, 1, 1)
+                double3 xformOp:translate = (-1.3005424015935003, -2.224618313945018, 1.1968424210089967)
+                uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
+            }
+
+            def "magazine_1_orange_05" (
+                prepend payload = @../assets/magazine_1_orange.usda@
+            )
+            {
+                quatf xformOp:orient = (1, 0, 0, 0)
+                float3 xformOp:scale = (1, 1, 1)
+                double3 xformOp:translate = (-1.7866937829004408, -2.2523050290710556, 1.1968423017997072)
+                uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
+            }
+
+            def "magazine_2_blue_05" (
+                prepend payload = @../assets/magazine_2_blue.usda@
+            )
+            {
+                quatf xformOp:orient = (1, 0, 0, 0)
+                float3 xformOp:scale = (1, 1, 1)
+                double3 xformOp:translate = (-2.226014887391477, -2.224618313945018, 1.1968424210089967)
+                uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
+            }
+
+            def "magazine_1_orange_06" (
+                prepend payload = @../assets/magazine_1_orange.usda@
+            )
+            {
+                quatf xformOp:orient = (1, 0, 0, 0)
+                float3 xformOp:scale = (1, 1, 1)
+                double3 xformOp:translate = (-0.8066530976954418, 3.2241368324097457, 0.5954164862632751)
+                uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
+            }
+
+            def "magazine_2_blue_06" (
+                prepend payload = @../assets/magazine_2_blue.usda@
+            )
+            {
+                quatf xformOp:orient = (1, 0, 0, 0)
+                float3 xformOp:scale = (1, 1, 1)
+                double3 xformOp:translate = (-1.3005424015935003, 3.2518235475357833, 0.5954166054725647)
+                uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
+            }
+
+            def "magazine_1_orange_07" (
+                prepend payload = @../assets/magazine_1_orange.usda@
+            )
+            {
+                quatf xformOp:orient = (1, 0, 0, 0)
+                float3 xformOp:scale = (1, 1, 1)
+                double3 xformOp:translate = (-1.7866937829004408, 3.2241368324097457, 0.5954164862632751)
+                uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
+            }
+
+            def "magazine_2_blue_07" (
+                prepend payload = @../assets/magazine_2_blue.usda@
+            )
+            {
+                quatf xformOp:orient = (1, 0, 0, 0)
+                float3 xformOp:scale = (1, 1, 1)
+                double3 xformOp:translate = (-2.226014887391477, 3.2518235475357833, 0.5954166054725647)
+                uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
+            }
+
+            def "magazine_1_orange_08" (
+                prepend payload = @../assets/magazine_1_orange.usda@
+            )
+            {
+                quatf xformOp:orient = (1, 0, 0, 0)
+                float3 xformOp:scale = (1, 1, 1)
+                double3 xformOp:translate = (-0.8066530976954418, 3.2241368324097457, 1.1968423017997072)
+                uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
+            }
+
+            def "magazine_2_blue_08" (
+                prepend payload = @../assets/magazine_2_blue.usda@
+            )
+            {
+                quatf xformOp:orient = (1, 0, 0, 0)
+                float3 xformOp:scale = (1, 1, 1)
+                double3 xformOp:translate = (-1.3005424015935003, 3.2518235475357833, 1.1968424210089967)
+                uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
+            }
+
+            def "magazine_1_orange_09" (
+                prepend payload = @../assets/magazine_1_orange.usda@
+            )
+            {
+                quatf xformOp:orient = (1, 0, 0, 0)
+                float3 xformOp:scale = (1, 1, 1)
+                double3 xformOp:translate = (-1.7866937829004408, 3.2241368324097457, 1.1968423017997072)
+                uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
+            }
+
+            def "magazine_2_blue_09" (
+                prepend payload = @../assets/magazine_2_blue.usda@
+            )
+            {
+                quatf xformOp:orient = (1, 0, 0, 0)
+                float3 xformOp:scale = (1, 1, 1)
+                double3 xformOp:translate = (-2.226014887391477, 3.2518235475357833, 1.1968424210089967)
+                uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
+            }
+
+            def "magazine_1_orange_10" (
+                prepend payload = @../assets/magazine_1_orange.usda@
+            )
+            {
+                quatf xformOp:orient = (1, 0, 0, 0)
+                float3 xformOp:scale = (1, 1, 1)
+                double3 xformOp:translate = (-0.8066530976954418, 2.6579942751099304, 1.1968423017997072)
+                uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
+            }
+
+            def "magazine_2_blue_10" (
+                prepend payload = @../assets/magazine_2_blue.usda@
+            )
+            {
+                quatf xformOp:orient = (1, 0, 0, 0)
+                float3 xformOp:scale = (1, 1, 1)
+                double3 xformOp:translate = (-1.3005424015935003, 2.685680990235968, 1.1968424210089967)
+                uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
+            }
+
+            def "magazine_1_orange_11" (
+                prepend payload = @../assets/magazine_1_orange.usda@
+            )
+            {
+                quatf xformOp:orient = (1, 0, 0, 0)
+                float3 xformOp:scale = (1, 1, 1)
+                double3 xformOp:translate = (-1.7866937829004408, 2.6579942751099304, 1.1968423017997072)
+                uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
+            }
+
+            def "magazine_2_blue_11" (
+                prepend payload = @../assets/magazine_2_blue.usda@
+            )
+            {
+                quatf xformOp:orient = (1, 0, 0, 0)
+                float3 xformOp:scale = (1, 1, 1)
+                double3 xformOp:translate = (-2.226014887391477, 2.685680990235968, 1.1968424210089967)
+                uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
+            }
+        }
     }
 
     def Xform "Magazines" (
@@ -9671,6 +9923,51 @@ def "Render" (
                 custom bool overrideClipRange = 0
                 uniform int2 resolution = (1280, 720)
             }
+
+            def RenderProduct "Replicator_35" (
+                prepend apiSchemas = ["OmniRtxSettingsCommonAdvancedAPI_1", "OmniRtxSettingsRtAdvancedAPI_1", "OmniRtxSettingsPtAdvancedAPI_1", "OmniRtxPostColorGradingAPI_1", "OmniRtxPostChromaticAberrationAPI_1", "OmniRtxPostBloomPhysicalAPI_1", "OmniRtxPostMatteObjectAPI_1", "OmniRtxPostCompositingAPI_1", "OmniRtxPostDofAPI_1", "OmniRtxPostMotionBlurAPI_1", "OmniRtxPostTvNoiseAPI_1", "OmniRtxPostTonemapIrayReinhardAPI_1", "OmniRtxPostDebugSettingsAPI_1", "OmniRtxDebugSettingsAPI_1"]
+                hide_in_stage_window = true
+                no_delete = true
+            )
+            {
+                rel camera = </World/Robots/nova_carter2/chassis_link/sensors/XT_32/PandarXT_32_10hz>
+                bool omni:rtx:material:db:syncLoads = 1
+                bool omni:rtx:rt:ecoMode:enabled = 0
+                bool omni:rtx:scene:hydra:materialSyncLoads = 1
+                rel orderedVars = </Render/Vars/LdrColor>
+                custom bool overrideClipRange = 0
+                uniform int2 resolution = (1280, 720)
+            }
+
+            def RenderProduct "Replicator_36" (
+                prepend apiSchemas = ["OmniRtxSettingsCommonAdvancedAPI_1", "OmniRtxSettingsRtAdvancedAPI_1", "OmniRtxSettingsPtAdvancedAPI_1", "OmniRtxPostColorGradingAPI_1", "OmniRtxPostChromaticAberrationAPI_1", "OmniRtxPostBloomPhysicalAPI_1", "OmniRtxPostMatteObjectAPI_1", "OmniRtxPostCompositingAPI_1", "OmniRtxPostDofAPI_1", "OmniRtxPostMotionBlurAPI_1", "OmniRtxPostTvNoiseAPI_1", "OmniRtxPostTonemapIrayReinhardAPI_1", "OmniRtxPostDebugSettingsAPI_1", "OmniRtxDebugSettingsAPI_1"]
+                hide_in_stage_window = true
+                no_delete = true
+            )
+            {
+                rel camera = </World/Environment/CCTV_Camera>
+                bool omni:rtx:material:db:syncLoads = 1
+                bool omni:rtx:rt:ecoMode:enabled = 0
+                bool omni:rtx:scene:hydra:materialSyncLoads = 1
+                rel orderedVars = </Render/Vars/LdrColor>
+                custom bool overrideClipRange = 0
+                uniform int2 resolution = (800, 660)
+            }
+
+            def RenderProduct "Replicator_37" (
+                prepend apiSchemas = ["OmniRtxSettingsCommonAdvancedAPI_1", "OmniRtxSettingsRtAdvancedAPI_1", "OmniRtxSettingsPtAdvancedAPI_1", "OmniRtxPostColorGradingAPI_1", "OmniRtxPostChromaticAberrationAPI_1", "OmniRtxPostBloomPhysicalAPI_1", "OmniRtxPostMatteObjectAPI_1", "OmniRtxPostCompositingAPI_1", "OmniRtxPostDofAPI_1", "OmniRtxPostMotionBlurAPI_1", "OmniRtxPostTvNoiseAPI_1", "OmniRtxPostTonemapIrayReinhardAPI_1", "OmniRtxPostDebugSettingsAPI_1", "OmniRtxDebugSettingsAPI_1"]
+                hide_in_stage_window = true
+                no_delete = true
+            )
+            {
+                rel camera = </World/Robots/nova_carter1/chassis_link/sensors/XT_32/PandarXT_32_10hz>
+                bool omni:rtx:material:db:syncLoads = 1
+                bool omni:rtx:rt:ecoMode:enabled = 0
+                bool omni:rtx:scene:hydra:materialSyncLoads = 1
+                rel orderedVars = </Render/Vars/LdrColor>
+                custom bool overrideClipRange = 0
+                uniform int2 resolution = (1280, 720)
+            }
         }
     }
 
@@ -9716,6 +10013,9 @@ def "Render" (
             </Render/OmniverseKit/HydraTextures/Replicator_32>,
             </Render/OmniverseKit/HydraTextures/Replicator_33>,
             </Render/OmniverseKit/HydraTextures/Replicator_34>,
+            </Render/OmniverseKit/HydraTextures/Replicator_35>,
+            </Render/OmniverseKit/HydraTextures/Replicator_36>,
+            </Render/OmniverseKit/HydraTextures/Replicator_37>,
         ]
     }
 
