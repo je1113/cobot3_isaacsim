@@ -650,13 +650,13 @@ def main():
     thumbs = []
     chapters = [c for c in CHAPTERS if args.only is None or c["n"] == args.only]
     if args.only is None:
-        render_intro(out, srcs[1].frame_at(2.0))
+        render_intro(out, fit(srcs[1].frame_at(2.0)))
     for ch in chapters:
         print(f"chapter {ch['n']} {ch['title']}", flush=True)
         render_chapter(out, ch, srcs[ch["clip"]], thumbs)
     if args.only is None:
-        render_data(out, srcs[6].frame_at(30.0))
-        render_outro(out, srcs[1].frame_at(2.0), thumbs)
+        render_data(out, fit(srcs[6].frame_at(30.0)))
+        render_outro(out, fit(srcs[1].frame_at(2.0)), thumbs)
     out.close()
     print(f"done: {out.n} frames = {out.n / FPS:.1f} s -> {args.out}")
 
