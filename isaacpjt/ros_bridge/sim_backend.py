@@ -474,8 +474,9 @@ def wait_for_stage_load(ctx, min_frames=60, max_frames=600):
 
 
 # 12_pick_test.py 검증값. 에셋 기본값(coaxial/shear=0)으로 두면 아무것도 못 든다.
-COAXIAL_FORCE_LIMIT = 200.0
-SHEAR_FORCE_LIMIT = 100.0
+# ★ 2026-09-29: 200/100 -> 400/200 N (사용자 지시 — 스택 PICK 실패 대응으로 두 배).
+COAXIAL_FORCE_LIMIT = 400.0
+SHEAR_FORCE_LIMIT = 200.0
 MAX_GRIP_DISTANCE = 0.03
 
 

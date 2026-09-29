@@ -182,8 +182,8 @@ class PickPlaceServer(Node):
         self.declare_parameter("grip_gaps_m", [0.005, 0.002, 0.0, -0.003])
         self.declare_parameter("cup_diameter_m", 0.050)
         self.declare_parameter("offset_limit_m", 0.015)          # (80mm-50mm)/2
-        self.declare_parameter("coaxial_force_limit", 200.0)
-        self.declare_parameter("shear_force_limit", 100.0)
+        self.declare_parameter("coaxial_force_limit", 400.0)
+        self.declare_parameter("shear_force_limit", 200.0)
         self.declare_parameter("max_grip_distance", 0.03)
         self.declare_parameter("lift_height_m", 0.10)            # 12_pick_test.py 검증값
         # 2026-09-23: 0.005 -> 0.055 -> 0.155 — 사용자 지시로 두 번 올렸다(5 cm,
