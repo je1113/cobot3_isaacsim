@@ -54,7 +54,9 @@ stations:
     place_pose: {x: 2.92, y: 4.60, theta: 0.0}
     # ⚠️ 실측 필요. 이 값이 그대로 "회수 가능 시각 = place 완료 + process_time"
     #    이 된다. 너무 짧으면 회수하러 가서 헛탕 치고 재시도만 쌓인다.
-    process_time: 15
+    # ★ 2026-09-29: 15 -> 1 (사용자 지시). place 직후 곧바로 회수 작업이
+    #   걸리게 해서, 놓은 로봇이 CREEP_OUT/RETURN 중에 받아 스택으로 가게 한다.
+    process_time: 1
     output_type: stack
     # ★ 2026-09-25: RECOVER 작업(ExecuteTask.action target_ref=station_id)이
     #   "이 스테이션 산출물이 어느 선반에 쌓이나"를 알아야 해서 추가했다.
