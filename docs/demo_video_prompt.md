@@ -284,3 +284,20 @@
 | 접근 → 진입 → 충전 → 이탈 → 복귀 | `DOCK_NAV`(Nav2, 2 m 앞 대기점) → `DOCK_IN`(cmd_vel 직진 2 m) → `DOCK`(/docking/dock, 60 s) → `DOCK_OUT`(후진 2 m, 도크 구역에서 회전 금지) → `RETURN`(Nav2 → patrol_route[0]) |
 | 충전 중 웹 작업 거절 | `state=dock*` 동안 ExecuteTask 거절. 웹은 경보 없이 대기, RECOVER는 상대 로봇 큐 맨 앞으로 |
 | robot2 60 s 늦게 출발 | `start_delay_s`. 타이머는 이 대기를 세지 않는다 |
+
+---
+
+## 5. 빌드 스크립트
+
+`docs/demo_video/build_demo.py` 가 이 문서를 그대로 코드로 옮긴 것이다. 클립 폴더와 한글 폰트만 주면 720p mp4 를 만든다.
+
+```bash
+pip install opencv-python-headless pillow imageio-ffmpeg
+python3 docs/demo_video/build_demo.py --clips <클립 폴더> --font NotoSansKR.ttf --out demo.mp4
+# 챕터 하나만 확인: --only 3
+```
+
+- 클립 파일명 첫 글자가 챕터 번호(1~9)여야 한다.
+- 컷 포인트·배속·자막은 스크립트 상단 `CHAPTERS` 에 있다. 문서 §4 와 같은 값이다.
+- 무음으로 나온다. BGM 은 편집 툴에서 얹는다.
+- 하이라이트는 원본 속도 1× 에 1.4× 확대(느리게 돌리면 시뮬 로봇이 더 느려 보여서 0.5× 는 쓰지 않았다).
