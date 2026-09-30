@@ -22,6 +22,7 @@ from PIL import Image, ImageDraw, ImageFont
 W, H, FPS = 1280, 720, 30
 XF = 15  # 크로스 디졸브 프레임 수 (0.5 s)
 CARD_S = 9  # 챕터 카드 길이 (s)
+TEXT_SPEED = 1.0   # 글자 화면(인트로·카드·배지·데이터·아웃트로)에만 곱하는 배속. --text-speed
 ROBOT_SPEED = 1.0  # 로봇 영상(본 클립·하이라이트)에만 곱하는 배속. --robot-speed 로 바꾼다
 
 # ── 팔레트 (§1-1, 실제 클립 프레임에서 뽑은 색) ─────────────────────────
@@ -116,7 +117,7 @@ CHAPTERS = [
          # 0–84 우회 구간 삭제. 전 구간 배속을 절반으로(2배 길게).
          segs=[(84, 136, 3, "배터리 임계값 이하 · 다음 작업 대신 도킹 스테이션으로", 0),
                (136, 160, 2, "도크 앞 대기점에서 직진 진입", 1),
-               (160, 165, 1, "충전 중 · 이 동안 웹 작업은 거절되고\n상대 로봇에게 넘어갑니다", 2),
+               (160, 165, 1 / 3, "충전 중 · 이 동안 웹 작업은 거절되고\n상대 로봇에게 넘어갑니다", 2),
                (242, 291, 2.5, "후진 이탈 · 도크 구역에서는 회전하지 않습니다", 3),
                (291, 331, 1.5, "패트롤로 복귀 · 업무를 계속 수행합니다", 4)],
          hl=None,
@@ -517,8 +518,8 @@ def render_intro(out, bgfr):
         (4.5, ov_team(560)),
     ]
     out.begin(xfade=False)
-    for k in range(8 * FPS):
-        t = k / FPS
+    for k in range(int((8 * FPS) / TEXT_SPEED)):
+        t = k * TEXT_SPEED / FPS
         fr = bg.copy()
         for t0, ov in els:
             ov.apply(fr, fade(t, t0))
@@ -533,9 +534,9 @@ def render_chapter(out, ch, src, thumbs):
     card_bg = whiten(first, 0.62, 4)
     card = ov_card(n, ch["code"], ch["title"], ch["card"], tag=ch.get("tag"))
     out.begin()
-    for k in range(CARD_S * FPS):
+    for k in range(int((CARD_S * FPS) / TEXT_SPEED)):
         fr = card_bg.copy()
-        card.apply(fr, fade(k / FPS, 0.2, 0.5))
+        card.apply(fr, fade(k * TEXT_SPEED / FPS, 0.2, 0.5))
         out.push(fr)
     # (b) 본 클립
     state_chip = ov_chip(ch["state_center"], y=24, align="center", size=17, weight=500) if ch.get("state_center") else None
@@ -594,10 +595,10 @@ def render_chapter(out, ch, src, thumbs):
         prog = ov_progress(PROCESS, -1, done | {n - 1}, counter="COMPLETE" if n == 8 else f"STEP {n:02d} / 08")
     bg = whiten(last, 0.25)
     out.begin()
-    for k in range(2 * FPS + 10):
+    for k in range(int((2 * FPS + 10) / TEXT_SPEED)):
         fr = bg.copy()
         prog.apply(fr)
-        badge.apply(fr, fade(k / FPS, 0.1, 0.3))
+        badge.apply(fr, fade(k * TEXT_SPEED / FPS, 0.1, 0.3))
         out.push(fr)
 
 
@@ -605,13 +606,13 @@ def render_data(out, bgfr):
     bg = whiten(bgfr, 0.75, 6)
     els = [
         (0.0, ov_data_left()),
-        (4.0, ov_data_item(0, "이동·인식·파지·도킹 등 태스크 스텝별 상태 데이터 자동 수집", "PostgreSQL에 로봇의 상태, 성공 여부, 실패 원인 등을 자동으로 저장합니다")),
-        (8.0, ov_data_item(1, "데이터 무결성(Integrity)을 보장하는 로그 적재", "magazine_log, stack_log에 적재합니다")),
+        (4.0, ov_data_item(0, "이동·인식·파지·도킹 등 태스크 스텝별 상태 데이터 자동 수집", "PostgreSQL에 로봇의 상태, 성공 여부, 실패 원인 등을 자동으로 저장")),
+        (8.0, ov_data_item(1, "데이터 무결성(Integrity)을 보장하는 로그 적재", "magazine_log, stack_log에 적재")),
         (12.0, ov_data_item(2, "Top-view 기반 전체 공정 및 개별 로봇 상태 실시간 모니터링", "로봇별 순찰(Patrol) 구역 및 타겟 객체에 대한 개별 작업 지시")),
     ]
     out.begin()
-    for k in range(17 * FPS):
-        t = k / FPS
+    for k in range(int((17 * FPS) / TEXT_SPEED)):
+        t = k * TEXT_SPEED / FPS
         fr = bg.copy()
         for t0, ov in els:
             ov.apply(fr, fade(t, t0))
@@ -643,8 +644,8 @@ def render_outro(out, bgfr, thumbs):
             thumb_ovs.append((1.0 + 1.4 * (len(thumb_ovs)), Ov(c)))
             x += tw + gap
     out.begin()
-    for k in range(19 * FPS):
-        t = k / FPS
+    for k in range(int((19 * FPS) / TEXT_SPEED)):
+        t = k * TEXT_SPEED / FPS
         fr = bg.copy()
         title.apply(fr, fade(t, 0.0))
         ul.apply(fr, fade(t, 0.0))
@@ -664,12 +665,15 @@ def main():
     ap.add_argument("--out", required=True)
     ap.add_argument("--ffmpeg", default=None)
     ap.add_argument("--only", type=int, default=None, help="챕터 하나만 렌더(테스트용)")
+    ap.add_argument("--text-speed", type=float, default=1.0,
+                    help="글자 화면(인트로·카드·배지·데이터·아웃트로)에만 곱할 배속")
     ap.add_argument("--robot-speed", type=float, default=1.0,
                     help="로봇 영상 구간에만 곱할 배속 (카드·배지·인트로·데이터·아웃트로는 그대로)")
     args = ap.parse_args()
     FONTS = Fonts(args.font)
-    global ROBOT_SPEED
+    global ROBOT_SPEED, TEXT_SPEED
     ROBOT_SPEED = args.robot_speed
+    TEXT_SPEED = args.text_speed
     ffmpeg = args.ffmpeg
     if not ffmpeg:
         import imageio_ffmpeg
