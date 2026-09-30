@@ -8,46 +8,10 @@ Isaac Sim 위의 가상 공장에서 **모바일 매니퓰레이터(Nova Carter 
 ## 1. 시스템 설계
 
 ### 1-1. 구성도
+<img width="1103" height="500" alt="image" src="https://github.com/user-attachments/assets/84bc4fe8-2564-49b6-9521-d6243079ccc5" />
 
-```mermaid
-flowchart LR
-    subgraph WEB["웹 관제"]
-        FE["React 프론트<br/>(Vite :5173)"]
-        BE["FastAPI 백엔드<br/>(:8000)"]
-        DB[("PostgreSQL")]
-    end
+<img width="1238" height="573" alt="image" src="https://github.com/user-attachments/assets/c9d4598c-c242-419c-a9c6-8dd42218aa64" />
 
-    subgraph ROS["ROS 2 Jazzy — 로봇 네임스페이스마다 한 벌 (/robot1, /robot2)"]
-        TM["task_manager<br/>(행동트리)"]
-        NAV["nav_server"]
-        PER["carrier_code_reader"]
-        MAN["pick_place_server"]
-        NAV2["Nav2 / AMCL"]
-    end
-
-    EL["event_logger<br/>(전역 1개)"]
-
-    subgraph SIM["Isaac Sim 5.1"]
-        SB["sim_backend.py<br/>(JSON-RPC :8765)"]
-        BR["ROS2 Bridge<br/>(OmniGraph)"]
-    end
-
-    FE -- "REST /api · WebSocket /ws" --> BE
-    BE -- "읽기/쓰기" --> DB
-    DB -- "NOTIFY trace_appended" --> BE
-    BE -- "ExecuteTask 액션<br/>RobotCommand · ReloadConfig 서비스" --> TM
-
-    TM -- "NavigateTo" --> NAV
-    TM -- "CarrierScan" --> PER
-    TM -- "PickCarrier / PlaceCarrier" --> MAN
-    TM -- "/trace/event" --> EL
-    EL -- "INSERT" --> DB
-
-    NAV -- "cmd_vel" --> BR
-    NAV2 <-- "/clock · odom · lidar · TF" --> BR
-    PER -- "JSON-RPC" --> SB
-    MAN -- "JSON-RPC" --> SB
-```
 
 - **Isaac Sim 과 ROS 는 프로세스가 분리돼 있다.** Isaac 의 kit 파이썬(3.11)에서는 시스템
   ROS 2 Jazzy(3.12)의 `rclpy` 를 쓸 수 없어서, 팔 동작·카메라 캡처는 TCP JSON-RPC 로,
@@ -57,29 +21,8 @@ flowchart LR
   WebSocket 으로 흘려보낸다. 자세한 내용은 [`web/backend/README.md`](web/backend/README.md).
 
 ### 1-2. 미션 플로우 차트
+<img width="483" height="440" alt="image" src="https://github.com/user-attachments/assets/a5301487-a8fc-4a83-b2ed-b1d67250949d" />
 
-```mermaid
-flowchart TD
-    S([도크에서 출발]) --> P["선반 순찰<br/>(팔을 관측 자세로)"]
-    P --> D{QR 감지?}
-    D -- 아니오 --> P
-    D -- 예 --> H["정지 (HOLD)"]
-    H --> SC["QR 판독 (CarrierScan)"]
-    SC --> F{판독 성공?}
-    F -- 아니오 --> P
-    F -- 예 --> PK["손목캠 보정 후 흡착 pick"]
-    PK --> N["공정 스테이션으로 주행"]
-    N --> L{로더 차선이<br/>비었나?}
-    L -- 아니오 --> W["대기 자리에서 양보"]
-    W --> L
-    L -- 예 --> PL["매거진 place"]
-    PL --> ST{산출물 스택이<br/>있나?}
-    ST -- 예 --> SP["스택 pick"]
-    SP --> T["검사 스테이션에 place"]
-    T --> R["선반으로 복귀"]
-    ST -- 아니오 --> R
-    R --> P
-```
 
 각 단계(`pick`·`nav`·`place`·`return`)는 `/trace/event` 로 발행되고 `event_logger` 가 DB 에 기록한다.
 
