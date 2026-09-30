@@ -8,6 +8,8 @@ Isaac Sim 위의 가상 공장에서 **모바일 매니퓰레이터(Nova Carter 
 ## 1. 시스템 설계
 
 ### 1-1. 구성도
+<img width="1099" height="520" alt="image" src="https://github.com/user-attachments/assets/f8200861-3232-43d8-ad40-01160c3c8e38" />
+<img width="1238" height="573" alt="image" src="https://github.com/user-attachments/assets/c9d4598c-c242-419c-a9c6-8dd42218aa64" />
 
 ```mermaid
 flowchart LR
