@@ -61,6 +61,8 @@ CHAPTERS = [
          sub="패트롤 좌표 왕복 · QR 탐색 → 정차 · 판독",
          state="state=patrol → hold → scan",
          # 0–10 팔 인식 자세(현재의 0.5배), 10–66 느린 주행은 뒷부분(66–91) 화면 속도에 맞춰 12×
+         pre=[dict(clip="qr", a=0, b=11.5, speed=0.75, crop=(0, 30, 1206, 675),
+                   sub="손목 카메라로 QR을 관측하면\n그 자리에 정차합니다", chip="손목 카메라 시점")],
          segs=[(0, 10, 3.75), (10, 66, 15), (66, 90.7, 3.75)],
          hl=None,  # v6: 패트롤 REPLAY 삭제
          badge=("✓ 02 Patrol 완료", "QR 탐색 → 정차 → 판독")),
@@ -68,6 +70,10 @@ CHAPTERS = [
          card="멈춘 그 자리에서 판독한 위치로 로봇팔을 움직여\n흡착 그리퍼로 매거진을 집습니다.",
          sub="흡착 그리퍼 · 매거진 파지",
          state="state=pick detected=True",
+         pre=[dict(clip="pickcam", a=0, b=5, speed=1.0,
+                   sub="플랜지 위에서 먼저 관측합니다", chip="손목 카메라 시점"),
+              dict(clip="pickcam", a=5, b=21.85, speed=0.85,
+                   sub="포인트 클라우드로 상부를 분리해\n흡착을 시도합니다", chip="손목 카메라 시점")],
          segs=[(0, 33.9, 2.25)],
          hl=None,
          badge=("✓ 03 Pick 완료", "매거진 파지")),
@@ -123,6 +129,19 @@ CHAPTERS = [
          hl=None,
          badge=("✓ Docking 완료", "충전 후 패트롤 복귀")),
 ]
+
+
+# ── 추가 소스 (번호 없는 파일명 — glob 으로 찾는다) ────────────────────
+EXTRA_CLIPS = {
+    "qr": "*qr*.webm",                      # 손목 카메라: 순찰 중 QR 관측 → 정차
+    "pickcam": "*troubleshooting*pick*.webm",  # 손목 카메라: 플랜지 위 관측 → 상부 분리 → 흡착
+    "web": "*___1.mp4",                      # 웹 관제 + Isaac Sim 화면 녹화 (3440×1440)
+}
+WEB_SPEED = 30.0  # 웹 관제 화면 배속 (ROBOT_SPEED 와 무관)
+WEB_MAIN_CROP = (64, 267, 1747, 1213)           # 왼쪽: 웹 관제 페이지 (사이드바·CCTV·로봇 카드)
+WEB_PIP_CROP_EARLY = (1805, 236, 2927, 867)     # 오른쪽: Isaac Sim 뷰포트 (레이아웃 변경 전)
+WEB_PIP_CROP_LATE = (1804, 300, 2696, 804)      # 530 s 이후 레이아웃이 바뀐 뒤의 뷰포트
+WEB_PIP_SWITCH_S = 530.0
 
 
 # ── 폰트 ────────────────────────────────────────────────────────────────
@@ -400,8 +419,9 @@ class Src:
     """webm(GStreamer matroskamux)은 타임스탬프가 불규칙하고 시간 탐색이 안 된다.
     그래서 순차 디코딩만 쓴다. 뒤로 가야 하면 파일을 다시 연다."""
 
-    def __init__(self, path):
+    def __init__(self, path, crop=None):
         self.path = path
+        self.crop = crop
         self._open()
         fps = self.cap.get(cv2.CAP_PROP_FPS) or 30.0
         cnt = self.cap.get(cv2.CAP_PROP_FRAME_COUNT)
@@ -429,11 +449,19 @@ class Src:
                 break
         return self.last
 
-    def frames(self, a, b, speed, zoom=1.0):
+    def raw_frames(self, a, b, speed):
         b = min(b, self.dur - 0.05)
         n = max(1, int(round((b - a) * FPS / speed)))
         for k in range(n):
-            fr = self.frame_at(a + k * speed / FPS)
+            t = a + k * speed / FPS
+            yield t, self.frame_at(t)
+
+    def frames(self, a, b, speed, zoom=1.0, crop=None):
+        crop = crop or self.crop
+        for _, fr in self.raw_frames(a, b, speed):
+            if crop:
+                x0, y0, x1, y1 = crop
+                fr = fr[y0:y1, x0:x1]
             yield fit(fr, zoom)
 
 
@@ -526,7 +554,7 @@ def render_intro(out, bgfr):
         out.push(fr)
 
 
-def render_chapter(out, ch, src, thumbs):
+def render_chapter(out, ch, src, thumbs, extra_srcs=None):
     n = ch["n"]
     is_dock = n == 9
     first = fit(src.frame_at(ch["segs"][0][0]))
@@ -544,6 +572,22 @@ def render_chapter(out, ch, src, thumbs):
     prog_cache = {}
     thumb = None
     out.begin()
+    # (b-0) 앞에 끼우는 다른 시점 클립 (손목 카메라 등)
+    prog_pre = None if is_dock else ov_progress(PROCESS, n - 1, done, counter=f"STEP {n:02d} / 08")
+    for pre in ch.get("pre", []):
+        psrc = (extra_srcs or {}).get(pre["clip"])
+        if psrc is None:
+            continue
+        ppanel = ov_step_panel(n, ch["title"], pre["sub"])
+        pchip = ov_chip(pre["chip"], y=24, align="left", size=17) if pre.get("chip") else None
+        for fr in psrc.frames(pre["a"], pre["b"], pre["speed"] * ROBOT_SPEED, crop=pre.get("crop")):
+            ppanel.apply(fr)
+            if prog_pre is not None:
+                prog_pre.apply(fr)
+            if pchip is not None:
+                pchip.apply(fr, 0.95)
+            out.push(fr)
+        out.begin()
     for seg in ch["segs"]:
         a, b, speed = seg[0], seg[1], seg[2] * ROBOT_SPEED
         sub = seg[3] if len(seg) > 3 else ch["sub"]
@@ -599,6 +643,26 @@ def render_chapter(out, ch, src, thumbs):
         fr = bg.copy()
         prog.apply(fr)
         badge.apply(fr, fade(k * TEXT_SPEED / FPS, 0.1, 0.3))
+        out.push(fr)
+
+
+def render_web(out, src):
+    """웹 관제 녹화: 왼쪽(웹 페이지)을 메인으로, 오른쪽(Isaac Sim 뷰포트)은 잘라서 우하단 1/4 크기."""
+    pw, ph = W // 2, H // 2
+    px, py = W - pw, H - ph
+    top = ov_chip("웹 관제 화면 · 실시간 모니터링 (30배속)", y=24, align="center", size=17)
+    pip_lab = ov_chip("Isaac Sim", y=py + 12, size=14, x=px + 12)
+    border = np.array(C["line"][::-1], dtype=np.uint8)
+    out.begin()
+    for t, raw in src.raw_frames(0.0, src.dur, WEB_SPEED):
+        x0, y0, x1, y1 = WEB_MAIN_CROP
+        fr = cv2.resize(raw[y0:y1, x0:x1], (W, H), interpolation=cv2.INTER_AREA)
+        x0, y0, x1, y1 = WEB_PIP_CROP_EARLY if t < WEB_PIP_SWITCH_S else WEB_PIP_CROP_LATE
+        fr[py:, px:] = cv2.resize(raw[y0:y1, x0:x1], (pw, ph), interpolation=cv2.INTER_AREA)
+        fr[py - 3:py, px - 3:] = border
+        fr[py:, px - 3:px] = border
+        top.apply(fr, 0.95)
+        pip_lab.apply(fr, 0.95)
         out.push(fr)
 
 
@@ -689,6 +753,13 @@ def main():
     if missing:
         sys.exit(f"클립 없음: {missing}")
     srcs = {k: Src(v) for k, v in clips.items()}
+    extra_srcs = {}
+    for name, pat in EXTRA_CLIPS.items():
+        hits = sorted(glob.glob(os.path.join(args.clips, pat)))
+        if hits:
+            extra_srcs[name] = Src(hits[0])
+        else:
+            print(f"추가 클립 없음 (건너뜀): {name} ({pat})", flush=True)
 
     out = Out(ffmpeg, args.out)
     thumbs = []
@@ -697,9 +768,13 @@ def main():
         render_intro(out, fit(srcs[1].frame_at(2.0)))
     for ch in chapters:
         print(f"chapter {ch['n']} {ch['title']}", flush=True)
-        render_chapter(out, ch, srcs[ch["clip"]], thumbs)
+        render_chapter(out, ch, srcs[ch["clip"]], thumbs, extra_srcs)
     if args.only is None:
         render_data(out, fit(srcs[6].frame_at(30.0)))
+    if (args.only is None or args.only == 10) and "web" in extra_srcs:
+        print("web monitoring", flush=True)
+        render_web(out, extra_srcs["web"])
+    if args.only is None:
         render_outro(out, fit(srcs[1].frame_at(2.0)), thumbs)
     out.close()
     print(f"done: {out.n} frames = {out.n / FPS:.1f} s -> {args.out}")
