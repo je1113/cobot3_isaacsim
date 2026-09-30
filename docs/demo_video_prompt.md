@@ -330,3 +330,18 @@ python3 docs/demo_video/build_demo.py --clips <클립 폴더> --font NotoSansKR.
 **데이터 섹션**
 - 제목 `물류 이력 추적(Traceability) 및 관제 DB`
 - ① 이동·인식·파지·도킹 등 태스크 스텝별 상태 데이터 자동 수집 ② 데이터 무결성(Integrity)을 보장하는 로그 적재 ③ Top-view 기반 전체 공정 및 개별 로봇 상태 실시간 모니터링 — 로봇별 순찰(Patrol) 구역 및 타겟 객체에 대한 개별 작업 지시
+
+---
+
+## 7. 최종본 빌드 명령
+
+v3~v5·최종 피드백은 전부 `docs/demo_video/build_demo.py` 에 반영돼 있다. 최종본은 아래 한 줄로 다시 만든다.
+
+```bash
+python3 docs/demo_video/build_demo.py --clips <클립 폴더> --font NotoSansKR.ttf \
+    --robot-speed 2 --text-speed 1.25 --out demo_final.mp4
+```
+
+- `--robot-speed 2`: 로봇 영상(본 클립)만 스크립트 설정의 2배속.
+- `--text-speed 1.25`: 인트로·챕터 카드·완료 배지·데이터·아웃트로만 1.25배속.
+- 하이라이트(REPLAY)는 전부 삭제됐다. 도킹 충전 구간은 7.5 s.
