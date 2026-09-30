@@ -15,7 +15,7 @@ setup(
     zip_safe=True,
     maintainer='may',
     maintainer_email='maymayko9559@gmail.com',
-    description='TODO: Package description',
+    description='전역 docking_server — /docking/dock 액션. 도크 접점·충전 대기(시뮬은 타이머).',
     license='Apache-2.0',
     extras_require={
         'test': [
@@ -24,6 +24,7 @@ setup(
     },
     entry_points={
         'console_scripts': [
+            'docking_server = cobot3_docking.docking_server:main',
         ],
     },
 )

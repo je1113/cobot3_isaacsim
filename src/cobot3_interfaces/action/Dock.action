@@ -1,0 +1,49 @@
+# ══════════════════════════════════════════════════════════════════════
+#  보내는 노드 : cobot3_orchestrator / task_manager   (로봇마다 한 벌)
+#  받는 노드   : cobot3_docking / docking_server        (★ 전역 1개)
+#  종류        : 액션  /docking/dock                     (★ 절대이름)
+#  역할        : "이 로봇을 자기 도크 자리에 붙이고 충전이 끝날 때까지 기다려라."
+#  전달 내용   : goal: robot_name  /  result: success · fail_reason  /  feedback: charge_pct
+# ══════════════════════════════════════════════════════════════════════
+
+# ★ 주행은 여기 없다. 도크 앞까지 가는 것은 task_manager 가 NavigateTo(DOCK_NAV)
+#   와 patrol_to(DOCK_IN, 직진 2 m)로 끝낸 뒤다. 이 액션은 "도착한 다음" 만 맡는다 —
+#   접점 붙이기 · 충전 대기. 시뮬(Isaac)에는 배터리가 없어 전부 타이머다:
+#   docking_server 의 charge_duration_s 만큼 기다리면 충전 완료로 본다.
+#   실기로 가면 이 서버 안에서 opennav_docking 을 부르는 것으로 바뀌고,
+#   task_manager 쪽은 손대지 않는다.
+#
+# ★ 이 액션만 절대이름이고 robot_name 필드가 있는 이유 (docs/02 §2):
+#   다른 서버(navigate_to · pick_carrier · carrier_scan)는 로봇 네임스페이스마다
+#   한 벌씩 떠서 "누가" 를 배선이 보장한다. docking_server 는 도크가 공용
+#   자원이라 전역 1개로 두므로, 네임스페이스 밖에 있는 유일한 서버다. 그래서
+#   식별자가 필드로 올라온다. 자리는 로봇마다 고정이다(frames.yaml dock_pads).
+#
+# ★ 두 goal 을 동시에 받을 수 있어야 한다 — 두 로봇이 각자 자기 자리에서
+#   병렬로 충전한다. rclpy ActionServer 기본은 순차라 서버가 ReentrantCallbackGroup
+#   을 쓴다. 자리 다툼(선점)은 없다 — 자리가 고정이라 다른 로봇이 그 자리에
+#   갈 경로 자체가 없다.
+#
+# ★ result 는 bool success + uint8 fail_reason 모양이어야 한다. task_manager 의
+#   ActionLeaf 가 success=false 면 result.fail_reason 을 무조건 읽는다 — 필드가
+#   없으면 AttributeError 로 tick 이 죽는다(docs/02 §3-1).
+
+# ── goal ──
+string  robot_name          # "robot1" | "robot2". task_manager 의 네임스페이스 그대로.
+float32 charge_target_pct   # 0 이면 서버 기본값(100). 시뮬에서는 타이머 비율만 바꾼다.
+---
+# ── result ──
+uint8 NONE=0
+uint8 UNKNOWN_ROBOT=1       # dock_pads 에 이 robot_name 이 없다 (frames.yaml 과 어긋남)
+uint8 NO_CONTACT=2          # 접점을 못 붙였다 — 시뮬에서는 안 난다. 실기용 자리.
+uint8 TIMEOUT=3             # 서버 쪽 한도(dock_timeout_s) 안에 충전이 안 끝났다
+uint8 CANCELED=4            # task_manager 가 거뒀다 (STOP · PAUSE). 실패가 아니다.
+
+bool    success
+uint8   fail_reason
+float32 charge_pct          # 끝났을 때의 충전량. CANCELED 면 그 시점 값 — 부분 충전은
+                            # 1차에서 인정하지 않는다(task_manager 가 타이머를 리셋 안 함).
+---
+# ── feedback ──
+float32 charge_pct          # 0 → 100. 웹이 "충전 중 nn%" 로 보여줄 수 있다.
+float32 remaining_s         # 완료까지 남은 초 (시뮬 타이머 기준)

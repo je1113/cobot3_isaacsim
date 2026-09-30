@@ -68,8 +68,17 @@
   sim_backend 도 로봇 둘을 안다(RobotRig). pick_place_server 와
   carrier_code_reader 가 자기 네임스페이스를 robot_id 로 실어 보낸다.
 
-  예외 하나: docking_server 는 도크가 공용 자원이라 전역 1개로 두고
-  /docking/dock 만 절대이름이 된다. 아직 미구현이라 이 launch 에 없다.
+  예외 하나: docking_server(cobot3_docking) 는 도크가 공용 자원이라 전역 1개로
+  두고 /docking/dock 만 절대이름이 된다. 이 launch 가 event_logger 와 같은
+  자리에서 하나 띄운다(docking_server:=false 로 끌 수 있다 — 둘째 launch 용).
+  도크 자리는 frames.yaml dock_pads 가 주인이고 task_manager · docking_server
+  둘이 같은 절을 읽는다. 아래 DOCK_ROUTE_BY_ROBOT 는 옛 판의 기록일 뿐이다.
+
+★ 충전(도킹) 파라미터 — docs/도킹스테이션구현.md
+  task_manager   soft_threshold_s(900) · hard_threshold_s(0) · charge_duration_s(60)
+                 · frames_yaml. 시뮬에는 배터리가 없어 가동시간 타이머다.
+  docking_server charge_duration_s(60) · frames_yaml. 둘의 charge_duration_s 는
+                 같은 값이어야 한다(task_manager 의 DOCK timeout 이 이 값 + 60 s).
 """
 
 import os
@@ -156,7 +165,9 @@ STAGING_BY_ROBOT = {
 # 로더(또는 검사 스테이션) → 도크. 마지막 점이 도크이고 씬의 시작 자세와 같다.
 # 둘째 점은 자기 줄 위이고 이웃 줄과 0.98 m 떨어져 있어, 거기서 도는 꼬리
 # 스윕(0.656 m)이 이웃을 안 친다.
-# ☞ 지금은 안 넘어간다 (받는 파라미터가 없다).
+# ☞ 지금은 안 넘어간다 (받는 파라미터가 없다). 2026-09-28 도킹 구현은 이 표를
+#   쓰지 않는다 — 도크 자리는 frames.yaml dock_pads(yaw 0, 전진 진입)가 주인이고
+#   task_manager 가 Nav2(대기점 2 m 앞) + patrol_to 직진으로 들어간다.
 DOCK_ROUTE_BY_ROBOT = {
     "robot1": [3.0, -4.6, 90.0,   3.0, -6.3, 180.0,     5.5, -6.591, 180.0],
     "robot2": [3.0, -4.6, 90.0,   3.0, -7.575, 180.0,   5.5, -7.575, 180.0],
@@ -242,6 +253,36 @@ def _nav_server_params():
 
 
 # ══════════════════════════════════════════════════════════════════════════
+#  충전(도킹) — 2026-09-28. docs/도킹스테이션구현.md 의 결정값.
+#
+#  시뮬에는 배터리가 없어 task_manager 가 가동시간 타이머를 배터리로 쓴다
+#  (NavigateTo.action 머리주석의 세 파라미터).
+#    soft_threshold_s   첫 출발(START 성공) 뒤 이만큼 지나면 "충전 필요". 하던 일은
+#                       끊지 않고 place 를 마친 뒤(또는 순찰·대기 중이면 바로) 도크로.
+#                       900 = 15 분 — 매거진 → 로더 → 스택 회수까지 한 바퀴가 그쯤이다.
+#    hard_threshold_s   즉시 중단 문턱. 0 = 미사용. 캐리어를 든 채 끊는 경로는 안 만든다.
+#    charge_duration_s  도크에 이만큼 서 있으면 충전 완료. 60 = 1 분 (시연 리듬).
+#                       ★ docking_server 와 같은 값이어야 한다 — task_manager 의 DOCK
+#                         잎 timeout 이 이 값 + 60 s 라, 서버가 더 오래 잡으면 얼어붙는다.
+#  도크 자리는 frames.yaml dock_pads 가 주인이다(두 노드가 같은 파일을 읽는다).
+# ══════════════════════════════════════════════════════════════════════════
+
+SOFT_THRESHOLD_S = 60.0
+HARD_THRESHOLD_S = 0.0
+CHARGE_DURATION_S = 60.0
+
+
+def _docking_params():
+    return {"soft_threshold_s": SOFT_THRESHOLD_S,
+            "hard_threshold_s": HARD_THRESHOLD_S,
+            "charge_duration_s": CHARGE_DURATION_S}
+
+
+def _docking_server_params():
+    return {"charge_duration_s": CHARGE_DURATION_S}
+
+
+# ══════════════════════════════════════════════════════════════════════════
 #  carrier_code_reader 파라미터
 #
 #  순찰 중 QR 폴링 — 곧 "주행 중에 팔을 관측 자세로 올릴지" 다.
@@ -306,12 +347,15 @@ def _task_manager_params(ns, namespaces):
     #       reload_service · execute_task_action · wait_for_task · empty_sweeps
     #       observe_pose_service · peer_state_topic · peer_pose_topic
     #       loader_clear_radius_m · peer_busy_stages · staging_pose · start_delay_s
+    #       frames_yaml · soft_threshold_s · hard_threshold_s · charge_duration_s
     params = {
         # 로더 차선이 막혔을 때 비켜 서는 자리. 로봇마다 달라야 한다 —
         # 같은 점을 쓰면 대기 자리에서 둘이 부딪힌다(STAGING_BY_ROBOT 주석).
         "staging_pose": STAGING_BY_ROBOT[ns],
         # 순찰 출발 시차 (START_DELAY_BY_ROBOT 주석)
         "start_delay_s": float(START_DELAY_BY_ROBOT.get(ns, 0.0)),
+        # 충전(도킹) 타이머 — 위 SOFT_THRESHOLD_S 절. 도크 좌표는 안 넘긴다(frames.yaml).
+        **_docking_params(),
     }
 
     peer = PEER_OF.get(ns)
@@ -396,6 +440,19 @@ def _setup(context):
             output="screen",
             parameters=[{"db_dsn": db_dsn}],
         ))
+
+    # ★ docking_server 도 네임스페이스 없이 전역 1개다 (docs/02 §2).
+    #   /docking/dock 이 절대이름이라 두 task_manager 가 같은 서버를 부르고,
+    #   Dock.action 의 robot_name 으로 자기를 말한다. 자리는 frames.yaml dock_pads.
+    #   event_logger 와 같은 이유로 둘째 launch 에서는 docking_server:=false.
+    if _as_bool(LaunchConfiguration("docking_server").perform(context)):
+        nodes.append(Node(
+            package="cobot3_docking",
+            executable="docking_server",
+            name="docking_server",
+            output="screen",
+            parameters=[_docking_server_params()],
+        ))
     return nodes
 
 
@@ -410,6 +467,10 @@ def generate_launch_description():
             description="전역 event_logger 를 이 launch 가 띄울지. 이 launch 를 "
                         "두 번 나눠 띄울 때(로봇 시차 출발) 둘째에 false 를 줘서 "
                         "같은 이름의 노드가 둘이 되는 것을 막는다."),
+        DeclareLaunchArgument(
+            "docking_server", default_value="true",
+            description="전역 docking_server(/docking/dock) 를 이 launch 가 띄울지. "
+                        "event_logger 와 같은 이유로 둘째 launch 에 false 를 준다."),
         DeclareLaunchArgument(
             "robots", default_value="robot1",
             description="미션 노드를 띄울 로봇 네임스페이스. 쉼표로 여러 개 "

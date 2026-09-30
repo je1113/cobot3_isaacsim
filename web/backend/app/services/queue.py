@@ -181,6 +181,19 @@ async def patch(task_id: int, robot_id: str | None, queue_order: int | None) -> 
     return updated
 
 
+async def move_to_head(task_id: int, robot_id: str) -> dict | None:
+    """QUEUED 작업을 다른 로봇 큐의 맨 앞으로 옮긴다.
+
+    dispatcher 가 쓴다 — 충전(도킹) 중인 로봇이 RECOVER 를 거절했을 때 상대에게
+    넘기는 경로(2026-09-28). patch() 의 "QUEUED 만 옮길 수 있다" 규칙을 그대로
+    탄다. 이미 QUEUED 가 아니면(사람이 그 사이 지웠거나 STOP) None.
+    """
+    row = await get(task_id)
+    if row["status"] != "QUEUED":
+        return None
+    return await patch(task_id, robot_id=robot_id, queue_order=await _head(robot_id))
+
+
 # ── 취소 (4.5) ───────────────────────────────────────────────────────
 async def cancel(task_id: int) -> str:
     """화면에서 무슨 상태든 강제로 지운다. 돌려주는 값은 지우기 전 상태.
