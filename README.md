@@ -166,10 +166,16 @@ npm run dev
 ## 6.핵심 모션
 ### 6-1. 주행 시 장애물 회피
 <img width="720" height="385" alt="노드별기능및통신3_1_왼쪽_장애물회피" src="https://github.com/user-attachments/assets/a53878e0-475a-401a-aa7a-d044ba829e10" />
+
+
 ### 6-2. Patrol중 QR인식 후 정차
 <img width="640" height="358" alt="노드별기능및통신2_패트롤중qr인식돼서멈춤_로봇팔시점" src="https://github.com/user-attachments/assets/4bd3f3fd-adbe-4d63-8258-0c24afbacaa7" />
+
+
 ### 6-3. QR인식 후 PICK
 <img width="720" height="433" alt="3_노드별기능및통신3_2_왼쪽_매거진pick" src="https://github.com/user-attachments/assets/f10dc156-fdaf-474a-8182-e13995995ee0" />
+
+
 ### 6-4. place
 <img width="720" height="385" alt="6_노드별기능및통신3_2_오른쪽_place" src="https://github.com/user-attachments/assets/5e114f2c-a84c-479e-93f8-f58d1f320805" />
 
