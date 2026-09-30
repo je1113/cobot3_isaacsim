@@ -1,4 +1,6 @@
 # rokey_cobot3 — AMR 매거진 이송 관제 (Isaac Sim)
+<img width="1209" height="666" alt="반도체 후공정 라인의 부품 캐리어 이송·피킹 시스템" src="https://github.com/user-attachments/assets/58a5e47f-88f0-45fe-ab8d-0c1ce779a04b" />
+
 
 Isaac Sim 위의 가상 공장에서 **모바일 매니퓰레이터(Nova Carter + Doosan M0609) 2대**가
 선반을 순찰하며 QR 로 매거진을 찾아 집고, 공정 스테이션으로 옮겨 놓은 뒤,
